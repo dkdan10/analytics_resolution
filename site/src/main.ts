@@ -198,10 +198,13 @@ function bindTalkKeys(clock: TalkClock, schedule: Schedule): void {
  *  Lets the talk open on a beat, and lets any frame be re-examined exactly. */
 function startOffset(schedule: Schedule): number {
   const q = new URLSearchParams(location.search);
-  const year = q.get("year");
-  if (year !== null) return seekTo(Number(year), schedule);
-  const t = q.get("t");
-  if (t !== null) return Number(t);
+  // A bad value must never reach the clock: NaN propagates through every
+  // downstream comparison, freezes the piece on one frame, and in exhibit mode
+  // there is no key to press to get it back.
+  const year = Number(q.get("year"));
+  if (Number.isFinite(year) && schedule.byYear.has(year)) return seekTo(year, schedule);
+  const t = Number(q.get("t"));
+  if (Number.isFinite(t)) return ((t % schedule.duration) + schedule.duration) % schedule.duration;
   return 0;
 }
 

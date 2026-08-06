@@ -1,16 +1,25 @@
 /** The texture ladder: grain is a measurement, not a mood.
  *
- * Every material property of a mark derives from something measured about that
- * era's record (pipeline/aggregate.py, `resolution`), never from taste:
+ * What the measurement actually covers matters, and an earlier version of this
+ * file overstated it. The four regimes in `resolution` are measured ONLY over
+ * restricted-area shots - whether the record would say *where at the rim* a
+ * layup happened. Away from the rim the record's precision is a constant 0.1 ft
+ * in all thirty seasons and all thirty buildings (CLAUDE.md ground truth), and
+ * the approved plan rejects coordinate precision as a driver for exactly that
+ * reason. So the grain claims only what is measured:
  *
- *   uniformly_blind      the record knows roughly, everywhere - one coarse hand
- *   uneven               it depended on the building - sharp marks from arenas
- *                        that recorded rim coordinates, coarse from the rest
- *   uniformly_sighted    every arena places every shot - one fine hand
- *   categorical_refusal  fine, but a small class of shots is refused a place
+ *   at the rim    the era's regime decides how a shot is drawn, because that is
+ *                 where the regime was measured. In the uneven era the building
+ *                 decides, so shots from arenas that recorded rim coordinates
+ *                 are placed and the rest are in the pin.
+ *   off the rim   every mark, every era, is drawn at the same fineness, because
+ *                 the record placed them all to the same tenth of a foot.
  *
- * Shots the record filed at the origin are never scattered apart to make the
- * chart look right. They are drawn as what they are: one pile, at one point.
+ * The era ladder is carried by the thing that genuinely changed: how much of
+ * the plate the record refused to place. In 1996-97 that is a third of it.
+ *
+ * Shots filed at the origin are never scattered apart to make the chart look
+ * right. They are drawn as what they are: one pile, at one point.
  */
 
 import type { Sample, Season } from "./data";
@@ -18,9 +27,13 @@ import { BONE_RGB } from "./palette";
 import type { View } from "./plate";
 
 interface Hand {
-  /** Mark radius in px at unit scale. */
+  /** Mark radius in COURT units (tenths of a foot), so a mark is the same size
+   *  on the floor at any window size - the era's grain must not depend on the
+   *  display it is shown on. */
   radius: number;
-  /** 0 = hard edge, 1 = fully diffuse. Stands for positional confidence. */
+  /** 0 = hard edge, 1 = fully diffuse. Stands for how definitely the record
+   *  placed this KIND of shot in this era - not for confidence in this mark's
+   *  coordinate, which is a constant 0.1 ft throughout. */
   softness: number;
   alpha: number;
 }
@@ -32,30 +45,48 @@ interface Hand {
  * data" instead of "a better record", which would be the opposite of true:
  * every season here is the same 2,000-dot sample of a full season.
  */
-const INK = 1.85;
+const INK = 9.0;
 
 function hand(radius: number, softness: number): Hand {
-  return { radius, softness, alpha: Math.min(0.95, INK / (radius * radius)) };
+  // Alpha is set later, once the sprite's actual deposited light is measured -
+  // a gradient's integral is not alpha*r^2, and deriving it by hand is how the
+  // diffuse mark ended up a third brighter than the tight one.
+  return { radius, softness, alpha: 1 };
 }
 
-/** Placed to the tenth of a foot: a tight mark, high confidence. */
-const SHARP: Hand = hand(1.6, 0.3);
-/** The record knows roughly: the same ink, spread wide. */
-const COARSE: Hand = hand(3.1, 0.95);
+/** Placed to the tenth of a foot: a tight mark. */
+const SHARP: Hand = hand(1.7, 0.3);
+/** A shot the record of this era placed only loosely: the same ink, spread wide. */
+const COARSE: Hand = hand(3.3, 0.95);
+
+/** Where the regime was measured: the restricted area, 4 ft from the hoop. */
+const RESTRICTED_R_TENTHS = 40;
 
 /** The pin is the densest thing on the plate - it has to be, it is a pile. */
 const PIN_CORE_ALPHA = 0.62;
 
-const spriteCache = new Map<string, HTMLCanvasElement>();
+interface Stamp {
+  canvas: HTMLCanvasElement;
+  /** Draw size in CSS px. */
+  size: number;
+  /** Multiplier that makes this stamp deposit exactly INK. */
+  gain: number;
+}
 
-/** Pre-render a mark so soft edges cost nothing per dot. */
-function sprite(hand: Hand, dpr: number): HTMLCanvasElement {
-  const key = `${hand.radius}|${hand.softness}|${hand.alpha}|${dpr}`;
-  const hit = spriteCache.get(key);
+const stampCache = new Map<string, Stamp>();
+
+/** Pre-render a mark so soft edges cost nothing per dot, and measure the light
+ *  it deposits so every hand can be normalised to the same total. */
+function stamp(hand: Hand, pxPerTenth: number, dpr: number): Stamp {
+  const key = `${hand.radius}|${hand.softness}|${pxPerTenth.toFixed(3)}|${dpr}`;
+  const hit = stampCache.get(key);
   if (hit) return hit;
 
-  const r = hand.radius * dpr;
-  const pad = Math.ceil(r * 3) + 2;
+  // Radius is in court tenths; convert once, here, so the mark keeps its size
+  // on the floor whatever the window does.
+  const rCss = Math.max(0.6, hand.radius * pxPerTenth);
+  const r = rCss * dpr;
+  const pad = Math.ceil(r * (1 + hand.softness * 2)) + 2;
   const size = pad * 2;
   const c = document.createElement("canvas");
   c.width = size;
@@ -64,22 +95,41 @@ function sprite(hand: Hand, dpr: number): HTMLCanvasElement {
 
   const grad = g.createRadialGradient(pad, pad, 0, pad, pad, Math.max(r, 0.5) * (1 + hand.softness * 2));
   const core = Math.max(0.02, 1 - hand.softness);
-  grad.addColorStop(0, `rgba(${BONE_RGB}, ${hand.alpha})`);
-  grad.addColorStop(core, `rgba(${BONE_RGB}, ${hand.alpha * 0.55})`);
+  grad.addColorStop(0, `rgba(${BONE_RGB}, 1)`);
+  grad.addColorStop(core, `rgba(${BONE_RGB}, 0.55)`);
   grad.addColorStop(1, `rgba(${BONE_RGB}, 0)`);
   g.fillStyle = grad;
   g.fillRect(0, 0, size, size);
 
-  spriteCache.set(key, c);
-  return c;
+  // Measure rather than derive: sum the alpha the stamp actually lays down.
+  const data = g.getImageData(0, 0, size, size).data;
+  let sum = 0;
+  for (let i = 3; i < data.length; i += 4) sum += data[i]!;
+  const deposited = sum / 255 / (dpr * dpr); // in CSS px
+  const out: Stamp = {
+    canvas: c,
+    size: size / dpr,
+    gain: Math.min(0.95, INK / Math.max(deposited, 1e-6)),
+  };
+  stampCache.set(key, out);
+  return out;
 }
 
-/** Which hand drew a given dot, from the season's measured regime. */
-function handFor(season: Season, hires: boolean): Hand {
+/**
+ * Which hand drew a given dot.
+ *
+ * The regime is measured over restricted-area shots only, so it decides only
+ * those. Everywhere else the record placed the shot to a tenth of a foot in
+ * every season and every building, and the mark says so.
+ */
+function handFor(season: Season, hires: boolean, x: number, y: number): Hand {
+  if (Math.hypot(x, y) > RESTRICTED_R_TENTHS) return SHARP;
   switch (season.resolution.regime) {
     case "uniformly_blind":
       return COARSE;
     case "uneven":
+      // In this era it is the building, not the shot: an arena that recorded
+      // rim coordinates placed this one, and the rest are in the pin.
       return hires ? SHARP : COARSE;
     default:
       return SHARP;
@@ -102,14 +152,14 @@ export function drawMarks(
   const { dpr, opacity } = opts;
   if (opacity <= 0.001) return;
 
-  const sharpSprite = sprite(SHARP, dpr);
-  const coarseSprite = sprite(COARSE, dpr);
+  const sharp = stamp(SHARP, view.scale, dpr);
+  const coarse = stamp(COARSE, view.scale, dpr);
 
   ctx.save();
-  ctx.globalAlpha = opacity;
   ctx.globalCompositeOperation = "lighter";
 
   const n = sample.n;
+  let current: Stamp | null = null;
   for (let i = 0; i < n; i++) {
     // Origin-filed shots are held back for the pin; drawing them as dots would
     // stack 680 marks on one pixel and read as a rendering bug rather than the
@@ -117,11 +167,13 @@ export function drawMarks(
     if (sample.pin[i] === 1) continue;
     const x = sample.x[i]!;
     const y = sample.y[i]!;
-    const hand = handFor(season, sample.hires[i] === 1);
-    const img = hand === SHARP ? sharpSprite : coarseSprite;
-    const w = img.width / dpr;
-    const h = img.height / dpr;
-    ctx.drawImage(img, view.sx(x) - w / 2, view.sy(y) - h / 2, w, h);
+    const h = handFor(season, sample.hires[i] === 1, x, y);
+    const s = h === SHARP ? sharp : coarse;
+    if (s !== current) {
+      ctx.globalAlpha = opacity * s.gain;
+      current = s;
+    }
+    ctx.drawImage(s.canvas, view.sx(x) - s.size / 2, view.sy(y) - s.size / 2, s.size, s.size);
   }
 
   ctx.restore();
@@ -147,9 +199,12 @@ export function drawPin(
   for (let i = 0; i < sample.n; i++) if (sample.pin[i] === 1) count++;
   if (count === 0) return;
 
-  // Same ink rule as the marks: the pile carries exactly the light of the shots
-  // inside it, so it is as heavy on the plate as the record made it.
-  const r = Math.sqrt((count * INK) / PIN_CORE_ALPHA) * (view.scale / 2);
+  // Same ink rule as the marks, and in the same measured units: each mark
+  // deposits INK of light, so the pile deposits count * INK. Solving for a disc
+  // of that total at the pin's mean alpha gives its radius directly in CSS px -
+  // no scale factor, because INK is already measured at the current view.
+  const meanAlpha = PIN_CORE_ALPHA * 0.7;
+  const r = Math.sqrt((count * INK) / (meanAlpha * Math.PI));
   const cx = view.sx(0);
   const cy = view.sy(0);
 

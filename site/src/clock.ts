@@ -66,12 +66,21 @@ export class TalkClock implements Clock {
     return this.paused;
   }
 
+  /** Space always means "go", whatever stopped the piece. If it only cleared
+   *  the pause it would appear dead after a fermata, and the presenter would be
+   *  pressing the obvious key while nothing moved. */
   togglePause(): void {
-    this.paused = !this.paused;
+    if (this.paused || this.fermata) {
+      this.paused = false;
+      this.fermata = false;
+      return;
+    }
+    this.paused = true;
   }
 
   toggleFermata(): void {
     this.fermata = !this.fermata;
+    if (!this.fermata) this.paused = false;
   }
 
   /** Jumps always land moving, so a seek can never strand the piece. */

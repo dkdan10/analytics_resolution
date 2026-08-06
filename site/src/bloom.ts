@@ -4,10 +4,12 @@
  * has been drawing all along open into the movements that produced them, and
  * then close again.
  *
- * Each trace is anchored at its own dot: pipeline/bloom.py verified that the
- * ball's position at release, carried into the shot record's frame, lands a
- * median 0.75 ft from where the record filed the shot. The traces are not
- * placed near their dots - they grow out of them.
+ * Each trace is anchored at its own dot: pipeline/bloom.py checks that the
+ * ball's position at release, carried into the shot record's frame, lands close
+ * to where the record filed that shot, and drops the trace if it does not. The
+ * measured residual ships in traces.json as `median_anchor_residual_ft` - read
+ * it there rather than quoting a figure here, which is how this comment came to
+ * state a number the artifact had long since superseded.
  */
 
 import { BONE_RGB } from "./palette";

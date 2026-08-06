@@ -139,8 +139,12 @@ export function stateAt(t: number, schedule: Schedule): State {
 
   // The 2010-11 boundary is the one discontinuity in a piece otherwise made of
   // drift, so it never blends: the pin holds full strength until it bursts.
+  // No blend into a season that does not exist: the last one would otherwise
+  // dissolve to an empty plate over its final third with nothing replacing it.
   const cut = next === CUT_YEAR;
-  const blend = cut ? 0 : smoothstep((phase - (1 - BLEND_TAIL)) / BLEND_TAIL);
+  const blend = cut || next === null
+    ? 0
+    : smoothstep((phase - (1 - BLEND_TAIL)) / BLEND_TAIL);
 
   const coda = time > schedule.lastEnds
     ? smoothstep((time - schedule.lastEnds) / CODA_SECONDS)
