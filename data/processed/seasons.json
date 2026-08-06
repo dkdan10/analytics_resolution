@@ -1,0 +1,1517 @@
+{
+  "generated_by": "pipeline/aggregate.py",
+  "generated_at": "2026-08-06T06:41:07+00:00",
+  "provenance": {
+    "shots_source": "stats.nba.com shotchartdetail, bulk archive github.com/shufinskiy/nba_data",
+    "sportvu_source": "NBA/STATS SportVU public 2015-16 release, github.com/linouk23/NBA-Player-Movements + mirrors (github.com/sealneaward/nba-movement-data, HF dcayton/nba_tracking_data_15_16)",
+    "license_note": "derived data only; bulk dumps are never committed (see CLAUDE.md data rights)"
+  },
+  "definitions": {
+    "mid_share": "SHOT_ZONE_BASIC == \"Mid-Range\" (NBA zone taxonomy, disclosed)",
+    "three_share": "SHOT_TYPE == \"3PT Field Goal\"",
+    "sample": "fixed-seed (20151027+year) uniform sample of halfcourt attempts",
+    "grid": "1ft bins over LOC_X [-250,250], LOC_Y [-50,420], tenths of feet"
+  },
+  "seasons": [
+    {
+      "year": 1996,
+      "season": "1996-97",
+      "attempts": 188589,
+      "made": 85774,
+      "fg_pct": 0.4548197402817768,
+      "efg_pct": 0.49295027811802383,
+      "mid_attempts": 75296,
+      "mid_share": 0.399259765946052,
+      "three_attempts": 39941,
+      "three_share": 0.21178859848665615,
+      "three_made": 14382,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 70577,
+          "made": 38644
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 22376,
+          "made": 9705
+        },
+        "Mid-Range": {
+          "attempts": 75296,
+          "made": 30308
+        },
+        "Left Corner 3": {
+          "attempts": 3068,
+          "made": 1214
+        },
+        "Right Corner 3": {
+          "attempts": 2689,
+          "made": 1079
+        },
+        "Above the Break 3": {
+          "attempts": 14376,
+          "made": 4815
+        },
+        "Backcourt": {
+          "attempts": 207,
+          "made": 9
+        }
+      },
+      "mean_distance_ft": 10.322473739189455,
+      "n_games": 1189,
+      "n_teams": 29,
+      "date_min": "19961101",
+      "date_max": "19970420",
+      "shot_type_nulls": 1,
+      "note": "shortened 3PT line era (1994-97); clean baseline starts 1997-98"
+    },
+    {
+      "year": 1997,
+      "season": "1997-98",
+      "attempts": 189536,
+      "made": 85383,
+      "fg_pct": 0.45048434070572346,
+      "efg_pct": 0.4780516630086105,
+      "mid_attempts": 69843,
+      "mid_share": 0.36849463954077327,
+      "three_attempts": 30233,
+      "three_share": 0.1595105942934324,
+      "three_made": 10450,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 63120,
+          "made": 38014
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 26658,
+          "made": 9862
+        },
+        "Mid-Range": {
+          "attempts": 69843,
+          "made": 27175
+        },
+        "Left Corner 3": {
+          "attempts": 2878,
+          "made": 1053
+        },
+        "Right Corner 3": {
+          "attempts": 2688,
+          "made": 1018
+        },
+        "Above the Break 3": {
+          "attempts": 24106,
+          "made": 8249
+        },
+        "Backcourt": {
+          "attempts": 243,
+          "made": 12
+        }
+      },
+      "mean_distance_ft": 10.812969567786595,
+      "n_games": 1189,
+      "n_teams": 29,
+      "date_min": "19971031",
+      "date_max": "19980419",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 1998,
+      "season": "1998-99",
+      "attempts": 113377,
+      "made": 49549,
+      "fg_pct": 0.4370286742460993,
+      "efg_pct": 0.46553092778958693,
+      "mid_attempts": 42028,
+      "mid_share": 0.37069246849008175,
+      "three_attempts": 19079,
+      "three_share": 0.16827928063011016,
+      "three_made": 6463,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 35102,
+          "made": 20893
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 17208,
+          "made": 6237
+        },
+        "Mid-Range": {
+          "attempts": 42028,
+          "made": 15980
+        },
+        "Left Corner 3": {
+          "attempts": 2119,
+          "made": 812
+        },
+        "Right Corner 3": {
+          "attempts": 2011,
+          "made": 731
+        },
+        "Above the Break 3": {
+          "attempts": 14765,
+          "made": 4892
+        },
+        "Backcourt": {
+          "attempts": 144,
+          "made": 4
+        }
+      },
+      "mean_distance_ft": 11.227259497076126,
+      "n_games": 725,
+      "n_teams": 29,
+      "date_min": "19990205",
+      "date_max": "19990505",
+      "shot_type_nulls": 0,
+      "note": "lockout season (50 games per team) - short, not sparse"
+    },
+    {
+      "year": 1999,
+      "season": "1999-00",
+      "attempts": 195220,
+      "made": 87591,
+      "fg_pct": 0.4486784140969163,
+      "efg_pct": 0.47816565925622373,
+      "mid_attempts": 74648,
+      "mid_share": 0.38237885462555066,
+      "three_attempts": 32615,
+      "three_share": 0.16706792336850732,
+      "three_made": 11513,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 58425,
+          "made": 35588
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 29659,
+          "made": 11060
+        },
+        "Mid-Range": {
+          "attempts": 74648,
+          "made": 29478
+        },
+        "Left Corner 3": {
+          "attempts": 3897,
+          "made": 1509
+        },
+        "Right Corner 3": {
+          "attempts": 3925,
+          "made": 1506
+        },
+        "Above the Break 3": {
+          "attempts": 24422,
+          "made": 8443
+        },
+        "Backcourt": {
+          "attempts": 244,
+          "made": 7
+        }
+      },
+      "mean_distance_ft": 11.337362975105009,
+      "n_games": 1189,
+      "n_teams": 29,
+      "date_min": "19991102",
+      "date_max": "20000419",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2000,
+      "season": "2000-01",
+      "attempts": 191662,
+      "made": 84864,
+      "fg_pct": 0.4427794763698594,
+      "efg_pct": 0.4728428170425019,
+      "mid_attempts": 72687,
+      "mid_share": 0.3792457555488308,
+      "three_attempts": 32596,
+      "three_share": 0.17007022779685071,
+      "three_made": 11524,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 56347,
+          "made": 33814
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 30063,
+          "made": 11128
+        },
+        "Mid-Range": {
+          "attempts": 72687,
+          "made": 28417
+        },
+        "Left Corner 3": {
+          "attempts": 3993,
+          "made": 1520
+        },
+        "Right Corner 3": {
+          "attempts": 4092,
+          "made": 1559
+        },
+        "Above the Break 3": {
+          "attempts": 24182,
+          "made": 8413
+        },
+        "Backcourt": {
+          "attempts": 298,
+          "made": 13
+        }
+      },
+      "mean_distance_ft": 11.573076561864115,
+      "n_games": 1189,
+      "n_teams": 29,
+      "date_min": "20001031",
+      "date_max": "20010418",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2001,
+      "season": "2001-02",
+      "attempts": 193251,
+      "made": 86004,
+      "fg_pct": 0.44503780058059206,
+      "efg_pct": 0.4771074923286296,
+      "mid_attempts": 71739,
+      "mid_share": 0.37122188242234194,
+      "three_attempts": 35063,
+      "three_share": 0.1814376122245163,
+      "three_made": 12395,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 58361,
+          "made": 34664
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 28142,
+          "made": 10879
+        },
+        "Mid-Range": {
+          "attempts": 71739,
+          "made": 28091
+        },
+        "Left Corner 3": {
+          "attempts": 4303,
+          "made": 1638
+        },
+        "Right Corner 3": {
+          "attempts": 4259,
+          "made": 1638
+        },
+        "Above the Break 3": {
+          "attempts": 26136,
+          "made": 9086
+        },
+        "Backcourt": {
+          "attempts": 311,
+          "made": 8
+        }
+      },
+      "mean_distance_ft": 11.652917708058432,
+      "n_games": 1189,
+      "n_teams": 29,
+      "date_min": "20011030",
+      "date_max": "20020417",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2002,
+      "season": "2002-03",
+      "attempts": 192109,
+      "made": 84937,
+      "fg_pct": 0.4421292078975998,
+      "efg_pct": 0.4738820148977924,
+      "mid_attempts": 70958,
+      "mid_share": 0.36936322608519123,
+      "three_attempts": 34913,
+      "three_share": 0.18173536898323348,
+      "three_made": 12200,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 57911,
+          "made": 34267
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 28393,
+          "made": 11044
+        },
+        "Mid-Range": {
+          "attempts": 70958,
+          "made": 27455
+        },
+        "Left Corner 3": {
+          "attempts": 4716,
+          "made": 1725
+        },
+        "Right Corner 3": {
+          "attempts": 4560,
+          "made": 1689
+        },
+        "Above the Break 3": {
+          "attempts": 25224,
+          "made": 8751
+        },
+        "Backcourt": {
+          "attempts": 347,
+          "made": 6
+        }
+      },
+      "mean_distance_ft": 11.68919727862828,
+      "n_games": 1189,
+      "n_teams": 29,
+      "date_min": "20021029",
+      "date_max": "20030416",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2003,
+      "season": "2003-04",
+      "attempts": 189803,
+      "made": 83255,
+      "fg_pct": 0.4386390099208126,
+      "efg_pct": 0.4710989815756337,
+      "mid_attempts": 67657,
+      "mid_share": 0.356459065452074,
+      "three_attempts": 35493,
+      "three_share": 0.1869991517520798,
+      "three_made": 12322,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 59358,
+          "made": 34542
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 27335,
+          "made": 10552
+        },
+        "Mid-Range": {
+          "attempts": 67657,
+          "made": 25849
+        },
+        "Left Corner 3": {
+          "attempts": 5069,
+          "made": 1919
+        },
+        "Right Corner 3": {
+          "attempts": 4499,
+          "made": 1691
+        },
+        "Above the Break 3": {
+          "attempts": 25549,
+          "made": 8694
+        },
+        "Backcourt": {
+          "attempts": 336,
+          "made": 8
+        }
+      },
+      "mean_distance_ft": 11.595954753086094,
+      "n_games": 1189,
+      "n_teams": 29,
+      "date_min": "20031028",
+      "date_max": "20040414",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2004,
+      "season": "2004-05",
+      "attempts": 197626,
+      "made": 88435,
+      "fg_pct": 0.4474866667341342,
+      "efg_pct": 0.4823429103458047,
+      "mid_attempts": 70034,
+      "mid_share": 0.35437644844301863,
+      "three_attempts": 38748,
+      "three_share": 0.19606731907744931,
+      "three_made": 13777,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 63163,
+          "made": 36974
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 25758,
+          "made": 10247
+        },
+        "Mid-Range": {
+          "attempts": 70034,
+          "made": 27469
+        },
+        "Left Corner 3": {
+          "attempts": 5541,
+          "made": 2090
+        },
+        "Right Corner 3": {
+          "attempts": 5307,
+          "made": 2066
+        },
+        "Above the Break 3": {
+          "attempts": 27460,
+          "made": 9586
+        },
+        "Backcourt": {
+          "attempts": 363,
+          "made": 3
+        }
+      },
+      "mean_distance_ft": 11.744102496635058,
+      "n_games": 1230,
+      "n_teams": 30,
+      "date_min": "20041102",
+      "date_max": "20050420",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2005,
+      "season": "2005-06",
+      "attempts": 194314,
+      "made": 88166,
+      "fg_pct": 0.45372953055363996,
+      "efg_pct": 0.4899749889354344,
+      "mid_attempts": 66926,
+      "mid_share": 0.3444219150447214,
+      "three_attempts": 39313,
+      "three_share": 0.20231686857354592,
+      "three_made": 14086,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 63017,
+          "made": 37304
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 25107,
+          "made": 10167
+        },
+        "Mid-Range": {
+          "attempts": 66926,
+          "made": 26627
+        },
+        "Left Corner 3": {
+          "attempts": 5668,
+          "made": 2184
+        },
+        "Right Corner 3": {
+          "attempts": 5409,
+          "made": 2123
+        },
+        "Above the Break 3": {
+          "attempts": 27816,
+          "made": 9752
+        },
+        "Backcourt": {
+          "attempts": 371,
+          "made": 9
+        }
+      },
+      "mean_distance_ft": 11.787441975359469,
+      "n_games": 1230,
+      "n_teams": 30,
+      "date_min": "20051101",
+      "date_max": "20060419",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2006,
+      "season": "2006-07",
+      "attempts": 196072,
+      "made": 89860,
+      "fg_pct": 0.4583010322738586,
+      "efg_pct": 0.4963635807254478,
+      "mid_attempts": 64759,
+      "mid_share": 0.3302817332408503,
+      "three_attempts": 41671,
+      "three_share": 0.21252907095352727,
+      "three_made": 14926,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 64492,
+          "made": 38707
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 25213,
+          "made": 10410
+        },
+        "Mid-Range": {
+          "attempts": 64759,
+          "made": 25839
+        },
+        "Left Corner 3": {
+          "attempts": 6296,
+          "made": 2420
+        },
+        "Right Corner 3": {
+          "attempts": 5412,
+          "made": 2076
+        },
+        "Above the Break 3": {
+          "attempts": 29524,
+          "made": 10398
+        },
+        "Backcourt": {
+          "attempts": 376,
+          "made": 10
+        }
+      },
+      "mean_distance_ft": 11.82358011342772,
+      "n_games": 1230,
+      "n_teams": 30,
+      "date_min": "20061031",
+      "date_max": "20070418",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2007,
+      "season": "2007-08",
+      "attempts": 200501,
+      "made": 91669,
+      "fg_pct": 0.4571997147146398,
+      "efg_pct": 0.49740899047885045,
+      "mid_attempts": 65986,
+      "mid_share": 0.329105590495808,
+      "three_attempts": 44544,
+      "three_share": 0.22216348048139412,
+      "three_made": 16124,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 64133,
+          "made": 38456
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 25911,
+          "made": 10585
+        },
+        "Mid-Range": {
+          "attempts": 65986,
+          "made": 26528
+        },
+        "Left Corner 3": {
+          "attempts": 6340,
+          "made": 2479
+        },
+        "Right Corner 3": {
+          "attempts": 5822,
+          "made": 2327
+        },
+        "Above the Break 3": {
+          "attempts": 31841,
+          "made": 11284
+        },
+        "Backcourt": {
+          "attempts": 468,
+          "made": 10
+        }
+      },
+      "mean_distance_ft": 12.148333424770948,
+      "n_games": 1230,
+      "n_teams": 30,
+      "date_min": "20071030",
+      "date_max": "20080416",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2008,
+      "season": "2008-09",
+      "attempts": 199030,
+      "made": 91302,
+      "fg_pct": 0.4587348640908406,
+      "efg_pct": 0.49979400090438625,
+      "mid_attempts": 63990,
+      "mid_share": 0.32150932020298445,
+      "three_attempts": 44559,
+      "three_share": 0.22388082198663517,
+      "three_made": 16344,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 65152,
+          "made": 38818
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 25414,
+          "made": 10478
+        },
+        "Mid-Range": {
+          "attempts": 63990,
+          "made": 25686
+        },
+        "Left Corner 3": {
+          "attempts": 6748,
+          "made": 2657
+        },
+        "Right Corner 3": {
+          "attempts": 5943,
+          "made": 2346
+        },
+        "Above the Break 3": {
+          "attempts": 31338,
+          "made": 11307
+        },
+        "Backcourt": {
+          "attempts": 445,
+          "made": 10
+        }
+      },
+      "mean_distance_ft": 12.014892227302417,
+      "n_games": 1230,
+      "n_teams": 30,
+      "date_min": "20081028",
+      "date_max": "20090415",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2009,
+      "season": "2009-10",
+      "attempts": 200966,
+      "made": 92720,
+      "fg_pct": 0.4613715752913428,
+      "efg_pct": 0.5007115631499856,
+      "mid_attempts": 63169,
+      "mid_share": 0.31432680154852066,
+      "three_attempts": 44599,
+      "three_share": 0.22192311137207288,
+      "three_made": 15812,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 66762,
+          "made": 40450
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 26426,
+          "made": 11180
+        },
+        "Mid-Range": {
+          "attempts": 63169,
+          "made": 25277
+        },
+        "Left Corner 3": {
+          "attempts": 6263,
+          "made": 2452
+        },
+        "Right Corner 3": {
+          "attempts": 5633,
+          "made": 2199
+        },
+        "Above the Break 3": {
+          "attempts": 32238,
+          "made": 11145
+        },
+        "Backcourt": {
+          "attempts": 475,
+          "made": 17
+        }
+      },
+      "mean_distance_ft": 11.846471542449967,
+      "n_games": 1230,
+      "n_teams": 30,
+      "date_min": "20091027",
+      "date_max": "20100414",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2010,
+      "season": "2010-11",
+      "attempts": 199761,
+      "made": 91613,
+      "fg_pct": 0.45861304258589014,
+      "efg_pct": 0.4983480258909397,
+      "mid_attempts": 61950,
+      "mid_share": 0.3101205941099614,
+      "three_attempts": 44284,
+      "three_share": 0.22168491347159855,
+      "three_made": 15875,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 62928,
+          "made": 39009
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 30583,
+          "made": 11923
+        },
+        "Mid-Range": {
+          "attempts": 61950,
+          "made": 24801
+        },
+        "Left Corner 3": {
+          "attempts": 6474,
+          "made": 2535
+        },
+        "Right Corner 3": {
+          "attempts": 5871,
+          "made": 2332
+        },
+        "Above the Break 3": {
+          "attempts": 31486,
+          "made": 10999
+        },
+        "Backcourt": {
+          "attempts": 469,
+          "made": 14
+        }
+      },
+      "mean_distance_ft": 12.135647098282448,
+      "n_games": 1230,
+      "n_teams": 30,
+      "date_min": "20101026",
+      "date_max": "20110413",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2011,
+      "season": "2011-12",
+      "attempts": 161205,
+      "made": 72207,
+      "fg_pct": 0.4479203498650786,
+      "efg_pct": 0.48725535808442666,
+      "mid_attempts": 48783,
+      "mid_share": 0.30261468316739554,
+      "three_attempts": 36375,
+      "three_share": 0.22564436586954498,
+      "three_made": 12682,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 52099,
+          "made": 31512
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 23943,
+          "made": 9119
+        },
+        "Mid-Range": {
+          "attempts": 48783,
+          "made": 18893
+        },
+        "Left Corner 3": {
+          "attempts": 4998,
+          "made": 1880
+        },
+        "Right Corner 3": {
+          "attempts": 4791,
+          "made": 1799
+        },
+        "Above the Break 3": {
+          "attempts": 26287,
+          "made": 8994
+        },
+        "Backcourt": {
+          "attempts": 304,
+          "made": 10
+        }
+      },
+      "mean_distance_ft": 12.059812040569462,
+      "n_games": 990,
+      "n_teams": 30,
+      "date_min": "20111225",
+      "date_max": "20120426",
+      "shot_type_nulls": 0,
+      "note": "lockout season (66 games per team) - short, not sparse"
+    },
+    {
+      "year": 2012,
+      "season": "2012-13",
+      "attempts": 201579,
+      "made": 91275,
+      "fg_pct": 0.45280014287202536,
+      "efg_pct": 0.496445562285754,
+      "mid_attempts": 57083,
+      "mid_share": 0.2831792994309923,
+      "three_attempts": 49037,
+      "three_share": 0.2432644273461025,
+      "three_made": 17596,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 66135,
+          "made": 39988
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 29312,
+          "made": 11271
+        },
+        "Mid-Range": {
+          "attempts": 57083,
+          "made": 22416
+        },
+        "Left Corner 3": {
+          "attempts": 7056,
+          "made": 2726
+        },
+        "Right Corner 3": {
+          "attempts": 6474,
+          "made": 2547
+        },
+        "Above the Break 3": {
+          "attempts": 35099,
+          "made": 12319
+        },
+        "Backcourt": {
+          "attempts": 420,
+          "made": 8
+        }
+      },
+      "mean_distance_ft": 12.158761577346846,
+      "n_games": 1229,
+      "n_teams": 30,
+      "date_min": "20121030",
+      "date_max": "20130417",
+      "shot_type_nulls": 0,
+      "note": "1,229 games, not 1,230: BOS@IND (Apr 16, 2013) cancelled after the Boston Marathon bombing, never replayed - the record is complete"
+    },
+    {
+      "year": 2013,
+      "season": "2013-14",
+      "attempts": 204126,
+      "made": 92766,
+      "fg_pct": 0.45445460156961875,
+      "efg_pct": 0.5010949119661385,
+      "mid_attempts": 54720,
+      "mid_share": 0.2680697216425149,
+      "three_attempts": 52928,
+      "three_share": 0.2592908301735203,
+      "three_made": 19041,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 66016,
+          "made": 40159
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 30451,
+          "made": 11973
+        },
+        "Mid-Range": {
+          "attempts": 54720,
+          "made": 21593
+        },
+        "Left Corner 3": {
+          "attempts": 7136,
+          "made": 2792
+        },
+        "Right Corner 3": {
+          "attempts": 6380,
+          "made": 2483
+        },
+        "Above the Break 3": {
+          "attempts": 38979,
+          "made": 13750
+        },
+        "Backcourt": {
+          "attempts": 444,
+          "made": 16
+        }
+      },
+      "mean_distance_ft": 12.303381244917356,
+      "n_games": 1230,
+      "n_teams": 30,
+      "date_min": "20131029",
+      "date_max": "20140416",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2014,
+      "season": "2014-15",
+      "attempts": 205550,
+      "made": 92279,
+      "fg_pct": 0.44893699829725126,
+      "efg_pct": 0.4958647531014352,
+      "mid_attempts": 53776,
+      "mid_share": 0.26162004378496717,
+      "three_attempts": 55117,
+      "three_share": 0.2681440038919971,
+      "three_made": 19292,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 66134,
+          "made": 39735
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 30517,
+          "made": 11976
+        },
+        "Mid-Range": {
+          "attempts": 53776,
+          "made": 21274
+        },
+        "Left Corner 3": {
+          "attempts": 7374,
+          "made": 2801
+        },
+        "Right Corner 3": {
+          "attempts": 6987,
+          "made": 2738
+        },
+        "Above the Break 3": {
+          "attempts": 40335,
+          "made": 13744
+        },
+        "Backcourt": {
+          "attempts": 427,
+          "made": 11
+        }
+      },
+      "mean_distance_ft": 12.361002189248358,
+      "n_games": 1230,
+      "n_teams": 30,
+      "date_min": "20141028",
+      "date_max": "20150415",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2015,
+      "season": "2015-16",
+      "attempts": 207893,
+      "made": 94017,
+      "fg_pct": 0.45223744907235935,
+      "efg_pct": 0.5025157172199161,
+      "mid_attempts": 51133,
+      "mid_share": 0.24595825737278312,
+      "three_attempts": 59085,
+      "three_share": 0.2842087035157509,
+      "three_made": 20905,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 67443,
+          "made": 40634
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 30224,
+          "made": 12091
+        },
+        "Mid-Range": {
+          "attempts": 51133,
+          "made": 20384
+        },
+        "Left Corner 3": {
+          "attempts": 7864,
+          "made": 2939
+        },
+        "Right Corner 3": {
+          "attempts": 7360,
+          "made": 2803
+        },
+        "Above the Break 3": {
+          "attempts": 43429,
+          "made": 15149
+        },
+        "Backcourt": {
+          "attempts": 440,
+          "made": 17
+        }
+      },
+      "mean_distance_ft": 12.463743367982568,
+      "n_games": 1230,
+      "n_teams": 30,
+      "date_min": "20151027",
+      "date_max": "20160413",
+      "shot_type_nulls": 0,
+      "note": "THE WINDOW: public SportVU corpus 2015-10-27 .. 2016-01-23"
+    },
+    {
+      "year": 2016,
+      "season": "2016-17",
+      "attempts": 209929,
+      "made": 95990,
+      "fg_pct": 0.45724983208608627,
+      "efg_pct": 0.5136427077726279,
+      "mid_attempts": 46575,
+      "mid_share": 0.22186072434013404,
+      "three_attempts": 66237,
+      "three_share": 0.3155209618490061,
+      "three_made": 23677,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 67289,
+          "made": 41113
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 29823,
+          "made": 12453
+        },
+        "Mid-Range": {
+          "attempts": 46575,
+          "made": 18747
+        },
+        "Left Corner 3": {
+          "attempts": 8031,
+          "made": 3102
+        },
+        "Right Corner 3": {
+          "attempts": 7640,
+          "made": 2966
+        },
+        "Above the Break 3": {
+          "attempts": 50072,
+          "made": 17599
+        },
+        "Backcourt": {
+          "attempts": 499,
+          "made": 10
+        }
+      },
+      "mean_distance_ft": 12.852874066946443,
+      "n_games": 1230,
+      "n_teams": 30,
+      "date_min": "20161025",
+      "date_max": "20170412",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2017,
+      "season": "2017-18",
+      "attempts": 211707,
+      "made": 97435,
+      "fg_pct": 0.46023513629686313,
+      "efg_pct": 0.5211849395626975,
+      "mid_attempts": 40336,
+      "mid_share": 0.19052747429230021,
+      "three_attempts": 71339,
+      "three_share": 0.3369704355547998,
+      "three_made": 25807,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 66875,
+          "made": 42188
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 33243,
+          "made": 13201
+        },
+        "Mid-Range": {
+          "attempts": 40336,
+          "made": 16271
+        },
+        "Left Corner 3": {
+          "attempts": 8169,
+          "made": 3133
+        },
+        "Right Corner 3": {
+          "attempts": 7440,
+          "made": 3007
+        },
+        "Above the Break 3": {
+          "attempts": 55120,
+          "made": 19630
+        },
+        "Backcourt": {
+          "attempts": 524,
+          "made": 5
+        }
+      },
+      "mean_distance_ft": 13.159593211372322,
+      "n_games": 1230,
+      "n_teams": 30,
+      "date_min": "20171017",
+      "date_max": "20180411",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2018,
+      "season": "2018-19",
+      "attempts": 219458,
+      "made": 101062,
+      "fg_pct": 0.460507249678754,
+      "efg_pct": 0.5241982520573413,
+      "mid_attempts": 33276,
+      "mid_share": 0.15162810196028398,
+      "three_attempts": 78742,
+      "three_share": 0.35880213981718595,
+      "three_made": 27955,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 72427,
+          "made": 45574
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 35121,
+          "made": 14176
+        },
+        "Mid-Range": {
+          "attempts": 33276,
+          "made": 13405
+        },
+        "Left Corner 3": {
+          "attempts": 9112,
+          "made": 3519
+        },
+        "Right Corner 3": {
+          "attempts": 8771,
+          "made": 3313
+        },
+        "Above the Break 3": {
+          "attempts": 60285,
+          "made": 21061
+        },
+        "Backcourt": {
+          "attempts": 466,
+          "made": 14
+        }
+      },
+      "mean_distance_ft": 13.054780413564327,
+      "n_games": 1230,
+      "n_teams": 30,
+      "date_min": "20181016",
+      "date_max": "20190410",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2019,
+      "season": "2019-20",
+      "attempts": 188116,
+      "made": 86550,
+      "fg_pct": 0.46008845605902743,
+      "efg_pct": 0.5288279572178869,
+      "mid_attempts": 25066,
+      "mid_share": 0.1332475706478981,
+      "three_attempts": 72252,
+      "three_share": 0.384082162070212,
+      "three_made": 25862,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 60503,
+          "made": 38441
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 30376,
+          "made": 12129
+        },
+        "Mid-Range": {
+          "attempts": 25066,
+          "made": 10145
+        },
+        "Left Corner 3": {
+          "attempts": 8380,
+          "made": 3329
+        },
+        "Right Corner 3": {
+          "attempts": 7867,
+          "made": 2991
+        },
+        "Above the Break 3": {
+          "attempts": 55519,
+          "made": 19508
+        },
+        "Backcourt": {
+          "attempts": 405,
+          "made": 7
+        }
+      },
+      "mean_distance_ft": 13.413617129856046,
+      "n_games": 1059,
+      "n_teams": 30,
+      "date_min": "20191022",
+      "date_max": "20200814",
+      "shot_type_nulls": 0,
+      "note": "bubble season - short, not sparse"
+    },
+    {
+      "year": 2020,
+      "season": "2020-21",
+      "attempts": 190983,
+      "made": 89020,
+      "fg_pct": 0.4661147850855835,
+      "efg_pct": 0.5379196054099056,
+      "mid_attempts": 24558,
+      "mid_share": 0.12858736117874367,
+      "three_attempts": 74822,
+      "three_share": 0.39177308975144387,
+      "three_made": 27427,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 57440,
+          "made": 36818
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 34224,
+          "made": 14616
+        },
+        "Mid-Range": {
+          "attempts": 24558,
+          "made": 10183
+        },
+        "Left Corner 3": {
+          "attempts": 9173,
+          "made": 3644
+        },
+        "Right Corner 3": {
+          "attempts": 8460,
+          "made": 3287
+        },
+        "Above the Break 3": {
+          "attempts": 56819,
+          "made": 20464
+        },
+        "Backcourt": {
+          "attempts": 309,
+          "made": 8
+        }
+      },
+      "mean_distance_ft": 13.61957346988999,
+      "n_games": 1080,
+      "n_teams": 30,
+      "date_min": "20201222",
+      "date_max": "20210516",
+      "shot_type_nulls": 0,
+      "note": "72-game pandemic schedule - short, not sparse"
+    },
+    {
+      "year": 2021,
+      "season": "2021-22",
+      "attempts": 216722,
+      "made": 99930,
+      "fg_pct": 0.46109762737516263,
+      "efg_pct": 0.5316903683059403,
+      "mid_attempts": 27712,
+      "mid_share": 0.12786888271610636,
+      "three_attempts": 86535,
+      "three_share": 0.3992903350836556,
+      "three_made": 30598,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 62987,
+          "made": 41140
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 39668,
+          "made": 16990
+        },
+        "Mid-Range": {
+          "attempts": 27712,
+          "made": 11264
+        },
+        "Left Corner 3": {
+          "attempts": 11377,
+          "made": 4371
+        },
+        "Right Corner 3": {
+          "attempts": 10091,
+          "made": 3855
+        },
+        "Above the Break 3": {
+          "attempts": 64447,
+          "made": 22299
+        },
+        "Backcourt": {
+          "attempts": 440,
+          "made": 11
+        }
+      },
+      "mean_distance_ft": 13.803979291442493,
+      "n_games": 1230,
+      "n_teams": 30,
+      "date_min": "20211019",
+      "date_max": "20220410",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2022,
+      "season": "2022-23",
+      "attempts": 217218,
+      "made": 103260,
+      "fg_pct": 0.4753749689252272,
+      "efg_pct": 0.5452563783848484,
+      "mid_attempts": 25762,
+      "mid_share": 0.11859974771888149,
+      "three_attempts": 84164,
+      "three_share": 0.38746328573138505,
+      "three_made": 30359,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 64982,
+          "made": 43298
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 42441,
+          "made": 18827
+        },
+        "Mid-Range": {
+          "attempts": 25762,
+          "made": 10833
+        },
+        "Left Corner 3": {
+          "attempts": 11064,
+          "made": 4261
+        },
+        "Right Corner 3": {
+          "attempts": 9939,
+          "made": 3831
+        },
+        "Above the Break 3": {
+          "attempts": 62624,
+          "made": 22200
+        },
+        "Backcourt": {
+          "attempts": 406,
+          "made": 10
+        }
+      },
+      "mean_distance_ft": 13.457775138340285,
+      "n_games": 1230,
+      "n_teams": 30,
+      "date_min": "20221018",
+      "date_max": "20230409",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2023,
+      "season": "2023-24",
+      "attempts": 218701,
+      "made": 103739,
+      "fg_pct": 0.47434168110799674,
+      "efg_pct": 0.546538424607112,
+      "mid_attempts": 24590,
+      "mid_share": 0.11243661437304814,
+      "three_attempts": 86355,
+      "three_share": 0.3948541616179167,
+      "three_made": 31579,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 64669,
+          "made": 42884
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 43089,
+          "made": 18982
+        },
+        "Mid-Range": {
+          "attempts": 24590,
+          "made": 10293
+        },
+        "Left Corner 3": {
+          "attempts": 11523,
+          "made": 4448
+        },
+        "Right Corner 3": {
+          "attempts": 10627,
+          "made": 4185
+        },
+        "Above the Break 3": {
+          "attempts": 63770,
+          "made": 22939
+        },
+        "Backcourt": {
+          "attempts": 433,
+          "made": 8
+        }
+      },
+      "mean_distance_ft": 13.534606609023278,
+      "n_games": 1230,
+      "n_teams": 30,
+      "date_min": "20231024",
+      "date_max": "20240414",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2024,
+      "season": "2024-25",
+      "attempts": 219527,
+      "made": 102566,
+      "fg_pct": 0.46721360014941216,
+      "efg_pct": 0.5430675953299594,
+      "mid_attempts": 21401,
+      "mid_share": 0.09748686949669061,
+      "three_attempts": 92455,
+      "three_share": 0.4211554842912261,
+      "three_made": 33304,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 61190,
+          "made": 40603
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 44475,
+          "made": 19734
+        },
+        "Mid-Range": {
+          "attempts": 21401,
+          "made": 8925
+        },
+        "Left Corner 3": {
+          "attempts": 12188,
+          "made": 4706
+        },
+        "Right Corner 3": {
+          "attempts": 11397,
+          "made": 4443
+        },
+        "Above the Break 3": {
+          "attempts": 68359,
+          "made": 24143
+        },
+        "Backcourt": {
+          "attempts": 517,
+          "made": 12
+        }
+      },
+      "mean_distance_ft": 14.003635088166831,
+      "n_games": 1230,
+      "n_teams": 30,
+      "date_min": "20241022",
+      "date_max": "20250413",
+      "shot_type_nulls": 0,
+      "note": null
+    },
+    {
+      "year": 2025,
+      "season": "2025-26",
+      "attempts": 219160,
+      "made": 103227,
+      "fg_pct": 0.4710120459937945,
+      "efg_pct": 0.545653860193466,
+      "mid_attempts": 22025,
+      "mid_share": 0.10049735353166636,
+      "three_attempts": 90970,
+      "three_share": 0.4150848695017339,
+      "three_made": 32717,
+      "zones": {
+        "Restricted Area": {
+          "attempts": 62253,
+          "made": 41768
+        },
+        "In The Paint (Non-RA)": {
+          "attempts": 43908,
+          "made": 19565
+        },
+        "Mid-Range": {
+          "attempts": 22025,
+          "made": 9179
+        },
+        "Left Corner 3": {
+          "attempts": 12210,
+          "made": 4729
+        },
+        "Right Corner 3": {
+          "attempts": 11360,
+          "made": 4386
+        },
+        "Above the Break 3": {
+          "attempts": 67375,
+          "made": 23585
+        },
+        "Backcourt": {
+          "attempts": 29,
+          "made": 15
+        }
+      },
+      "mean_distance_ft": 13.81455101295857,
+      "n_games": 1230,
+      "n_teams": 30,
+      "date_min": "20251021",
+      "date_max": "20260412",
+      "shot_type_nulls": 0,
+      "note": null
+    }
+  ]
+}

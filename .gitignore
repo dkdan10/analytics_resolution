@@ -1,0 +1,10 @@
+# Bulk NBA data is never committed (data rights - see CLAUDE.md).
+# Derived JSON in data/processed/ IS committed.
+data/shots/
+data/raw/
+
+__pycache__/
+*.pyc
+.DS_Store
+node_modules/
+dist/
