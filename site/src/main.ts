@@ -15,6 +15,7 @@ import {
   type Inscription,
 } from "./inscription";
 import { drawMarks, drawPin } from "./marks";
+import { Navigator } from "./navigator";
 import { GROUND } from "./palette";
 import { drawPlate, makeView, SHORTENED_THREE_R, type View } from "./plate";
 import {
@@ -41,8 +42,10 @@ let dpr = 1;
 
 function resize(): void {
   dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const w = window.innerWidth;
-  const h = window.innerHeight;
+  // Measure the canvas's own box, not the window's: with the navigator open the
+  // plate has the rail beside it and would otherwise be drawn off-centre.
+  const w = canvas.clientWidth || window.innerWidth;
+  const h = canvas.clientHeight || window.innerHeight;
   canvas.width = Math.round(w * dpr);
   canvas.height = Math.round(h * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -212,14 +215,40 @@ async function main(): Promise<void> {
   const data = await load();
   const schedule = buildSchedule(data.seasons);
 
-  const talk = new URLSearchParams(location.search).has("talk");
+  const q = new URLSearchParams(location.search);
+  // The rail belongs to the working and lectern modes. Exhibit shows nothing
+  // that looks like it wants to be touched, so it never gets one.
+  const wantsNav = (q.has("talk") || q.has("nav")) && q.get("nav") !== "0";
   const offset = startOffset(schedule);
+
   let clock: Clock;
-  if (talk) {
+  let nav: Navigator | null = null;
+  if (q.has("talk") || wantsNav) {
     const tc = new TalkClock(offset);
     bindTalkKeys(tc, schedule);
     clock = tc;
+    if (wantsNav) {
+      document.body.classList.remove("exhibit");
+      const starts = Navigator.starts(schedule);
+      nav = new Navigator(document.getElementById("nav")!, schedule, data.seasons, {
+        seek: (s) => tc.seek(s),
+        togglePause: () => tc.togglePause(),
+        isPaused: () => tc.held,
+        position: () => tc.seconds,
+        nudgeSegment: (dir) => {
+          const now = ((tc.seconds % schedule.duration) + schedule.duration) % schedule.duration;
+          // Stepping back from just inside a segment should go to its start,
+          // not skip the one before it.
+          const EDGE = 0.6;
+          const target = dir === 1
+            ? starts.find((s) => s > now + 0.01)
+            : [...starts].reverse().find((s) => s < now - EDGE);
+          tc.seek(target ?? (dir === 1 ? 0 : starts[starts.length - 1]!));
+        },
+      });
+    }
   } else {
+    document.body.classList.add("exhibit");
     clock = exhibitClock(performance.now(), offset);
   }
 
@@ -233,7 +262,9 @@ async function main(): Promise<void> {
 
   const inscriptions = buildInscriptions(data.seasons, schedule);
   const frame = (now: number) => {
-    render(clock.at(now), data, schedule, inscriptions);
+    const t = clock.at(now);
+    render(t, data, schedule, inscriptions);
+    nav?.update(t);
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);

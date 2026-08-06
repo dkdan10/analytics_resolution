@@ -27,8 +27,14 @@ tar cannot. The shot-record stages need none of them.
 the same work sampled differently:
 
 - **exhibit** (default) — autoplaying ~11 min loop, no chrome, no cursor, no loop seam.
-- **talk** (`?talk`) — `space` pause · `f` fermata · `1`–`5` acts · `w` the window · `,` `.` step
-  a season. `?t=<seconds>` and `?year=<YYYY>` open on any beat.
+- **talk** (`?talk`) — a rail beside the plate listing every segment (Act 0, all thirty seasons
+  under their act headings, the coda) with each season's measured mid-range share; click any of
+  them to jump. Transport for start / previous / pause / next, plus a draggable scrub. Keys still
+  work: `space` pause · `f` fermata · `1`–`5` acts · `w` the window · `,` `.` step a season.
+  `?t=<seconds>` and `?year=<YYYY>` open on any beat; `?nav` adds the rail, `?nav=0` removes it.
+
+The rail is deliberately absent from exhibit mode — the gallery loop shows nothing that looks like
+it wants to be touched.
 
 ## Structure
 

@@ -62,6 +62,12 @@ export class TalkClock implements Clock {
     return this.position;
   }
 
+  /** Read the position without advancing it. `at()` mutates - calling it from a
+   *  button handler would step the clock an extra frame on every click. */
+  get seconds(): number {
+    return this.position;
+  }
+
   get held(): boolean {
     return this.paused;
   }

@@ -5,20 +5,105 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>FADEAWAY</title>
     <style>
+      :root {
+        --ground: #0b0a09;
+        --bone: #e8e2d6;
+        --rail: 246px;
+        --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      }
       html, body {
         margin: 0;
         padding: 0;
         height: 100%;
-        background: #0b0a09;
+        background: var(--ground);
         overflow: hidden;
       }
-      /* Nothing on screen may look like it wants to be touched. */
-      body { cursor: none; }
-      canvas { display: block; width: 100vw; height: 100vh; }
+      #app { display: flex; height: 100vh; }
+      canvas { display: block; flex: 1 1 auto; min-width: 0; height: 100vh; }
+
+      /* Exhibit mode: nothing on screen may look like it wants to be touched. */
+      body.exhibit { cursor: none; }
+      body.exhibit #nav { display: none; }
+
+      #nav {
+        flex: 0 0 var(--rail);
+        width: var(--rail);
+        height: 100vh;
+        overflow-y: auto;
+        box-sizing: border-box;
+        padding: 18px 0 24px;
+        border-right: 1px solid rgba(232, 226, 214, 0.08);
+        font-family: var(--mono);
+        color: rgba(232, 226, 214, 0.55);
+        font-size: 11px;
+        line-height: 1.5;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(232, 226, 214, 0.15) transparent;
+      }
+      #nav h1 {
+        margin: 0 16px 2px;
+        font-size: 11px;
+        font-weight: 400;
+        letter-spacing: 0.22em;
+        color: rgba(232, 226, 214, 0.8);
+      }
+      #nav .meta { margin: 0 16px 14px; color: rgba(232, 226, 214, 0.3); font-size: 10px; }
+
+      .transport { display: flex; gap: 4px; margin: 0 12px 10px; }
+      .transport button {
+        flex: 1;
+        background: transparent;
+        border: 1px solid rgba(232, 226, 214, 0.12);
+        color: rgba(232, 226, 214, 0.6);
+        font-family: var(--mono);
+        font-size: 12px;
+        padding: 6px 0;
+        cursor: pointer;
+        border-radius: 2px;
+      }
+      .transport button:hover { border-color: rgba(232, 226, 214, 0.35); color: var(--bone); }
+      .transport button:active { background: rgba(232, 226, 214, 0.07); }
+
+      #scrub {
+        margin: 0 16px 4px;
+        height: 3px;
+        background: rgba(232, 226, 214, 0.1);
+        cursor: pointer;
+        position: relative;
+      }
+      #scrub .fill { position: absolute; inset: 0 auto 0 0; background: rgba(232, 226, 214, 0.45); }
+      #clock { margin: 0 16px 14px; font-size: 10px; color: rgba(232, 226, 214, 0.32); }
+
+      .act {
+        margin: 14px 16px 4px;
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        color: rgba(232, 226, 214, 0.42);
+        border-top: 1px solid rgba(232, 226, 214, 0.07);
+        padding-top: 8px;
+      }
+      .seg {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 2px 16px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .seg:hover { background: rgba(232, 226, 214, 0.05); color: var(--bone); }
+      .seg .share { color: rgba(232, 226, 214, 0.32); font-variant-numeric: tabular-nums; }
+      .seg.current { background: rgba(232, 226, 214, 0.1); color: var(--bone); }
+      .seg.current .share { color: rgba(232, 226, 214, 0.7); }
+      /* A mark for the seasons where the record's own resolution changes. */
+      .seg .mark { color: rgba(232, 226, 214, 0.28); width: 1.2em; display: inline-block; }
+      .seg.window .mark, .seg.cut .mark { color: rgba(232, 226, 214, 0.7); }
     </style>
   </head>
   <body>
-    <canvas id="plate"></canvas>
+    <div id="app">
+      <aside id="nav" hidden></aside>
+      <canvas id="plate"></canvas>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
