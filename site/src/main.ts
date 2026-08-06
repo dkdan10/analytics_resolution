@@ -7,8 +7,13 @@
 
 import { drawBloom } from "./bloom";
 import { exhibitClock, TalkClock, type Clock } from "./clock";
-import { load, type Loaded } from "./data";
-import { buildInscriptions, drawInscriptions, type Inscription } from "./inscription";
+import { load, type Corpus, type Loaded } from "./data";
+import {
+  buildInscriptions,
+  drawInscriptions,
+  drawSlug,
+  type Inscription,
+} from "./inscription";
 import { drawMarks, drawPin } from "./marks";
 import { GROUND } from "./palette";
 import { drawPlate, makeView, SHORTENED_THREE_R, type View } from "./plate";
@@ -39,6 +44,21 @@ function resize(): void {
   view = makeView(w, h);
 }
 
+/** The empty archive dated the day the window closed.
+ *
+ *  Selected by parsing the MM.DD.YYYY prefix against the corpus's own last
+ *  date, never by sorting the filenames: those strings are month-first, so
+ *  lexicographic order is not chronological and a shell from December would
+ *  sort after one from January. */
+function terminalShell(corpus: Corpus): string | null {
+  const iso = corpus.date_range[1];
+  for (const name of corpus.empty_32B_shells) {
+    const m = /^(\d{2})\.(\d{2})\.(\d{4})\./.exec(name);
+    if (m && `${m[3]}-${m[1]}-${m[2]}` === iso) return name;
+  }
+  return null;
+}
+
 function render(t: number, data: Loaded, schedule: Schedule, inscriptions: Inscription[]): void {
   const st = stateAt(t, schedule);
 
@@ -52,6 +72,11 @@ function render(t: number, data: Loaded, schedule: Schedule, inscriptions: Inscr
     ctx.globalAlpha = Math.min(1, st.preludePhase * 1.6);
     drawPlate(ctx, view);
     ctx.restore();
+    // Fifty years of basketball and not one coordinate. The plate is bare
+    // because the record is - this is the absence, not a stylised version of it.
+    const p = st.preludePhase;
+    drawSlug(ctx, view, ["1946 — 1996", "NO SHOT WAS GIVEN A PLACE"], { x: 0, y: 200 },
+      Math.min(1, p * 4) * Math.min(1, (1 - p) * 5));
     return;
   }
 
@@ -63,13 +88,21 @@ function render(t: number, data: Loaded, schedule: Schedule, inscriptions: Inscr
   const threeR = year === 1996 ? SHORTENED_THREE_R : undefined;
   drawPlate(ctx, view, threeR);
 
+  // The coda empties the plate back to bare stone so the loop turns over
+  // without a seam - everything the piece drew recedes, the engraving stays.
+  const remains = 1 - st.coda;
+  if (remains <= 0.001) return;
+
+  ctx.save();
+  ctx.globalAlpha = remains;
   // Cut into the plate, so every later season's shots settle over them.
   drawInscriptions(ctx, view, inscriptions, st.t);
+  ctx.restore();
 
   // Act III dims the field slightly: the rest of the league is still only dots,
   // and the gestures have to be the brightest thing the window holds.
   const inWindow = st.act === 3 && data.traces !== null;
-  const fieldDim = inWindow ? 1 - 0.55 * Math.min(1, st.phase * 4) : 1;
+  const fieldDim = (inWindow ? 1 - 0.55 * Math.min(1, st.phase * 4) : 1) * remains;
 
   const sample = data.samples.get(year);
   if (sample) {
@@ -82,8 +115,8 @@ function render(t: number, data: Loaded, schedule: Schedule, inscriptions: Inscr
     const nextSeason = data.byYear.get(st.next);
     const nextSample = data.samples.get(st.next);
     if (nextSeason && nextSample) {
-      drawMarks(ctx, view, nextSample, nextSeason, { dpr, opacity: st.blend });
-      drawPin(ctx, view, nextSample, { dpr, opacity: st.blend });
+      drawMarks(ctx, view, nextSample, nextSeason, { dpr, opacity: st.blend * remains });
+      drawPin(ctx, view, nextSample, { dpr, opacity: st.blend * remains });
     }
   }
 
@@ -92,6 +125,18 @@ function render(t: number, data: Loaded, schedule: Schedule, inscriptions: Inscr
       phase: st.phase,
       duration: secondsFor(year),
     });
+  }
+
+  // The terminal beat. The public feed's last archive is a 32-byte shell: a
+  // file that exists and holds nothing. It is named, not dramatised - both the
+  // filename and the byte count come from the corpus probe.
+  if (st.act === 3 && data.corpus) {
+    const last = terminalShell(data.corpus);
+    if (last) {
+      const closing = Math.max(0, Math.min(1, (st.phase - 0.93) / 0.05));
+      drawSlug(ctx, view, [data.corpus.date_range[1], last, "32 BYTES · NO CONTENT"],
+        { x: 0, y: 210 }, closing);
+    }
   }
 }
 

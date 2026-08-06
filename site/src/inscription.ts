@@ -13,7 +13,7 @@
  */
 
 import type { Season } from "./data";
-import { BONE_RGB, INSCRIPTION_FAMILY } from "./palette";
+import { BONE_RGB, INSCRIPTION_FAMILY, SLUG_FAMILY } from "./palette";
 import type { View } from "./plate";
 import type { Schedule } from "./timeline";
 
@@ -132,6 +132,32 @@ function strike(
   ctx.fillText(text, 0, -depth);
   ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha * 0.62})`;
   ctx.fillText(text, 0, 0);
+  ctx.letterSpacing = "0px";
+  ctx.restore();
+}
+
+/**
+ * Small machine type, for the two moments the piece names a thing rather than
+ * counts it: the era with no coordinates, and the archive that holds nothing.
+ */
+export function drawSlug(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  lines: string[],
+  at: { x: number; y: number },
+  alpha: number,
+): void {
+  if (alpha <= 0.01) return;
+  const px = Math.max(9, 11 * (view.scale / 2));
+  ctx.save();
+  ctx.font = `${px}px ${SLUG_FAMILY}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.letterSpacing = `${px * 0.14}px`;
+  ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha * 0.5})`;
+  lines.forEach((line, i) => {
+    ctx.fillText(line, view.sx(at.x), view.sy(at.y) + i * px * 1.9);
+  });
   ctx.letterSpacing = "0px";
   ctx.restore();
 }

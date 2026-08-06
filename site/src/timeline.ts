@@ -23,6 +23,13 @@ export const ACT_TITLES: Record<Act, string> = {
 
 /** Act 0 has no coordinates, so it has no marks - the plate is bare stone. */
 export const ACT0_SECONDS = 24;
+/**
+ * After the last season the plate empties again before the loop turns over.
+ * Without it the finished ring of thirty numerals vanishes in a single frame
+ * and the gallery loop shows a seam - the one cut the piece is allowed is
+ * 2010-11, and it should not have to share that distinction with a wrap.
+ */
+export const CODA_SECONDS = 7;
 const SEASON_SECONDS = 18;
 /** The window dilates: the piece is slow exactly where the record is rich. */
 const WINDOW_SECONDS = 90;
@@ -57,6 +64,8 @@ export interface Segment {
 export interface Schedule {
   segments: Segment[];
   byYear: Map<number, Segment>;
+  /** When the final season ends; the coda runs from here to `duration`. */
+  lastEnds: number;
   duration: number;
 }
 
@@ -71,7 +80,8 @@ export function buildSchedule(seasons: Season[]): Schedule {
   return {
     segments,
     byYear: new Map(segments.map((seg) => [seg.year, seg])),
-    duration: cursor,
+    lastEnds: cursor,
+    duration: cursor + CODA_SECONDS,
   };
 }
 
@@ -89,6 +99,8 @@ export interface State {
   phase: number;
   /** 0..1 through Act 0 (0 once the seasons begin). */
   preludePhase: number;
+  /** 0..1 through the closing fade back to bare stone (0 until then). */
+  coda: number;
 }
 
 function smoothstep(x: number): number {
@@ -109,6 +121,7 @@ export function stateAt(t: number, schedule: Schedule): State {
       cut: false,
       phase: 0,
       preludePhase: time / ACT0_SECONDS,
+      coda: 0,
     };
   }
 
@@ -129,7 +142,10 @@ export function stateAt(t: number, schedule: Schedule): State {
   const cut = next === CUT_YEAR;
   const blend = cut ? 0 : smoothstep((phase - (1 - BLEND_TAIL)) / BLEND_TAIL);
 
-  return { t: time, act: seg.act, year: seg.year, next, blend, cut, phase, preludePhase: 0 };
+  const coda = time > schedule.lastEnds
+    ? smoothstep((time - schedule.lastEnds) / CODA_SECONDS)
+    : 0;
+  return { t: time, act: seg.act, year: seg.year, next, blend, cut, phase, preludePhase: 0, coda };
 }
 
 /** Start of a season, for the talk mode's deterministic jumps. */
