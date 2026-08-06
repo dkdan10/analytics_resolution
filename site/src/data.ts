@@ -90,6 +90,7 @@ export interface Corpus {
   archive_count: number;
   total_bytes: number;
   empty_32B_shells: string[];
+  empty_shell_bytes: number;
   misnamed_archives: string[];
   date_range: [string, string];
 }

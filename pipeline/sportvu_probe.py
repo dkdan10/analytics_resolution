@@ -53,6 +53,11 @@ PROOF_JSON = "0021500015.json"
 # falsifies the plan section 1.1 naming claim for those 10 games).
 MISNAMED_PREFIX = "2016.NBA.Raw.SportVU.Game.Logs"
 
+# The size of an archive that exists and holds nothing. The piece names this
+# number in its terminal beat, so it ships as a measurement rather than as a
+# literal typed into the renderer.
+EMPTY_SHELL_BYTES = 32
+
 # Plan section 1.1 / 1.2, measured 2026-08-04 (misnamed count measured 2026-08-06).
 EXPECTED = {
     "archive_count": 636,
@@ -92,7 +97,7 @@ def list_corpus():
         print(f"  WARNING: unexpected API response: {entries}")
         return None
     sizes = [e["size"] for e in entries]
-    shells = sorted(e["name"] for e in entries if e["size"] == 32)
+    shells = sorted(e["name"] for e in entries if e["size"] == EMPTY_SHELL_BYTES)
     misnamed = sorted(
         e["name"] for e in entries if not re.match(r"^\d{2}\.\d{2}\.\d{4}\.", e["name"])
     )
@@ -111,6 +116,7 @@ def list_corpus():
         "archive_count": len(entries),
         "total_bytes": sum(sizes),
         "empty_32B_shells": shells,
+        "empty_shell_bytes": EMPTY_SHELL_BYTES,
         "misnamed_archives": misnamed,
         "date_range": [dates[0].isoformat(), dates[-1].isoformat()] if dates else None,
     }

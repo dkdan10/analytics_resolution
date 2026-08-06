@@ -1,6 +1,6 @@
 {
   "generated_by": "pipeline/sportvu_probe.py",
-  "probed_at": "2026-08-06T06:40:42+00:00",
+  "probed_at": "2026-08-06T08:23:40+00:00",
   "provenance": {
     "shots_source": "stats.nba.com shotchartdetail, bulk archive github.com/shufinskiy/nba_data",
     "sportvu_source": "NBA/STATS SportVU public 2015-16 release, github.com/linouk23/NBA-Player-Movements + mirrors (github.com/sealneaward/nba-movement-data, HF dcayton/nba_tracking_data_15_16)",
@@ -15,6 +15,7 @@
       "01.14.2016.DET.at.MEM.7z",
       "01.23.2016.UTA.at.WAS.7z"
     ],
+    "empty_shell_bytes": 32,
     "misnamed_archives": [
       "2016.NBA.Raw.SportVU.Game.Logs12.05.2015.BOS.at.SAS.7z",
       "2016.NBA.Raw.SportVU.Game.Logs12.05.2015.CHA.at.CHI.7z",

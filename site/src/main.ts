@@ -28,6 +28,11 @@ import {
   type Schedule,
 } from "./timeline";
 
+/** External history: the league's founding year. Nothing in the shot record
+ *  reaches back this far - that is the point of Act 0 - so it cannot be
+ *  derived, and it is the only date in the piece that is not a measurement. */
+const LEAGUE_FOUNDED = 1946;
+
 const canvas = document.getElementById("plate") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d", { alpha: false })!;
 
@@ -74,9 +79,17 @@ function render(t: number, data: Loaded, schedule: Schedule, inscriptions: Inscr
     ctx.restore();
     // Fifty years of basketball and not one coordinate. The plate is bare
     // because the record is - this is the absence, not a stylised version of it.
+    // The closing year is the first season the record holds, read from the data;
+    // 1946 is the league's founding, external history the dumps cannot supply.
     const p = st.preludePhase;
-    drawSlug(ctx, view, ["1946 — 1996", "NO SHOT WAS GIVEN A PLACE"], { x: 0, y: 200 },
-      Math.min(1, p * 4) * Math.min(1, (1 - p) * 5));
+    const firstCharted = data.seasons[0]?.year;
+    drawSlug(
+      ctx,
+      view,
+      [`${LEAGUE_FOUNDED} — ${firstCharted ?? ""}`, "NO SHOT WAS GIVEN A PLACE"],
+      { x: 0, y: 200 },
+      Math.min(1, p * 4) * Math.min(1, (1 - p) * 5),
+    );
     return;
   }
 
@@ -134,8 +147,13 @@ function render(t: number, data: Loaded, schedule: Schedule, inscriptions: Inscr
     const last = terminalShell(data.corpus);
     if (last) {
       const closing = Math.max(0, Math.min(1, (st.phase - 0.93) / 0.05));
-      drawSlug(ctx, view, [data.corpus.date_range[1], last, "32 BYTES · NO CONTENT"],
-        { x: 0, y: 210 }, closing);
+      drawSlug(
+        ctx,
+        view,
+        [data.corpus.date_range[1], last, `${data.corpus.empty_shell_bytes} BYTES · NO CONTENT`],
+        { x: 0, y: 210 },
+        closing,
+      );
     }
   }
 }
