@@ -99,7 +99,9 @@
       .seg.window .mark, .seg.cut .mark { color: rgba(232, 226, 214, 0.7); }
     </style>
   </head>
-  <body>
+  <!-- Chrome-free from the first paint: the rail removes this class if it is
+       wanted, so a gallery machine never flashes a cursor while data loads. -->
+  <body class="exhibit">
     <div id="app">
       <aside id="nav" hidden></aside>
       <canvas id="plate"></canvas>
