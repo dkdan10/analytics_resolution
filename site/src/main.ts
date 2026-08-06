@@ -5,6 +5,7 @@
  * other cannot reach.
  */
 
+import { drawBloom } from "./bloom";
 import { exhibitClock, TalkClock, type Clock } from "./clock";
 import { load, type Loaded } from "./data";
 import { buildInscriptions, drawInscriptions, type Inscription } from "./inscription";
@@ -65,9 +66,14 @@ function render(t: number, data: Loaded, schedule: Schedule, inscriptions: Inscr
   // Cut into the plate, so every later season's shots settle over them.
   drawInscriptions(ctx, view, inscriptions, st.t);
 
+  // Act III dims the field slightly: the rest of the league is still only dots,
+  // and the gestures have to be the brightest thing the window holds.
+  const inWindow = st.act === 3 && data.traces !== null;
+  const fieldDim = inWindow ? 1 - 0.55 * Math.min(1, st.phase * 4) : 1;
+
   const sample = data.samples.get(year);
   if (sample) {
-    const opacity = 1 - st.blend;
+    const opacity = (1 - st.blend) * fieldDim;
     drawMarks(ctx, view, sample, season, { dpr, opacity });
     drawPin(ctx, view, sample, { dpr, opacity });
   }
@@ -79,6 +85,13 @@ function render(t: number, data: Loaded, schedule: Schedule, inscriptions: Inscr
       drawMarks(ctx, view, nextSample, nextSeason, { dpr, opacity: st.blend });
       drawPin(ctx, view, nextSample, { dpr, opacity: st.blend });
     }
+  }
+
+  if (inWindow && data.traces) {
+    drawBloom(ctx, view, data.traces.traces, {
+      phase: st.phase,
+      duration: secondsFor(year),
+    });
   }
 }
 

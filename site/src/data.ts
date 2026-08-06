@@ -6,6 +6,8 @@
  */
 
 /** How finely the record could draw a given season. Measured, not assigned. */
+import type { TracesFile } from "./bloom";
+
 export type Regime =
   | "uniformly_blind"
   | "uneven"
@@ -82,6 +84,8 @@ export interface Sample {
   hires: number[];
 }
 
+export type { Trace, TracesFile } from "./bloom";
+
 export interface Corpus {
   archive_count: number;
   total_bytes: number;
@@ -95,6 +99,8 @@ export interface Loaded {
   byYear: Map<number, Season>;
   samples: Map<number, Sample>;
   corpus: Corpus | null;
+  /** Act III's gestures; null if the bloom stage has not been run. */
+  traces: TracesFile | null;
   provenance: Record<string, string>;
 }
 
@@ -117,7 +123,9 @@ export async function load(): Promise<Loaded> {
     }),
   );
 
-  // The corpus probe is Act III's evidence; the piece still runs without it.
+  // The corpus probe and the traces are Act III's evidence. The piece still
+  // runs without them - the window simply stays a field of dots, which is what
+  // every other era looks like anyway.
   let corpus: Corpus | null = null;
   try {
     const probe = await getJSON<{ corpus_listing: Corpus | null }>("sportvu_probe.json");
@@ -126,11 +134,19 @@ export async function load(): Promise<Loaded> {
     corpus = null;
   }
 
+  let traces: TracesFile | null = null;
+  try {
+    traces = await getJSON<TracesFile>("traces.json");
+  } catch {
+    traces = null;
+  }
+
   return {
     seasons,
     byYear: new Map(seasons.map((s) => [s.year, s])),
     samples,
     corpus,
+    traces,
     provenance: file.provenance,
   };
 }
