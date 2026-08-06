@@ -7,6 +7,7 @@
 
 import { exhibitClock, TalkClock, type Clock } from "./clock";
 import { load, type Loaded } from "./data";
+import { buildInscriptions, drawInscriptions, type Inscription } from "./inscription";
 import { drawMarks, drawPin } from "./marks";
 import { GROUND } from "./palette";
 import { drawPlate, makeView, SHORTENED_THREE_R, type View } from "./plate";
@@ -37,7 +38,7 @@ function resize(): void {
   view = makeView(w, h);
 }
 
-function render(t: number, data: Loaded, schedule: Schedule): void {
+function render(t: number, data: Loaded, schedule: Schedule, inscriptions: Inscription[]): void {
   const st = stateAt(t, schedule);
 
   ctx.fillStyle = GROUND;
@@ -60,6 +61,9 @@ function render(t: number, data: Loaded, schedule: Schedule): void {
   // the modern taxonomy has since drawn over.
   const threeR = year === 1996 ? SHORTENED_THREE_R : undefined;
   drawPlate(ctx, view, threeR);
+
+  // Cut into the plate, so every later season's shots settle over them.
+  drawInscriptions(ctx, view, inscriptions, st.t);
 
   const sample = data.samples.get(year);
   if (sample) {
@@ -148,8 +152,9 @@ async function main(): Promise<void> {
       `(Act 0 ${ACT0_SECONDS}s), mode ${clock.mode}`,
   );
 
+  const inscriptions = buildInscriptions(data.seasons, schedule);
   const frame = (now: number) => {
-    render(clock.at(now), data, schedule);
+    render(clock.at(now), data, schedule, inscriptions);
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
