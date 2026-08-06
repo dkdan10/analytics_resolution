@@ -42,6 +42,32 @@ SHORT_SEASON_KATTEMPTS = {1998: 113, 2011: 161, 2019: 188}  # section 3.1
 EXPECTED_N_GAMES = {y: (1189 if y < 2004 else 1230) for y in range(1996, 2026)}
 EXPECTED_N_GAMES.update({1998: 725, 2011: 990, 2012: 1229, 2019: 1059, 2020: 1080})
 
+# --- The record's own resolution (FADEAWAY's texture ladder) -----------------
+# Four regimes, measured 2026-08-06 from the bulk mirror and confirmed live
+# against stats.nba.com (2009-10, 2010-11, 2024-25 rates and action types).
+# Classification is derived in aggregate.py from the spread across arenas; these
+# gates pin the result so a re-acquisition cannot move it silently.
+EXPECTED_REGIMES = {}
+for _y in range(1996, 2026):
+    if _y == 1996:
+        EXPECTED_REGIMES[_y] = "uniformly_blind"
+    elif _y <= 2009:
+        EXPECTED_REGIMES[_y] = "uneven"
+    elif _y <= 2019:
+        EXPECTED_REGIMES[_y] = "uniformly_sighted"
+    else:
+        EXPECTED_REGIMES[_y] = "categorical_refusal"
+
+# Restricted-area shots the record filed at the origin, as a percentage.
+EXPECTED_RA_ORIGIN = {1996: "95.4", 2009: "74.8", 2010: "0.0", 2015: "0.0", 2024: "9.3"}
+
+# Cleveland is the one arena present in every season of the uneven era.
+UNEVEN_CONSTANT_ARENA = "CLE"
+
+# 1996-97 taxonomy anachronism: the 22-ft line of 1994-97 against modern polygons.
+EXPECTED_MISFILED_THREES = 19_165
+EXPECTED_CONTEMPORANEOUS_MID = "29.8"
+
 
 def pct(x):
     return f"{100 * x:.1f}"
@@ -93,6 +119,48 @@ def main():
     ]
     check("per-season game counts vs schedule", game_mismatches, [])
 
+    print("\nThe record's own resolution")
+    regime_mismatches = [
+        f"{seasons[y]['season']}: {seasons[y]['resolution']['regime']} != {EXPECTED_REGIMES[y]}"
+        for y in sorted(seasons)
+        if y in EXPECTED_REGIMES and seasons[y]["resolution"]["regime"] != EXPECTED_REGIMES[y]
+    ]
+    check("resolution regimes (4 eras)", regime_mismatches, [])
+
+    for year, want in sorted(EXPECTED_RA_ORIGIN.items()):
+        if year in seasons:
+            check(f"{seasons[year]['season']} rim shots left unplaced",
+                  pct(seasons[year]["resolution"]["ra_origin_share"]), want)
+
+    uneven = [y for y in sorted(seasons) if seasons[y]["resolution"]["regime"] == "uneven"]
+    missing_constant = [
+        seasons[y]["season"] for y in uneven
+        if UNEVEN_CONSTANT_ARENA not in seasons[y]["resolution"]["full_resolution_arenas"]
+    ]
+    check(f"{UNEVEN_CONSTANT_ARENA} full-resolution in every uneven season", missing_constant, [])
+    check("uneven-era season count", len(uneven), 13)
+
+    # Where the regime is uniform, no arena may be singled out - claiming a subset
+    # could see would invent a distinction the measurement does not support.
+    leaked = [
+        seasons[y]["season"] for y in sorted(seasons)
+        if seasons[y]["resolution"]["regime"] != "uneven"
+        and seasons[y]["resolution"]["full_resolution_arenas"]
+    ]
+    check("no arenas named in uniform regimes", leaked, [])
+
+    if 1996 in seasons:
+        c = seasons[1996]["contemporaneous"]
+        check("1996-97 threes misfiled as Mid-Range", c["misfiled_threes"], EXPECTED_MISFILED_THREES)
+        check("1996-97 mid-range under the 22-ft line then in force",
+              pct(c["contemporaneous_mid_share"]), EXPECTED_CONTEMPORANEOUS_MID)
+    stray = [
+        seasons[y]["season"] for y in sorted(seasons)
+        if y != 1996 and seasons[y].get("contemporaneous") is not None
+    ]
+    check("contemporaneous correction confined to 1996-97", stray, [])
+
+    print()
     # Cross-artifact gates: the manifest, samples, and grids must belong to the
     # same generation as seasons.json (subset or interrupted runs turn RED here).
     manifest_path = PROCESSED_DIR / "acquisition_manifest.json"
@@ -126,6 +194,11 @@ def main():
         print(f"  pre-camera slope 1996-97..2012-13: {(m96 - m12) / 16:.2f} pp/season (plan: ~0.7)")
         print(f"  camera-era slope 2012-13..2019-20: {(m12 - m19) / 7:.2f} pp/season (plan: ~2.1)")
         print(f"  collapse midpoint (39.9+9.7)/2 = {(m96 + m24) / 2:.1f}; the window season sits at {m15:.1f}")
+    if 1996 in seasons:
+        c = seasons[1996]["contemporaneous"]
+        print(f"  1996-97 opens at {100 * c['taxonomy_mid_share']:.1f}% by the NBA's zone taxonomy, "
+              f"{100 * c['contemporaneous_mid_share']:.1f}% under the line then in force "
+              f"({c['misfiled_threes']:,} threes filed as Mid-Range)")
 
     if failures:
         print(f"\nQA RED: {len(failures)} mismatch(es). The pipeline is wrong, not the plan.")

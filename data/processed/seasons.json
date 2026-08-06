@@ -1,6 +1,6 @@
 {
   "generated_by": "pipeline/aggregate.py",
-  "generated_at": "2026-08-06T06:41:07+00:00",
+  "generated_at": "2026-08-06T07:39:38+00:00",
   "provenance": {
     "shots_source": "stats.nba.com shotchartdetail, bulk archive github.com/shufinskiy/nba_data",
     "sportvu_source": "NBA/STATS SportVU public 2015-16 release, github.com/linouk23/NBA-Player-Movements + mirrors (github.com/sealneaward/nba-movement-data, HF dcayton/nba_tracking_data_15_16)",
@@ -10,7 +10,10 @@
     "mid_share": "SHOT_ZONE_BASIC == \"Mid-Range\" (NBA zone taxonomy, disclosed)",
     "three_share": "SHOT_TYPE == \"3PT Field Goal\"",
     "sample": "fixed-seed (20151027+year) uniform sample of halfcourt attempts",
-    "grid": "1ft bins over LOC_X [-250,250], LOC_Y [-50,420], tenths of feet"
+    "grid": "1ft bins over LOC_X [-250,250], LOC_Y [-50,420], tenths of feet",
+    "resolution.ra_origin_share": "restricted-area shots filed at exactly (0,0) - the record declining to say where at the rim; drives the pin and the texture ladder",
+    "resolution.full_resolution_arenas": "home arenas whose games recorded real rim coordinates that season; through 2009-10 only five or six did, and it follows the building, not the team",
+    "contemporaneous": "1996-97 only: mid-range recomputed under the 22-ft line then in force, against the modern polygons SHOT_ZONE_BASIC applies retroactively"
   },
   "seasons": [
     {
@@ -61,6 +64,37 @@
       "date_min": "19961101",
       "date_max": "19970420",
       "shot_type_nulls": 1,
+      "resolution": {
+        "origin_snapped": 67351,
+        "origin_snapped_share": 0.3571311158126932,
+        "ra_attempts": 70577,
+        "ra_origin_snapped": 67351,
+        "ra_origin_share": 0.9542910579933973,
+        "refused_action_types": {
+          "Layup Shot": 42068,
+          "Driving Layup Shot": 11581,
+          "Dunk Shot": 3974,
+          "Slam Dunk Shot": 3909,
+          "Tip Shot": 3858,
+          "Driving Dunk Shot": 1038
+        },
+        "regime": "uniformly_blind",
+        "arena_spread_pp": 34.449760125048016,
+        "full_resolution_arenas": [],
+        "n_full_resolution_arenas": 0,
+        "full_resolution_games": 14,
+        "n_games_with_ra": 1189
+      },
+      "contemporaneous": {
+        "taxonomy_mid_attempts": 75296,
+        "taxonomy_mid_share": 0.399259765946052,
+        "misfiled_threes": 19165,
+        "contemporaneous_mid_attempts": 56131,
+        "contemporaneous_mid_share": 0.29763665961429353,
+        "three_attempts_by_type": 39941,
+        "three_attempts_by_zone": 20133,
+        "note": "the 3PT line stood at 22 ft in 1994-97; SHOT_ZONE_BASIC applies the modern 23'9\" geometry retroactively, filing these attempts as Mid-Range"
+      },
       "note": "shortened 3PT line era (1994-97); clean baseline starts 1997-98"
     },
     {
@@ -111,6 +145,32 @@
       "date_min": "19971031",
       "date_max": "19980419",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 48872,
+        "origin_snapped_share": 0.2578507513084585,
+        "ra_attempts": 63120,
+        "ra_origin_snapped": 48872,
+        "ra_origin_share": 0.7742712294043093,
+        "refused_action_types": {
+          "Layup Shot": 24231,
+          "Driving Layup Shot": 11048,
+          "Dunk Shot": 4322,
+          "Tip Shot": 4289,
+          "Slam Dunk Shot": 3327,
+          "Driving Dunk Shot": 832
+        },
+        "regime": "uneven",
+        "arena_spread_pp": 98.33612732629543,
+        "full_resolution_arenas": [
+          "BOS",
+          "CLE",
+          "VAN"
+        ],
+        "n_full_resolution_arenas": 3,
+        "full_resolution_games": 150,
+        "n_games_with_ra": 1189
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -161,6 +221,35 @@
       "date_min": "19990205",
       "date_max": "19990505",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 26057,
+        "origin_snapped_share": 0.22982615521666652,
+        "ra_attempts": 35102,
+        "ra_origin_snapped": 26057,
+        "ra_origin_share": 0.7423223747934591,
+        "refused_action_types": {
+          "Layup Shot": 12880,
+          "Driving Layup Shot": 6537,
+          "Tip Shot": 2270,
+          "Dunk Shot": 2110,
+          "Slam Dunk Shot": 1635,
+          "Driving Dunk Shot": 368
+        },
+        "regime": "uneven",
+        "arena_spread_pp": 99.16710829723525,
+        "full_resolution_arenas": [
+          "BOS",
+          "CLE",
+          "IND",
+          "SAS",
+          "VAN",
+          "WAS"
+        ],
+        "n_full_resolution_arenas": 6,
+        "full_resolution_games": 130,
+        "n_games_with_ra": 725
+      },
+      "contemporaneous": null,
       "note": "lockout season (50 games per team) - short, not sparse"
     },
     {
@@ -211,6 +300,35 @@
       "date_min": "19991102",
       "date_max": "20000419",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 43180,
+        "origin_snapped_share": 0.22118635385718677,
+        "ra_attempts": 58425,
+        "ra_origin_snapped": 43180,
+        "ra_origin_share": 0.7390671801454857,
+        "refused_action_types": {
+          "Layup Shot": 20803,
+          "Driving Layup Shot": 10888,
+          "Dunk Shot": 3811,
+          "Tip Shot": 3748,
+          "Slam Dunk Shot": 2792,
+          "Driving Dunk Shot": 802
+        },
+        "regime": "uneven",
+        "arena_spread_pp": 99.2000350241949,
+        "full_resolution_arenas": [
+          "BOS",
+          "CLE",
+          "IND",
+          "SAS",
+          "VAN",
+          "WAS"
+        ],
+        "n_full_resolution_arenas": 6,
+        "full_resolution_games": 232,
+        "n_games_with_ra": 1189
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -261,6 +379,35 @@
       "date_min": "20001031",
       "date_max": "20010418",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 41338,
+        "origin_snapped_share": 0.21568177312143252,
+        "ra_attempts": 56347,
+        "ra_origin_snapped": 41338,
+        "ra_origin_share": 0.7336326689974622,
+        "refused_action_types": {
+          "Layup Shot": 19717,
+          "Driving Layup Shot": 8299,
+          "Tip Shot": 3528,
+          "Dunk Shot": 3439,
+          "Slam Dunk Shot": 2039,
+          "Reverse Layup Shot": 1478
+        },
+        "regime": "uneven",
+        "arena_spread_pp": 99.76986946628878,
+        "full_resolution_arenas": [
+          "BOS",
+          "CLE",
+          "IND",
+          "SAS",
+          "VAN",
+          "WAS"
+        ],
+        "n_full_resolution_arenas": 6,
+        "full_resolution_games": 247,
+        "n_games_with_ra": 1189
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -311,6 +458,34 @@
       "date_min": "20011030",
       "date_max": "20020417",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 46305,
+        "origin_snapped_share": 0.23961066178182777,
+        "ra_attempts": 58361,
+        "ra_origin_snapped": 46305,
+        "ra_origin_share": 0.7934236904782304,
+        "refused_action_types": {
+          "Layup Shot": 22820,
+          "Driving Layup Shot": 8324,
+          "Dunk Shot": 3793,
+          "Tip Shot": 3594,
+          "Slam Dunk Shot": 1977,
+          "Reverse Layup Shot": 1887
+        },
+        "regime": "uneven",
+        "arena_spread_pp": 99.74862257125046,
+        "full_resolution_arenas": [
+          "BOS",
+          "CLE",
+          "IND",
+          "SAS",
+          "WAS"
+        ],
+        "n_full_resolution_arenas": 5,
+        "full_resolution_games": 201,
+        "n_games_with_ra": 1189
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -361,6 +536,34 @@
       "date_min": "20021029",
       "date_max": "20030416",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 45937,
+        "origin_snapped_share": 0.23911945822423727,
+        "ra_attempts": 57911,
+        "ra_origin_snapped": 45937,
+        "ra_origin_share": 0.7932344459601802,
+        "refused_action_types": {
+          "Layup Shot": 23645,
+          "Driving Layup Shot": 7979,
+          "Dunk Shot": 3309,
+          "Tip Shot": 3236,
+          "Slam Dunk Shot": 2007,
+          "Reverse Layup Shot": 1946
+        },
+        "regime": "uneven",
+        "arena_spread_pp": 99.39377904127097,
+        "full_resolution_arenas": [
+          "BOS",
+          "CLE",
+          "IND",
+          "SAS",
+          "WAS"
+        ],
+        "n_full_resolution_arenas": 5,
+        "full_resolution_games": 194,
+        "n_games_with_ra": 1189
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -411,6 +614,33 @@
       "date_min": "20031028",
       "date_max": "20040414",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 46846,
+        "origin_snapped_share": 0.24681380167858252,
+        "ra_attempts": 59358,
+        "ra_origin_snapped": 46846,
+        "ra_origin_share": 0.7892112267933555,
+        "refused_action_types": {
+          "Layup Shot": 24695,
+          "Driving Layup Shot": 7861,
+          "Dunk Shot": 3425,
+          "Tip Shot": 3333,
+          "Reverse Layup Shot": 1940,
+          "Slam Dunk Shot": 1853
+        },
+        "regime": "uneven",
+        "arena_spread_pp": 99.56737673146505,
+        "full_resolution_arenas": [
+          "CLE",
+          "IND",
+          "SAS",
+          "WAS"
+        ],
+        "n_full_resolution_arenas": 4,
+        "full_resolution_games": 180,
+        "n_games_with_ra": 1189
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -461,6 +691,34 @@
       "date_min": "20041102",
       "date_max": "20050420",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 49184,
+        "origin_snapped_share": 0.24887413599425176,
+        "ra_attempts": 63163,
+        "ra_origin_snapped": 49184,
+        "ra_origin_share": 0.7786837230657189,
+        "refused_action_types": {
+          "Layup Shot": 25914,
+          "Driving Layup Shot": 7992,
+          "Dunk Shot": 3911,
+          "Tip Shot": 3435,
+          "Reverse Layup Shot": 1898,
+          "Slam Dunk Shot": 1782
+        },
+        "regime": "uneven",
+        "arena_spread_pp": 99.6539848241737,
+        "full_resolution_arenas": [
+          "BOS",
+          "CLE",
+          "IND",
+          "SAS",
+          "WAS"
+        ],
+        "n_full_resolution_arenas": 5,
+        "full_resolution_games": 195,
+        "n_games_with_ra": 1230
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -511,6 +769,34 @@
       "date_min": "20051101",
       "date_max": "20060419",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 48688,
+        "origin_snapped_share": 0.25056352089916323,
+        "ra_attempts": 63017,
+        "ra_origin_snapped": 48688,
+        "ra_origin_share": 0.77261691289652,
+        "refused_action_types": {
+          "Layup Shot": 24843,
+          "Driving Layup Shot": 9136,
+          "Dunk Shot": 3522,
+          "Tip Shot": 2971,
+          "Reverse Layup Shot": 2117,
+          "Slam Dunk Shot": 1622
+        },
+        "regime": "uneven",
+        "arena_spread_pp": 99.47610110888743,
+        "full_resolution_arenas": [
+          "BOS",
+          "CLE",
+          "IND",
+          "SAS",
+          "WAS"
+        ],
+        "n_full_resolution_arenas": 5,
+        "full_resolution_games": 210,
+        "n_games_with_ra": 1230
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -561,6 +847,34 @@
       "date_min": "20061031",
       "date_max": "20070418",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 49928,
+        "origin_snapped_share": 0.2546411522297931,
+        "ra_attempts": 64492,
+        "ra_origin_snapped": 49928,
+        "ra_origin_share": 0.7741735409042982,
+        "refused_action_types": {
+          "Layup Shot": 25834,
+          "Driving Layup Shot": 8865,
+          "Dunk Shot": 3378,
+          "Tip Shot": 3079,
+          "Reverse Layup Shot": 2291,
+          "Slam Dunk Shot": 1853
+        },
+        "regime": "uneven",
+        "arena_spread_pp": 99.57141368601059,
+        "full_resolution_arenas": [
+          "BOS",
+          "CLE",
+          "IND",
+          "SAS",
+          "WAS"
+        ],
+        "n_full_resolution_arenas": 5,
+        "full_resolution_games": 195,
+        "n_games_with_ra": 1230
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -611,6 +925,33 @@
       "date_min": "20071030",
       "date_max": "20080416",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 50842,
+        "origin_snapped_share": 0.2535747951381789,
+        "ra_attempts": 64133,
+        "ra_origin_snapped": 50842,
+        "ra_origin_share": 0.7927587981226514,
+        "refused_action_types": {
+          "Layup Shot": 24591,
+          "Driving Layup Shot": 8844,
+          "Dunk Shot": 3661,
+          "Tip Shot": 3110,
+          "Reverse Layup Shot": 1882,
+          "Slam Dunk Shot": 1575
+        },
+        "regime": "uneven",
+        "arena_spread_pp": 99.3915796567594,
+        "full_resolution_arenas": [
+          "BOS",
+          "CLE",
+          "IND",
+          "SAS"
+        ],
+        "n_full_resolution_arenas": 4,
+        "full_resolution_games": 177,
+        "n_games_with_ra": 1230
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -661,6 +1002,34 @@
       "date_min": "20081028",
       "date_max": "20090415",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 50138,
+        "origin_snapped_share": 0.2519117720946591,
+        "ra_attempts": 65152,
+        "ra_origin_snapped": 50138,
+        "ra_origin_share": 0.7695542730844793,
+        "refused_action_types": {
+          "Layup Shot": 23825,
+          "Driving Layup Shot": 9264,
+          "Dunk Shot": 3709,
+          "Tip Shot": 3090,
+          "Reverse Layup Shot": 1707,
+          "Slam Dunk Shot": 1595
+        },
+        "regime": "uneven",
+        "arena_spread_pp": 99.45142556831,
+        "full_resolution_arenas": [
+          "BOS",
+          "CLE",
+          "IND",
+          "SAS",
+          "WAS"
+        ],
+        "n_full_resolution_arenas": 5,
+        "full_resolution_games": 205,
+        "n_games_with_ra": 1230
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -711,6 +1080,35 @@
       "date_min": "20091027",
       "date_max": "20100414",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 49905,
+        "origin_snapped_share": 0.2483255874127962,
+        "ra_attempts": 66762,
+        "ra_origin_snapped": 49905,
+        "ra_origin_share": 0.747506066325155,
+        "refused_action_types": {
+          "Layup Shot": 23430,
+          "Driving Layup Shot": 9490,
+          "Tip Shot": 3662,
+          "Dunk Shot": 3449,
+          "Reverse Layup Shot": 1846,
+          "Slam Dunk Shot": 1289
+        },
+        "regime": "uneven",
+        "arena_spread_pp": 99.41466175954626,
+        "full_resolution_arenas": [
+          "BOS",
+          "CLE",
+          "GSW",
+          "IND",
+          "SAS",
+          "WAS"
+        ],
+        "n_full_resolution_arenas": 6,
+        "full_resolution_games": 217,
+        "n_games_with_ra": 1230
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -761,6 +1159,21 @@
       "date_min": "20101026",
       "date_max": "20110413",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 0,
+        "origin_snapped_share": 0.0,
+        "ra_attempts": 62928,
+        "ra_origin_snapped": 0,
+        "ra_origin_share": 0.0,
+        "refused_action_types": {},
+        "regime": "uniformly_sighted",
+        "arena_spread_pp": 0.0,
+        "full_resolution_arenas": [],
+        "n_full_resolution_arenas": 0,
+        "full_resolution_games": 1230,
+        "n_games_with_ra": 1230
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -811,6 +1224,21 @@
       "date_min": "20111225",
       "date_max": "20120426",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 0,
+        "origin_snapped_share": 0.0,
+        "ra_attempts": 52099,
+        "ra_origin_snapped": 0,
+        "ra_origin_share": 0.0,
+        "refused_action_types": {},
+        "regime": "uniformly_sighted",
+        "arena_spread_pp": 0.0,
+        "full_resolution_arenas": [],
+        "n_full_resolution_arenas": 0,
+        "full_resolution_games": 990,
+        "n_games_with_ra": 990
+      },
+      "contemporaneous": null,
       "note": "lockout season (66 games per team) - short, not sparse"
     },
     {
@@ -861,6 +1289,21 @@
       "date_min": "20121030",
       "date_max": "20130417",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 0,
+        "origin_snapped_share": 0.0,
+        "ra_attempts": 66135,
+        "ra_origin_snapped": 0,
+        "ra_origin_share": 0.0,
+        "refused_action_types": {},
+        "regime": "uniformly_sighted",
+        "arena_spread_pp": 0.0,
+        "full_resolution_arenas": [],
+        "n_full_resolution_arenas": 0,
+        "full_resolution_games": 1229,
+        "n_games_with_ra": 1229
+      },
+      "contemporaneous": null,
       "note": "1,229 games, not 1,230: BOS@IND (Apr 16, 2013) cancelled after the Boston Marathon bombing, never replayed - the record is complete"
     },
     {
@@ -911,6 +1354,21 @@
       "date_min": "20131029",
       "date_max": "20140416",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 0,
+        "origin_snapped_share": 0.0,
+        "ra_attempts": 66016,
+        "ra_origin_snapped": 0,
+        "ra_origin_share": 0.0,
+        "refused_action_types": {},
+        "regime": "uniformly_sighted",
+        "arena_spread_pp": 0.0,
+        "full_resolution_arenas": [],
+        "n_full_resolution_arenas": 0,
+        "full_resolution_games": 1230,
+        "n_games_with_ra": 1230
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -961,6 +1419,21 @@
       "date_min": "20141028",
       "date_max": "20150415",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 0,
+        "origin_snapped_share": 0.0,
+        "ra_attempts": 66134,
+        "ra_origin_snapped": 0,
+        "ra_origin_share": 0.0,
+        "refused_action_types": {},
+        "regime": "uniformly_sighted",
+        "arena_spread_pp": 0.0,
+        "full_resolution_arenas": [],
+        "n_full_resolution_arenas": 0,
+        "full_resolution_games": 1230,
+        "n_games_with_ra": 1230
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -1011,6 +1484,21 @@
       "date_min": "20151027",
       "date_max": "20160413",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 0,
+        "origin_snapped_share": 0.0,
+        "ra_attempts": 67443,
+        "ra_origin_snapped": 0,
+        "ra_origin_share": 0.0,
+        "refused_action_types": {},
+        "regime": "uniformly_sighted",
+        "arena_spread_pp": 0.0,
+        "full_resolution_arenas": [],
+        "n_full_resolution_arenas": 0,
+        "full_resolution_games": 1230,
+        "n_games_with_ra": 1230
+      },
+      "contemporaneous": null,
       "note": "THE WINDOW: public SportVU corpus 2015-10-27 .. 2016-01-23"
     },
     {
@@ -1061,6 +1549,21 @@
       "date_min": "20161025",
       "date_max": "20170412",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 0,
+        "origin_snapped_share": 0.0,
+        "ra_attempts": 67289,
+        "ra_origin_snapped": 0,
+        "ra_origin_share": 0.0,
+        "refused_action_types": {},
+        "regime": "uniformly_sighted",
+        "arena_spread_pp": 0.0,
+        "full_resolution_arenas": [],
+        "n_full_resolution_arenas": 0,
+        "full_resolution_games": 1230,
+        "n_games_with_ra": 1230
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -1111,6 +1614,28 @@
       "date_min": "20171017",
       "date_max": "20180411",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 68,
+        "origin_snapped_share": 0.00032119863773989526,
+        "ra_attempts": 66875,
+        "ra_origin_snapped": 68,
+        "ra_origin_share": 0.0010168224299065421,
+        "refused_action_types": {
+          "Driving Layup Shot": 10,
+          "Cutting Dunk Shot": 9,
+          "Layup Shot": 7,
+          "Cutting Layup Shot": 6,
+          "Driving Reverse Layup Shot": 6,
+          "Driving Dunk Shot": 4
+        },
+        "regime": "uniformly_sighted",
+        "arena_spread_pp": 0.3476601049870129,
+        "full_resolution_arenas": [],
+        "n_full_resolution_arenas": 0,
+        "full_resolution_games": 1230,
+        "n_games_with_ra": 1230
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -1161,6 +1686,28 @@
       "date_min": "20181016",
       "date_max": "20190410",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 90,
+        "origin_snapped_share": 0.00041010124944180663,
+        "ra_attempts": 72427,
+        "ra_origin_snapped": 90,
+        "ra_origin_share": 0.0012426305107211399,
+        "refused_action_types": {
+          "Cutting Dunk Shot": 15,
+          "Driving Layup Shot": 14,
+          "Driving Dunk Shot": 12,
+          "Layup Shot": 11,
+          "Running Dunk Shot": 6,
+          "Cutting Layup Shot": 6
+        },
+        "regime": "uniformly_sighted",
+        "arena_spread_pp": 0.4019690793432805,
+        "full_resolution_arenas": [],
+        "n_full_resolution_arenas": 0,
+        "full_resolution_games": 1230,
+        "n_games_with_ra": 1230
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -1211,6 +1758,28 @@
       "date_min": "20191022",
       "date_max": "20200814",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 65,
+        "origin_snapped_share": 0.0003455314805758149,
+        "ra_attempts": 60503,
+        "ra_origin_snapped": 65,
+        "ra_origin_share": 0.0010743268928813448,
+        "refused_action_types": {
+          "Driving Layup Shot": 10,
+          "Cutting Dunk Shot": 9,
+          "Dunk Shot": 6,
+          "Cutting Layup Shot": 6,
+          "Running Dunk Shot": 6,
+          "Driving Finger Roll Layup Shot": 5
+        },
+        "regime": "uniformly_sighted",
+        "arena_spread_pp": 0.431870035378264,
+        "full_resolution_arenas": [],
+        "n_full_resolution_arenas": 0,
+        "full_resolution_games": 1059,
+        "n_games_with_ra": 1059
+      },
+      "contemporaneous": null,
       "note": "bubble season - short, not sparse"
     },
     {
@@ -1261,6 +1830,28 @@
       "date_min": "20201222",
       "date_max": "20210516",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 5092,
+        "origin_snapped_share": 0.026662058926710756,
+        "ra_attempts": 57440,
+        "ra_origin_snapped": 5092,
+        "ra_origin_share": 0.08864902506963789,
+        "refused_action_types": {
+          "Tip Layup Shot": 3398,
+          "Putback Layup Shot": 817,
+          "Tip Dunk Shot": 530,
+          "Putback Dunk Shot": 229,
+          "Layup Shot": 28,
+          "Driving Layup Shot": 12
+        },
+        "regime": "categorical_refusal",
+        "arena_spread_pp": 8.161909922059014,
+        "full_resolution_arenas": [],
+        "n_full_resolution_arenas": 0,
+        "full_resolution_games": 222,
+        "n_games_with_ra": 1080
+      },
+      "contemporaneous": null,
       "note": "72-game pandemic schedule - short, not sparse"
     },
     {
@@ -1311,6 +1902,28 @@
       "date_min": "20211019",
       "date_max": "20220410",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 5794,
+        "origin_snapped_share": 0.026734710827696313,
+        "ra_attempts": 62987,
+        "ra_origin_snapped": 5794,
+        "ra_origin_share": 0.09198723546128566,
+        "refused_action_types": {
+          "Tip Layup Shot": 3773,
+          "Putback Layup Shot": 960,
+          "Tip Dunk Shot": 666,
+          "Putback Dunk Shot": 268,
+          "Layup Shot": 20,
+          "Driving Layup Shot": 17
+        },
+        "regime": "categorical_refusal",
+        "arena_spread_pp": 12.949561655287281,
+        "full_resolution_arenas": [],
+        "n_full_resolution_arenas": 0,
+        "full_resolution_games": 271,
+        "n_games_with_ra": 1230
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -1361,6 +1974,28 @@
       "date_min": "20221018",
       "date_max": "20230409",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 6281,
+        "origin_snapped_share": 0.028915651557421578,
+        "ra_attempts": 64982,
+        "ra_origin_snapped": 6281,
+        "ra_origin_share": 0.0966575359330276,
+        "refused_action_types": {
+          "Tip Layup Shot": 4036,
+          "Putback Layup Shot": 1094,
+          "Tip Dunk Shot": 784,
+          "Putback Dunk Shot": 267,
+          "Layup Shot": 19,
+          "Driving Layup Shot": 9
+        },
+        "regime": "categorical_refusal",
+        "arena_spread_pp": 20.034472947452947,
+        "full_resolution_arenas": [],
+        "n_full_resolution_arenas": 0,
+        "full_resolution_games": 242,
+        "n_games_with_ra": 1230
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -1411,6 +2046,28 @@
       "date_min": "20231024",
       "date_max": "20240414",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 6153,
+        "origin_snapped_share": 0.02813430208366674,
+        "ra_attempts": 64669,
+        "ra_origin_snapped": 6153,
+        "ra_origin_share": 0.09514605143113393,
+        "refused_action_types": {
+          "Tip Layup Shot": 3924,
+          "Putback Layup Shot": 1113,
+          "Tip Dunk Shot": 798,
+          "Putback Dunk Shot": 199,
+          "Layup Shot": 19,
+          "Driving Layup Shot": 12
+        },
+        "regime": "categorical_refusal",
+        "arena_spread_pp": 14.704095618393243,
+        "full_resolution_arenas": [],
+        "n_full_resolution_arenas": 0,
+        "full_resolution_games": 235,
+        "n_games_with_ra": 1230
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -1461,6 +2118,28 @@
       "date_min": "20241022",
       "date_max": "20250413",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 5678,
+        "origin_snapped_share": 0.02586470001412127,
+        "ra_attempts": 61190,
+        "ra_origin_snapped": 5678,
+        "ra_origin_share": 0.09279294002287955,
+        "refused_action_types": {
+          "Tip Layup Shot": 3732,
+          "Putback Layup Shot": 914,
+          "Tip Dunk Shot": 762,
+          "Putback Dunk Shot": 168,
+          "Layup Shot": 18,
+          "Driving Layup Shot": 10
+        },
+        "regime": "categorical_refusal",
+        "arena_spread_pp": 12.101844472575799,
+        "full_resolution_arenas": [],
+        "n_full_resolution_arenas": 0,
+        "full_resolution_games": 304,
+        "n_games_with_ra": 1230
+      },
+      "contemporaneous": null,
       "note": null
     },
     {
@@ -1511,6 +2190,28 @@
       "date_min": "20251021",
       "date_max": "20260412",
       "shot_type_nulls": 0,
+      "resolution": {
+        "origin_snapped": 6025,
+        "origin_snapped_share": 0.02749133053476912,
+        "ra_attempts": 62253,
+        "ra_origin_snapped": 6025,
+        "ra_origin_share": 0.0967824843782629,
+        "refused_action_types": {
+          "Tip Layup Shot": 3890,
+          "Putback Layup Shot": 1020,
+          "Tip Dunk Shot": 780,
+          "Putback Dunk Shot": 221,
+          "Layup Shot": 18,
+          "Cutting Dunk Shot": 11
+        },
+        "regime": "categorical_refusal",
+        "arena_spread_pp": 11.319430086077892,
+        "full_resolution_arenas": [],
+        "n_full_resolution_arenas": 0,
+        "full_resolution_games": 235,
+        "n_games_with_ra": 1230
+      },
+      "contemporaneous": null,
       "note": null
     }
   ]

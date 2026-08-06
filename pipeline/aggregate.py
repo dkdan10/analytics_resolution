@@ -12,6 +12,17 @@ Zone definitions (disclosed in wall text, plan section 1.6 / Appendix D):
 These diverge in 1996-97: the shortened line (1994-97) put many 3PT attempts
 inside the modern Mid-Range polygon. That divergence is content, not a bug.
 
+It also drives FADEAWAY's texture ladder, so this stage measures the record's
+own resolution alongside the game's drift ("grain is a measurement, not a mood"):
+  origin_snapped   restricted-area shots filed at exactly (0,0) - the record
+                   declining to say WHERE at the rim. 95.4% in 1996-97, 0.0%
+                   from 2010-11, ~9% from 2020-21 (tip-ins/putbacks only).
+  arena resolution which buildings recorded rim coordinates. Through 2009-10
+                   only five or six did; it follows the ARENA, not the team.
+  contemporaneous  1996-97's mid-range share recomputed under the 22-ft line
+                   actually in force, against the modern polygons the taxonomy
+                   applies retroactively.
+
 Usage: python3 pipeline/aggregate.py [--years 1996,2015,...]
 """
 
@@ -39,6 +50,8 @@ USECOLS = [
     "GAME_ID",
     "GAME_DATE",
     "TEAM_ID",
+    "HTM",
+    "ACTION_TYPE",
     "LOC_X",
     "LOC_Y",
     "SHOT_DISTANCE",
@@ -52,6 +65,7 @@ DTYPES = {
     "GAME_ID": str,
     "GAME_DATE": str,
     "TEAM_ID": np.int64,
+    "HTM": str,
     "LOC_X": np.int32,
     "LOC_Y": np.int32,
     "SHOT_DISTANCE": np.int32,
@@ -98,6 +112,26 @@ SEASON_NOTES = {
 
 REGULATION_GAMES = 82  # league constant, external to this dataset
 
+# A game is "full-resolution" when almost none of its restricted-area shots were
+# filed at the origin. The gap is stark (arenas sit at ~0% or ~75%+), so the
+# threshold is a formality rather than a tuned parameter.
+FULL_RES_GAME_MAX_SNAP = 0.05
+FULL_RES_ARENA_MIN_GAMES = 0.5   # majority of a team's home games
+
+# Whether the record's rim blindness is a property of the BUILDING or a rule
+# applied league-wide is decided by the spread across arenas, which is not a
+# close call: in the uneven era arenas run 0.1% to 99.8% (spread ~99pp), while
+# uniform seasons spread under 40pp. Four regimes fall out, and the renderer
+# picks its texture from these rather than from hardcoded year ranges.
+UNEVEN_SPREAD_PP = 40.0
+MOSTLY_SIGHTED_MAX = 0.02        # league-wide share below which the rim is placed
+
+# The three-point line stood at 22 ft everywhere from 1994-95 through 1996-97.
+# SHOT_ZONE_BASIC encodes the modern 23'9" geometry and is applied retroactively,
+# so the taxonomy files thousands of that era's threes as "Mid-Range". Only
+# 1996-97 is in this dataset; 1997-98 onward needs no correction.
+SHORTENED_LINE_YEARS = {1996}
+
 # Fallback for the window span if the probe artifact is absent; measured in
 # pipeline/sportvu_probe.py, which gates this exact value (plan section 1.1).
 WINDOW_FALLBACK = ("2015-10-27", "2016-01-23")
@@ -128,6 +162,101 @@ def render_note(year, template, n_games, n_teams):
     if "{window}" in note:
         note = note.replace("{window}", window_span())
     return note
+
+
+def measure_resolution(year, df):
+    """Measure how finely the record could draw this season.
+
+    Drives FADEAWAY's texture ladder. Every value here is a measurement of the
+    archive, not of the game.
+    """
+    n = len(df)
+    at_origin = (df.LOC_X == 0) & (df.LOC_Y == 0)
+    ra = df.SHOT_ZONE_BASIC == "Restricted Area"
+    ra_n = int(ra.sum())
+    ra_origin = int((ra & at_origin).sum())
+
+    # Which action types the record declines to place. Through 2009-10 this is
+    # ordinary layups and dunks; from 2020-21 it is only tip-ins and putbacks.
+    refused = (
+        df.loc[at_origin, "ACTION_TYPE"].value_counts().head(6).astype(int).to_dict()
+        if int(at_origin.sum()) else {}
+    )
+
+    # Resolution by building: a game is full-resolution when its restricted-area
+    # shots carry real coordinates. Keyed by home team = the arena.
+    per_game = (
+        df[ra].assign(_snap=at_origin[ra])
+        .groupby("GAME_ID")
+        .agg(snap=("_snap", "mean"), arena=("HTM", "first"))
+    )
+    per_game["full"] = per_game.snap < FULL_RES_GAME_MAX_SNAP
+    by_arena = per_game.groupby("arena")["full"].mean()
+    full_arenas = sorted(by_arena[by_arena >= FULL_RES_ARENA_MIN_GAMES].index)
+
+    arena_rate = per_game.groupby("arena")["snap"].mean()
+    spread_pp = float(100 * (arena_rate.max() - arena_rate.min())) if len(arena_rate) else 0.0
+    league_share = float(ra_origin / ra_n) if ra_n else 0.0
+
+    if spread_pp >= UNEVEN_SPREAD_PP:
+        # Some buildings recorded rim coordinates and others did not.
+        regime = "uneven"
+    elif league_share <= MOSTLY_SIGHTED_MAX:
+        regime = "uniformly_sighted"
+    elif league_share < 0.5:
+        # A small, uniform residue confined to specific action types: the
+        # taxonomy declining to place shots, not an instrument failing to see.
+        regime = "categorical_refusal"
+    else:
+        regime = "uniformly_blind"
+
+    return {
+        "origin_snapped": int(at_origin.sum()),
+        "origin_snapped_share": float(at_origin.mean()),
+        "ra_attempts": ra_n,
+        "ra_origin_snapped": ra_origin,
+        "ra_origin_share": league_share,
+        "refused_action_types": refused,
+        "regime": regime,
+        "arena_spread_pp": spread_pp,
+        # Only meaningful where the regime is uneven; elsewhere every arena is
+        # alike and naming a subset would imply a distinction that is not there.
+        "full_resolution_arenas": full_arenas if regime == "uneven" else [],
+        "n_full_resolution_arenas": len(full_arenas) if regime == "uneven" else 0,
+        "full_resolution_games": int(per_game["full"].sum()),
+        "n_games_with_ra": int(len(per_game)),
+    }
+
+
+def measure_contemporaneous(year, df):
+    """1996-97 only: the mid-range share under the line actually in force.
+
+    SHOT_ZONE_BASIC encodes today's 23'9" arc and is applied retroactively, so
+    shots beyond the 22-ft line of 1994-97 are filed as "Mid-Range" although they
+    were three-pointers when taken. Reclassify by the record's own SHOT_TYPE,
+    which is contemporaneous.
+    """
+    if year not in SHORTENED_LINE_YEARS:
+        return None
+    n = len(df)
+    is3 = df.SHOT_TYPE == "3PT Field Goal"
+    mid = df.SHOT_ZONE_BASIC == "Mid-Range"
+    misfiled = mid & is3
+    return {
+        "taxonomy_mid_attempts": int(mid.sum()),
+        "taxonomy_mid_share": float(mid.mean()),
+        "misfiled_threes": int(misfiled.sum()),
+        "contemporaneous_mid_attempts": int((mid & ~is3).sum()),
+        "contemporaneous_mid_share": float((mid & ~is3).sum() / n),
+        "three_attempts_by_type": int(is3.sum()),
+        "three_attempts_by_zone": int(
+            df.SHOT_ZONE_BASIC.isin(["Left Corner 3", "Right Corner 3", "Above the Break 3"]).sum()
+        ),
+        "note": (
+            "the 3PT line stood at 22 ft in 1994-97; SHOT_ZONE_BASIC applies the modern "
+            "23'9\" geometry retroactively, filing these attempts as Mid-Range"
+        ),
+    }
 
 
 def aggregate_season(year):
@@ -179,6 +308,8 @@ def aggregate_season(year):
         "date_min": str(df.GAME_DATE.min()),
         "date_max": str(df.GAME_DATE.max()),
         "shot_type_nulls": type_nulls,
+        "resolution": measure_resolution(year, df),
+        "contemporaneous": measure_contemporaneous(year, df),
         "note": None,
     }
     if year in SEASON_NOTES:
@@ -191,6 +322,10 @@ def aggregate_season(year):
     take = min(SAMPLE_N, len(half))
     idx = np.sort(rng.choice(len(half), size=take, replace=False))
     s = half.iloc[idx]
+    # Per-dot provenance the renderer needs: `pin` marks dots the record filed at
+    # the origin (drawn as the pile, never jittered apart); `hires` marks dots
+    # from arenas that recorded rim coordinates that season (the arena inlay).
+    hires_arenas = set(row["resolution"]["full_resolution_arenas"])
     sample = {
         "season": row["season"],
         "seed": SAMPLE_SEED + year,
@@ -202,6 +337,8 @@ def aggregate_season(year):
         "y": s.LOC_Y.tolist(),
         "made": s.SHOT_MADE_FLAG.astype(int).tolist(),
         "three": (s.SHOT_TYPE == "3PT Field Goal").astype(int).tolist(),
+        "pin": ((s.LOC_X == 0) & (s.LOC_Y == 0)).astype(int).tolist(),
+        "hires": s.HTM.isin(hires_arenas).astype(int).tolist(),
     }
 
     grid_counts, _, _ = np.histogram2d(
@@ -236,10 +373,13 @@ def main():
         rows.append(row)
         write_json(PROCESSED_DIR / "samples" / f"season_{year}.json", sample, compact=True)
         write_json(PROCESSED_DIR / "grids" / f"season_{year}.json", grid, compact=True)
+        res = row["resolution"]
         print(
             f"  {row['season']}  {row['attempts']:>7,} att  {row['n_games']:>5} games  "
             f"mid {100 * row['mid_share']:4.1f}%  3PT {100 * row['three_share']:4.1f}%  "
-            f"FG {100 * row['fg_pct']:4.1f}%  [{row['date_min']}..{row['date_max']}]"
+            f"| rim unplaced {100 * res['ra_origin_share']:5.1f}%  "
+            f"{res['regime']:<20} {res['n_full_resolution_arenas'] or '':>2}"
+            f"{'/' + str(row['n_teams']) if res['regime'] == 'uneven' else ''}"
         )
 
     out = {
@@ -251,6 +391,18 @@ def main():
             "three_share": 'SHOT_TYPE == "3PT Field Goal"',
             "sample": f"fixed-seed ({SAMPLE_SEED}+year) uniform sample of halfcourt attempts",
             "grid": "1ft bins over LOC_X [-250,250], LOC_Y [-50,420], tenths of feet",
+            "resolution.ra_origin_share": (
+                "restricted-area shots filed at exactly (0,0) - the record declining to say "
+                "where at the rim; drives the pin and the texture ladder"
+            ),
+            "resolution.full_resolution_arenas": (
+                "home arenas whose games recorded real rim coordinates that season; through "
+                "2009-10 only five or six did, and it follows the building, not the team"
+            ),
+            "contemporaneous": (
+                "1996-97 only: mid-range recomputed under the 22-ft line then in force, "
+                "against the modern polygons SHOT_ZONE_BASIC applies retroactively"
+            ),
         },
         "seasons": rows,
     }
