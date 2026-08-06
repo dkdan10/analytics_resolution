@@ -25,13 +25,18 @@
       body.exhibit { cursor: none; }
       body.exhibit #nav { display: none; }
 
+      /* The transport never scrolls: only the segment list does. A rail that
+         scrolls its own controls away leaves the presenter without a mouse
+         exactly when they are furthest from the start. */
       #nav {
         flex: 0 0 var(--rail);
         width: var(--rail);
         height: 100vh;
-        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
         box-sizing: border-box;
-        padding: 18px 0 24px;
+        padding: 18px 0 0;
         border-right: 1px solid rgba(232, 226, 214, 0.08);
         font-family: var(--mono);
         color: rgba(232, 226, 214, 0.55);
@@ -39,6 +44,13 @@
         line-height: 1.5;
         scrollbar-width: thin;
         scrollbar-color: rgba(232, 226, 214, 0.15) transparent;
+      }
+      #nav-head { flex: 0 0 auto; }
+      #nav-list {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        padding-bottom: 24px;
+        overscroll-behavior: contain;
       }
       #nav h1 {
         margin: 0 16px 2px;
@@ -64,14 +76,22 @@
       .transport button:hover { border-color: rgba(232, 226, 214, 0.35); color: var(--bone); }
       .transport button:active { background: rgba(232, 226, 214, 0.07); }
 
+      /* Padding widens the grab area to ~15px without thickening the bar. */
       #scrub {
         margin: 0 16px 4px;
         height: 3px;
+        padding: 6px 0;
         background: rgba(232, 226, 214, 0.1);
+        background-clip: content-box;
         cursor: pointer;
         position: relative;
+        touch-action: none;
       }
-      #scrub .fill { position: absolute; inset: 0 auto 0 0; background: rgba(232, 226, 214, 0.45); }
+      #scrub .fill {
+        position: absolute;
+        inset: 6px auto 6px 0;
+        background: rgba(232, 226, 214, 0.45);
+      }
       #clock { margin: 0 16px 14px; font-size: 10px; color: rgba(232, 226, 214, 0.32); }
 
       .act {

@@ -89,10 +89,17 @@ export class TalkClock implements Clock {
     if (!this.fermata) this.paused = false;
   }
 
-  /** Jumps always land moving, so a seek can never strand the piece. */
+  get inFermata(): boolean {
+    return this.fermata;
+  }
+
+  /** Jumps move the playhead; they do not decide whether the piece is running.
+   *  An explicit pause survives a seek, so the rail can step and scrub through a
+   *  held frame exactly as `,`/`.` already do. The fermata does not survive: it
+   *  is an ease out of the frame it was called on, so a jump lands at full rate
+   *  and can never leave the piece drifting for reasons nobody chose. */
   seek(seconds: number): void {
     this.position = seconds;
-    this.paused = false;
     this.fermata = false;
     this.rate = 1;
   }

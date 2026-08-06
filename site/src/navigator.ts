@@ -29,6 +29,8 @@ interface Row {
 }
 
 const WINDOW_YEAR = 2015;
+/** External history, matching main.ts: nothing in the shot record reaches here. */
+const LEAGUE_FOUNDED = 1946;
 
 function fmt(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
@@ -42,8 +44,13 @@ export class Navigator {
   private clockEl: HTMLElement;
   private playBtn: HTMLButtonElement;
 
+  /** The scrolling list. The transport lives outside it, because a rail that
+   *  scrolls its own controls off the top leaves the presenter with no mouse
+   *  at exactly the point in the run they are furthest from the start. */
+  private list!: HTMLElement;
+
   constructor(
-    private root: HTMLElement,
+    root: HTMLElement,
     private schedule: Schedule,
     seasons: Season[],
     private transport: Transport,
@@ -51,14 +58,18 @@ export class Navigator {
     root.hidden = false;
     root.innerHTML = "";
 
+    const head = document.createElement("div");
+    head.id = "nav-head";
+    root.append(head);
+
     const title = document.createElement("h1");
     title.textContent = "FADEAWAY";
-    root.append(title);
+    head.append(title);
 
     const meta = document.createElement("p");
     meta.className = "meta";
     meta.textContent = `${seasons.length} seasons · ${fmt(schedule.duration)} loop`;
-    root.append(meta);
+    head.append(meta);
 
     const bar = document.createElement("div");
     bar.className = "transport";
@@ -77,30 +88,49 @@ export class Navigator {
       this.syncPlay();
     });
     mk("▶▶", "next segment", () => this.transport.nudgeSegment(1));
-    root.append(bar);
+    head.append(bar);
 
     const scrub = document.createElement("div");
     scrub.id = "scrub";
     this.fill = document.createElement("div");
     this.fill.className = "fill";
     scrub.append(this.fill);
-    const scrubTo = (e: MouseEvent) => {
+    const scrubTo = (e: PointerEvent) => {
       const r = scrub.getBoundingClientRect();
       const p = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
-      this.transport.seek(p * this.schedule.duration);
+      // Never seek to exactly `duration`: that wraps to zero and jumps the
+      // piece to the start when the presenter meant to reach the end.
+      this.transport.seek(Math.min(p * this.schedule.duration, this.schedule.duration - 0.01));
     };
-    scrub.addEventListener("click", scrubTo);
-    scrub.addEventListener("mousemove", (e) => {
-      if (e.buttons & 1) scrubTo(e);
+    // Pointer capture, so the gesture belongs to the bar from press to release:
+    // a 3px strip is left within a pixel of vertical drift, and gating on
+    // "some button is down" let any drag crossing the bar steal the playhead.
+    scrub.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      scrub.setPointerCapture(e.pointerId);
+      scrubTo(e);
     });
-    root.append(scrub);
+    scrub.addEventListener("pointermove", (e) => {
+      if (scrub.hasPointerCapture(e.pointerId)) scrubTo(e);
+    });
+    head.append(scrub);
 
     this.clockEl = document.createElement("div");
     this.clockEl.id = "clock";
-    root.append(this.clockEl);
+    head.append(this.clockEl);
 
+    this.list = document.createElement("div");
+    this.list.id = "nav-list";
+    root.append(this.list);
+
+    // The closing year is the first season the record holds; 1946 is the
+    // league's founding, the one date no dump can supply - which is Act 0.
     this.addRow("Counts", null, 0, "act");
-    this.rows.push({ el: this.addSeg("1946 — 1996", "no coordinates", null, 0, ""), year: null, start: 0 });
+    this.rows.push({
+      el: this.addSeg(`${LEAGUE_FOUNDED} — ${seasons[0]?.year ?? ""}`, "no coordinates", null, 0, ""),
+      year: null,
+      start: 0,
+    });
 
     const byYear = new Map(seasons.map((s) => [s.year, s]));
     let act: Act | null = null;
@@ -136,7 +166,7 @@ export class Navigator {
     const el = document.createElement("div");
     el.className = cls;
     el.textContent = label.toUpperCase();
-    this.root.append(el);
+    this.list.append(el);
   }
 
   private addSeg(
@@ -155,7 +185,7 @@ export class Navigator {
     right.textContent = share;
     el.append(left, right);
     el.addEventListener("click", () => this.transport.seek(start));
-    this.root.append(el);
+    this.list.append(el);
     return el;
   }
 
@@ -169,7 +199,9 @@ export class Navigator {
     const time = st.t;
 
     this.fill.style.width = `${(time / this.schedule.duration) * 100}%`;
-    const label = st.year === null ? (st.coda > 0 ? "coda" : "counts") : String(st.year);
+    // The coda still reports the last season's year, so it has to be tested
+    // first or the readout names 2025-26 all the way through the closing fade.
+    const label = st.coda > 0 ? "coda" : st.year === null ? "counts" : String(st.year);
     const next = `${fmt(time)} / ${fmt(this.schedule.duration)}  ·  ${label}`;
     if (this.clockEl.textContent !== next) this.clockEl.textContent = next;
 

@@ -233,17 +233,21 @@ async function main(): Promise<void> {
       nav = new Navigator(document.getElementById("nav")!, schedule, data.seasons, {
         seek: (s) => tc.seek(s),
         togglePause: () => tc.togglePause(),
-        isPaused: () => tc.held,
+        // The rail's glyph must track whether the piece is MOVING, not just
+        // whether it is paused - a fermata stops it too, and a button that
+        // reads "playing" while nothing moves is worse than no button.
+        isPaused: () => tc.held || tc.inFermata,
         position: () => tc.seconds,
         nudgeSegment: (dir) => {
           const now = ((tc.seconds % schedule.duration) + schedule.duration) % schedule.duration;
-          // Stepping back from just inside a segment should go to its start,
-          // not skip the one before it.
-          const EDGE = 0.6;
-          const target = dir === 1
-            ? starts.find((s) => s > now + 0.01)
-            : [...starts].reverse().find((s) => s < now - EDGE);
-          tc.seek(target ?? (dir === 1 ? 0 : starts[starts.length - 1]!));
+          // Step by segment INDEX, never by elapsed seconds. A seek leaves the
+          // clock running, so any time-window test makes each press depend on
+          // how long ago the last one was: presses more than the window apart
+          // kept re-seeking to the segment you were already in, and rewinding
+          // only worked if you drummed the button.
+          let i = 0;
+          for (let k = 0; k < starts.length; k++) if (starts[k]! <= now + 0.01) i = k;
+          tc.seek(starts[i + dir] ?? (dir === 1 ? 0 : starts[starts.length - 1]!));
         },
       });
     }
