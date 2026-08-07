@@ -42,7 +42,7 @@ alone: the stage is bound by memory rather than cores, and more workers make it 
 **Two modes, one codebase** — the whole piece is a pure function of one float, so both modes are
 the same work sampled differently:
 
-- **exhibit** (default) — autoplaying ~8.5 min loop, no chrome, no cursor, no loop seam.
+- **exhibit** (default) — autoplaying ~8.3 min loop, no chrome, no cursor, no loop seam.
 - **talk** (`?talk`) — a rail beside the plate listing every segment (Act 0, all thirty seasons
   under their act headings, the coda) with each season's measured mid-range share; click any of
   them to jump. Transport for start / previous / pause / next, plus a draggable scrub. Keys still
