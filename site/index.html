@@ -125,6 +125,14 @@
       /* A mark for the seasons where the record's own resolution changes. */
       .seg .mark { color: rgba(232, 226, 214, 0.28); width: 1.2em; display: inline-block; }
       .seg.window .mark, .seg.cut .mark { color: rgba(232, 226, 214, 0.7); }
+      /* The window's four beats: the only sub-list in the rail, because the
+         window is the only segment long enough to have an inside. */
+      .seg.beat {
+        padding-left: 40px;
+        font-size: 11px;
+        color: rgba(232, 226, 214, 0.42);
+      }
+      .seg.beat .share { color: rgba(232, 226, 214, 0.22); }
     </style>
   </head>
   <!-- Chrome-free from the first paint: the rail removes this class if it is

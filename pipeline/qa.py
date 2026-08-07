@@ -93,6 +93,38 @@ def pct(x):
     return f"{100 * x:.1f}"
 
 
+# --- The window (pipeline/window.py) ----------------------------------------
+# The 2015-16 SportVU public release, measured 2026-08-06 and re-verified live.
+# 636 archives, four of them 32-byte shells, ten misnamed upstream: 632 games.
+# 622 is the number a filename filter produces, and it is the bug these gates
+# exist to catch (CLAUDE.md gotcha, and bloom.py still has it).
+EXPECTED_WINDOW_GAMES = 632
+EXPECTED_WINDOW_ARCHIVES = 636
+EXPECTED_WINDOW_SHELLS = 4
+EXPECTED_WINDOW_MISNAMED = 10
+EXPECTED_WINDOW_DATES = ("2015-10-27", "2016-01-23")
+
+# How many of the record's filed shots survive the geometric join check.
+# Measured across all 632 games on 2026-08-07: 0.489. This floor sits below
+# that as a REGRESSION GUARD, not a target - a detector that silently halved
+# would still emit a plausible-looking artifact, and this is what catches it.
+#
+# The shortfall is mostly not detector failure. It is the archive disagreeing
+# with itself: the coordinate a scorer filed courtside and the position the
+# optical feed gives the ball at release are two different instruments, parting
+# company by a median of ~4 ft - much more for shots the record attributes to a
+# body other than the one that last touched the ball. An oracle allowed to pick
+# the best reading of the tracking still reconciles only 83%. Five independently
+# designed release detectors all failed to beat the simple one. That gap is a
+# property of the record, so window.json ships it under `disagreement`.
+WINDOW_RECOVERY_FLOOR = 0.40
+
+# The recovered set cannot be unbiased: detection follows the ball back from the
+# rim, so shots that reach the rim - all made ones - are over-represented.
+# Measured at +5.6 pp on FG%. The gate bounds it and the piece discloses it.
+WINDOW_MAX_FG_BIAS_PP = 9.0
+
+
 def main():
     path = PROCESSED_DIR / "seasons.json"
     if not path.exists():
@@ -258,6 +290,120 @@ def main():
         if sum(cls["TYPE"].values()) != row["attempts"] - row["shot_type_nulls"]:
             census_drift.append(f"{row['season']}: TYPE counts do not sum to attempts")
     check("census figures equal the struck figures", census_drift, [])
+
+    # --- The window (pipeline/window.py) -------------------------------------
+    # Optional: the piece runs without it, and the shot spine above must stay
+    # green whether or not the window stage has been run.
+    window_path = PROCESSED_DIR / "window.json"
+    if window_path.exists():
+        w = json.loads(window_path.read_text())
+        print("\nThe window: eleven weeks of raw record")
+
+        corp = w["corpus"]
+        # 622 is the trap: bloom.py's filename parser drops the ten misnamed
+        # Dec 5 2015 archives, and nothing downstream would have noticed.
+        check("games parsed (622 is the misnaming bug)", corp["games_parsed"], EXPECTED_WINDOW_GAMES)
+        check("archives listed", corp["archives_listed"], EXPECTED_WINDOW_ARCHIVES)
+        check("empty 32-byte shells", len(corp["empty_shells"]), EXPECTED_WINDOW_SHELLS)
+        check("misnamed archives, named not filtered",
+              len(corp["misnamed_archives"]), EXPECTED_WINDOW_MISNAMED)
+        check("window opens", corp["date_first"], EXPECTED_WINDOW_DATES[0])
+        check("window closes", corp["date_last"], EXPECTED_WINDOW_DATES[1])
+        # A half-season, and the piece says so on the plate.
+        check("window is half of 2015-16", corp["games_parsed"] < corp["season_games"], True)
+
+        rec = w["recovery"]
+        # Recovery is published, not assumed. The floor is set from measurement
+        # and exists to catch a regression, not to flatter the number: a
+        # detector that silently halved would still print a plausible artifact.
+        check("recovery above the measured floor", rec["rate"] >= WINDOW_RECOVERY_FLOOR, True)
+        check("failure reasons account for every unmeasured shot",
+              sum(rec["failures"].values()), rec["joined_shots"] - rec["measured"])
+
+        # The per-game event-offset calibration, gated in the open. The join
+        # `tracking eventId == GAME_EVENT_ID` fails silently in a minority of
+        # games, and the correction is one integer per game decided by ~150
+        # shots - so how many games needed it, and how many of those the record
+        # barely settled, are both numbers this pipeline must state out loud.
+        check("event offsets stay inside the searched range",
+              [k for k in rec["event_offsets"] if abs(int(k)) > 3], [])
+        offset_share = rec["games_offset"] / corp["games_parsed"]
+        check("most games need no offset", offset_share < 0.5, True)
+        print(f"  (informational) {rec['games_offset']} of {corp['games_parsed']} games "
+              f"({100 * offset_share:.0f}%) needed their event numbering shifted: "
+              f"{rec['event_offsets']}")
+        print(f"  (informational) {rec['n_weak_joins']} games where the record barely settled "
+              f"the offset (margin < 0.10); {rec['offsets_rejected']} shifted joins rejected as "
+              f"noise and left at zero")
+
+        # What the instrument prefers, stated rather than carried. A release is
+        # only found by following the ball back from the rim, so the recovered
+        # set shoots better than the league did - and every figure taken from
+        # it inherits that. The gate is that the bias is MEASURED and bounded,
+        # not that it is absent; it cannot be absent given how detection works.
+        bias = w["bias"]
+        check("the recovered set's make-bias is measured", bias["fg_pct_gap"] is not None, True)
+        check("make-bias stays inside the disclosed bound",
+              abs(bias["fg_pct_gap"]) <= WINDOW_MAX_FG_BIAS_PP, True)
+        print(f"  (informational) the recovered set shoots {bias['fg_pct_measured']}% against the "
+              f"season's {bias['fg_pct_season']}% ({bias['fg_pct_gap']:+.1f} pp) and covers "
+              f"{100 * bias['share_of_season']:.1f}% of 2015-16's attempts")
+
+        con = w["contest"]
+        buckets = con["buckets"]
+        check("four published categories", len(buckets), 4)
+        check("every measure lands in exactly one category",
+              sum(b["attempts"] for b in buckets), rec["measured"])
+        check("category shares sum to 1",
+              abs(sum(b["share"] for b in buckets) - 1.0) < 1e-3, True)
+        check("made counts never exceed attempts",
+              [b["name"] for b in buckets if b["made"] > b["attempts"]], [])
+        check("one hero per category", len(con["heroes"]), 4)
+        check("heroes carry complete geometry",
+              [h["bucket_name"] for h in con["heroes"]
+               if any(f is None for f in h["track"])], [])
+
+        # Two independent paths to one number: the last sample of the approach
+        # curve is the release instant, so it must equal the release-instant
+        # mean computed separately from the per-shot records.
+        curve = [v for v in con["approach_curve_ft"] if v is not None]
+        check("approach curve is sampled to the release",
+              len(curve) >= int(con["approach_seconds_before_release"] * con["approach_hz"]), True)
+
+        occ = w["occupancy"]
+        check("occupancy bands sum to 1",
+              abs(sum(b["share"] for b in occ["bands"]) - 1.0) < 1e-3, True)
+        check("occupancy frames sum to the total",
+              sum(b["frames"] for b in occ["bands"]), occ["frames_total"])
+
+        # window_measures.bin must agree with the JSON it was reduced beside;
+        # the site reads the binary and prints the JSON's figures next to it.
+        mb = w["measures_bin"]
+        bin_path = PROCESSED_DIR / "window_measures.bin"
+        check("measures.bin present", bin_path.exists(), True)
+        if bin_path.exists():
+            check("measures.bin size matches its record count",
+                  bin_path.stat().st_size, mb["records"] * mb["bytes_per_record"])
+            check("measures.bin holds every measured shot", mb["records"], rec["measured"])
+
+        # The window's figures must not leak into the other twenty-nine seasons.
+        check("window fields confined to 2015-16",
+              [y for y, r in seasons.items() if y != 2015 and r.get("window") is not None], [])
+
+        dis = w["disagreement"]
+        print(f"  (informational) the archive against itself: median "
+              f"{dis['median_ft']} ft between the coordinate a scorer filed and where "
+              f"the optical feed says the ball left the hand; "
+              f"{100 * dis['within_6ft']:.1f}% agree within 6 ft, "
+              f"{100 * dis['beyond_15ft']:.1f}% differ by more than 15 ft")
+        inv = w["inventory"]
+        print(f"  (informational) {inv['moments']:,} moments, {inv['body_positions']:,} body "
+              f"positions, {inv['miles_run']:,} miles run, {inv['hours_tracked']:,} hours")
+        print(f"  (informational) reading 'the shot' as the gather instead of the release moves "
+              f"{100 * (con['gather_rule']['changed_share'] or 0):.1f}% of shots "
+              f"into a different published category")
+    else:
+        print("\nThe window: window.json absent (pipeline/window.py not run) - skipped")
 
     # Context lines the piece quotes; printed for the record, not gated.
     if {1996, 2012, 2019, 2024, 2015} <= set(seasons):

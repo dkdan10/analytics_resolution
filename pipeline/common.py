@@ -29,6 +29,30 @@ URL_REWRITE = (
     "https://raw.githubusercontent.com/shufinskiy/nba_data/main/",
 )
 
+# The 2015-16 SportVU public release: 636 archives, 27 Oct 2015 - 23 Jan 2016.
+CORPUS_API = (
+    "https://api.github.com/repos/linouk23/NBA-Player-Movements/contents/"
+    "data/2016.NBA.Raw.SportVU.Game.Logs"
+)
+CORPUS_RAW = (
+    "https://raw.githubusercontent.com/linouk23/NBA-Player-Movements/master/"
+    "data/2016.NBA.Raw.SportVU.Game.Logs/"
+)
+
+# 10 archives (the entire Dec 5, 2015 slate) are misnamed upstream with this
+# literal prefix glued onto the normal MM.DD.YYYY.VIS.at.HOME.7z name. Strip it;
+# never pattern-filter on the date, or those 10 games vanish silently
+# (found 2026-08-06; falsifies plan section 1.1's naming claim for those games).
+MISNAMED_PREFIX = "2016.NBA.Raw.SportVU.Game.Logs"
+
+# The size of an archive that exists and holds nothing. Four of the 636.
+EMPTY_SHELL_BYTES = 32
+
+# The tracking feed's court frame: feet, 94 x 50, origin at a corner.
+HOOP_RIGHT_X, HOOP_LEFT_X, HOOP_Y = 88.75, 5.25, 25.0
+RIM_HEIGHT = 10.0
+HZ = 25
+
 PROVENANCE = {
     "shots_source": "stats.nba.com shotchartdetail, bulk archive github.com/shufinskiy/nba_data",
     "sportvu_source": (
@@ -90,6 +114,77 @@ def sha256_file(path, bufsize=1 << 20):
                 break
             h.update(chunk)
     return h.hexdigest()
+
+
+def extract_7z(archive, dest_dir):
+    """Extract a .7z, raising rather than exiting so one bad archive is survivable.
+
+    py7zr first where it imports, then bsdtar/libarchive (which reads 7z
+    natively), then p7zip. GNU tar CANNOT read 7z, so `tar` is only accepted
+    once its --version identifies it as bsdtar - otherwise a run appears to
+    work and produces nothing.
+    """
+    import shutil
+
+    try:
+        import py7zr
+
+        with py7zr.SevenZipFile(archive) as z:
+            z.extractall(dest_dir)
+        return
+    except ImportError:
+        pass
+
+    cmd = None
+    if shutil.which("bsdtar"):
+        cmd = ["bsdtar", "-xf", str(archive), "-C", str(dest_dir)]
+    else:
+        for exe in ("7z", "7za", "7zz"):
+            if shutil.which(exe):
+                cmd = [exe, "x", "-y", f"-o{dest_dir}", str(archive)]
+                break
+    if cmd is None and shutil.which("tar"):
+        ver = subprocess.run(["tar", "--version"], stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT, check=False)
+        if b"bsdtar" in ver.stdout:
+            cmd = ["tar", "-xf", str(archive), "-C", str(dest_dir)]
+    if cmd is None:
+        raise RuntimeError(
+            "no 7z extractor found: install py7zr, p7zip (7z), or libarchive bsdtar "
+            "- GNU tar cannot read .7z"
+        )
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    if proc.returncode != 0:
+        raise RuntimeError(f"7z extraction failed ({cmd[0]}): {proc.stderr.decode()[:400]}")
+
+
+def read_7z_bytes(archive):
+    """The single file inside a .7z, straight to memory.
+
+    A SportVU game unpacks to ~100 MB of JSON. Extracting it to a temp
+    directory and reading it back costs two full passes over the disk per game,
+    and across six parallel workers that is what the stage spends most of its
+    time on: measured at 126 s of system time against 65 s of user time. Piping
+    libarchive's output instead removes both passes.
+
+    Falls back to extract_7z on disk when no streaming extractor is available.
+    """
+    import shutil
+
+    cmd = None
+    if shutil.which("bsdtar"):
+        cmd = ["bsdtar", "-xOf", str(archive)]
+    else:
+        for exe in ("7z", "7za", "7zz"):
+            if shutil.which(exe):
+                cmd = [exe, "x", "-so", str(archive)]
+                break
+    if cmd is None:
+        return None
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    if proc.returncode != 0 or not proc.stdout:
+        raise RuntimeError(f"7z stream failed ({cmd[0]}): {proc.stderr.decode()[:400]}")
+    return proc.stdout
 
 
 def _lzma_available():

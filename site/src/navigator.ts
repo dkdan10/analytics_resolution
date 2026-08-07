@@ -11,7 +11,7 @@
  */
 
 import type { Season } from "./data";
-import { ACT_TITLES, CUT_YEAR, stateAt, type Act, type Schedule } from "./timeline";
+import { ACT_TITLES, CUT_YEAR, stateAt, WINDOW_BEATS, WINDOW_YEAR, type Act, type Schedule } from "./timeline";
 
 export interface Transport {
   seek(seconds: number): void;
@@ -32,7 +32,6 @@ interface Row {
   start: number;
 }
 
-const WINDOW_YEAR = 2015;
 /** External history, matching main.ts: nothing in the shot record reaches here. */
 const LEAGUE_FOUNDED = 1946;
 
@@ -166,6 +165,21 @@ export class Navigator {
       }
       const el = this.addSeg(season?.season ?? String(seg.year), share, mark, seg.start, cls);
       this.rows.push({ el, year: seg.year, start: seg.start });
+
+      // The window is 150 seconds and moves through four distinct beats, so it
+      // gets the only sub-list in the rail: a presenter should be able to reach
+      // "the instant" directly rather than scrubbing for it.
+      if (seg.year === WINDOW_YEAR) {
+        for (const b of WINDOW_BEATS) {
+          const at = seg.start + b.from * seg.duration;
+          this.rows.push({
+            el: this.addSeg(b.title, `${fmt(b.to * seg.duration - b.from * seg.duration)}`,
+              null, at, "beat"),
+            year: null,
+            start: at,
+          });
+        }
+      }
     }
     this.addRow("Coda", null, schedule.lastEnds, "act");
     this.rows.push({
@@ -232,8 +246,21 @@ export class Navigator {
     this.syncPlay();
   }
 
-  /** Segment starts, for the transport's step buttons. */
+  /**
+   * Every place the step buttons can land.
+   *
+   * The window's four beats are stops in their own right: at 150 seconds it is
+   * fourteen times the length of any other season, and a presenter who can only
+   * step over it in one jump cannot get to "the instant" at all.
+   */
   static starts(schedule: Schedule): number[] {
-    return [0, ...schedule.segments.map((s) => s.start), schedule.lastEnds];
+    const stops = [0, ...schedule.segments.map((s) => s.start), schedule.lastEnds];
+    const window = schedule.byYear.get(WINDOW_YEAR);
+    if (window) {
+      for (const b of WINDOW_BEATS) {
+        if (b.from > 0) stops.push(window.start + b.from * window.duration);
+      }
+    }
+    return [...new Set(stops)].sort((a, b) => a - b);
   }
 }

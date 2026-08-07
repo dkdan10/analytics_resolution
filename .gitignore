@@ -3,6 +3,11 @@
 data/shots/
 data/raw/
 
+# Per-game window intermediates: bulky, and they carry the frame-level approach
+# curves that never leave this machine. Only the reduced artifacts in
+# data/processed/ (window.json, window_measures.bin) ship.
+data/window/
+
 __pycache__/
 *.pyc
 .DS_Store

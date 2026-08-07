@@ -182,5 +182,43 @@ export function drawCensusHand(f: Frame): void {
     right.line(r.name, `${r.n}  ${p}%`, 0.72 * remains);
   }
 
+  // The window's own inventory, in the one act where the record held more than
+  // a category per shot. Everything above counts what the archive SAYS about a
+  // shot; this counts what the machine actually saw, and the two are not the
+  // same order of magnitude.
+  if (st.act === 3 && data.window) {
+    drawWindowInventory(f, left);
+  }
+
   ctx.restore();
+}
+
+/**
+ * What the machine held, for eleven weeks.
+ *
+ * Set against a census whose largest number is a season's attempts, these are
+ * the measure of what a shot record throws away: twenty-nine seasons keep one
+ * point per shot, and for 89 days the same league held half a billion body
+ * positions and never published one of them again.
+ */
+function drawWindowInventory(f: Frame, col: Columns): void {
+  const { st, data, remains } = f;
+  const w = data.window!;
+  const a = Math.min(1, Math.max(0, st.arrived));
+  const grown = (n: number): string => Math.round(n * a).toLocaleString();
+  const inv = w.inventory;
+
+  col.gap();
+  col.line("THE MACHINE SAW", "", 0.45 * remains, true);
+  col.line("Moments", grown(inv.moments), 0.72 * remains);
+  col.line("Body positions", grown(inv.body_positions), 0.72 * remains);
+  col.line("Miles run", grown(inv.miles_run), 0.72 * remains);
+  col.line("Hours tracked", grown(inv.hours_tracked), 0.72 * remains);
+  col.line("Touches", grown(inv.touches), 0.72 * remains);
+  col.line("Passes", grown(inv.passes), 0.72 * remains);
+  col.line("Drives", grown(inv.drives), 0.72 * remains);
+  col.gap();
+  col.line("THE RECORD KEPT", "", 0.45 * remains, true);
+  col.line("Points per shot", "1", 0.72 * remains);
+  col.line("Games of 1,230", String(w.corpus.games_parsed), 0.72 * remains);
 }

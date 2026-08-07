@@ -33,9 +33,32 @@ export const ACT0_SECONDS = 24;
  */
 export const CODA_SECONDS = 21;
 const SEASON_SECONDS = 11;
-/** The window dilates: the piece is slow exactly where the record is rich. */
-const WINDOW_SECONDS = 75;
-const WINDOW_YEAR = 2015;
+/**
+ * The window dilates: the piece is slow exactly where the record is rich.
+ *
+ * 150 seconds of a 514-second loop - 29% of the piece on eleven weeks of one
+ * season. That is deliberate and it is the argument: this is the only period
+ * whose raw record survives in public, and the only place the manufacture of a
+ * published statistic can be watched rather than asserted.
+ */
+const WINDOW_SECONDS = 150;
+export const WINDOW_YEAR = 2015;
+
+/**
+ * The window's four beats, as fractions of its phase.
+ *
+ * Kept here rather than inside the hand that draws them, because the rail lists
+ * them too and a presenter stepping to "THE INSTANT" must land where the hand
+ * agrees the instant begins. One definition, two readers.
+ */
+export const WINDOW_BEATS = [
+  { id: "one", title: "one", from: 0.0, to: 0.2 },
+  { id: "many", title: "many", from: 0.2, to: 0.587 },
+  { id: "instant", title: "the instant", from: 0.587, to: 0.813 },
+  { id: "close", title: "the close", from: 0.813, to: 1.0 },
+] as const;
+
+export type WindowBeat = (typeof WINDOW_BEATS)[number];
 
 /**
  * Fraction of a season spent laying that season's marks down.

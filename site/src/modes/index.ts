@@ -4,6 +4,7 @@ import { passAt, type Schedule } from "../timeline";
 import { drawCensusHand } from "./census";
 import { drawFieldHand } from "./field";
 import { drawLedgerHand } from "./ledger";
+import { drawMeasureHand } from "./measure";
 import { drawPlateHand } from "./plate";
 import { MODE_IDS, type Frame, type Hand, type ModeId } from "./types";
 
@@ -15,10 +16,12 @@ const HANDS: Record<ModeId, Hand> = {
   field: drawFieldHand,
   ledger: drawLedgerHand,
   census: drawCensusHand,
+  measure: drawMeasureHand,
 };
 
-/** Rotation order: evidence, then the league's colours, then its words. */
-const ROTATION: ModeId[] = ["plate", "field", "ledger", "census"];
+/** Rotation order: evidence, then the league's colours, then its words, then
+ *  its count — and last the one measure anyone outside could ever make. */
+const ROTATION: ModeId[] = ["plate", "field", "ledger", "census", "measure"];
 
 export function isModeId(v: string | null): v is ModeId {
   return v !== null && (MODE_IDS as readonly string[]).includes(v);

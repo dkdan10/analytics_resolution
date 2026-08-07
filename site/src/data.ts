@@ -123,6 +123,176 @@ export interface Sample {
 
 export type { Trace, TracesFile } from "./bloom";
 
+/**
+ * The eleven weeks, recomputed.
+ *
+ * Every other season in this piece is a record of endpoints: one point and a
+ * handful of categories per shot. For 89 days the optical feed itself was
+ * public, and these are the measures the league still publishes today, remade
+ * from the geometry it stopped releasing on 23 January 2016.
+ *
+ * The definitions are authored by the pipeline, not the league — theirs are not
+ * published — which is why every measure carries a second reading under a
+ * second defensible rule. `definitions` ships with the artifact and says so.
+ */
+export interface DefenderBucket {
+  name: string;
+  lo_ft: number;
+  hi_ft: number | null;
+  attempts: number;
+  made: number;
+  share: number;
+  fg_pct: number | null;
+}
+
+export interface HeroShot {
+  bucket: number;
+  bucket_name: string;
+  date: string;
+  action: string;
+  zone: string;
+  made: number;
+  dist: number;
+  dist_gather: number | null;
+  residual: number;
+  hz: number;
+  track: (number[] | null)[];
+}
+
+export interface WindowFile {
+  definitions: Record<string, string>;
+  corpus: {
+    archives_listed: number;
+    empty_shells: string[];
+    misnamed_archives: string[];
+    games_parsed: number;
+    date_first: string | null;
+    date_last: string | null;
+    season_games: number;
+  };
+  recovery: {
+    joined_shots: number;
+    measured: number;
+    rate: number;
+    failures: Record<string, number>;
+    anchor_residual_median_ft: number | null;
+    anchor_residual_p95_ft: number | null;
+    anchor_residual_over_max: number;
+    attribution_agreement: number | null;
+    attribution_disagreements: number;
+    /** The per-game join calibration: `tracking eventId == GAME_EVENT_ID` is
+     *  off by a small constant in a minority of games, so each game's offset is
+     *  settled by its own shots. Shipped so the correction is visible. */
+    event_offsets: Record<string, number>;
+    games_offset: number;
+    weak_joins: { archive: string; offset: number; margin: number }[];
+    n_weak_joins: number;
+  };
+  contest: {
+    buckets: DefenderBucket[];
+    /** The continuous quantity the four categories are cut out of: mean
+     *  closest-defender distance, sampled 2 s back at 25 Hz. */
+    approach_curve_ft: (number | null)[];
+    approach_hz: number;
+    approach_seconds_before_release: number;
+    /** Four shots, one per published category, with their real per-frame
+     *  geometry for the 2 s before release: [shooter x, shooter y, defender x,
+     *  defender y] in the shot record's own frame. The opening beat closes a
+     *  caliper on these rather than animating the aggregate curve, which would
+     *  be inventing motion no single shot performed. */
+    heroes: HeroShot[];
+    /** What the definition is worth: how many shots change category when "the
+     *  time of the shot" is read as the gather instead of the release. */
+    gather_rule: {
+      shots: number;
+      changed_bucket: number;
+      changed_share: number | null;
+      mean_delta_ft: number | null;
+    };
+  };
+  /** The archive against itself: how far apart the coordinate a scorer filed
+   *  and the position the optical feed gives the ball at release actually sit. */
+  disagreement: {
+    n: number;
+    median_ft: number | null;
+    p25_ft: number | null;
+    p75_ft: number | null;
+    p90_ft: number | null;
+    within_3ft: number | null;
+    within_6ft: number | null;
+    beyond_15ft: number | null;
+    by_action: Record<string, { n: number; agree: number; rate: number }>;
+  };
+  occupancy: {
+    bands: { lo_ft: number; hi_ft: number | null; frames: number; share: number }[];
+    frames_total: number;
+    grid: Record<string, number>;
+  };
+  inventory: {
+    moments: number;
+    body_positions: number;
+    miles_run: number;
+    hours_tracked: number;
+    shots_measured: number;
+    touches: number;
+    touches_alt_radius: number;
+    passes: number;
+    drives: number;
+    mean_seconds_per_touch: number | null;
+    per_game: { touches: number | null; passes: number | null; drives: number | null };
+  };
+  measures_bin: {
+    records: number;
+    bytes: number;
+    bytes_per_record: number;
+    day0: string | null;
+  };
+}
+
+/** One shot's caliper, decoded from window_measures.bin. */
+export interface Measures {
+  n: number;
+  /** Shooter, in the shot record's own frame (tenths, hoop at origin). */
+  x: Int16Array;
+  y: Int16Array;
+  /** The nearest defender, same frame. The segment between is the statistic. */
+  dx: Int16Array;
+  dy: Int16Array;
+  /** Caliper length in tenths of a foot. */
+  dist: Uint8Array;
+  bucket: Uint8Array;
+  made: Uint8Array;
+  /** Days since the window opened — the flood runs as the eleven weeks did. */
+  day: Uint8Array;
+}
+
+const MEASURE_REC = 12;
+
+export function decodeMeasures(buf: ArrayBuffer): Measures {
+  const n = Math.floor(buf.byteLength / MEASURE_REC);
+  const dv = new DataView(buf);
+  const x = new Int16Array(n);
+  const y = new Int16Array(n);
+  const dx = new Int16Array(n);
+  const dy = new Int16Array(n);
+  const dist = new Uint8Array(n);
+  const bucket = new Uint8Array(n);
+  const made = new Uint8Array(n);
+  const day = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    const o = i * MEASURE_REC;
+    x[i] = dv.getInt16(o, true);
+    y[i] = dv.getInt16(o + 2, true);
+    dx[i] = dv.getInt16(o + 4, true);
+    dy[i] = dv.getInt16(o + 6, true);
+    dist[i] = dv.getUint8(o + 8);
+    bucket[i] = dv.getUint8(o + 9);
+    made[i] = dv.getUint8(o + 10);
+    day[i] = dv.getUint8(o + 11);
+  }
+  return { n, x, y, dx, dy, dist, bucket, made, day };
+}
+
 export interface Corpus {
   archive_count: number;
   total_bytes: number;
@@ -144,6 +314,13 @@ export interface Loaded {
   corpus: Corpus | null;
   /** Act III's gestures; null if the bloom stage has not been run. */
   traces: TracesFile | null;
+  /** The eleven weeks recomputed; null if the window stage has not been run.
+   *  THE MEASURE degrades to the bare category names without it, which is
+   *  exactly what every era outside the window looks like anyway. */
+  window: WindowFile | null;
+  /** Every caliper, fetched on demand like the points — the piece renders
+   *  without it and gains it a frame or two later. */
+  measures(): Measures | null;
   provenance: Record<string, string>;
 }
 
@@ -184,6 +361,16 @@ export async function load(): Promise<Loaded> {
     traces = null;
   }
 
+  // Not named `window`: that would shadow the DOM global for the rest of this
+  // function, and the next person to reach for window.devicePixelRatio here
+  // would get a data artifact instead.
+  let windowFile: WindowFile | null = null;
+  try {
+    windowFile = await getJSON<WindowFile>("window.json");
+  } catch {
+    windowFile = null;
+  }
+
   const pointCache = new Map<number, Points>();
   const inFlight = new Set<number>();
   const fetchPoints = (year: number): Points | null => {
@@ -200,6 +387,25 @@ export async function load(): Promise<Loaded> {
     return null;
   };
 
+  let measureCache: Measures | null = null;
+  let measuresInFlight = false;
+  const fetchMeasures = (): Measures | null => {
+    if (measureCache) return measureCache;
+    if (!measuresInFlight && windowFile) {
+      measuresInFlight = true;
+      void fetch(`${BASE}data/window_measures.bin`)
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+        .then((buf) => {
+          measureCache = decodeMeasures(buf);
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          measuresInFlight = false;
+        });
+    }
+    return null;
+  };
+
   return {
     seasons,
     byYear: new Map(seasons.map((s) => [s.year, s])),
@@ -207,6 +413,8 @@ export async function load(): Promise<Loaded> {
     points: fetchPoints,
     corpus,
     traces,
+    window: windowFile,
+    measures: fetchMeasures,
     provenance: file.provenance,
   };
 }

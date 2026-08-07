@@ -29,7 +29,7 @@ export interface Frame {
 
 export type Hand = (f: Frame) => void;
 
-export const MODE_IDS = ["plate", "field", "ledger", "census"] as const;
+export const MODE_IDS = ["plate", "field", "ledger", "census", "measure"] as const;
 export type ModeId = (typeof MODE_IDS)[number];
 
 export const MODE_TITLES: Record<ModeId, string> = {
@@ -37,4 +37,5 @@ export const MODE_TITLES: Record<ModeId, string> = {
   field: "the field",
   ledger: "the ledger",
   census: "the census",
+  measure: "the measure",
 };
