@@ -12,6 +12,7 @@ import { drawHand, isModeId, modeAt, MODE_IDS, MODE_TITLES, type ModeId } from "
 import { Navigator } from "./navigator";
 import { GROUND } from "./palette";
 import { drawPlate, makeView, SHORTENED_THREE_R, type View } from "./plate";
+import { clearAtlas } from "./textatlas";
 import {
   ACT0_SECONDS,
   buildSchedule,
@@ -44,6 +45,8 @@ function resize(): void {
   canvas.height = Math.round(h * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   view = makeView(w, h);
+  // Every atlas key carries its size, so a resize invalidates all of them.
+  clearAtlas();
 }
 
 function render(

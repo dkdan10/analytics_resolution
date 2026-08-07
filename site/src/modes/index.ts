@@ -2,6 +2,7 @@
 
 import { passAt, type Schedule } from "../timeline";
 import { drawFieldHand } from "./field";
+import { drawLedgerHand } from "./ledger";
 import { drawPlateHand } from "./plate";
 import { MODE_IDS, type Frame, type Hand, type ModeId } from "./types";
 
@@ -11,12 +12,11 @@ export type { Frame, ModeId } from "./types";
 const HANDS: Record<ModeId, Hand> = {
   plate: drawPlateHand,
   field: drawFieldHand,
-  // Placeholder until THE LEDGER lands; dispatch stays total either way.
-  ledger: drawPlateHand,
+  ledger: drawLedgerHand,
 };
 
-/** Hands that are actually distinct today, in rotation order. */
-const ROTATION: ModeId[] = ["plate", "field"];
+/** Rotation order: evidence, then the league's colours, then its words. */
+const ROTATION: ModeId[] = ["plate", "field", "ledger"];
 
 export function isModeId(v: string | null): v is ModeId {
   return v !== null && (MODE_IDS as readonly string[]).includes(v);

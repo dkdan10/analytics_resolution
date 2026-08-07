@@ -29,6 +29,21 @@ export interface Resolution {
   n_games_with_ra: number;
 }
 
+/** How much the record has to say about what a shot WAS - the second curve,
+ *  and the mirror of the first: as it stops saying where, it learns to say what. */
+export interface Vocabulary {
+  /** Distinct ACTION_TYPE values that season: 9 in 1996-97, 48 by 2024-25. */
+  words: number;
+  /** How many are needed to account for 90% of shots: 4, then 20. The honest
+   *  measure of how varied the description actually is. */
+  words_covering_90pct: number;
+  mean_words_per_shot: number;
+  mean_chars_per_shot: number;
+  longest: string;
+  most_common: string;
+  words_list: string[];
+}
+
 /** 1996-97 only: the taxonomy's reading against the line then in force. */
 export interface Contemporaneous {
   taxonomy_mid_attempts: number;
@@ -57,6 +72,7 @@ export interface Season {
   date_min: string;
   date_max: string;
   resolution: Resolution;
+  vocabulary: Vocabulary;
   contemporaneous: Contemporaneous | null;
   note: string | null;
 }
