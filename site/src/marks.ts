@@ -138,8 +138,15 @@ function handFor(season: Season, hires: boolean, x: number, y: number): Hand {
 
 export interface MarkOpts {
   dpr: number;
-  /** Global opacity, for crossfades between seasons. */
+  /** Global opacity, for the outgoing season receding beneath the incoming one. */
   opacity: number;
+  /**
+   * 0..1 of this season's marks laid down so far. The sample is in the season's
+   * own order, so arrival is chronological: the record accumulates through the
+   * season in front of you rather than appearing whole. Defaults to 1 for the
+   * outgoing season, which has already finished arriving.
+   */
+  arrived?: number;
 }
 
 export function drawMarks(
@@ -149,7 +156,7 @@ export function drawMarks(
   season: Season,
   opts: MarkOpts,
 ): void {
-  const { dpr, opacity } = opts;
+  const { dpr, opacity, arrived = 1 } = opts;
   if (opacity <= 0.001) return;
 
   const sharp = stamp(SHARP, view.scale, dpr);
@@ -158,7 +165,7 @@ export function drawMarks(
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
 
-  const n = sample.n;
+  const n = Math.min(sample.n, Math.ceil(sample.n * Math.min(1, Math.max(0, arrived))));
   let current: Stamp | null = null;
   for (let i = 0; i < n; i++) {
     // Origin-filed shots are held back for the pin; drawing them as dots would
@@ -192,11 +199,13 @@ export function drawPin(
   sample: Sample,
   opts: MarkOpts,
 ): void {
-  const { opacity } = opts;
+  const { opacity, arrived = 1 } = opts;
   if (opacity <= 0.001) return;
 
+  // The pile grows with the season, like every other mark.
+  const upto = Math.min(sample.n, Math.ceil(sample.n * Math.min(1, Math.max(0, arrived))));
   let count = 0;
-  for (let i = 0; i < sample.n; i++) if (sample.pin[i] === 1) count++;
+  for (let i = 0; i < upto; i++) if (sample.pin[i] === 1) count++;
   if (count === 0) return;
 
   // Same ink rule as the marks, and in the same measured units: each mark

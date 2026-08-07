@@ -30,10 +30,20 @@ export const ACT0_SECONDS = 24;
  * 2010-11, and it should not have to share that distinction with a wrap.
  */
 export const CODA_SECONDS = 7;
-const SEASON_SECONDS = 18;
+const SEASON_SECONDS = 11;
 /** The window dilates: the piece is slow exactly where the record is rich. */
-const WINDOW_SECONDS = 90;
+const WINDOW_SECONDS = 75;
 const WINDOW_YEAR = 2015;
+
+/**
+ * Fraction of a season spent laying that season's marks down.
+ *
+ * The record accumulates in front of you rather than appearing whole: a season
+ * that arrives as a block and then sits still for its whole duration is the
+ * reason the piece read as static. Arrival is a pure function of phase, so
+ * scrubbing backwards rebuilds it rather than remembering it.
+ */
+export const ARRIVAL_TAIL = 0.62;
 
 /** The season whose arrival is a cut rather than a drift: the record's rim
  *  blindness ends in one step, league-wide. Verified in the data, not chosen. */
@@ -91,6 +101,11 @@ export interface State {
   /** null through Act 0, when the record holds no geometry to draw. */
   year: number | null;
   next: number | null;
+  /** The season still fading out beneath this one, null at the first and at
+   *  the cut. Marks now arrive rather than crossfade forward: the outgoing
+   *  season recedes as the incoming one lands, so the plate is never empty and
+   *  the drift is continuous. */
+  prev: number | null;
   /** 0..1 crossfade toward `next`; always 0 when `cut` is true. */
   blend: number;
   /** True while approaching a boundary the record itself made abruptly. */
@@ -101,6 +116,8 @@ export interface State {
   preludePhase: number;
   /** 0..1 through the closing fade back to bare stone (0 until then). */
   coda: number;
+  /** 0..1 of this season's marks laid down so far - the record accumulating. */
+  arrived: number;
 }
 
 function smoothstep(x: number): number {
@@ -117,11 +134,13 @@ export function stateAt(t: number, schedule: Schedule): State {
       act: 0,
       year: null,
       next: schedule.segments[0]?.year ?? null,
+      prev: null,
       blend: 0,
       cut: false,
       phase: 0,
       preludePhase: time / ACT0_SECONDS,
       coda: 0,
+      arrived: 0,
     };
   }
 
@@ -149,7 +168,15 @@ export function stateAt(t: number, schedule: Schedule): State {
   const coda = time > schedule.lastEnds
     ? smoothstep((time - schedule.lastEnds) / CODA_SECONDS)
     : 0;
-  return { t: time, act: seg.act, year: seg.year, next, blend, cut, phase, preludePhase: 0, coda };
+  const arrived = smoothstep(phase / ARRIVAL_TAIL);
+  // The season being replaced. Not at 2010-11: that boundary is the piece's one
+  // cut, so the pin holds full strength and is gone in a single frame.
+  const prevSeg = schedule.segments[idx - 1];
+  const prev = seg.year === CUT_YEAR || !prevSeg ? null : prevSeg.year;
+  return {
+    t: time, act: seg.act, year: seg.year, next, prev, blend, cut, phase,
+    preludePhase: 0, coda, arrived,
+  };
 }
 
 /** Start of a season, for the talk mode's deterministic jumps. */

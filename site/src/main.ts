@@ -120,20 +120,22 @@ function render(t: number, data: Loaded, schedule: Schedule, inscriptions: Inscr
   const inWindow = st.act === 3 && data.traces !== null;
   const fieldDim = (inWindow ? 1 - 0.55 * Math.min(1, st.phase * 4) : 1) * remains;
 
-  const sample = data.samples.get(year);
-  if (sample) {
-    const opacity = (1 - st.blend) * fieldDim;
-    drawMarks(ctx, view, sample, season, { dpr, opacity });
-    drawPin(ctx, view, sample, { dpr, opacity });
+  // The season being replaced recedes as this one lands, so the plate is never
+  // empty and the drift is continuous rather than a pulse at each boundary.
+  if (st.prev !== null) {
+    const prevSeason = data.byYear.get(st.prev);
+    const prevSample = data.samples.get(st.prev);
+    if (prevSeason && prevSample) {
+      const fading = (1 - st.arrived) * fieldDim;
+      drawMarks(ctx, view, prevSample, prevSeason, { dpr, opacity: fading });
+      drawPin(ctx, view, prevSample, { dpr, opacity: fading });
+    }
   }
 
-  if (st.blend > 0 && st.next !== null) {
-    const nextSeason = data.byYear.get(st.next);
-    const nextSample = data.samples.get(st.next);
-    if (nextSeason && nextSample) {
-      drawMarks(ctx, view, nextSample, nextSeason, { dpr, opacity: st.blend * remains });
-      drawPin(ctx, view, nextSample, { dpr, opacity: st.blend * remains });
-    }
+  const sample = data.samples.get(year);
+  if (sample) {
+    drawMarks(ctx, view, sample, season, { dpr, opacity: fieldDim, arrived: st.arrived });
+    drawPin(ctx, view, sample, { dpr, opacity: fieldDim, arrived: st.arrived });
   }
 
   if (inWindow && data.traces) {

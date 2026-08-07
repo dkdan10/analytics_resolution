@@ -37,13 +37,24 @@ export interface Inscription {
   year: number;
   /** The figure, already formatted: "39·9". */
   text: string;
+  /** What the figure is - the league's own category name, so a viewer is never
+   *  asked to read a bare numeral and guess. */
+  label: string;
   /** Second reading for the one season the record disagrees with itself. */
   counter?: string;
+  counterLabel?: string;
+  /** 0..1 - the share itself. The numeral is struck at a size proportional to
+   *  it, so the figure physically shrinks as the thing it measures does and the
+   *  number cannot disagree with its own picture. */
+  weight: number;
   strikeAt: number;
   slot: { x: number; y: number };
   /** Where on the ring, in radians - the numeral lies tangent to it. */
   angle: number;
 }
+
+/** The NBA's own category, named as theirs. Disclosed in wall text. */
+const TRACKED_ZONE = "Mid-Range";
 
 /** 39.9% -> "39·9" - a struck numeral, not a label with a percent sign. */
 function struckFigure(share: number): string {
@@ -60,11 +71,14 @@ export function buildInscriptions(seasons: Season[], schedule: Schedule): Inscri
     return {
       year: s.year,
       text: struckFigure(s.mid_share),
+      label: `${TRACKED_ZONE.toUpperCase()} · ${s.season}`,
       // 1996-97 is struck twice: what the taxonomy files, and what was played
       // under the 22-ft line then in force. They part company once, in public.
       counter: s.contemporaneous
         ? struckFigure(s.contemporaneous.contemporaneous_mid_share)
         : undefined,
+      counterLabel: s.contemporaneous ? "UNDER THE 22-FT LINE THEN IN FORCE" : undefined,
+      weight: s.mid_share,
       strikeAt: (seg?.start ?? 0) + STRIKE_DELAY,
       slot: { x: RING_R * Math.cos(a), y: RING_R * Math.sin(a) },
       angle: a,
@@ -146,6 +160,7 @@ export function drawSlug(
   lines: string[],
   at: { x: number; y: number },
   alpha: number,
+  offsetPx = 0,
 ): void {
   if (alpha <= 0.01) return;
   const px = Math.max(9, 11 * (view.scale / 2));
@@ -156,7 +171,7 @@ export function drawSlug(
   ctx.letterSpacing = `${px * 0.14}px`;
   ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha * 0.5})`;
   lines.forEach((line, i) => {
-    ctx.fillText(line, view.sx(at.x), view.sy(at.y) + i * px * 1.9);
+    ctx.fillText(line, view.sx(at.x), view.sy(at.y) + offsetPx + i * px * 1.9);
   });
   ctx.letterSpacing = "0px";
   ctx.restore();
@@ -178,10 +193,22 @@ export function drawInscriptions(
     const p = placementAt(ins, t);
     if (!p) continue;
 
-    const px = FACE_SIZE * p.scale * (view.scale / 2);
+    // Central size carries the measurement: 39·9 is struck large and 9·7 small,
+    // so the figure shrinks with the thing it counts. The ring is uniform,
+    // because there the numerals are a garland and have to stay legible.
+    const byWeight = 0.55 + 1.05 * Math.min(1, ins.weight / 0.4);
+    const sized = FACE_SIZE * (byWeight + (1 - byWeight) * p.settled);
+    const px = sized * p.scale * (view.scale / 2);
     // Struck upright in the middle, turning into the ring as it settles.
     const rotation = (Math.PI / 2 - ins.angle) * p.settled;
     strike(ctx, ins.text, view.sx(p.x), view.sy(p.y), px, p.alpha, rotation);
+
+    // While it is central, the figure says what it is. A bare numeral is the
+    // thing the piece was rightly criticised for.
+    const naming = (1 - p.settled) * p.alpha;
+    if (naming > 0.01) {
+      drawSlug(ctx, view, [ins.label], { x: p.x, y: p.y }, naming * 0.9, -px * 0.85);
+    }
 
     // The counter-reading rides just below, and only for as long as the two
     // disagree: it fades out as the pair migrates, leaving the taxonomy's
@@ -197,6 +224,10 @@ export function drawInscriptions(
           px * 0.86,
           p.alpha * fade * 0.8,
         );
+        if (ins.counterLabel) {
+          drawSlug(ctx, view, [ins.counterLabel], { x: p.x, y: p.y },
+            p.alpha * fade * 0.75, px * 1.75);
+        }
       }
     }
   }
