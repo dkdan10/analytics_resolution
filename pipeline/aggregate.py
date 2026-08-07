@@ -32,8 +32,8 @@ import json
 import sys
 from pathlib import Path
 
-import numpy as np
-
+# The interpreter check runs before numpy, so the wrong python3 explains itself
+# rather than raising a bare ModuleNotFoundError.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (  # noqa: E402
     PROCESSED_DIR,
@@ -42,9 +42,14 @@ from common import (  # noqa: E402
     SEASON_START_YEARS,
     die,
     read_season_csv,
+    require_env,
     season_label,
     write_json,
 )
+
+require_env()
+
+import numpy as np  # noqa: E402
 
 USECOLS = [
     "GAME_ID",

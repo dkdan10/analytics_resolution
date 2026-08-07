@@ -67,6 +67,7 @@ from common import (  # noqa: E402
     extract_7z,
     read_7z_bytes,
     read_season_csv,
+    require_env,
     sha256_file,
     write_json,
 )
@@ -1359,6 +1360,7 @@ def main():
     ap.add_argument("--skip-mirror", action="store_true",
                     help="use archives already on disk; do not fetch")
     args = ap.parse_args()
+    require_env()
 
     if args.probe_gate:
         probe_gate()

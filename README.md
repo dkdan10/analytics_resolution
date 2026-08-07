@@ -25,6 +25,19 @@ them, because that is all the record kept.
 
 ## Running it
 
+The pipeline pins both its interpreter (`.python-version`, pyenv 3.9.4) and its libraries
+(`requirements.txt`, numpy 2.0.2 + pandas 2.3.2) — every published number was produced and verified
+against exactly those. Each stage checks before it runs and explains itself if the wrong `python3`
+won the PATH, which is easy to do: this machine carries four, two without numpy at all and one with
+numpy 1.23.1 / pandas 1.4.3 that would otherwise run the acceptance gate to green on libraries the
+results were never checked against.
+
+```bash
+pyenv install 3.9.4 && python3 -m pip install -r requirements.txt
+# or, if python3 does not resolve to the pinned version:
+#   $(pyenv root)/versions/$(cat .python-version)/bin/python3 pipeline/qa.py
+```
+
 ```bash
 python3 pipeline/acquire.py     # 30 season dumps -> data/shots/ + sha256 manifest
 python3 pipeline/aggregate.py   # shares, samples, density grids, resolution regimes

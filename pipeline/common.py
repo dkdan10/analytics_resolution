@@ -17,6 +17,65 @@ SHOTS_DIR = REPO_ROOT / "data" / "shots"
 RAW_DIR = REPO_ROOT / "data" / "raw"
 PROCESSED_DIR = REPO_ROOT / "data" / "processed"
 
+# --- the interpreter --------------------------------------------------------
+# Every number this project publishes was produced with these versions. There
+# are four `python3` on the machine this was built on and only one of them is
+# right, so which interpreter runs the pipeline cannot be left to PATH order:
+#
+#   pyenv 3.9.4        numpy 2.0.2   pandas 2.3.2    <- verified, what .python-version pins
+#   miniconda 3.9.12   numpy 1.23.1  pandas 1.4.3    <- imports fine, DIFFERENT library versions
+#   homebrew 3.14.5    no numpy
+#   /usr/bin 3.8.9     no numpy
+#
+# The dangerous one is miniconda: it satisfies a presence check and would run
+# the whole gate to green on libraries the results were never verified against.
+# So this checks versions, not just importability.
+REQUIRED = {"numpy": "2.0.2", "pandas": "2.3.2"}
+
+
+def require_env(strict=True):
+    """Fail early and legibly if the interpreter is not the verified one.
+
+    Called from each stage's main(). Raising a bare ModuleNotFoundError here
+    sends the reader looking for a missing package when the real problem is
+    that the wrong python3 won the PATH.
+    """
+    found, missing, wrong = {}, [], []
+    for mod, want in REQUIRED.items():
+        try:
+            m = __import__(mod)
+        except ImportError:
+            missing.append(mod)
+            continue
+        got = getattr(m, "__version__", "unknown")
+        found[mod] = got
+        if got != want:
+            wrong.append(f"{mod} {got} (verified against {want})")
+
+    if not missing and not wrong:
+        return found
+
+    print(f"\nThis interpreter cannot reproduce the project's numbers.\n", file=sys.stderr)
+    print(f"  running: {sys.executable}", file=sys.stderr)
+    print(f"           Python {sys.version.split()[0]}", file=sys.stderr)
+    if missing:
+        print(f"  missing: {', '.join(missing)}", file=sys.stderr)
+    if wrong:
+        print(f"  version: {'; '.join(wrong)}", file=sys.stderr)
+    print(
+        "\n  This repo pins its interpreter in .python-version and its libraries in\n"
+        "  requirements.txt. If `python3` is not resolving to the pinned pyenv\n"
+        "  version, invoke it explicitly:\n\n"
+        "      $(pyenv root)/versions/$(cat .python-version)/bin/python3 pipeline/qa.py\n\n"
+        "  or create a virtualenv from requirements.txt. See README.\n",
+        file=sys.stderr,
+    )
+    if strict and missing:
+        sys.exit(1)
+    if strict and wrong:
+        sys.exit(1)
+    return found
+
 # 30 completed seasons of the public shot-location record: 1996-97 .. 2025-26.
 SEASON_START_YEARS = list(range(1996, 2026))
 

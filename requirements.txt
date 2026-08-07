@@ -1,0 +1,13 @@
+# The pipeline's only third-party dependencies, pinned to the versions every
+# published number in this project was produced and verified against.
+#
+# The interpreter is pinned separately in .python-version (pyenv 3.9.4). Both
+# matter: this machine carries four `python3`, two without numpy at all and one
+# (miniconda) with numpy 1.23.1 / pandas 1.4.3, which would run the acceptance
+# gate to green on libraries the results were never checked against.
+#
+#   pyenv install 3.9.4 && python3 -m pip install -r requirements.txt
+#
+# pipeline/common.py:require_env() checks these at the start of every stage.
+numpy==2.0.2
+pandas==2.3.2

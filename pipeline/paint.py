@@ -52,6 +52,7 @@ from common import (  # noqa: E402
     ZONE_NAMES,
     die,
     read_7z_bytes,
+    require_env,
     write_json,
     zone_at,
 )
@@ -385,6 +386,7 @@ def main():
     ap.add_argument("--reduce", action="store_true",
                     help="fold the per-game canvases into the shipped artifacts and stop")
     args = ap.parse_args()
+    require_env()
 
     if args.reduce:
         reduce_all()

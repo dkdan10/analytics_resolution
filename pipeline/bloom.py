@@ -38,6 +38,7 @@ from common import (  # noqa: E402
     die,
     download,
     read_season_csv,
+    require_env,
     write_json,
 )
 
@@ -309,6 +310,7 @@ def main():
     ap.add_argument("--games", type=int, default=12)
     ap.add_argument("--traces", type=int, default=32)
     args = ap.parse_args()
+    require_env()
 
     shots = read_season_csv(
         2015,

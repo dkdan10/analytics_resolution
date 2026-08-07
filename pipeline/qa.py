@@ -12,11 +12,17 @@ import json
 import sys
 from pathlib import Path
 
-import numpy as np
-
+# The interpreter check runs before numpy is imported. Reversed, a reader on the
+# wrong python3 gets `ModuleNotFoundError: numpy` and goes looking for a missing
+# package, when the real problem is that the wrong interpreter won the PATH.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from common import PROCESSED_DIR, read_season_csv, require_env  # noqa: E402
+
+require_env()
+
+import numpy as np  # noqa: E402
+
 from aggregate import POINT_DTYPE  # noqa: E402
-from common import PROCESSED_DIR, read_season_csv  # noqa: E402
 
 # Plan section 1.6, measured 2026-08-04 (test fixture, not display copy).
 EXPECTED_TOTAL_ATTEMPTS = 5_933_691

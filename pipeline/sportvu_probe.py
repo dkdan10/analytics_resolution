@@ -32,6 +32,7 @@ from common import (  # noqa: E402
     RAW_DIR,
     die,
     download,
+    require_env,
     sha256_file,
     write_json,
 )
@@ -215,6 +216,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--skip-listing", action="store_true", help="skip the GitHub API corpus listing")
     args = ap.parse_args()
+    require_env()
 
     print("1. Corpus listing")
     listing = None if args.skip_listing else list_corpus()

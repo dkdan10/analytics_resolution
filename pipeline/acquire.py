@@ -26,6 +26,7 @@ from common import (  # noqa: E402
     download,
     dump_path,
     fetch_text,
+    require_env,
     season_label,
     sha256_file,
     write_json,
@@ -75,6 +76,7 @@ def main():
     ap.add_argument("--force", action="store_true", help="re-download even if present")
     ap.add_argument("--years", help="comma-separated season start years (default: all 30)")
     args = ap.parse_args()
+    require_env()
 
     years = SEASON_START_YEARS
     if args.years:
