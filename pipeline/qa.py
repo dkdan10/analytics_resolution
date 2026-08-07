@@ -68,6 +68,13 @@ UNEVEN_CONSTANT_ARENA = "CLE"
 EXPECTED_MISFILED_THREES = 19_165
 EXPECTED_CONTEMPORANEOUS_MID = "29.8"
 
+# --- The record's vocabulary (the second curve; drives THE LEDGER) -----------
+# How many words the record has for what a shot was. Measured 2026-08-06.
+EXPECTED_WORDS = {1996: 9, 2000: 25, 2007: 50, 2015: 53, 2024: 48}
+# "Fadeaway" is not in the record until 2001-02 - the piece is named for a word
+# the archive had to learn, and that is content, so it is gated.
+FADEAWAY_FIRST_YEAR = 2001
+
 
 def pct(x):
     return f"{100 * x:.1f}"
@@ -159,6 +166,26 @@ def main():
         if y != 1996 and seasons[y].get("contemporaneous") is not None
     ]
     check("contemporaneous correction confined to 1996-97", stray, [])
+
+    print("\nThe record's vocabulary")
+    for year, want in sorted(EXPECTED_WORDS.items()):
+        if year in seasons:
+            check(f"{seasons[year]['season']} words for a shot",
+                  seasons[year]["vocabulary"]["words"], want)
+    if {1996, 2024} <= set(seasons):
+        grew = seasons[2024]["vocabulary"]["words"] > seasons[1996]["vocabulary"]["words"] * 4
+        check("vocabulary more than quadruples 1996-97 to 2024-25", grew, True)
+        longer = (seasons[2024]["vocabulary"]["mean_chars_per_shot"]
+                  > seasons[1996]["vocabulary"]["mean_chars_per_shot"] * 1.5)
+        check("description per shot grows by half again", longer, True)
+
+    # The piece's own name, and the season the record learned it.
+    first_fade = next(
+        (y for y in sorted(seasons)
+         if any("Fadeaway" in w for w in seasons[y]["vocabulary"]["words_list"])),
+        None,
+    )
+    check("first season the record says 'Fadeaway'", first_fade, FADEAWAY_FIRST_YEAR)
 
     print()
     # Cross-artifact gates: the manifest, samples, and grids must belong to the

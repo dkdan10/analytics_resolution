@@ -259,6 +259,36 @@ def measure_contemporaneous(year, df):
     }
 
 
+def measure_vocabulary(df):
+    """How much the record has to say about what a shot WAS.
+
+    The second curve in this archive, and the mirror of the first: as the record
+    stops saying *where* a rim shot happened it learns to say *what* every shot
+    was, from nine words in 1996-97 to forty-eight by 2024-25. Measured over the
+    whole season, not the sample, so the piece renders the record's vocabulary
+    rather than a draw from it.
+    """
+    a = df.ACTION_TYPE.dropna()
+    counts = a.value_counts()
+    # How many words are needed to account for 90% of the season's shots - the
+    # honest measure of how varied the description actually is, since a long
+    # tail of rare words would otherwise overstate it.
+    share = counts / counts.sum()
+    covering_90 = int((share.cumsum() < 0.9).sum()) + 1
+    return {
+        "words": int(counts.size),
+        "words_covering_90pct": covering_90,
+        "mean_words_per_shot": float(a.str.split().str.len().mean()),
+        "mean_chars_per_shot": float(a.str.len().mean()),
+        "longest": max(counts.index, key=len),
+        "most_common": counts.index[0],
+        # The season's whole vocabulary, in the record's own order of frequency.
+        # Small (at most ~53 strings) and itself display-bound: the piece can
+        # show what the archive had words for in any given year.
+        "words_list": [str(w) for w in counts.index],
+    }
+
+
 def aggregate_season(year):
     df = read_season_csv(year, usecols=USECOLS, dtype=DTYPES)
     n = len(df)
@@ -309,6 +339,7 @@ def aggregate_season(year):
         "date_max": str(df.GAME_DATE.max()),
         "shot_type_nulls": type_nulls,
         "resolution": measure_resolution(year, df),
+        "vocabulary": measure_vocabulary(df),
         "contemporaneous": measure_contemporaneous(year, df),
         "note": None,
     }
@@ -326,6 +357,20 @@ def aggregate_season(year):
     # the origin (drawn as the pile, never jittered apart); `hires` marks dots
     # from arenas that recorded rim coordinates that season (the arena inlay).
     hires_arenas = set(row["resolution"]["full_resolution_arenas"])
+
+    # `zone` must be filed here, never re-derived in the renderer from x,y:
+    # deriving it would apply today's polygons to the 22-ft era and silently
+    # reproduce the exact anachronism the piece exists to expose.
+    zone_index = {z: i for i, z in enumerate(ZONES)}
+    zones = [zone_index.get(z, -1) for z in s.SHOT_ZONE_BASIC]
+
+    # What the record says each shot WAS. Dictionary-encoded: a season uses at
+    # most ~53 of these strings, and the vocabulary's growth (9 words in
+    # 1996-97, 48 by 2024-25) is itself a measurement the piece renders.
+    vocab = sorted(s.ACTION_TYPE.dropna().unique())
+    action_index = {a: i for i, a in enumerate(vocab)}
+    actions = [action_index.get(a, -1) for a in s.ACTION_TYPE]
+
     sample = {
         "season": row["season"],
         "seed": SAMPLE_SEED + year,
@@ -333,12 +378,16 @@ def aggregate_season(year):
         "of_halfcourt_attempts": len(half),
         "backcourt_or_oob_dropped": dropped,
         "units": "tenths of feet, hoop origin",
+        "zone_names": ZONES,
+        "action_vocab": vocab,
         "x": s.LOC_X.tolist(),
         "y": s.LOC_Y.tolist(),
         "made": s.SHOT_MADE_FLAG.astype(int).tolist(),
         "three": (s.SHOT_TYPE == "3PT Field Goal").astype(int).tolist(),
         "pin": ((s.LOC_X == 0) & (s.LOC_Y == 0)).astype(int).tolist(),
         "hires": s.HTM.isin(hires_arenas).astype(int).tolist(),
+        "zone": zones,
+        "action": actions,
     }
 
     grid_counts, _, _ = np.histogram2d(
@@ -380,6 +429,7 @@ def main():
             f"| rim unplaced {100 * res['ra_origin_share']:5.1f}%  "
             f"{res['regime']:<20} {res['n_full_resolution_arenas'] or '':>2}"
             f"{'/' + str(row['n_teams']) if res['regime'] == 'uneven' else ''}"
+            f"  | {row['vocabulary']['words']:>2} words"
         )
 
     out = {
