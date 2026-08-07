@@ -56,6 +56,10 @@ USECOLS = [
     "LOC_Y",
     "SHOT_DISTANCE",
     "SHOT_ZONE_BASIC",
+    # The rest of the machine's classification of a shot, tallied by THE CENSUS.
+    "SHOT_ZONE_AREA",
+    "SHOT_ZONE_RANGE",
+    "EVENT_TYPE",
     "SHOT_TYPE",
     "SHOT_ATTEMPTED_FLAG",
     "SHOT_MADE_FLAG",
@@ -270,6 +274,14 @@ def measure_vocabulary(df):
     """
     a = df.ACTION_TYPE.dropna()
     counts = a.value_counts()
+    # Every taxonomy the record applies to a shot, added up: this is the size of
+    # the vocabulary the machine has for saying what happened, 31 in 1996-97 and
+    # 70 by 2024-25.
+    taxonomies = {
+        col: int(df[col].dropna().nunique())
+        for col in ("SHOT_TYPE", "EVENT_TYPE", "SHOT_ZONE_BASIC",
+                    "SHOT_ZONE_RANGE", "SHOT_ZONE_AREA", "ACTION_TYPE")
+    }
     # How many words are needed to account for 90% of the season's shots - the
     # honest measure of how varied the description actually is, since a long
     # tail of rare words would otherwise overstate it.
@@ -282,6 +294,8 @@ def measure_vocabulary(df):
         "mean_chars_per_shot": float(a.str.len().mean()),
         "longest": max(counts.index, key=len),
         "most_common": counts.index[0],
+        "taxonomies": taxonomies,
+        "categories_total": int(sum(taxonomies.values())),
         # The season's whole vocabulary, in the record's own order of frequency.
         # Small (at most ~53 strings) and itself display-bound: the piece can
         # show what the archive had words for in any given year.
@@ -371,6 +385,14 @@ def aggregate_season(year):
     action_index = {a: i for i, a in enumerate(vocab)}
     actions = [action_index.get(a, -1) for a in s.ACTION_TYPE]
 
+    # The rest of the classification the machine applies to every shot. Six
+    # taxonomies in all, and THE CENSUS tallies them live: this is the record
+    # deciding what a shot IS, in as many ways as it has to say it.
+    ranges = sorted(s.SHOT_ZONE_RANGE.dropna().unique())
+    range_index = {r: i for i, r in enumerate(ranges)}
+    areas = sorted(s.SHOT_ZONE_AREA.dropna().unique())
+    area_index = {a: i for i, a in enumerate(areas)}
+
     sample = {
         "season": row["season"],
         "seed": SAMPLE_SEED + year,
@@ -380,6 +402,8 @@ def aggregate_season(year):
         "units": "tenths of feet, hoop origin",
         "zone_names": ZONES,
         "action_vocab": vocab,
+        "range_names": ranges,
+        "area_names": areas,
         "x": s.LOC_X.tolist(),
         "y": s.LOC_Y.tolist(),
         "made": s.SHOT_MADE_FLAG.astype(int).tolist(),
@@ -388,6 +412,8 @@ def aggregate_season(year):
         "hires": s.HTM.isin(hires_arenas).astype(int).tolist(),
         "zone": zones,
         "action": actions,
+        "range": [range_index.get(r, -1) for r in s.SHOT_ZONE_RANGE],
+        "area": [area_index.get(a, -1) for a in s.SHOT_ZONE_AREA],
     }
 
     grid_counts, _, _ = np.histogram2d(

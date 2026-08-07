@@ -75,6 +75,16 @@ EXPECTED_WORDS = {1996: 9, 2000: 25, 2007: 50, 2015: 53, 2024: 48}
 # the archive had to learn, and that is content, so it is gated.
 FADEAWAY_FIRST_YEAR = 2001
 
+# Every taxonomy the record applies to a shot, added up: shot type, made/missed,
+# zone, range, area, and the description. This is the size of the machine's
+# whole vocabulary for saying what happened, and THE CENSUS tallies it live.
+EXPECTED_CATEGORIES = {1996: 31, 2000: 47, 2007: 72, 2015: 75, 2024: 70}
+# The five taxonomies that never move; only the description grows.
+FIXED_TAXONOMIES = {
+    "SHOT_TYPE": 2, "EVENT_TYPE": 2, "SHOT_ZONE_BASIC": 7,
+    "SHOT_ZONE_RANGE": 5, "SHOT_ZONE_AREA": 6,
+}
+
 
 def pct(x):
     return f"{100 * x:.1f}"
@@ -186,6 +196,17 @@ def main():
         None,
     )
     check("first season the record says 'Fadeaway'", first_fade, FADEAWAY_FIRST_YEAR)
+
+    for year, want in sorted(EXPECTED_CATEGORIES.items()):
+        if year in seasons:
+            check(f"{seasons[year]['season']} categories across six taxonomies",
+                  seasons[year]["vocabulary"]["categories_total"], want)
+    drifted = [
+        f"{seasons[y]['season']}:{k}={seasons[y]['vocabulary']['taxonomies'][k]}"
+        for y in sorted(seasons) for k, v in FIXED_TAXONOMIES.items()
+        if seasons[y]["vocabulary"]["taxonomies"].get(k) != v
+    ]
+    check("only the description grows; the other five are fixed", drifted, [])
 
     print()
     # Cross-artifact gates: the manifest, samples, and grids must belong to the

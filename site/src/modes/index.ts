@@ -1,6 +1,7 @@
 /** Hand dispatch, and the rotation. */
 
 import { passAt, type Schedule } from "../timeline";
+import { drawCensusHand } from "./census";
 import { drawFieldHand } from "./field";
 import { drawLedgerHand } from "./ledger";
 import { drawPlateHand } from "./plate";
@@ -13,10 +14,11 @@ const HANDS: Record<ModeId, Hand> = {
   plate: drawPlateHand,
   field: drawFieldHand,
   ledger: drawLedgerHand,
+  census: drawCensusHand,
 };
 
 /** Rotation order: evidence, then the league's colours, then its words. */
-const ROTATION: ModeId[] = ["plate", "field", "ledger"];
+const ROTATION: ModeId[] = ["plate", "field", "ledger", "census"];
 
 export function isModeId(v: string | null): v is ModeId {
   return v !== null && (MODE_IDS as readonly string[]).includes(v);

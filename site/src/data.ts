@@ -42,6 +42,10 @@ export interface Vocabulary {
   longest: string;
   most_common: string;
   words_list: string[];
+  /** Distinct values per classification field. */
+  taxonomies: Record<string, number>;
+  /** All six added up: 31 categories in 1996-97, 75 by 2015-16. */
+  categories_total: number;
 }
 
 /** 1996-97 only: the taxonomy's reading against the line then in force. */
@@ -102,8 +106,14 @@ export interface Sample {
   zone: number[];
   /** Index into `action_vocab` — what the record says the shot was. */
   action: number[];
+  /** Indices into `range_names` / `area_names` — the rest of the machine's
+   *  classification of the same shot. Six taxonomies in all. */
+  range: number[];
+  area: number[];
   zone_names: string[];
   action_vocab: string[];
+  range_names: string[];
+  area_names: string[];
 }
 
 export type { Trace, TracesFile } from "./bloom";

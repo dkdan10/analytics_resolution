@@ -1,6 +1,6 @@
 {
   "generated_by": "pipeline/aggregate.py",
-  "generated_at": "2026-08-07T00:26:45+00:00",
+  "generated_at": "2026-08-07T04:47:40+00:00",
   "provenance": {
     "shots_source": "stats.nba.com shotchartdetail, bulk archive github.com/shufinskiy/nba_data",
     "sportvu_source": "NBA/STATS SportVU public 2015-16 release, github.com/linouk23/NBA-Player-Movements + mirrors (github.com/sealneaward/nba-movement-data, HF dcayton/nba_tracking_data_15_16)",
@@ -92,6 +92,15 @@
         "mean_chars_per_shot": 10.081712082889245,
         "longest": "Driving Layup Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 9
+        },
+        "categories_total": 31,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -196,6 +205,15 @@
         "mean_chars_per_shot": 10.111736029039339,
         "longest": "Driving Layup Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 10
+        },
+        "categories_total": 32,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -295,6 +313,15 @@
         "mean_chars_per_shot": 10.10158144950034,
         "longest": "Driving Layup Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 10
+        },
+        "categories_total": 32,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -394,6 +421,15 @@
         "mean_chars_per_shot": 10.092295871324659,
         "longest": "Driving Layup Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 10
+        },
+        "categories_total": 32,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -493,6 +529,15 @@
         "mean_chars_per_shot": 10.305590049149023,
         "longest": "Turnaround Finger Roll Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 25
+        },
+        "categories_total": 47,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -606,6 +651,15 @@
         "mean_chars_per_shot": 10.507614449601814,
         "longest": "Turnaround Finger Roll Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 27
+        },
+        "categories_total": 49,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -721,6 +775,15 @@
         "mean_chars_per_shot": 10.631990172245965,
         "longest": "Turnaround Finger Roll Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 27
+        },
+        "categories_total": 49,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -835,6 +898,15 @@
         "mean_chars_per_shot": 10.672065246597787,
         "longest": "Turnaround Finger Roll Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 29
+        },
+        "categories_total": 51,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -952,6 +1024,15 @@
         "mean_chars_per_shot": 10.687333650430611,
         "longest": "Turnaround Finger Roll Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 29
+        },
+        "categories_total": 51,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -1069,6 +1150,15 @@
         "mean_chars_per_shot": 10.811634776701627,
         "longest": "Turnaround Finger Roll Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 29
+        },
+        "categories_total": 51,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -1186,6 +1276,15 @@
         "mean_chars_per_shot": 10.782268758415276,
         "longest": "Turnaround Finger Roll Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 29
+        },
+        "categories_total": 51,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -1302,6 +1401,15 @@
         "mean_chars_per_shot": 11.153625168951775,
         "longest": "Driving Finger Roll Layup Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 50
+        },
+        "categories_total": 72,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -1440,6 +1548,15 @@
         "mean_chars_per_shot": 11.345380093453247,
         "longest": "Driving Finger Roll Layup Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 49
+        },
+        "categories_total": 71,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -1578,6 +1695,15 @@
         "mean_chars_per_shot": 11.475279400495607,
         "longest": "Driving Finger Roll Layup Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 49
+        },
+        "categories_total": 71,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -1702,6 +1828,15 @@
         "mean_chars_per_shot": 11.485154759938126,
         "longest": "Driving Finger Roll Layup Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 50
+        },
+        "categories_total": 72,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -1827,6 +1962,15 @@
         "mean_chars_per_shot": 11.523650010855743,
         "longest": "Driving Finger Roll Layup Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 50
+        },
+        "categories_total": 72,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -1952,6 +2096,15 @@
         "mean_chars_per_shot": 11.634867719355686,
         "longest": "Driving Finger Roll Layup Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 50
+        },
+        "categories_total": 72,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -2077,6 +2230,15 @@
         "mean_chars_per_shot": 11.69787778137033,
         "longest": "Driving Finger Roll Layup Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 50
+        },
+        "categories_total": 72,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -2202,6 +2364,15 @@
         "mean_chars_per_shot": 11.760715154463634,
         "longest": "Driving Finger Roll Layup Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 49
+        },
+        "categories_total": 71,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -2326,6 +2497,15 @@
         "mean_chars_per_shot": 12.94322079146484,
         "longest": "Turnaround Fadeaway Bank Jump Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 53
+        },
+        "categories_total": 75,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -2454,6 +2634,15 @@
         "mean_chars_per_shot": 13.237466000409663,
         "longest": "Turnaround Fadeaway Bank Jump Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 53
+        },
+        "categories_total": 75,
         "words_list": [
           "Jump Shot",
           "Layup Shot",
@@ -2589,6 +2778,15 @@
         "mean_chars_per_shot": 14.213833269565956,
         "longest": "Turnaround Fadeaway Bank Jump Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 46
+        },
+        "categories_total": 68,
         "words_list": [
           "Jump Shot",
           "Pullup Jump shot",
@@ -2717,6 +2915,15 @@
         "mean_chars_per_shot": 14.85743513565238,
         "longest": "Turnaround Fadeaway Bank Jump Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 46
+        },
+        "categories_total": 68,
         "words_list": [
           "Jump Shot",
           "Pullup Jump shot",
@@ -2845,6 +3052,15 @@
         "mean_chars_per_shot": 15.270753152310277,
         "longest": "Turnaround Fadeaway Bank Jump Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 46
+        },
+        "categories_total": 68,
         "words_list": [
           "Jump Shot",
           "Pullup Jump shot",
@@ -2973,6 +3189,15 @@
         "mean_chars_per_shot": 15.282543472455664,
         "longest": "Turnaround Fadeaway Bank Jump Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 46
+        },
+        "categories_total": 68,
         "words_list": [
           "Jump Shot",
           "Pullup Jump shot",
@@ -3101,6 +3326,15 @@
         "mean_chars_per_shot": 15.511932337280017,
         "longest": "Turnaround Fadeaway Bank Jump Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 46
+        },
+        "categories_total": 68,
         "words_list": [
           "Jump Shot",
           "Pullup Jump shot",
@@ -3229,6 +3463,15 @@
         "mean_chars_per_shot": 16.04818201069893,
         "longest": "Turnaround Fadeaway Bank Jump Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 48
+        },
+        "categories_total": 70,
         "words_list": [
           "Jump Shot",
           "Pullup Jump shot",
@@ -3359,6 +3602,15 @@
         "mean_chars_per_shot": 16.180374118088167,
         "longest": "Turnaround Fadeaway Bank Jump Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 48
+        },
+        "categories_total": 70,
         "words_list": [
           "Jump Shot",
           "Pullup Jump shot",
@@ -3489,6 +3741,15 @@
         "mean_chars_per_shot": 16.415575305087756,
         "longest": "Turnaround Fadeaway Bank Jump Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 48
+        },
+        "categories_total": 70,
         "words_list": [
           "Jump Shot",
           "Pullup Jump shot",
@@ -3619,6 +3880,15 @@
         "mean_chars_per_shot": 16.320856908194926,
         "longest": "Turnaround Fadeaway Bank Jump Shot",
         "most_common": "Jump Shot",
+        "taxonomies": {
+          "SHOT_TYPE": 2,
+          "EVENT_TYPE": 2,
+          "SHOT_ZONE_BASIC": 7,
+          "SHOT_ZONE_RANGE": 5,
+          "SHOT_ZONE_AREA": 6,
+          "ACTION_TYPE": 48
+        },
+        "categories_total": 70,
         "words_list": [
           "Jump Shot",
           "Pullup Jump shot",
