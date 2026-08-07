@@ -94,7 +94,10 @@ PROOF_JSON = "0021500015.json"
 # "at the time of the shot" and does not say which of these it means.
 GATHER_FRAMES = 10
 
-# "A touch" - the ball within this radius of its nearest player, held this long.
+# "A touch" - the ball within this radius of its nearest player, held this long
+# WITHOUT the feed breaking underneath it. A touch may not span a period change
+# or a dropout: the frames either side of one are not consecutive instants, and
+# a chain that crosses one is describing two occasions as though they were one.
 TOUCH_RADIUS_FT = 3.5
 TOUCH_RADIUS_ALT_FT = 3.0
 TOUCH_MIN_FRAMES = 10
@@ -103,12 +106,38 @@ TOUCH_MIN_FRAMES = 10
 # running through free throws and stoppages with the ball in someone's hands.
 TOUCH_MAX_SECONDS = 12.0
 
-# "A drive" - one touch carrying the handler from outside to inside these radii.
+# "A drive" - one touch carrying the handler from outside to inside these radii,
+# IN THAT ORDER. Direction is part of the definition and was missing from it: a
+# maximum and a minimum taken over the whole touch say nothing about which came
+# first, so a player carrying the ball AWAY from the rim satisfied both.
 DRIVE_FROM_FT = 20.0
 DRIVE_TO_FT = 10.0
 
+# "A pass" - the ball leaving one player and reaching a team-mate, in the same
+# period, within this long. Read off the feed rather than picked: the gap
+# between consecutive same-team touches is a single-peaked distribution with a
+# long flat dead-ball tail, and this is where its ninetieth percentile falls.
+# The second reading is further out, where the density has dropped to within an
+# order of magnitude of that tail. Both are computed and both ship;
+# `pass_gap_ms` in window.json carries the distribution they were drawn from and
+# `inventory.passes` beside `passes_alt_gap` carries what each one costs, so
+# neither is a number to take on trust.
+MAX_PASS_GAP_MS = 1200
+MAX_PASS_GAP_ALT_MS = 2000
+
+# Where the feed breaks. Not a constant but a multiple of the feed's OWN modal
+# spacing, measured per game, so it follows the instrument rather than assuming
+# one. The choice of factor is not delicate: the feed's jitter dies out well
+# inside two frames and its real dropouts start well outside, leaving a wide
+# band that carries a few hundred of the corpus's fifty million frame pairs.
+# `frame_gap_ms` in window.json ships that distribution, so the band can be
+# looked at rather than believed.
+FRAME_GAP_FACTOR = 2
+
 # A player cannot move this far in 40 ms; anything further is a feed gap or an
 # identity swap, and integrating it would invent distance that was never run.
+# Also the physical-continuity threshold a hero's geometry must hold to: a
+# caliper the piece draws as one confrontation closing must BE one confrontation.
 MAX_STEP_FT = 3.0
 
 # The league's own four categories for closest defender, still published today.
@@ -232,6 +261,14 @@ def game_frames(game):
     )
     mode_ms = diffs.most_common(1)[0][0] if diffs else None
 
+    # The feed's own spacing, kept rather than reduced to its mode: the
+    # discontinuity threshold everything downstream segments on is a multiple of
+    # that mode, and a factor is only defensible if the band it lands in can be
+    # shown to be empty. So the shape ships and the constant can be argued with.
+    gap_hist = Counter()
+    for g, n in diffs.items():
+        gap_hist[g if g <= 200 else 201] += n
+
     stats = {
         "events": len(game["events"]),
         "raw_moments": raw,
@@ -243,6 +280,7 @@ def game_frames(game):
         "ball_z_min": round(ball_z_min, 2) if ball_z_min != float("inf") else None,
         "ball_z_max": round(ball_z_max, 2) if ball_z_max != float("-inf") else None,
         "timestamp_diff_mode_ms": mode_ms,
+        "timestamp_diff_hist": {str(k): v for k, v in sorted(gap_hist.items())},
     }
     return frames, stats
 
@@ -335,144 +373,240 @@ def hoop_distance(x, y):
 
 # --- per-shot derivation -----------------------------------------------------
 
-# How far the tracking event numbering may sit from the shot record's. Kept
-# small on purpose: a wide search over a symmetric court would start finding
-# spurious agreement rather than the real join.
-MAX_EVENT_OFFSET = 3
+# How far the tracking event numbering may sit from the shot record's. A narrow
+# search is not the conservative choice it looks like: an argmax that lands on
+# the edge of the range is the signature of a peak OUTSIDE it, and a narrow
+# range hides both the better peak and - worse - its neighbours, which are what
+# tell a real offset from a game whose numbering does not correspond at all.
+# So the range is wide and the EDGE IS A REJECTION: an offset that wins at the
+# boundary is not accepted, it is reported as a search that was still too
+# narrow. Widening this therefore cannot quietly launder a bad fit.
+MAX_EVENT_OFFSET = 12
 
 # Below this, the record did not really settle the game's event offset and the
 # choice is close to a guess. Such games are counted and listed rather than
 # quietly folded in with the rest.
 WEAK_JOIN_MARGIN = 0.10
 
-# If the straight join (offset 0) reconciles at least this share of a game's
-# filed shots, it is taken as correct and the rest of the game is never
-# unpacked. Measured separation is wide: games that need an offset reconcile
-# 3-7% at zero, games that do not reconcile 35-84%.
-DIRECT_JOIN_OK = 0.25
-
 # A shifted join must reconcile at least this many times what the straight join
 # does, AND beat its own runner-up by this margin. Below either, the shift is
-# noise and the game keeps offset 0. Measured separation: a real offset lifts
-# reconciliation 2.7-4x with a clear peak; a spurious one is flat across five
-# adjacent offsets.
+# noise and the game keeps offset 0. A real offset is a spike: one value
+# reconciles several times what any other does. Noise is flat across adjacent
+# offsets, and accepting its argmax would pair each shot with a NEIGHBOURING
+# shot's coordinate - invisible per shot, and `made` is read off the anchor, so
+# the field-goal figures would quietly absorb it.
 OFFSET_OVER_ZERO = 1.5
 OFFSET_MIN_MARGIN = 0.15
 
+# An offset decided by a handful of votes is a guess wearing a ratio's clothes:
+# 3 against 1 clears every relative test above and means nothing. So a shift
+# must also be carried by an absolute number of shots. Chosen from the measured
+# distribution of `reconciled_at_best` over the corpus rather than rounded to
+# taste - window.json ships that distribution under `recovery.votes` and the
+# accepted-offset counts under the second value below, so the cut can be
+# argued with.
+MIN_OFFSET_VOTES = 25
+MIN_OFFSET_VOTES_ALT = 40
 
-def game_event_offset(found_shots, anchors, wide=True):
-    """Where this game's event numbering sits relative to the shot record's.
+# Half the game's releases calibrate, the other half validates. A per-game
+# integer fitted on ~150 shots and never checked is a fit, not a measurement;
+# splitting on the parity of the tracking event id is deterministic, needs no
+# seed, and costs one extra scoring pass over releases already in hand.
+HELD_OUT_MIN_VOTES = (MIN_OFFSET_VOTES + 1) // 2
 
-    `tracking eventId == shotdetail GAME_EVENT_ID` holds for most games and
-    silently fails for a minority: the two numberings are offset by a small
-    constant, so every shot joins to a neighbouring shot's coordinate. It is
-    invisible per shot - each anchor is a real coordinate of a real shot, just
-    the wrong one - and it destroys the join for those games alone. Measured on
-    one such game, 10.30.2015.BKN.at.SAS: 6.7% of shots reconcile at offset 0
-    and 35.6% at offset +1.
 
-    So the offset is CALIBRATED once per game, by letting all of that game's
-    detected releases vote for the offset that puts most of them where the
-    record independently filed them. That is one small integer per game decided
-    by ~150 shots, not a per-shot fit: no shot's release frame is ever chosen
-    using the record, and the runner-up is reported so a game that barely
-    decides can be seen instead of assumed.
+OFFSET_SEARCH = tuple(range(-MAX_EVENT_OFFSET, MAX_EVENT_OFFSET + 1))
+
+
+def reconciles(rec, anchors, off):
+    """Does this release land where the record filed the shot `off` events away?"""
+    eid, efr, release_i, hoop_x = rec
+    a = anchors.get(eid + off)
+    if a is None:
+        return False
+    ball = efr[release_i][3]
+    if ball is None:
+        return False
+    sx, sy = to_shot_frame(ball[2], ball[3], hoop_x)
+    return math.hypot(sx - a["loc_x"], sy - a["loc_y"]) / 10.0 <= MAX_ANCHOR_RESIDUAL_FT
+
+
+def score_offsets(found_shots, anchors):
+    """{offset: how many releases it reconciles}, over the whole search range."""
+    scores = {off: 0 for off in OFFSET_SEARCH}
+    for rec in found_shots:
+        for off in OFFSET_SEARCH:
+            if reconciles(rec, anchors, off):
+                scores[off] += 1
+    return scores
+
+
+def decide_offset(scores, min_votes=MIN_OFFSET_VOTES):
+    """Read one integer out of a score vector, or refuse to.
+
+    Returns (offset, detail). Every offset - including zero - faces the same
+    four questions, and the answers are reported rather than summarised:
+
+      is the winner on the EDGE of the search?   then the peak is outside it
+      is it carried by enough shots?             a 3-to-1 ratio on four shots
+                                                 is not evidence
+      does it beat the straight join by a real   a shift that barely improves
+        factor?                                  on no shift is not a shift
+      does it beat its own runner-up?            a flat vector is a game whose
+                                                 numbering does not correspond
+                                                 at all, not an offset
+
+    A non-zero winner failing any of them is REJECTED, the game keeps offset 0,
+    and its shots fail honestly in the recovery ledger rather than being paired
+    with a neighbouring shot's coordinate.
     """
-    offsets = range(-MAX_EVENT_OFFSET, MAX_EVENT_OFFSET + 1) if wide else (0,)
-    scores = {}
-    for off in offsets:
-        ok = 0
-        for eid, efr, release_i, hoop_x in found_shots:
-            a = anchors.get(eid + off)
-            if a is None:
-                continue
-            ball = efr[release_i][3]
-            sx, sy = to_shot_frame(ball[2], ball[3], hoop_x)
-            if math.hypot(sx - a["loc_x"], sy - a["loc_y"]) / 10.0 <= MAX_ANCHOR_RESIDUAL_FT:
-                ok += 1
-        scores[off] = ok
     ranked = sorted(scores.items(), key=lambda kv: (-kv[1], abs(kv[0])))
     best, best_n = ranked[0]
     runner_up = ranked[1][1] if len(ranked) > 1 else 0
     at_zero = scores.get(0, 0)
     margin = (best_n - runner_up) / best_n if best_n else 0.0
 
-    # A shifted join is only accepted when the record actually settles it.
-    #
-    # A real offset looks like a spike: one value reconciles several times what
-    # any other does. Noise looks flat - swept from -12 to +12, the games that
-    # were landing on the search boundary scored 43, 41, 38, 28, 26 across five
-    # adjacent offsets, which is not an offset, it is a game whose event
-    # numbering does not correspond at all. Accepting the argmax there would
-    # manufacture pairings: each shot would be matched to a NEIGHBOURING shot's
-    # coordinate, and since `made` is read off the anchor, the field-goal
-    # figures would quietly absorb the error.
-    #
-    # So a non-zero offset must both clear the straight join by a real factor
-    # and beat its own runner-up. Otherwise the game keeps offset 0 and its
-    # shots fail honestly in the recovery ledger.
-    rejected = False
-    if best != 0 and not (best_n >= OFFSET_OVER_ZERO * max(1, at_zero) and margin >= OFFSET_MIN_MARGIN):
-        rejected = True
+    reason = None
+    if best != 0:
+        if abs(best) == MAX_EVENT_OFFSET:
+            reason = "argmax on the search boundary"
+        elif best_n < min_votes:
+            reason = "too few votes"
+        elif best_n < OFFSET_OVER_ZERO * max(1, at_zero):
+            reason = "no lift over the straight join"
+        elif margin < OFFSET_MIN_MARGIN:
+            reason = "flat across adjacent offsets"
+    if reason:
         best, best_n = 0, at_zero
+
     return best, {
-        "offset_rejected": rejected,
         "event_offset": best,
+        "offset_rejected": reason is not None,
+        "reject_reason": reason,
         "reconciled_at_best": best_n,
         "reconciled_at_zero": at_zero,
+        "argmax": ranked[0][0],
+        "argmax_n": ranked[0][1],
         "runner_up": runner_up,
-        "searched": "wide" if wide else "direct",
         # How decisively the record settled it. Near 0 means the offset is a
         # guess, and qa.py counts those rather than hiding them.
         "margin": round(margin, 3),
     }
 
 
-def measure_shot(frames, release_i, hoop_x, shooter_team):
+def game_event_offset(found_shots, anchors, searched="wide"):
+    """Where this game's event numbering sits relative to the shot record's.
+
+    `tracking eventId == shotdetail GAME_EVENT_ID` holds for most games and
+    silently fails for a minority: the two numberings are offset by a small
+    constant, so every shot joins to a neighbouring shot's coordinate. It is
+    invisible per shot - each anchor is a real coordinate of a real shot, just
+    the wrong one - and it destroys the join for those games alone.
+
+    So the offset is CALIBRATED once per game, by letting all of that game's
+    detected releases vote for the offset that puts most of them where the
+    record independently filed them. That is one small integer per game decided
+    by ~150 shots, not a per-shot fit: no shot's release frame is ever chosen
+    using the record.
+
+    And a fit that is never checked is not a measurement. Half the releases -
+    those at even tracking event ids - calibrate; the other half validates. The
+    two halves either name the same integer or they do not, and which one it was
+    ships per game and as a corpus rate.
+    """
+    scores = score_offsets(found_shots, anchors)
+    best, info = decide_offset(scores)
+
+    even = [r for r in found_shots if r[0] % 2 == 0]
+    odd = [r for r in found_shots if r[0] % 2 != 0]
+    s_even, s_odd = score_offsets(even, anchors), score_offsets(odd, anchors)
+    off_even, d_even = decide_offset(s_even, HELD_OUT_MIN_VOTES)
+    off_odd, d_odd = decide_offset(s_odd, HELD_OUT_MIN_VOTES)
+    testable = (d_even["reconciled_at_best"] >= HELD_OUT_MIN_VOTES
+                and d_odd["reconciled_at_best"] >= HELD_OUT_MIN_VOTES)
+
+    info.update({
+        "searched": searched,
+        "releases_scored": len(found_shots),
+        # The whole vector, not just its winner. A rejection is only legible
+        # beside the shape it was rejected for, and this is what the
+        # independent rescoring in pipeline/checks/ is checked against.
+        "scores": {str(k): v for k, v in sorted(scores.items()) if v},
+        "held_out": {
+            "calibrated": off_even,
+            "validated": off_odd,
+            "agree": off_even == off_odd,
+            "testable": testable,
+            "n_calibrate": d_even["reconciled_at_best"],
+            "n_validate": d_odd["reconciled_at_best"],
+        },
+    })
+    return best, info
+
+
+def measure_shot(frames, release_i, hoop_x):
     """The caliper and its neighbourhood, at one release.
 
-    Everything here is taken at a single frame, which is exactly the thing the
-    league leaves undefined: it says "at the time of the shot" and never says
-    which instant that is. So the same measure is also taken at the gather,
-    0.4 s earlier, and both ship.
+    ONE BODY IS FOLLOWED, and it is chosen once. The shooter is bound at the
+    release frame - the player nearest the ball at the instant it leaves the
+    hand - and that same player id is then tracked backwards through the gather
+    and every frame of the approach. Re-deriving "nearest to the ball" at each
+    frame instead, as this did, concatenates fifty-one independent selections
+    and calls them one person closing over two seconds: the identity changes
+    mid-track, the drawn line teleports, and the gather - the whole point of
+    which is to ask whether the SAME measurement moves when the instant moves -
+    can end up measuring somebody else. Where the bound body has no row in a
+    frame, that frame is None. Nobody is substituted for them.
+
+    The DEFENDER is not bound, and must not be: "closest defender" is a
+    relation, and a switch is a real event in it, not an error. So the nearest
+    opponent is re-read every frame and each track frame carries an anonymous
+    slot index - 0, 1, 2 in order of first appearance - so a change of body is
+    visible in the data and the line can be broken at it rather than drawn
+    through it.
+
+    Everything is taken at a single frame, which is exactly the thing the league
+    leaves undefined: it says "at the time of the shot" and never says which
+    instant that is. So the same measure is also taken at the gather, on the
+    same bound body, and both ship.
     """
-    def nearest_opponent(i):
+    f0 = frames[release_i]
+    if f0[3] is None or not f0[4]:
+        return None
+    bx, by = f0[3][2], f0[3][3]
+    bound = min(f0[4], key=lambda r: (r[2] - bx) ** 2 + (r[3] - by) ** 2)
+    shooter_pid, shooter_team = bound[1], bound[0]
+
+    def state(i):
         f = frames[i]
-        ball = f[3]
-        if ball is None:
-            return None
-        bx, by = ball[2], ball[3]
-        # The shooter: nearest player to the ball. Their team fixes who counts
-        # as a defender, so no roster join is needed for the measure itself.
-        shooter = None
-        best_d = float("inf")
+        me = None
         for row in f[4]:
-            d = math.hypot(row[2] - bx, row[3] - by)
-            if d < best_d:
-                best_d, shooter = d, row
-        if shooter is None:
+            if row[1] == shooter_pid:
+                me = row
+                break
+        if me is None:
             return None
-        team = shooter_team if shooter_team is not None else shooter[0]
-        opp = [r for r in f[4] if r[0] != team]
+        opp = [r for r in f[4] if r[0] != shooter_team]
         if not opp:
             return None
-        dists = sorted(math.hypot(r[2] - shooter[2], r[3] - shooter[3]) for r in opp)
-        nearest = min(opp, key=lambda r: math.hypot(r[2] - shooter[2], r[3] - shooter[3]))
+        dists = sorted(math.hypot(r[2] - me[2], r[3] - me[3]) for r in opp)
+        nearest = min(opp, key=lambda r: math.hypot(r[2] - me[2], r[3] - me[3]))
         return {
-            "shooter": (shooter[2], shooter[3]),
-            "shooter_id": shooter[1],
+            "shooter": (me[2], me[3]),
+            "shooter_id": shooter_pid,
             "defender": (nearest[2], nearest[3]),
+            "defender_id": nearest[1],
             "dist": dists[0],
             # Spacing: how far the whole defence is from the ball-handler.
             "spacing_mean": sum(dists) / len(dists),
             "n_opponents": len(opp),
         }
 
-    at_release = nearest_opponent(release_i)
+    at_release = state(release_i)
     if at_release is None:
         return None
     gather_i = max(0, release_i - GATHER_FRAMES)
-    at_gather = nearest_opponent(gather_i)
+    at_gather = state(gather_i)
 
     # The approach: the same distance sampled backwards at 25 Hz. This is the
     # continuous quantity the four published categories are cut out of.
@@ -481,44 +615,96 @@ def measure_shot(frames, release_i, hoop_x, shooter_team):
     # only for a handful of hero shots per game and discarded for the rest -
     # enough for the piece to draw ONE caliper closing in real geometry, rather
     # than animating an aggregate curve, which would be inventing motion that
-    # no single shot performed.
+    # no single shot performed. Each frame is
+    #   [shooter x, shooter y, defender x, defender y, defender slot]
+    # and the fifth element is the whole point: it is how the drawn line knows
+    # it is allowed to be continuous.
     approach = []
     track = []
+    slots = {}
+    switches = 0
+    max_shooter_step = max_defender_step = 0.0
+    max_gap_ms = 0
+    prev = None
     for k in range(int(2.0 * HZ), -1, -1):
         i = release_i - k
-        if i < 0:
+        m = state(i) if i >= 0 else None
+        if m is None:
             approach.append(None)
             track.append(None)
+            prev = None
             continue
-        m = nearest_opponent(i)
-        approach.append(round(m["dist"], 2) if m else None)
-        if m is None:
-            track.append(None)
-        else:
-            sx, sy = to_shot_frame(m["shooter"][0], m["shooter"][1], hoop_x)
-            dx, dy = to_shot_frame(m["defender"][0], m["defender"][1], hoop_x)
-            track.append([round(sx, 1), round(sy, 1), round(dx, 1), round(dy, 1)])
+        approach.append(round(m["dist"], 2))
+        slot = slots.setdefault(m["defender_id"], len(slots))
+        sx, sy = to_shot_frame(m["shooter"][0], m["shooter"][1], hoop_x)
+        dx, dy = to_shot_frame(m["defender"][0], m["defender"][1], hoop_x)
+        track.append([round(sx, 1), round(sy, 1), round(dx, 1), round(dy, 1), slot])
+        if prev is not None:
+            pm, pslot, pi = prev
+            max_shooter_step = max(max_shooter_step, math.hypot(
+                m["shooter"][0] - pm["shooter"][0], m["shooter"][1] - pm["shooter"][1]))
+            if pslot == slot:
+                max_defender_step = max(max_defender_step, math.hypot(
+                    m["defender"][0] - pm["defender"][0], m["defender"][1] - pm["defender"][1]))
+            else:
+                switches += 1
+            # Two adjacent rows of `track` are drawn as adjacent instants, so
+            # they have to BE adjacent instants. A period change is an infinite
+            # gap, not a large one.
+            gap = (frames[i][1] - frames[pi][1]) if frames[i][0] == frames[pi][0] else None
+            max_gap_ms = 10 ** 9 if gap is None else max(max_gap_ms, gap)
+        prev = (m, slot, i)
 
     return {
         "release": at_release,
         "gather": at_gather,
         "approach": approach,
         "track": track,
+        "track_shooter_step": round(max_shooter_step, 2),
+        "track_defender_step": round(max_defender_step, 2),
+        "track_switches": switches,
+        "track_gap_ms": max_gap_ms,
     }
 
 
 # --- touches, passes, drives -------------------------------------------------
 
-def touch_chains(frames, radius):
+def frame_breaks(frames, gap_max_ms):
+    """Indices where the feed is not continuous with the frame before them.
+
+    `game_frames` sorts by (period, timestamp), which makes the list contiguous
+    in INDEX and says nothing about whether it is contiguous in TIME. Between
+    two adjacent rows there can be a quarter break, a timeout, or a dropout.
+    Nothing that integrates over consecutive frames - a touch, a pass, a stride
+    - may run across one of these.
+    """
+    return {
+        i for i in range(1, len(frames))
+        if frames[i][0] != frames[i - 1][0] or frames[i][1] - frames[i - 1][1] > gap_max_ms
+    }
+
+
+def touch_chains(frames, radius, gap_max_ms):
     """Who had the ball, for how long: [(player_id, team_id, i0, i1), ...].
 
     AUTHORED. A player has the ball when they are its nearest player and within
-    `radius`, sustained for TOUCH_MIN_FRAMES. The league publishes "touches" and
-    does not publish this rule; running it at two radii is how the piece shows
-    what the rule is worth.
+    `radius`, sustained for TOUCH_MIN_FRAMES ACROSS UNBROKEN FEED. The league
+    publishes "touches" and does not publish this rule; running it at two radii
+    is how the piece shows what the rule is worth.
+
+    The chain is cut at every discontinuity. Without that, one "touch" could
+    hold the ball through the end of a quarter and out the other side, and
+    everything read off touches - passes, drives, seconds per touch - would
+    inherit an occasion that never happened.
     """
+    breaks = frame_breaks(frames, gap_max_ms)
     out = []
     cur = None
+
+    def close(c):
+        if c is not None and c[0] is not None and c[3] - c[2] + 1 >= TOUCH_MIN_FRAMES:
+            out.append(tuple(c))
+
     for i, f in enumerate(frames):
         ball = f[3]
         who = None
@@ -528,14 +714,12 @@ def touch_chains(frames, radius):
             best = min(f[4], key=lambda r: (r[2] - bx) ** 2 + (r[3] - by) ** 2)
             if math.hypot(best[2] - bx, best[3] - by) <= radius:
                 who, team = best[1], best[0]
-        if cur is not None and cur[0] == who:
+        if cur is not None and cur[0] == who and i not in breaks:
             cur[3] = i
         else:
-            if cur is not None and cur[0] is not None and cur[3] - cur[2] + 1 >= TOUCH_MIN_FRAMES:
-                out.append(tuple(cur))
+            close(cur)
             cur = [who, team, i, i]
-    if cur is not None and cur[0] is not None and cur[3] - cur[2] + 1 >= TOUCH_MIN_FRAMES:
-        out.append(tuple(cur))
+    close(cur)
 
     # Drop dead-ball holds: the feed runs through stoppages and free throws with
     # the ball in someone's hands, and counting those as possession would make
@@ -544,28 +728,62 @@ def touch_chains(frames, radius):
     return [t for t in out if t[3] - t[2] + 1 <= max_frames]
 
 
-def measure_movement(frames, touches):
+def measure_movement(frames, touches, gap_max_ms):
     """Distance run, passes and drives - the rest of the published suite."""
+    breaks = frame_breaks(frames, gap_max_ms)
+
+    # DISTANCE RUN is an integral, and an integral over a discontinuity is
+    # fiction. The step filter alone does not catch it: a player who happens to
+    # stand within a stride of where they stood one period and five minutes
+    # earlier would have that stride counted as running. So the record of where
+    # everybody was is dropped at every break, and a stride is only integrated
+    # between two frames in which that player was actually recorded, back to
+    # back.
     prev = {}
     distance_ft = 0.0
-    for f in frames:
+    steps_skipped = 0
+    for i, f in enumerate(frames):
+        if i in breaks:
+            prev.clear()
         for row in f[4]:
             pid, x, y = row[1], row[2], row[3]
             q = prev.get(pid)
-            if q is not None:
+            if q is not None and q[2] == i - 1:
                 d = math.hypot(x - q[0], y - q[1])
                 if d < MAX_STEP_FT:
                     distance_ft += d
-            prev[pid] = (x, y)
+                else:
+                    steps_skipped += 1
+            prev[pid] = (x, y, i)
 
-    passes = 0
+    # A PASS is the ball leaving one player and reaching a team-mate. Two
+    # adjacent touches by team-mates are not that on their own: the feed runs
+    # through quarter breaks and dead balls, and the ball can change hands at
+    # the scorer's table. Same period, and inside the declared gap.
+    passes = passes_alt = 0
+    gap_hist = Counter()
     for a, b in zip(touches, touches[1:]):
-        if a[1] == b[1] and a[0] != b[0]:
+        if a[1] != b[1] or a[0] == b[0]:
+            continue
+        fa, fb = frames[a[3]], frames[b[2]]
+        if fa[0] != fb[0]:
+            continue
+        gap = fb[1] - fa[1]
+        gap_hist[min(int(gap // 40), 250)] += 1
+        if gap <= MAX_PASS_GAP_MS:
             passes += 1
+        if gap <= MAX_PASS_GAP_ALT_MS:
+            passes_alt += 1
 
-    drives = 0
+    # A DRIVE is directed. The old reading took the maximum and minimum basket
+    # distance over a touch and asked whether one was outside and the other
+    # inside, which is true of a player carrying the ball straight out of the
+    # paint. Order is the definition: the outside sample has to come FIRST.
+    drives = drives_unordered = 0
     for _pid, _team, i0, i1 in touches:
+        seen_far = False
         far = near = None
+        drove = False
         for i in range(i0, i1 + 1):
             ball = frames[i][3]
             if ball is None:
@@ -573,17 +791,28 @@ def measure_movement(frames, touches):
             d = hoop_distance(ball[2], ball[3])
             far = d if far is None else max(far, d)
             near = d if near is None else min(near, d)
-        if far is not None and far >= DRIVE_FROM_FT and near <= DRIVE_TO_FT:
+            if d >= DRIVE_FROM_FT:
+                seen_far = True
+            elif seen_far and d <= DRIVE_TO_FT:
+                drove = True
+        if drove:
             drives += 1
+        if far is not None and far >= DRIVE_FROM_FT and near <= DRIVE_TO_FT:
+            drives_unordered += 1
 
     durations = sorted((t[3] - t[2] + 1) / HZ for t in touches)
     return {
         "distance_ft": distance_ft,
+        "steps_over_max": steps_skipped,
         "passes": passes,
+        "passes_alt_gap": passes_alt,
+        "pass_gap_hist": {str(k): v for k, v in sorted(gap_hist.items())},
         "drives": drives,
+        "drives_unordered": drives_unordered,
         "touches": len(touches),
         "touch_seconds_total": sum(durations),
         "touch_seconds_median": durations[len(durations) // 2] if durations else 0.0,
+        "frame_breaks": len(breaks),
     }
 
 
@@ -637,11 +866,17 @@ def derive_game(archive_path, anchors_by_game, label):
     frames, stats = game_frames(game)
     anchors = anchors_by_game.get(gid.lstrip("0"), {})
 
-    touches = touch_chains(frames, TOUCH_RADIUS_FT)
-    touches_alt = touch_chains(frames, TOUCH_RADIUS_ALT_FT)
-    movement = measure_movement(frames, touches)
+    # The break threshold is read off THIS game's feed, not assumed: a multiple
+    # of its own modal spacing, so a game filed at a different rate segments at
+    # its own rate rather than at one borrowed from the corpus.
+    gap_max_ms = FRAME_GAP_FACTOR * (stats["timestamp_diff_mode_ms"] or (1000 // HZ))
+
+    touches = touch_chains(frames, TOUCH_RADIUS_FT, gap_max_ms)
+    touches_alt = touch_chains(frames, TOUCH_RADIUS_ALT_FT, gap_max_ms)
+    movement = measure_movement(frames, touches, gap_max_ms)
 
     measures = []
+    corroborated = []
     reasons = Counter()
     disagreement = []
     by_action_total = Counter()
@@ -687,13 +922,28 @@ def derive_game(archive_path, anchors_by_game, label):
                 out.append(rec)
         return out
 
+    # Zero gets no free pass. The cheap pass scores the FULL offset range over
+    # the releases sitting at anchor event ids - a different key lookup on
+    # releases already in hand, not extra parsing - and zero is accepted here
+    # only if it wins that comparison outright. Anything else, including a
+    # non-zero winner, unpacks the whole game and rescores on every recovered
+    # release. Previously the straight join was taken as correct whenever it
+    # reconciled a quarter of the game's shots, without an alternative ever
+    # being scored against it; games with a real offset were sitting under that
+    # bar.
     direct = releases_for(sorted(anchors))
-    offset, join_info = game_event_offset(direct, anchors, wide=False)
-    if anchors and join_info["reconciled_at_best"] / len(anchors) < DIRECT_JOIN_OK:
-        # The straight join did not hold. Unpack the rest of the game and let
-        # every recovered release vote on the offset.
+    offset, join_info = game_event_offset(direct, anchors, searched="direct")
+    settled = (
+        offset == 0
+        and not join_info["offset_rejected"]
+        and join_info["reconciled_at_best"] >= MIN_OFFSET_VOTES
+        and join_info["margin"] >= OFFSET_MIN_MARGIN
+    )
+    if not settled:
+        # Zero did not win outright. Unpack the rest of the game and let every
+        # recovered release vote on the offset.
         wide = releases_for([e for e in by_event if e not in seen_events])
-        offset, join_info = game_event_offset(direct + wide, anchors, wide=True)
+        offset, join_info = game_event_offset(direct + wide, anchors, searched="wide")
 
     found_shots = [r for r in seen_events.values() if r is not None]
     occupancy = measure_occupancy(frames)
@@ -731,11 +981,29 @@ def derive_game(archive_path, anchors_by_game, label):
             reasons["anchor residual too large"] += 1
             continue
 
-        m = measure_shot(efr, release_i, hoop_x, None)
+        m = measure_shot(efr, release_i, hoop_x)
         if m is None:
             reasons["no bodies at release"] += 1
             continue
         residuals.append(residual)
+
+        # THE CORROBORATED SET, written out rather than thrown away.
+        #
+        # This is the only place in the pipeline where a tracking event has been
+        # checked against the coordinate the record filed independently, and
+        # until now that verdict died with the loop. The paint stage then went
+        # looking for its own shot - taking the first event of a game that
+        # yielded a plausible rim flight and ten complete bodies - and its claim
+        # to be painting a corroborated possession was simply untrue. It now
+        # reads this list. Private: this file lives under data/window/, which is
+        # gitignored, and none of these fields reaches window.json.
+        corroborated.append({
+            "event_id": eid,
+            "release_frame": release_i,
+            "hoop_x": hoop_x,
+            "anchor_event_id": eid + offset,
+            "residual": round(residual, 2),
+        })
 
         # Two independent shooter attributions. The roster join is by name via
         # the shot record; the geometric one is nearest-to-ball. Only their
@@ -764,18 +1032,39 @@ def derive_game(archive_path, anchors_by_game, label):
             "action": anchor["action"],
             "zone": anchor["zone"],
             "_track": m["track"],
+            "_track_shooter_step": m["track_shooter_step"],
+            "_track_defender_step": m["track_defender_step"],
+            "_track_switches": m["track_switches"],
+            "_track_gap_ms": m["track_gap_ms"],
         })
 
     # Hero candidates: the few whose geometry the record corroborates most
     # tightly, and only those keep their endpoint track. Everything else drops
     # it here, which is what keeps the intermediate from carrying the corpus.
-    complete = [m for m in measures if m["_track"] and all(f is not None for f in m["_track"])]
+    #
+    # Corroboration is necessary and not sufficient. A hero is drawn as ONE
+    # confrontation closing over two seconds, so it has to be one: the bound
+    # shooter present in every frame and never moving further than a body can
+    # in one, the defender continuous wherever the slot does not change, and the
+    # frames themselves adjacent in time. Two of the four committed heroes
+    # contained jumps no body could make, because nothing was checking.
+    def one_confrontation(m):
+        return (
+            m["_track"] and all(f is not None for f in m["_track"])
+            and m["_track_shooter_step"] <= MAX_STEP_FT
+            and m["_track_defender_step"] <= MAX_STEP_FT
+            and m["_track_gap_ms"] <= gap_max_ms
+        )
+
+    complete = [m for m in measures if one_confrontation(m)]
     complete.sort(key=lambda m: m["residual"])
     heroes = complete[:3]
     hero_ids = {id(m) for m in heroes}
     for m in measures:
         if id(m) not in hero_ids:
-            m.pop("_track", None)
+            for k in ("_track", "_track_shooter_step", "_track_defender_step",
+                      "_track_switches", "_track_gap_ms"):
+                m.pop(k, None)
 
     # The failure ledger must account for every shot the record filed, including
     # the ones the tracking feed never gave an event for at all - otherwise the
@@ -797,6 +1086,11 @@ def derive_game(archive_path, anchors_by_game, label):
         "attribution_agree": attribution_agree,
         "attribution_total": attribution_total,
         "join": join_info,
+        "event_offset": offset,
+        "gap_max_ms": gap_max_ms,
+        # Every shot this game corroborated, for the paint stage to take one
+        # FROM rather than go looking for its own. Private to data/window/.
+        "corroborated": corroborated,
         "detected": detected,
         "disagreement_ft": disagreement,
         "by_action_total": dict(by_action_total),
@@ -981,10 +1275,17 @@ def reduce_all():
     offsets = Counter()
     weak_joins = []
     rejected_offsets = 0
+    reject_reasons = Counter()
+    votes = []
+    held_out_agree = held_out_testable = 0
+    held_out_by = {"straight": [0, 0], "shifted": [0, 0], "rejected": [0, 0]}
+    frame_gap_hist = Counter()
+    pass_gap_hist = Counter()
 
     moments = body_positions = 0
     distance_ft = 0.0
     touches = touches_alt = passes = drives = 0
+    passes_alt = drives_unordered = steps_over_max = frame_breaks = 0
     touch_seconds = 0.0
     occupancy_bands = [0] * len(OCCUPANCY_BANDS)
     occupancy_total = 0
@@ -1016,11 +1317,24 @@ def reduce_all():
         jn = g.get("join")
         if jn:
             offsets[jn["event_offset"]] += 1
+            votes.append(jn["reconciled_at_best"])
             if jn.get("offset_rejected"):
                 rejected_offsets += 1
+                reject_reasons[jn.get("reject_reason") or "unstated"] += 1
             if jn["margin"] < WEAK_JOIN_MARGIN:
                 weak_joins.append({"archive": g.get("archive"), "offset": jn["event_offset"],
                                    "margin": jn["margin"]})
+            ho = jn.get("held_out") or {}
+            if ho.get("testable"):
+                held_out_testable += 1
+                held_out_agree += 1 if ho.get("agree") else 0
+                # Split by what the game decided. One aggregate rate would be
+                # carried by the games that needed no offset at all, which is
+                # the easy half of the question.
+                kind = ("rejected" if jn.get("offset_rejected")
+                        else "shifted" if jn["event_offset"] else "straight")
+                held_out_by[kind][1] += 1
+                held_out_by[kind][0] += 1 if ho.get("agree") else 0
         disagreement.extend(g.get("disagreement_ft", []))
         for k, v in g.get("by_action_total", {}).items():
             by_action_total[k] += v
@@ -1032,13 +1346,21 @@ def reduce_all():
         for rows, n in st["rows_per_moment"].items():
             # A moment holds the ball plus its bodies; the ball is not a body.
             body_positions += (int(rows) - 1) * n
+        for k, v in st.get("timestamp_diff_hist", {}).items():
+            frame_gap_hist[int(k)] += v
         mv = g["movement"]
         distance_ft += mv["distance_ft"]
         touches += mv["touches"]
         touches_alt += g["touches_alt"]
         passes += mv["passes"]
+        passes_alt += mv.get("passes_alt_gap", 0)
         drives += mv["drives"]
+        drives_unordered += mv.get("drives_unordered", 0)
+        steps_over_max += mv.get("steps_over_max", 0)
+        frame_breaks += mv.get("frame_breaks", 0)
         touch_seconds += mv["touch_seconds_total"]
+        for k, v in mv.get("pass_gap_hist", {}).items():
+            pass_gap_hist[int(k)] += v
 
         for i, v in enumerate(g["occupancy_bands"]):
             occupancy_bands[i] += v
@@ -1093,9 +1415,19 @@ def reduce_all():
     # Four hero shots, one per published category, so the piece's opening beat
     # shows the SAME measure landing in each of the four boxes. Chosen by the
     # tightest corroboration with the record, not by how they look.
+    #
+    # The continuity gate is applied here as well as per game, so a hero cannot
+    # arrive through a stale intermediate: the piece draws this as one body
+    # closing on another, and a track containing a step no body could take in
+    # 40 ms is not that. Where the defender slot changes, the change is marked
+    # in the fifth element of each frame rather than smoothed over.
     heroes = []
     for bi in range(len(DEFENDER_BUCKETS)):
-        pool = sorted((m for m in hero_pool if m["bucket"] == bi), key=lambda m: m["residual"])
+        pool = sorted((m for m in hero_pool
+                       if m["bucket"] == bi
+                       and m.get("_track_shooter_step", 1e9) <= MAX_STEP_FT
+                       and m.get("_track_defender_step", 1e9) <= MAX_STEP_FT),
+                      key=lambda m: m["residual"])
         if pool:
             h = pool[0]
             heroes.append({
@@ -1109,9 +1441,16 @@ def reduce_all():
                 "dist_gather": h["dist_gather"],
                 "residual": h["residual"],
                 "hz": HZ,
-                # [shooter x, shooter y, defender x, defender y] per frame, in
-                # the shot record's own frame, for the 2 s before release.
+                # [shooter x, shooter y, defender x, defender y, defender slot]
+                # per frame, in the shot record's own frame, for the 2 s before
+                # release. The shooter is one bound body throughout. The slot is
+                # an anonymous counter, 0 upward in order of first appearance:
+                # where it changes, the nearest defender is a different person
+                # and the line between those two frames is not a movement.
                 "track": h["_track"],
+                "defender_switches": h["_track_switches"],
+                "max_shooter_step_ft": h["_track_shooter_step"],
+                "max_defender_step_ft": h["_track_defender_step"],
             })
 
     entries = corpus_entries()
@@ -1158,20 +1497,51 @@ def reduce_all():
                 "disagreement can be read beside the number. These figures are NOT the league's."
             ),
             "closest_defender": (
-                f"nearest opposing player to the ball-handler, in 2D, at the frame the ball leaves "
-                f"the hand; also taken at the gather {GATHER_FRAMES} frames "
-                f"({GATHER_FRAMES / HZ:.1f} s) earlier"
+                "nearest opposing player to the SHOOTER, in 2D, at the frame the ball leaves the "
+                "hand. THE SUBJECT IS THE GEOMETRIC SHOOTER, not the player the record filed the "
+                "shot under: the body nearest the ball at the release frame is bound there and "
+                "then followed backwards through the gather and the whole approach, so both "
+                "instants and every frame between them describe one person. Where that body has "
+                "no row in a frame the frame is empty rather than filled with somebody else. The "
+                "two attributions are independent and their agreement rate ships as "
+                "recovery.attribution_agreement; the defender is deliberately NOT bound, because "
+                "a switch is a real event in a closing distance, and each track frame carries an "
+                "anonymous defender slot so a change of body is visible instead of drawn through. "
+                f"Also taken at the gather {GATHER_FRAMES} frames ({GATHER_FRAMES / HZ:.1f} s) "
+                "earlier, on that same bound body"
             ),
             "buckets": "the league's own four published categories: 0-2, 2-4, 4-6, 6+ ft",
             "touch": (
                 f"ball within {TOUCH_RADIUS_FT} ft of its nearest player for at least "
                 f"{TOUCH_MIN_FRAMES} frames ({TOUCH_MIN_FRAMES / HZ:.1f} s) and at most "
-                f"{TOUCH_MAX_SECONDS} s; also computed at {TOUCH_RADIUS_ALT_FT} ft"
+                f"{TOUCH_MAX_SECONDS} s, across UNBROKEN FEED: the chain is cut at every period "
+                f"change and at every gap wider than {FRAME_GAP_FACTOR}x the feed's own modal "
+                "frame spacing, so no touch spans a quarter break or a dropout; also computed at "
+                f"{TOUCH_RADIUS_ALT_FT} ft"
             ),
-            "drive": f"one touch carrying the ball from >= {DRIVE_FROM_FT} ft to <= {DRIVE_TO_FT} ft of a hoop",
+            "drive": (
+                f"one touch in which the ball is sampled at or beyond {DRIVE_FROM_FT} ft from a "
+                f"hoop and then, LATER IN THE SAME TOUCH, at or within {DRIVE_TO_FT} ft. Order is "
+                "part of the definition: taking a maximum and a minimum over the touch, as this "
+                "did, counts a player carrying the ball away from the rim as driving to it. "
+                "`inventory.drives_unordered` is that undirected reading, kept so the difference "
+                "can be read"
+            ),
+            "pass": (
+                "two consecutive touches by different players of the same team, in the same "
+                f"period, no more than {MAX_PASS_GAP_MS} ms apart. The gap is authored and the "
+                "distribution it was drawn from ships as `pass_gap_ms`: it is single-peaked with "
+                "a long flat dead-ball tail, and this is that distribution's p90. "
+                f"`inventory.passes_alt_gap` counts the same events at {MAX_PASS_GAP_ALT_MS} ms, "
+                "where the density falls to within an order of magnitude of the tail"
+            ),
             "distance_run": (
-                f"summed per-player frame-to-frame displacement, discarding steps over "
-                f"{MAX_STEP_FT} ft as feed gaps rather than integrating distance never run"
+                "summed per-player displacement between two frames in which that player was "
+                "actually recorded, back to back, within one unbroken stretch of feed. Steps over "
+                f"{MAX_STEP_FT} ft are dropped as gaps or identity swaps, and every player's last "
+                "position is forgotten at a period change or a dropout - without that, a player "
+                "standing near where they stood one period earlier has the difference counted as "
+                "running"
             ),
             "occupancy": (
                 "where the BALL is, per frame, in the same distance bands the shot record's own "
@@ -1197,7 +1567,15 @@ def reduce_all():
                 "tracking eventId == shotdetail GAME_EVENT_ID holds for most games and fails "
                 "silently for a minority, where the two numberings differ by a small constant. "
                 "Calibrated once per game by letting that game's detected releases vote; one "
-                "integer per game from ~150 shots, never a per-shot fit"
+                "integer per game from ~150 shots, never a per-shot fit. Searched over "
+                f"+/-{MAX_EVENT_OFFSET}, and a winner ON that boundary is REJECTED rather than "
+                "shipped, because an argmax at the edge is the signature of a peak outside the "
+                "search. A non-zero winner must also be carried by at least "
+                f"{MIN_OFFSET_VOTES} reconciled shots, clear the straight join by "
+                f"{OFFSET_OVER_ZERO}x, and beat its own runner-up by {OFFSET_MIN_MARGIN}; zero "
+                "faces the same comparison and is never accepted without one. Then it is "
+                "validated: even-numbered tracking events calibrate, odd ones check, and "
+                "`held_out_agreement` is how often the two halves named the same integer"
             ),
             "coverage": (
                 "632 of the 2015-16 season's 1,230 games - the first half only, and schedule-biased"
@@ -1230,6 +1608,46 @@ def reduce_all():
             "event_offsets": {str(k): v for k, v in sorted(offsets.items())},
             "games_offset": sum(v for k, v in offsets.items() if k != 0),
             "offsets_rejected": rejected_offsets,
+            "offsets_rejected_by_reason": dict(reject_reasons.most_common()),
+            "search_range": MAX_EVENT_OFFSET,
+            # Zero of these is the point. A shift accepted at the edge of the
+            # search is a peak the search could not see.
+            "offsets_on_search_boundary": sum(
+                v for k, v in offsets.items() if abs(k) == MAX_EVENT_OFFSET
+            ),
+            # The distribution the minimum-vote cut was drawn from, so the cut
+            # is arguable rather than asserted.
+            "votes": {
+                "min_required": MIN_OFFSET_VOTES,
+                "min_required_alt": MIN_OFFSET_VOTES_ALT,
+                "p05": _pct(votes, 0.05), "p10": _pct(votes, 0.10),
+                "p25": _pct(votes, 0.25), "p50": _pct(votes, 0.50),
+                "p75": _pct(votes, 0.75), "p95": _pct(votes, 0.95),
+                "games_under_min": sum(1 for v in votes if v < MIN_OFFSET_VOTES),
+                "games_under_min_alt": sum(1 for v in votes if v < MIN_OFFSET_VOTES_ALT),
+            },
+            "held_out_agreement": (
+                round(held_out_agree / held_out_testable, 4) if held_out_testable else None
+            ),
+            "held_out_games": held_out_testable,
+            "held_out_disagreements": held_out_testable - held_out_agree,
+            # AND THE SPLIT, because the aggregate above is not one finding but
+            # three, and the flattering part of it is the easy part. What
+            # reproduces perfectly out of sample is the ABSENCE of an offset.
+            # An accepted shift reproduces about half the time on half the
+            # evidence - the shift is a property of the full sample and is not
+            # robustly recoverable from ~35 shots - and a rejected one almost
+            # never does, which is what a rejection should look like.
+            "held_out_by_outcome": {
+                k: {"games": n, "agree": a,
+                    "rate": round(a / n, 4) if n else None}
+                for k, (a, n) in held_out_by.items()
+            },
+            "held_out_note": (
+                "half a game's releases calibrate and half validate, split on the parity of the "
+                "tracking event id. The aggregate rate is dominated by games needing no offset; "
+                "read held_out_by_outcome instead"
+            ),
             "weak_joins": sorted(weak_joins, key=lambda w: w["margin"])[:20],
             "n_weak_joins": len(weak_joins),
         },
@@ -1302,6 +1720,30 @@ def reduce_all():
             "frames_total": occupancy_total,
             "grid": dict(sorted(occupancy_grid.items())),
         },
+        # THE FEED'S OWN TIMING, shipped because a constant derived from it
+        # should be checkable against it. Everything downstream segments at
+        # FRAME_GAP_FACTOR times the modal spacing, and this is the distribution
+        # that factor lands in.
+        "frame_gap_ms": {
+            "factor": FRAME_GAP_FACTOR,
+            "hist": {str(k): v for k, v in sorted(frame_gap_hist.items())},
+            "note": (
+                "consecutive same-period frame spacings across the corpus, in ms; the last key "
+                "is everything over 200 ms. The threshold a touch, a pass or a stride may not "
+                f"cross is {FRAME_GAP_FACTOR}x each game's own modal spacing"
+            ),
+        },
+        # And the distribution the pass gap was drawn from.
+        "pass_gap_ms": {
+            "chosen": MAX_PASS_GAP_MS,
+            "alt": MAX_PASS_GAP_ALT_MS,
+            "bin_ms": 40,
+            "hist": {str(k): v for k, v in sorted(pass_gap_hist.items())},
+            "note": (
+                "gaps between consecutive same-team, same-period touches, binned to 40 ms; key k "
+                "counts gaps in [40k, 40k+40), and the last key is everything above"
+            ),
+        },
         "inventory": {
             "moments": moments,
             "body_positions": body_positions,
@@ -1311,7 +1753,13 @@ def reduce_all():
             "touches": touches,
             "touches_alt_radius": touches_alt,
             "passes": passes,
+            "passes_alt_gap": passes_alt,
             "drives": drives,
+            # The same touches read without requiring the outside sample to come
+            # first. The difference is the finding, not a regression.
+            "drives_unordered": drives_unordered,
+            "feed_breaks": frame_breaks,
+            "steps_over_max": steps_over_max,
             "mean_seconds_per_touch": round(touch_seconds / touches, 2) if touches else None,
             "per_game": {
                 "touches": round(touches / len(games), 1) if games else None,
@@ -1337,6 +1785,18 @@ def reduce_all():
         print(f"     {b['name']:<11} {100 * b['share']:5.1f}%   FG {b['fg_pct']}")
     print(f"     gather rule moves {100 * (out['contest']['gather_rule']['changed_share'] or 0):.1f}% "
           f"of shots into a different category")
+    r = out["recovery"]
+    print(f"     event offsets {r['event_offsets']}; {r['offsets_rejected']} rejected "
+          f"{r['offsets_rejected_by_reason']}; {r['offsets_on_search_boundary']} on the boundary")
+    print(f"     held-out validation: {r['held_out_agreement']} over {r['held_out_games']} games "
+          f"({r['held_out_disagreements']} halves disagreed)")
+    for k, v in r["held_out_by_outcome"].items():
+        print(f"       {k:<9} {v['agree']:4d}/{v['games']:<4d} = {v['rate']}")
+    print(f"     votes per accepted offset: p05 {r['votes']['p05']} p50 {r['votes']['p50']} "
+          f"p95 {r['votes']['p95']}; {r['votes']['games_under_min']} games under the minimum")
+    inv = out["inventory"]
+    print(f"     {inv['drives']:,} drives ordered against {inv['drives_unordered']:,} unordered; "
+          f"{inv['passes']:,} passes ({inv['passes_alt_gap']:,} at the alternate gap)")
     print(f"     {moments:,} moments, {body_positions:,} body positions, "
           f"{out['inventory']['miles_run']:,} miles")
     print(f"window -> data/processed/window.json  ({len(blob):,} B of measures)")

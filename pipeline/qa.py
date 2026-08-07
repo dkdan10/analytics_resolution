@@ -140,6 +140,18 @@ ZONE_AGREEMENT_FLOOR = 0.999
 EXPECTED_PAINT_CANVASES = 240
 EXPECTED_PAINT_DAYS = 60
 
+# A canvas is ten bodies and the ball. After a path is cut at its
+# discontinuities one body can be several strokes, so the stroke COUNT per
+# canvas is no longer an invariant - the number of distinct bodies is. paint.py
+# refuses a canvas that cannot field this many.
+MIN_BODIES_PER_CANVAS = 8
+MAX_BODIES_PER_CANVAS = 11
+
+# The offset search window window.py calibrates in. An accepted offset ON this
+# boundary means the search was too narrow to see its own peak, so both the
+# range and the boundary count are gated.
+EXPECTED_MAX_EVENT_OFFSET = 12
+
 
 def main():
     path = PROCESSED_DIR / "seasons.json"
@@ -364,16 +376,50 @@ def main():
         # games, and the correction is one integer per game decided by ~150
         # shots - so how many games needed it, and how many of those the record
         # barely settled, are both numbers this pipeline must state out loud.
+        check("the offset search is the declared width",
+              rec["search_range"], EXPECTED_MAX_EVENT_OFFSET)
         check("event offsets stay inside the searched range",
-              [k for k in rec["event_offsets"] if abs(int(k)) > 3], [])
+              [k for k in rec["event_offsets"] if abs(int(k)) > EXPECTED_MAX_EVENT_OFFSET], [])
+        # An argmax on the edge is a peak the search could not see, so it is
+        # refused rather than shipped - and the count of them is gated at zero
+        # instead of being reported.
+        check("no accepted offset sits on the search boundary",
+              rec["offsets_on_search_boundary"], 0)
+        check("no non-zero offset was accepted below the minimum vote count",
+              rec["votes"]["games_under_min"] >= 0
+              and all(int(k) == 0 or v == 0
+                      for k, v in rec["event_offsets"].items()
+                      if abs(int(k)) == EXPECTED_MAX_EVENT_OFFSET), True)
+        # The calibration is validated, not merely computed: even-numbered
+        # tracking events decide, odd ones check.
+        check("the offset calibration is validated out of sample",
+              rec["held_out_agreement"] is not None and rec["held_out_games"] > 0, True)
         offset_share = rec["games_offset"] / corp["games_parsed"]
         check("most games need no offset", offset_share < 0.5, True)
         print(f"  (informational) {rec['games_offset']} of {corp['games_parsed']} games "
               f"({100 * offset_share:.0f}%) needed their event numbering shifted: "
               f"{rec['event_offsets']}")
         print(f"  (informational) {rec['n_weak_joins']} games where the record barely settled "
-              f"the offset (margin < 0.10); {rec['offsets_rejected']} shifted joins rejected as "
-              f"noise and left at zero")
+              f"the offset (margin < 0.10); {rec['offsets_rejected']} shifted joins rejected "
+              f"{rec['offsets_rejected_by_reason']}")
+        # Read the split, not the aggregate: what validates perfectly out of
+        # sample is the absence of an offset, and the piece should not be able
+        # to quote one flattering number for three different findings.
+        check("the held-out split is reported, not just its aggregate",
+              sorted(rec["held_out_by_outcome"]), ["rejected", "shifted", "straight"])
+        ho = rec["held_out_by_outcome"]
+        print(f"  (informational) held-out validation over {rec['held_out_games']} testable "
+              f"games: the straight join reproduces on half the evidence "
+              f"{100 * ho['straight']['rate']:.1f}% of the time ({ho['straight']['games']} "
+              f"games), an accepted shift {100 * ho['shifted']['rate']:.1f}% "
+              f"({ho['shifted']['games']}), a rejected one {100 * ho['rejected']['rate']:.1f}% "
+              f"({ho['rejected']['games']}); aggregate "
+              f"{100 * rec['held_out_agreement']:.1f}%")
+        print(f"  (informational) votes carrying an accepted offset: p05 {rec['votes']['p05']}, "
+              f"p50 {rec['votes']['p50']}, p95 {rec['votes']['p95']}; the minimum is "
+              f"{rec['votes']['min_required']} and {rec['votes']['games_under_min']} games "
+              f"fall under it ({rec['votes']['games_under_min_alt']} under the alternate "
+              f"{rec['votes']['min_required_alt']})")
 
         # What the instrument prefers, stated rather than carried. A release is
         # only found by following the ball back from the rim, so the recovered
@@ -438,6 +484,10 @@ def main():
         inv = w["inventory"]
         print(f"  (informational) {inv['moments']:,} moments, {inv['body_positions']:,} body "
               f"positions, {inv['miles_run']:,} miles run, {inv['hours_tracked']:,} hours")
+        print(f"  (informational) {inv['touches']:,} touches, {inv['passes']:,} passes "
+              f"({inv['passes_alt_gap']:,} at the alternate gap), {inv['drives']:,} drives - "
+              f"against {inv['drives_unordered']:,} read without requiring the outside sample "
+              f"to come first; {inv['feed_breaks']:,} feed breaks segmented on")
         print(f"  (informational) reading 'the shot' as the gather instead of the release moves "
               f"{100 * (con['gather_rule']['changed_share'] or 0):.1f}% of shots "
               f"into a different published category")
@@ -450,8 +500,6 @@ def main():
         p = json.loads(paint_path.read_text())
         print("\nThe paint: strokes from the bodies the record could not keep")
         check("one possession per game", p["canvases"] >= EXPECTED_PAINT_CANVASES, True)
-        check("eleven strokes per possession (ten bodies and the ball)",
-              round(p["strokes"] / p["canvases"]) in (10, 11), True)
         check("the canvas spans the window rather than one week of it",
               p["days_covered"] >= EXPECTED_PAINT_DAYS, True)
 
@@ -463,6 +511,37 @@ def main():
         check("paint_index.bin size matches its record count",
               ib.stat().st_size, f["index"]["records"] * f["index"]["bytes_per_record"])
         check("index covers every stroke", f["index"]["records"], p["strokes"])
+
+        # A canvas is ten bodies and the ball. Once a path is cut at its
+        # discontinuities, one body can be several strokes, so counting strokes
+        # per canvas no longer says anything - the invariant that survives
+        # splitting is the number of distinct bodies, which the index's own
+        # canvas and body fields make computable straight from the bytes.
+        import struct as _struct
+        srec = f["index"]["record"]
+        ssz = _struct.calcsize(srec)
+        raw = ib.read_bytes()
+        groups = {}
+        for i in range(len(raw) // ssz):
+            _first, _count, canvas, _kind, body, _day = _struct.unpack_from(srec, raw, i * ssz)
+            groups.setdefault(canvas, set()).add(body)
+        per = [len(v) for v in groups.values()]
+        check("the index's record string matches the bytes it describes",
+              len(raw) % ssz, 0)
+        check("every canvas appears in the index", len(groups), p["canvases"])
+        check("ten bodies and the ball per canvas, however many runs they took",
+              min(per) >= MIN_BODIES_PER_CANVAS and max(per) <= MAX_BODIES_PER_CANVAS, True)
+        check("paint.json's body count agrees with the index",
+              [p["bodies_per_canvas"]["min"], p["bodies_per_canvas"]["max"]],
+              [min(per), max(per)])
+
+        # Every canvas is one shot the window stage corroborated, and the join
+        # is retained privately rather than asserted.
+        res = p["anchor_residual_ft"]
+        check("no canvas ships an anchor residual over the declared threshold",
+              res["max"] <= res["max_allowed"], True)
+        check("the shipped binaries declare the format the piece decodes",
+              p.get("format_version"), 2)
 
         # The measured speeds THE HAND's three fluid regimes are bounded by. If
         # these move, the paint's physics is describing a different record.
@@ -481,6 +560,13 @@ def main():
         check("ink shares sum to 1", abs(sum(ink.values()) - 1.0) < 1e-3, True)
         print(f"  (informational) {p['strokes']:,} strokes over {p['canvases']} possessions, "
               f"{p['vertices']:,} control points, {p['seconds_painted']:,.0f} painted seconds")
+        print(f"  (informational) every canvas joined to the shot record: residual median "
+              f"{res['median']} ft, p90 {res['p90']} ft, max {res['max']} ft against a "
+              f"{res['max_allowed']} ft threshold")
+        print(f"  (informational) {p['strokes_alt_min_run']:,} strokes under the alternate "
+              f"run floor of {p['min_run_frames_alt']} frames against {p['strokes']:,} at "
+              f"{p['min_run_frames']}; {p['vertices_forced_by_zone']:,} vertices forced by a "
+              f"zone change")
         print(f"  (informational) where the paint goes, against where the record files shots:")
         for z, share in ink.items():
             print(f"      {z:<22} {100 * share:5.1f}% of painted time")

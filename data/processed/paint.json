@@ -1,58 +1,96 @@
 {
   "generated_by": "pipeline/paint.py",
-  "generated_at": "2026-08-07T09:16:15+00:00",
+  "generated_at": "2026-08-07T22:53:59+00:00",
+  "format_version": 2,
   "provenance": {
     "shots_source": "stats.nba.com shotchartdetail, bulk archive github.com/shufinskiy/nba_data",
     "sportvu_source": "NBA/STATS SportVU public 2015-16 release, github.com/linouk23/NBA-Player-Movements + mirrors (github.com/sealneaward/nba-movement-data, HF dcayton/nba_tracking_data_15_16)",
     "license_note": "derived data only; bulk dumps are never committed (see CLAUDE.md data rights)"
   },
   "definitions": {
-    "_authored": "One span length is chosen here and nothing else: STROKE_SECONDS. Every other property of a stroke is read off the record.",
-    "stroke": "one body's measured path over the 5.0 s before one verified release, in the shot record's own frame (tenths of a foot, hoop at origin)",
-    "vertex": "a control point kept by Douglas-Peucker at 0.15 ft, carrying `dt` (frames since the previous vertex) and `arc` (tenths of a foot the body actually covered over that span, summed at the full 25 Hz before simplification). Speed is arc/dt and is therefore the true measured mean over the span, unaffected by how few control points survive",
-    "zone": "index into the league's own seven SHOT_ZONE_BASIC regions, read at the vertex - a partition of the FLOOR the NBA drew, reconstructed from the geometry the plate draws and gated in qa.py against the league's own labels at 99.993%",
+    "_authored": "Three things are chosen in this stage. A span length (5.0 s); a rule for WHICH corroborated shot of a game is painted (smallest anchor residual, ties by ascending tracking event id); and the shortest run still counted as a gesture (25 frames). Every other property of a stroke is read off the record.",
+    "corroboration": "every canvas is one shot the window stage checked against the record: its release, transformed into the shot record's own frame, landed within 6.0 ft of the coordinate a courtside scorer filed independently, at that game's calibrated event numbering. A game with no such shot is not painted. The full join for every canvas - archive, tracking event, offset, anchor, residual, release frame - is retained privately under data/window/, which is gitignored, so nothing identifying ships and nothing is unverifiable",
+    "stroke": "one CONTINUOUS run of one body's measured path over the 5.0 s before one corroborated release, in the shot record's own frame (tenths of a foot, hoop at origin). A path is cut wherever the feed broke or the body moved further than 3.0 ft in one frame, and each run is its own stroke of the same body, so no drawn segment ever crosses a discarded discontinuity",
+    "vertex": "a control point kept by Douglas-Peucker at 0.15 ft, or forced by a change of zone, carrying `dt` (frames since the previous vertex) and `arc` (tenths of a foot the body actually covered over that span, summed at the full 25 Hz before simplification). Speed is arc/dt and is therefore the true measured mean over the span, unaffected by how few control points survive. The first vertex of a stroke carries dt = 0 and arc = 0: it opens the stroke and spans nothing, and a consumer deriving speed must skip it",
+    "simplify_ft": "two things force a vertex to survive: Douglas-Peucker at 0.15 ft, and a change in which of the league's seven regions the body is standing in. The second means no simplified segment spans two zones, so the zone read at a vertex is the zone of the whole span ending there rather than an approximation of it",
+    "zone": "index into the league's own seven SHOT_ZONE_BASIC regions - a partition of the FLOOR the NBA drew, reconstructed from the geometry the plate draws and gated in qa.py against the league's own labels at 99.993%. `ink_by_zone` is computed from EVERY full-rate frame, not from the surviving control points",
     "kind": "0 = a body, 1 = the ball (the only row the feed gave a third dimension)",
-    "identity": "none is shipped. No player, no game, no event, no clock - only a day index. A game, a player, or a possession's timing cannot be reconstructed from this file"
+    "body": "a slot within the canvas, stable across the runs of one body; 10 is the ball. After a path is cut at its discontinuities one body can be several strokes, so this is how a consumer knows which runs are the same body",
+    "identity": "none is shipped. No player, no match, no tracking event, no clock - only a day index, a canvas index and a body slot. A match, a player, or a possession's timing cannot be reconstructed from this file"
   },
-  "canvases": 252,
-  "strokes": 2772,
-  "vertices": 38964,
-  "days_covered": 69,
-  "seconds_painted": 13860.0,
+  "canvases": 250,
+  "strokes": 2751,
+  "strokes_alt_min_run": 2754,
+  "vertices": 46681,
+  "vertices_forced_by_zone": 9166,
+  "zone_quantized_frames": 4593,
+  "zone_quantized_share": 0.01336,
+  "days_covered": 67,
+  "seconds_painted": 13748.0,
   "stroke_seconds": 5.0,
   "simplify_ft": 0.15,
-  "vertices_outside_plate": 2241,
+  "min_run_frames": 25,
+  "min_run_frames_alt": 3,
+  "run_length_frames": {
+    "1": 1,
+    "5": 1,
+    "22": 2,
+    "26": 1,
+    "95": 1,
+    "104": 2,
+    "125": 1,
+    "126": 2746
+  },
+  "bodies_per_canvas": {
+    "min": 11,
+    "max": 11,
+    "mean": 11.0
+  },
+  "strokes_per_canvas": {
+    "min": 11,
+    "max": 12,
+    "mean": 11.0
+  },
+  "anchor_residual_ft": {
+    "max_allowed": 6.0,
+    "median": 0.41,
+    "p90": 1.34,
+    "max": 3.95
+  },
+  "vertices_outside_plate": 1682,
   "speed_ft_s": {
-    "p10": 1.84,
+    "p10": 1.94,
     "p25": 3.33,
-    "p50": 6.0,
-    "p75": 10.42,
-    "p90": 15.25,
-    "p99": 35.0
+    "p50": 6.15,
+    "p75": 10.0,
+    "p90": 15.0,
+    "p99": 36.94
   },
   "ink_by_zone": {
-    "Restricted Area": 0.0342,
-    "In The Paint (Non-RA)": 0.2071,
-    "Mid-Range": 0.4621,
-    "Left Corner 3": 0.0239,
-    "Right Corner 3": 0.0279,
-    "Above the Break 3": 0.1962,
-    "Backcourt": 0.0487
+    "Restricted Area": 0.0366,
+    "In The Paint (Non-RA)": 0.1944,
+    "Mid-Range": 0.4518,
+    "Left Corner 3": 0.0282,
+    "Right Corner 3": 0.0327,
+    "Above the Break 3": 0.218,
+    "Backcourt": 0.0382
   },
   "files": {
     "vertices": {
       "path": "paint_strokes.bin",
-      "record": "<hhBB",
-      "bytes_per_record": 6,
-      "records": 38964,
-      "bytes": 233784
+      "record": "<hhHH",
+      "bytes_per_record": 8,
+      "records": 46681,
+      "bytes": 373448,
+      "fields": "x, y (tenths, hoop at origin); dt frames; arc tenths"
     },
     "index": {
       "path": "paint_index.bin",
-      "record": "<IHBB",
-      "bytes_per_record": 8,
-      "records": 2772,
-      "bytes": 22176
+      "record": "<IHHBBB",
+      "bytes_per_record": 11,
+      "records": 2751,
+      "bytes": 30261,
+      "fields": "first vertex, count, canvas, kind, body slot, day"
     }
   }
 }
