@@ -18,3 +18,6 @@ dist/
 site/public/data/
 
 docs/audits/
+
+# Session prompts for the audit remediation (working documents).
+docs/prompts/
