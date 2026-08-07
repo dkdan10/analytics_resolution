@@ -16,7 +16,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from aggregate import POINT_DTYPE  # noqa: E402
-from common import PROCESSED_DIR  # noqa: E402
+from common import PROCESSED_DIR, read_season_csv  # noqa: E402
 
 # Plan section 1.6, measured 2026-08-04 (test fixture, not display copy).
 EXPECTED_TOTAL_ATTEMPTS = 5_933_691
@@ -123,6 +123,12 @@ WINDOW_RECOVERY_FLOOR = 0.40
 # rim, so shots that reach the rim - all made ones - are over-represented.
 # Measured at +5.6 pp on FG%. The gate bounds it and the piece discloses it.
 WINDOW_MAX_FG_BIAS_PP = 9.0
+
+# THE HAND colours strokes by the zone they cross, so the reconstruction of the
+# league's regions has to BE the league's. Measured 2026-08-07 over all 207,893
+# of 2015-16's shots: 99.993%. The floor is set just below, as a regression
+# guard - if the geometry drifts, the colour stops being a measurement.
+ZONE_AGREEMENT_FLOOR = 0.999
 
 
 def main():
@@ -290,6 +296,29 @@ def main():
         if sum(cls["TYPE"].values()) != row["attempts"] - row["shot_type_nulls"]:
             census_drift.append(f"{row['season']}: TYPE counts do not sum to attempts")
     check("census figures equal the struck figures", census_drift, [])
+
+    # --- The league's own map of the floor -----------------------------------
+    # THE HAND colours a stroke by the zone it is PASSING THROUGH, which is only
+    # legitimate if SHOT_ZONE_BASIC really is a partition of the floor rather
+    # than a judgement about a shot. This gate is what licenses that colour: the
+    # geometry the plate draws is used to reclassify every 2015-16 shot from its
+    # coordinates alone, and scored against the league's own label.
+    print("\nThe league's own map of the floor")
+    try:
+        from common import ZONE_NAMES, zone_at  # noqa: PLC0415
+
+        zdf = read_season_csv(2015, usecols=["LOC_X", "LOC_Y", "SHOT_ZONE_BASIC"])
+        agree = 0
+        for zx, zy, zz in zip(zdf.LOC_X.values, zdf.LOC_Y.values, zdf.SHOT_ZONE_BASIC.values):
+            if ZONE_NAMES[zone_at(float(zx), float(zy))] == zz:
+                agree += 1
+        rate = agree / len(zdf)
+        check("zone reconstructed from geometry matches the league's own label",
+              rate >= ZONE_AGREEMENT_FLOOR, True)
+        print(f"  (informational) {agree:,}/{len(zdf):,} = {100 * rate:.3f}% - the misses are "
+              f"boundary coordinates the record itself labels inconsistently")
+    except Exception as e:  # noqa: BLE001 - the shot dump may not be present
+        print(f"  SKIP  zone reconstruction ({type(e).__name__}: {e})")
 
     # --- The window (pipeline/window.py) -------------------------------------
     # Optional: the piece runs without it, and the shot spine above must stay

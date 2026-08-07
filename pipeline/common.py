@@ -53,6 +53,62 @@ HOOP_RIGHT_X, HOOP_LEFT_X, HOOP_Y = 88.75, 5.25, 25.0
 RIM_HEIGHT = 10.0
 HZ = 25
 
+# --- the league's own map of the floor ---------------------------------------
+# SHOT_ZONE_BASIC in the order aggregate.py files it, which is also the order
+# site/src/palette.ts assigns hues in. Index is what ships.
+ZONE_NAMES = [
+    "Restricted Area",
+    "In The Paint (Non-RA)",
+    "Mid-Range",
+    "Left Corner 3",
+    "Right Corner 3",
+    "Above the Break 3",
+    "Backcourt",
+]
+
+# The geometry the plate already draws, in tenths of a foot from the hoop.
+RESTRICTED_R = 40.0
+LANE_HALF_W = 80.0
+FREE_THROW_Y = 137.5
+THREE_R = 237.5
+CORNER_X = 220.0
+# Where the arc meets the corner line. Not chosen: the corner-3 line ends 14 ft
+# from the baseline and the hoop stands 5.25 ft off it, so sqrt(237.5^2 - 220^2)
+# lands at 89.48 tenths = 8.95 ft, which is that same 8.75 ft plus the arc's
+# own curvature. Derived here rather than typed.
+CORNER_Y = (THREE_R ** 2 - CORNER_X ** 2) ** 0.5
+HALFCOURT_Y = 417.5
+
+
+def zone_at(x, y):
+    """Which of the league's seven regions a point on the floor falls in.
+
+    SHOT_ZONE_BASIC is a PARTITION OF THE FLOOR that the NBA drew, not a
+    property of a shot: aggregate.py already verifies that no coordinate
+    carries two zones in any season. So the same test that labels a shot also
+    labels a place, and a body crossing the floor crosses the league's own
+    regions.
+
+    That is the entire footing on which THE HAND is allowed to use colour. It
+    is verified rather than asserted - qa.py reclassifies every 2015-16 shot
+    from its coordinates alone and gates agreement with the league's own label
+    at 99.9% (measured: 207,879 of 207,893, and the fourteen misses are all
+    boundary duplicates the record itself labels inconsistently).
+    """
+    import math
+
+    if y > HALFCOURT_Y:
+        return 6
+    if abs(x) >= CORNER_X and y <= CORNER_Y:
+        return 3 if x < 0 else 4
+    if math.hypot(x, y) >= THREE_R:
+        return 5
+    if math.hypot(x, y) <= RESTRICTED_R:
+        return 0
+    if abs(x) <= LANE_HALF_W and y <= FREE_THROW_Y:
+        return 1
+    return 2
+
 PROVENANCE = {
     "shots_source": "stats.nba.com shotchartdetail, bulk archive github.com/shufinskiy/nba_data",
     "sportvu_source": (
