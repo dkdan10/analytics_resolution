@@ -249,6 +249,86 @@ export interface WindowFile {
   };
 }
 
+/**
+ * The paint: strokes lifted from the bodies the record could not keep.
+ *
+ * Each stroke is one body's measured path over the five seconds before one
+ * verified shot. Every vertex is a position the machine recorded — nothing here
+ * is simulated, and no stroke is a particle. Two measurements ride on each
+ * vertex and they are what make the paint honest: `dt`, the frames since the
+ * previous vertex, and `arc`, the distance the body actually covered over that
+ * span, summed at the full 25 Hz *before* simplification. Speed is arc/dt and
+ * is therefore the true measured mean, however few control points survive.
+ */
+export interface PaintFile {
+  definitions: Record<string, string>;
+  canvases: number;
+  strokes: number;
+  vertices: number;
+  days_covered: number;
+  seconds_painted: number;
+  stroke_seconds: number;
+  simplify_ft: number;
+  vertices_outside_plate: number;
+  speed_ft_s: { p10: number; p25: number; p50: number; p75: number; p90: number; p99: number };
+  /** Share of painted SECONDS spent in each of the league's seven regions —
+   *  ink is deposited per unit time, so this is where the paint actually goes. */
+  ink_by_zone: Record<string, number>;
+  files: {
+    vertices: { records: number; bytes: number; bytes_per_record: number };
+    index: { records: number; bytes: number; bytes_per_record: number };
+  };
+}
+
+/** Decoded strokes. Flat arrays: a stroke is a slice, never an object. */
+export interface Strokes {
+  n: number;
+  /** Per stroke. */
+  first: Uint32Array;
+  count: Uint16Array;
+  /** 0 = a body, 1 = the ball — the only row the feed gave a third dimension. */
+  kind: Uint8Array;
+  day: Uint8Array;
+  /** Per vertex, in the plate's own frame (tenths, hoop at origin). */
+  x: Int16Array;
+  y: Int16Array;
+  dt: Uint8Array;
+  arc: Uint8Array;
+}
+
+const VERTEX_REC = 6;
+const STROKE_REC = 8;
+
+export function decodeStrokes(vbuf: ArrayBuffer, ibuf: ArrayBuffer): Strokes {
+  const nv = Math.floor(vbuf.byteLength / VERTEX_REC);
+  const ns = Math.floor(ibuf.byteLength / STROKE_REC);
+  const vd = new DataView(vbuf);
+  const id = new DataView(ibuf);
+  const x = new Int16Array(nv);
+  const y = new Int16Array(nv);
+  const dt = new Uint8Array(nv);
+  const arc = new Uint8Array(nv);
+  for (let i = 0; i < nv; i++) {
+    const o = i * VERTEX_REC;
+    x[i] = vd.getInt16(o, true);
+    y[i] = vd.getInt16(o + 2, true);
+    dt[i] = vd.getUint8(o + 4);
+    arc[i] = vd.getUint8(o + 5);
+  }
+  const first = new Uint32Array(ns);
+  const count = new Uint16Array(ns);
+  const kind = new Uint8Array(ns);
+  const day = new Uint8Array(ns);
+  for (let i = 0; i < ns; i++) {
+    const o = i * STROKE_REC;
+    first[i] = id.getUint32(o, true);
+    count[i] = id.getUint16(o + 4, true);
+    kind[i] = id.getUint8(o + 6);
+    day[i] = id.getUint8(o + 7);
+  }
+  return { n: ns, first, count, kind, day, x, y, dt, arc };
+}
+
 /** One shot's caliper, decoded from window_measures.bin. */
 export interface Measures {
   n: number;
@@ -321,6 +401,11 @@ export interface Loaded {
   /** Every caliper, fetched on demand like the points — the piece renders
    *  without it and gains it a frame or two later. */
   measures(): Measures | null;
+  /** The paint stage's summary; null if it has not been run. */
+  paint: PaintFile | null;
+  /** The strokes themselves, fetched on demand. THE HAND draws splotches
+   *  without them and gains the motion a frame or two later. */
+  strokes(): Strokes | null;
   provenance: Record<string, string>;
 }
 
@@ -387,6 +472,34 @@ export async function load(): Promise<Loaded> {
     return null;
   };
 
+  let paintFile: PaintFile | null = null;
+  try {
+    paintFile = await getJSON<PaintFile>("paint.json");
+  } catch {
+    paintFile = null;
+  }
+
+  let strokeCache: Strokes | null = null;
+  let strokesInFlight = false;
+  const fetchStrokes = (): Strokes | null => {
+    if (strokeCache) return strokeCache;
+    if (!strokesInFlight && paintFile) {
+      strokesInFlight = true;
+      void Promise.all([
+        fetch(`${BASE}data/paint_strokes.bin`).then((r) => r.arrayBuffer()),
+        fetch(`${BASE}data/paint_index.bin`).then((r) => r.arrayBuffer()),
+      ])
+        .then(([v, i]) => {
+          strokeCache = decodeStrokes(v, i);
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          strokesInFlight = false;
+        });
+    }
+    return null;
+  };
+
   let measureCache: Measures | null = null;
   let measuresInFlight = false;
   const fetchMeasures = (): Measures | null => {
@@ -415,6 +528,8 @@ export async function load(): Promise<Loaded> {
     traces,
     window: windowFile,
     measures: fetchMeasures,
+    paint: paintFile,
+    strokes: fetchStrokes,
     provenance: file.provenance,
   };
 }

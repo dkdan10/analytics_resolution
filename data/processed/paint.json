@@ -1,0 +1,58 @@
+{
+  "generated_by": "pipeline/paint.py",
+  "generated_at": "2026-08-07T09:16:15+00:00",
+  "provenance": {
+    "shots_source": "stats.nba.com shotchartdetail, bulk archive github.com/shufinskiy/nba_data",
+    "sportvu_source": "NBA/STATS SportVU public 2015-16 release, github.com/linouk23/NBA-Player-Movements + mirrors (github.com/sealneaward/nba-movement-data, HF dcayton/nba_tracking_data_15_16)",
+    "license_note": "derived data only; bulk dumps are never committed (see CLAUDE.md data rights)"
+  },
+  "definitions": {
+    "_authored": "One span length is chosen here and nothing else: STROKE_SECONDS. Every other property of a stroke is read off the record.",
+    "stroke": "one body's measured path over the 5.0 s before one verified release, in the shot record's own frame (tenths of a foot, hoop at origin)",
+    "vertex": "a control point kept by Douglas-Peucker at 0.15 ft, carrying `dt` (frames since the previous vertex) and `arc` (tenths of a foot the body actually covered over that span, summed at the full 25 Hz before simplification). Speed is arc/dt and is therefore the true measured mean over the span, unaffected by how few control points survive",
+    "zone": "index into the league's own seven SHOT_ZONE_BASIC regions, read at the vertex - a partition of the FLOOR the NBA drew, reconstructed from the geometry the plate draws and gated in qa.py against the league's own labels at 99.993%",
+    "kind": "0 = a body, 1 = the ball (the only row the feed gave a third dimension)",
+    "identity": "none is shipped. No player, no game, no event, no clock - only a day index. A game, a player, or a possession's timing cannot be reconstructed from this file"
+  },
+  "canvases": 252,
+  "strokes": 2772,
+  "vertices": 38964,
+  "days_covered": 69,
+  "seconds_painted": 13860.0,
+  "stroke_seconds": 5.0,
+  "simplify_ft": 0.15,
+  "vertices_outside_plate": 2241,
+  "speed_ft_s": {
+    "p10": 1.84,
+    "p25": 3.33,
+    "p50": 6.0,
+    "p75": 10.42,
+    "p90": 15.25,
+    "p99": 35.0
+  },
+  "ink_by_zone": {
+    "Restricted Area": 0.0342,
+    "In The Paint (Non-RA)": 0.2071,
+    "Mid-Range": 0.4621,
+    "Left Corner 3": 0.0239,
+    "Right Corner 3": 0.0279,
+    "Above the Break 3": 0.1962,
+    "Backcourt": 0.0487
+  },
+  "files": {
+    "vertices": {
+      "path": "paint_strokes.bin",
+      "record": "<hhBB",
+      "bytes_per_record": 6,
+      "records": 38964,
+      "bytes": 233784
+    },
+    "index": {
+      "path": "paint_index.bin",
+      "record": "<IHBB",
+      "bytes_per_record": 8,
+      "records": 2772,
+      "bytes": 22176
+    }
+  }
+}

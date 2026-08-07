@@ -130,6 +130,10 @@ WINDOW_MAX_FG_BIAS_PP = 9.0
 # guard - if the geometry drifts, the colour stops being a measurement.
 ZONE_AGREEMENT_FLOOR = 0.999
 
+# The canvas: one possession per game, spread across the window's 89 days.
+EXPECTED_PAINT_CANVASES = 240
+EXPECTED_PAINT_DAYS = 60
+
 
 def main():
     path = PROCESSED_DIR / "seasons.json"
@@ -433,6 +437,49 @@ def main():
               f"into a different published category")
     else:
         print("\nThe window: window.json absent (pipeline/window.py not run) - skipped")
+
+    # --- The paint (pipeline/paint.py) ---------------------------------------
+    paint_path = PROCESSED_DIR / "paint.json"
+    if paint_path.exists():
+        p = json.loads(paint_path.read_text())
+        print("\nThe paint: strokes from the bodies the record could not keep")
+        check("one possession per game", p["canvases"] >= EXPECTED_PAINT_CANVASES, True)
+        check("eleven strokes per possession (ten bodies and the ball)",
+              round(p["strokes"] / p["canvases"]) in (10, 11), True)
+        check("the canvas spans the window rather than one week of it",
+              p["days_covered"] >= EXPECTED_PAINT_DAYS, True)
+
+        f = p["files"]
+        vb = PROCESSED_DIR / "paint_strokes.bin"
+        ib = PROCESSED_DIR / "paint_index.bin"
+        check("paint_strokes.bin size matches its record count",
+              vb.stat().st_size, f["vertices"]["records"] * f["vertices"]["bytes_per_record"])
+        check("paint_index.bin size matches its record count",
+              ib.stat().st_size, f["index"]["records"] * f["index"]["bytes_per_record"])
+        check("index covers every stroke", f["index"]["records"], p["strokes"])
+
+        # The measured speeds THE HAND's three fluid regimes are bounded by. If
+        # these move, the paint's physics is describing a different record.
+        sp = p["speed_ft_s"]
+        check("speed percentiles are ordered and physical",
+              sp["p10"] < sp["p50"] < sp["p90"] and 0 < sp["p10"] and sp["p90"] < 30, True)
+
+        # Nothing identifying may ever be in here: the corpus stays private and
+        # what ships must not be substitutable for it.
+        blob = json.dumps(p).lower()
+        leaked = [w for w in ("player", "game_id", "event_id", "playerid", "gameid")
+                  if w in blob and f'"{w}"' in blob]
+        check("no identity fields ship with the paint", leaked, [])
+
+        ink = p["ink_by_zone"]
+        check("ink shares sum to 1", abs(sum(ink.values()) - 1.0) < 1e-3, True)
+        print(f"  (informational) {p['strokes']:,} strokes over {p['canvases']} possessions, "
+              f"{p['vertices']:,} control points, {p['seconds_painted']:,.0f} painted seconds")
+        print(f"  (informational) where the paint goes, against where the record files shots:")
+        for z, share in ink.items():
+            print(f"      {z:<22} {100 * share:5.1f}% of painted time")
+    else:
+        print("\nThe paint: paint.json absent (pipeline/paint.py not run) - skipped")
 
     # Context lines the piece quotes; printed for the record, not gated.
     if {1996, 2012, 2019, 2024, 2015} <= set(seasons):

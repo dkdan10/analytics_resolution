@@ -3,6 +3,7 @@
 import { passAt, type Schedule } from "../timeline";
 import { drawCensusHand } from "./census";
 import { drawFieldHand } from "./field";
+import { drawHandHand } from "./hand";
 import { drawLedgerHand } from "./ledger";
 import { drawMeasureHand } from "./measure";
 import { drawPlateHand } from "./plate";
@@ -17,11 +18,13 @@ const HANDS: Record<ModeId, Hand> = {
   ledger: drawLedgerHand,
   census: drawCensusHand,
   measure: drawMeasureHand,
+  hand: drawHandHand,
 };
 
 /** Rotation order: evidence, then the league's colours, then its words, then
- *  its count — and last the one measure anyone outside could ever make. */
-const ROTATION: ModeId[] = ["plate", "field", "ledger", "census", "measure"];
+ *  its count, then the one measure anyone outside could ever make — and last
+ *  the paint, which is the only hand that draws what the record did NOT keep. */
+const ROTATION: ModeId[] = ["plate", "field", "ledger", "census", "measure", "hand"];
 
 export function isModeId(v: string | null): v is ModeId {
   return v !== null && (MODE_IDS as readonly string[]).includes(v);
