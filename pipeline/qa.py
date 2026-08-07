@@ -12,7 +12,10 @@ import json
 import sys
 from pathlib import Path
 
+import numpy as np
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from aggregate import POINT_DTYPE  # noqa: E402
 from common import PROCESSED_DIR  # noqa: E402
 
 # Plan section 1.6, measured 2026-08-04 (test fixture, not display copy).
@@ -220,8 +223,9 @@ def main():
     for year, row in sorted(seasons.items()):
         sp = PROCESSED_DIR / "samples" / f"season_{year}.json"
         gp = PROCESSED_DIR / "grids" / f"season_{year}.json"
-        if not sp.exists() or not gp.exists():
-            artifact_issues.append(f"{row['season']}: missing sample or grid")
+        pp = PROCESSED_DIR / "points" / f"season_{year}.bin"
+        if not sp.exists() or not gp.exists() or not pp.exists():
+            artifact_issues.append(f"{row['season']}: missing sample, grid or points")
             continue
         s = json.loads(sp.read_text())
         g = json.loads(gp.read_text())
@@ -229,7 +233,31 @@ def main():
             artifact_issues.append(f"{row['season']}: grid total {g['total']} != sample halfcourt {s['of_halfcourt_attempts']}")
         if s["of_halfcourt_attempts"] + s["backcourt_or_oob_dropped"] != row["attempts"]:
             artifact_issues.append(f"{row['season']}: halfcourt + dropped != attempts")
-    check("samples/grids consistent with seasons.json", artifact_issues, [])
+        # The third leg: every shot must be present in the count map, exactly
+        # once, at the coordinate the record filed it. This is what makes
+        # "every shot" a checkable claim rather than a description.
+        rec = np.frombuffer(pp.read_bytes(), dtype=POINT_DTYPE)
+        total = int(rec["n_hires"].sum()) + int(rec["n_rest"].sum())
+        if total != g["total"]:
+            artifact_issues.append(f"{row['season']}: points total {total} != grid total {g['total']}")
+        if len(rec) != row["points"]["cells"]:
+            artifact_issues.append(f"{row['season']}: points cells {len(rec)} != recorded {row['points']['cells']}")
+    check("samples/grids/points consistent with seasons.json", artifact_issues, [])
+
+    # The contradiction that prompted the change: the census tallies must equal
+    # the figures the plate strikes into the floor, for every season.
+    census_drift = []
+    for year, row in sorted(seasons.items()):
+        cls = row.get("classification")
+        if not cls:
+            census_drift.append(f"{row['season']}: no classification block")
+            continue
+        mid = cls["ZONE"].get("Mid-Range", 0)
+        if abs(mid / row["attempts"] - row["mid_share"]) > 1e-9:
+            census_drift.append(f"{row['season']}: census {mid / row['attempts']:.4f} != {row['mid_share']:.4f}")
+        if sum(cls["TYPE"].values()) != row["attempts"] - row["shot_type_nulls"]:
+            census_drift.append(f"{row['season']}: TYPE counts do not sum to attempts")
+    check("census figures equal the struck figures", census_drift, [])
 
     # Context lines the piece quotes; printed for the record, not gated.
     if {1996, 2012, 2019, 2024, 2015} <= set(seasons):

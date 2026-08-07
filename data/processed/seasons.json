@@ -1,6 +1,6 @@
 {
   "generated_by": "pipeline/aggregate.py",
-  "generated_at": "2026-08-07T04:47:40+00:00",
+  "generated_at": "2026-08-07T05:18:15+00:00",
   "provenance": {
     "shots_source": "stats.nba.com shotchartdetail, bulk archive github.com/shufinskiy/nba_data",
     "sportvu_source": "NBA/STATS SportVU public 2015-16 release, github.com/linouk23/NBA-Player-Movements + mirrors (github.com/sealneaward/nba-movement-data, HF dcayton/nba_tracking_data_15_16)",
@@ -113,6 +113,51 @@
           "Driving Dunk Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 148647,
+          "3PT Field Goal": 39941
+        },
+        "RESULT": {
+          "Missed Shot": 102815,
+          "Made Shot": 85774
+        },
+        "ZONE": {
+          "Mid-Range": 75296,
+          "Restricted Area": 70577,
+          "In The Paint (Non-RA)": 22376,
+          "Above the Break 3": 14376,
+          "Left Corner 3": 3068,
+          "Right Corner 3": 2689,
+          "Backcourt": 207
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 85008,
+          "16-24 ft.": 47166,
+          "8-16 ft.": 36075,
+          "24+ ft.": 20048,
+          "Back Court Shot": 292
+        },
+        "AREA": {
+          "Center(C)": 101118,
+          "Left Side(L)": 28597,
+          "Right Side(R)": 26127,
+          "Left Side Center(LC)": 16291,
+          "Right Side Center(RC)": 16164,
+          "Back Court(BC)": 292
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 111104,
+          "Layup Shot": 43006,
+          "Driving Layup Shot": 11912,
+          "Hook Shot": 5941,
+          "Slam Dunk Shot": 4014,
+          "Dunk Shot": 3991,
+          "Tip Shot": 3917,
+          "Running Jump Shot": 3663,
+          "Driving Dunk Shot": 1041
+        }
+      },
       "contemporaneous": {
         "taxonomy_mid_attempts": 75296,
         "taxonomy_mid_share": 0.399259765946052,
@@ -123,7 +168,11 @@
         "three_attempts_by_zone": 20133,
         "note": "the 3PT line stood at 22 ft in 1994-97; SHOT_ZONE_BASIC applies the modern 23'9\" geometry retroactively, filing these attempts as Mid-Range"
       },
-      "note": "shortened 3PT line era (1994-97); clean baseline starts 1997-98"
+      "note": "shortened 3PT line era (1994-97); clean baseline starts 1997-98",
+      "points": {
+        "cells": 24897,
+        "bytes": 348558
+      }
     },
     {
       "year": 1997,
@@ -227,8 +276,58 @@
           "No Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 159303,
+          "3PT Field Goal": 30233
+        },
+        "RESULT": {
+          "Missed Shot": 104153,
+          "Made Shot": 85383
+        },
+        "ZONE": {
+          "Mid-Range": 69843,
+          "Restricted Area": 63120,
+          "In The Paint (Non-RA)": 26658,
+          "Above the Break 3": 24106,
+          "Left Corner 3": 2878,
+          "Right Corner 3": 2688,
+          "Backcourt": 243
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 81445,
+          "16-24 ft.": 39218,
+          "8-16 ft.": 38958,
+          "24+ ft.": 29578,
+          "Back Court Shot": 337
+        },
+        "AREA": {
+          "Center(C)": 98617,
+          "Left Side(L)": 29798,
+          "Right Side(R)": 26246,
+          "Right Side Center(RC)": 17551,
+          "Left Side Center(LC)": 16987,
+          "Back Court(BC)": 337
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 119169,
+          "Layup Shot": 31729,
+          "Driving Layup Shot": 13246,
+          "Hook Shot": 6123,
+          "Dunk Shot": 4798,
+          "Tip Shot": 4798,
+          "Running Jump Shot": 4422,
+          "Slam Dunk Shot": 4185,
+          "Driving Dunk Shot": 1040,
+          "No Shot": 26
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 27778,
+        "bytes": 388892
+      }
     },
     {
       "year": 1998,
@@ -335,8 +434,58 @@
           "No Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 94298,
+          "3PT Field Goal": 19079
+        },
+        "RESULT": {
+          "Missed Shot": 63828,
+          "Made Shot": 49549
+        },
+        "ZONE": {
+          "Mid-Range": 42028,
+          "Restricted Area": 35102,
+          "In The Paint (Non-RA)": 17208,
+          "Above the Break 3": 14765,
+          "Left Corner 3": 2119,
+          "Right Corner 3": 2011,
+          "Backcourt": 144
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 47182,
+          "16-24 ft.": 24390,
+          "8-16 ft.": 22766,
+          "24+ ft.": 18820,
+          "Back Court Shot": 219
+        },
+        "AREA": {
+          "Center(C)": 58006,
+          "Left Side(L)": 18149,
+          "Right Side(R)": 15856,
+          "Right Side Center(RC)": 10809,
+          "Left Side Center(LC)": 10338,
+          "Back Court(BC)": 219
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 73418,
+          "Layup Shot": 17630,
+          "Driving Layup Shot": 8110,
+          "Hook Shot": 3780,
+          "Running Jump Shot": 2795,
+          "Tip Shot": 2568,
+          "Dunk Shot": 2469,
+          "Slam Dunk Shot": 2118,
+          "Driving Dunk Shot": 487,
+          "No Shot": 2
+        }
+      },
       "contemporaneous": null,
-      "note": "lockout season (50 games per team) - short, not sparse"
+      "note": "lockout season (50 games per team) - short, not sparse",
+      "points": {
+        "cells": 20743,
+        "bytes": 290402
+      }
     },
     {
       "year": 1999,
@@ -443,8 +592,58 @@
           "No Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 162605,
+          "3PT Field Goal": 32615
+        },
+        "RESULT": {
+          "Missed Shot": 107629,
+          "Made Shot": 87591
+        },
+        "ZONE": {
+          "Mid-Range": 74648,
+          "Restricted Area": 58425,
+          "In The Paint (Non-RA)": 29659,
+          "Above the Break 3": 24422,
+          "Right Corner 3": 3925,
+          "Left Corner 3": 3897,
+          "Backcourt": 244
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 79353,
+          "16-24 ft.": 43107,
+          "8-16 ft.": 40272,
+          "24+ ft.": 32119,
+          "Back Court Shot": 369
+        },
+        "AREA": {
+          "Center(C)": 97992,
+          "Left Side(L)": 32049,
+          "Right Side(R)": 28722,
+          "Right Side Center(RC)": 18209,
+          "Left Side Center(LC)": 17879,
+          "Back Court(BC)": 369
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 128186,
+          "Layup Shot": 28831,
+          "Driving Layup Shot": 13706,
+          "Hook Shot": 6206,
+          "Running Jump Shot": 4908,
+          "Dunk Shot": 4448,
+          "Tip Shot": 4293,
+          "Slam Dunk Shot": 3678,
+          "Driving Dunk Shot": 962,
+          "No Shot": 2
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 24623,
+        "bytes": 344722
+      }
     },
     {
       "year": 2000,
@@ -566,8 +765,73 @@
           "No Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 159066,
+          "3PT Field Goal": 32596
+        },
+        "RESULT": {
+          "Missed Shot": 106798,
+          "Made Shot": 84864
+        },
+        "ZONE": {
+          "Mid-Range": 72687,
+          "Restricted Area": 56347,
+          "In The Paint (Non-RA)": 30063,
+          "Above the Break 3": 24182,
+          "Right Corner 3": 4092,
+          "Left Corner 3": 3993,
+          "Backcourt": 298
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 76262,
+          "16-24 ft.": 44413,
+          "8-16 ft.": 38422,
+          "24+ ft.": 32151,
+          "Back Court Shot": 414
+        },
+        "AREA": {
+          "Center(C)": 94701,
+          "Left Side(L)": 31771,
+          "Right Side(R)": 27890,
+          "Right Side Center(RC)": 18753,
+          "Left Side Center(LC)": 18133,
+          "Back Court(BC)": 414
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 124866,
+          "Layup Shot": 27702,
+          "Driving Layup Shot": 9637,
+          "Hook Shot": 4876,
+          "Running Jump Shot": 4659,
+          "Tip Shot": 4048,
+          "Dunk Shot": 3981,
+          "Slam Dunk Shot": 2913,
+          "Turnaround Jump Shot": 2834,
+          "Reverse Layup Shot": 1667,
+          "Driving Dunk Shot": 921,
+          "Running Layup Shot": 688,
+          "Alley Oop Dunk Shot": 660,
+          "Turnaround Hook Shot": 470,
+          "Running Hook Shot": 445,
+          "Finger Roll Shot": 321,
+          "Driving Finger Roll Shot": 263,
+          "Alley Oop Layup shot": 246,
+          "Reverse Dunk Shot": 158,
+          "Running Dunk Shot": 144,
+          "Driving Hook Shot": 105,
+          "Running Finger Roll Shot": 40,
+          "Turnaround Finger Roll Shot": 8,
+          "Running Tip Shot": 7,
+          "No Shot": 3
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 25017,
+        "bytes": 350238
+      }
     },
     {
       "year": 2001,
@@ -690,8 +954,75 @@
           "Running Tip Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 158188,
+          "3PT Field Goal": 35063
+        },
+        "RESULT": {
+          "Missed Shot": 107247,
+          "Made Shot": 86004
+        },
+        "ZONE": {
+          "Mid-Range": 71739,
+          "Restricted Area": 58361,
+          "In The Paint (Non-RA)": 28142,
+          "Above the Break 3": 26136,
+          "Left Corner 3": 4303,
+          "Right Corner 3": 4259,
+          "Backcourt": 311
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 76416,
+          "16-24 ft.": 44546,
+          "8-16 ft.": 37280,
+          "24+ ft.": 34594,
+          "Back Court Shot": 415
+        },
+        "AREA": {
+          "Center(C)": 95768,
+          "Left Side(L)": 29954,
+          "Right Side(R)": 27808,
+          "Right Side Center(RC)": 20212,
+          "Left Side Center(LC)": 19094,
+          "Back Court(BC)": 415
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 121406,
+          "Layup Shot": 29092,
+          "Driving Layup Shot": 9360,
+          "Dunk Shot": 4297,
+          "Running Jump Shot": 4290,
+          "Tip Shot": 4088,
+          "Turnaround Jump Shot": 3953,
+          "Hook Shot": 3888,
+          "Slam Dunk Shot": 2629,
+          "Reverse Layup Shot": 2192,
+          "Fadeaway Jump Shot": 2105,
+          "Driving Dunk Shot": 962,
+          "Jump Hook Shot": 832,
+          "Alley Oop Dunk Shot": 745,
+          "Running Hook Shot": 500,
+          "Running Layup Shot": 480,
+          "Finger Roll Shot": 460,
+          "Turnaround Hook Shot": 392,
+          "Alley Oop Layup shot": 390,
+          "Follow Up Dunk Shot": 371,
+          "Driving Finger Roll Shot": 336,
+          "Reverse Dunk Shot": 201,
+          "Running Dunk Shot": 118,
+          "Driving Hook Shot": 106,
+          "Running Finger Roll Shot": 42,
+          "Turnaround Finger Roll Shot": 13,
+          "Running Tip Shot": 3
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 25894,
+        "bytes": 362516
+      }
     },
     {
       "year": 2002,
@@ -814,8 +1145,75 @@
           "Turnaround Finger Roll Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 157196,
+          "3PT Field Goal": 34913
+        },
+        "RESULT": {
+          "Missed Shot": 107172,
+          "Made Shot": 84937
+        },
+        "ZONE": {
+          "Mid-Range": 70958,
+          "Restricted Area": 57911,
+          "In The Paint (Non-RA)": 28393,
+          "Above the Break 3": 25224,
+          "Left Corner 3": 4716,
+          "Right Corner 3": 4560,
+          "Backcourt": 347
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 76106,
+          "16-24 ft.": 45429,
+          "8-16 ft.": 35727,
+          "24+ ft.": 34389,
+          "Back Court Shot": 458
+        },
+        "AREA": {
+          "Center(C)": 95528,
+          "Left Side(L)": 30141,
+          "Right Side(R)": 27371,
+          "Right Side Center(RC)": 19756,
+          "Left Side Center(LC)": 18855,
+          "Back Court(BC)": 458
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 118894,
+          "Layup Shot": 29388,
+          "Driving Layup Shot": 9083,
+          "Running Jump Shot": 4659,
+          "Turnaround Jump Shot": 4534,
+          "Dunk Shot": 3820,
+          "Tip Shot": 3797,
+          "Hook Shot": 3542,
+          "Slam Dunk Shot": 2605,
+          "Fadeaway Jump Shot": 2482,
+          "Reverse Layup Shot": 2382,
+          "Jump Hook Shot": 1050,
+          "Driving Dunk Shot": 974,
+          "Alley Oop Dunk Shot": 830,
+          "Driving Finger Roll Shot": 567,
+          "Running Layup Shot": 557,
+          "Finger Roll Shot": 502,
+          "Running Hook Shot": 478,
+          "Follow Up Dunk Shot": 475,
+          "Turnaround Hook Shot": 442,
+          "Alley Oop Layup shot": 385,
+          "Reverse Dunk Shot": 210,
+          "Driving Hook Shot": 184,
+          "Running Dunk Shot": 132,
+          "Running Finger Roll Shot": 110,
+          "Running Tip Shot": 14,
+          "Turnaround Finger Roll Shot": 13
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 40557,
+        "bytes": 567798
+      }
     },
     {
       "year": 2003,
@@ -939,8 +1337,77 @@
           "Running Tip Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 154310,
+          "3PT Field Goal": 35493
+        },
+        "RESULT": {
+          "Missed Shot": 106548,
+          "Made Shot": 83255
+        },
+        "ZONE": {
+          "Mid-Range": 67657,
+          "Restricted Area": 59358,
+          "In The Paint (Non-RA)": 27335,
+          "Above the Break 3": 25549,
+          "Left Corner 3": 5069,
+          "Right Corner 3": 4499,
+          "Backcourt": 336
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 76917,
+          "16-24 ft.": 43443,
+          "24+ ft.": 35008,
+          "8-16 ft.": 33990,
+          "Back Court Shot": 445
+        },
+        "AREA": {
+          "Center(C)": 96084,
+          "Left Side(L)": 29119,
+          "Right Side(R)": 25834,
+          "Right Side Center(RC)": 19395,
+          "Left Side Center(LC)": 18926,
+          "Back Court(BC)": 445
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 114236,
+          "Layup Shot": 30541,
+          "Driving Layup Shot": 9164,
+          "Turnaround Jump Shot": 4327,
+          "Running Jump Shot": 4314,
+          "Dunk Shot": 4029,
+          "Tip Shot": 3936,
+          "Hook Shot": 3472,
+          "Fadeaway Jump Shot": 2596,
+          "Reverse Layup Shot": 2369,
+          "Slam Dunk Shot": 2326,
+          "Jump Bank Shot": 1544,
+          "Jump Hook Shot": 1033,
+          "Driving Dunk Shot": 1008,
+          "Alley Oop Dunk Shot": 784,
+          "Driving Finger Roll Shot": 648,
+          "Finger Roll Shot": 560,
+          "Running Hook Shot": 506,
+          "Running Layup Shot": 499,
+          "Follow Up Dunk Shot": 442,
+          "Alley Oop Layup shot": 392,
+          "Turnaround Hook Shot": 362,
+          "Driving Hook Shot": 210,
+          "Reverse Dunk Shot": 205,
+          "Running Dunk Shot": 121,
+          "Hook Bank Shot": 76,
+          "Running Finger Roll Shot": 75,
+          "Turnaround Finger Roll Shot": 17,
+          "Running Tip Shot": 11
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 40680,
+        "bytes": 569520
+      }
     },
     {
       "year": 2004,
@@ -1065,8 +1532,77 @@
           "Running Tip Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 158878,
+          "3PT Field Goal": 38748
+        },
+        "RESULT": {
+          "Missed Shot": 109191,
+          "Made Shot": 88435
+        },
+        "ZONE": {
+          "Mid-Range": 70034,
+          "Restricted Area": 63163,
+          "Above the Break 3": 27460,
+          "In The Paint (Non-RA)": 25758,
+          "Left Corner 3": 5541,
+          "Right Corner 3": 5307,
+          "Backcourt": 363
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 79866,
+          "16-24 ft.": 46658,
+          "24+ ft.": 38193,
+          "8-16 ft.": 32431,
+          "Back Court Shot": 478
+        },
+        "AREA": {
+          "Center(C)": 99792,
+          "Left Side(L)": 28862,
+          "Right Side(R)": 26371,
+          "Right Side Center(RC)": 21140,
+          "Left Side Center(LC)": 20983,
+          "Back Court(BC)": 478
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 117841,
+          "Layup Shot": 32551,
+          "Driving Layup Shot": 9686,
+          "Dunk Shot": 4512,
+          "Turnaround Jump Shot": 4412,
+          "Running Jump Shot": 4241,
+          "Tip Shot": 4020,
+          "Hook Shot": 3323,
+          "Reverse Layup Shot": 2425,
+          "Fadeaway Jump Shot": 2423,
+          "Slam Dunk Shot": 2395,
+          "Jump Bank Shot": 1950,
+          "Jump Hook Shot": 1308,
+          "Driving Dunk Shot": 1144,
+          "Alley Oop Dunk Shot": 941,
+          "Driving Finger Roll Shot": 677,
+          "Follow Up Dunk Shot": 671,
+          "Running Layup Shot": 622,
+          "Running Hook Shot": 545,
+          "Finger Roll Shot": 456,
+          "Alley Oop Layup shot": 410,
+          "Turnaround Hook Shot": 378,
+          "Reverse Dunk Shot": 241,
+          "Driving Hook Shot": 144,
+          "Running Dunk Shot": 117,
+          "Running Finger Roll Shot": 102,
+          "Hook Bank Shot": 75,
+          "Turnaround Finger Roll Shot": 11,
+          "Running Tip Shot": 5
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 40928,
+        "bytes": 572992
+      }
     },
     {
       "year": 2005,
@@ -1191,8 +1727,77 @@
           "Running Tip Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 155001,
+          "3PT Field Goal": 39313
+        },
+        "RESULT": {
+          "Missed Shot": 106148,
+          "Made Shot": 88166
+        },
+        "ZONE": {
+          "Mid-Range": 66926,
+          "Restricted Area": 63017,
+          "Above the Break 3": 27816,
+          "In The Paint (Non-RA)": 25107,
+          "Left Corner 3": 5668,
+          "Right Corner 3": 5409,
+          "Backcourt": 371
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 79616,
+          "16-24 ft.": 45957,
+          "24+ ft.": 38783,
+          "8-16 ft.": 29477,
+          "Back Court Shot": 481
+        },
+        "AREA": {
+          "Center(C)": 99397,
+          "Left Side(L)": 27371,
+          "Right Side(R)": 24865,
+          "Right Side Center(RC)": 21338,
+          "Left Side Center(LC)": 20862,
+          "Back Court(BC)": 481
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 114303,
+          "Layup Shot": 31525,
+          "Driving Layup Shot": 11123,
+          "Running Jump Shot": 4269,
+          "Turnaround Jump Shot": 4174,
+          "Dunk Shot": 3970,
+          "Hook Shot": 3688,
+          "Tip Shot": 3556,
+          "Fadeaway Jump Shot": 2801,
+          "Reverse Layup Shot": 2671,
+          "Slam Dunk Shot": 2283,
+          "Jump Bank Shot": 1683,
+          "Jump Hook Shot": 1317,
+          "Driving Dunk Shot": 1230,
+          "Alley Oop Dunk Shot": 1036,
+          "Driving Finger Roll Shot": 764,
+          "Running Layup Shot": 652,
+          "Running Hook Shot": 594,
+          "Follow Up Dunk Shot": 581,
+          "Turnaround Hook Shot": 515,
+          "Alley Oop Layup shot": 475,
+          "Finger Roll Shot": 354,
+          "Driving Hook Shot": 203,
+          "Reverse Dunk Shot": 199,
+          "Running Dunk Shot": 138,
+          "Running Finger Roll Shot": 97,
+          "Hook Bank Shot": 72,
+          "Turnaround Finger Roll Shot": 31,
+          "Running Tip Shot": 10
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 40868,
+        "bytes": 572152
+      }
     },
     {
       "year": 2006,
@@ -1317,8 +1922,77 @@
           "Running Tip Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 154401,
+          "3PT Field Goal": 41671
+        },
+        "RESULT": {
+          "Missed Shot": 106212,
+          "Made Shot": 89860
+        },
+        "ZONE": {
+          "Mid-Range": 64759,
+          "Restricted Area": 64492,
+          "Above the Break 3": 29524,
+          "In The Paint (Non-RA)": 25213,
+          "Left Corner 3": 6296,
+          "Right Corner 3": 5412,
+          "Backcourt": 376
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 80716,
+          "16-24 ft.": 45017,
+          "24+ ft.": 41107,
+          "8-16 ft.": 28731,
+          "Back Court Shot": 501
+        },
+        "AREA": {
+          "Center(C)": 101195,
+          "Left Side(L)": 26976,
+          "Right Side(R)": 23872,
+          "Right Side Center(RC)": 21899,
+          "Left Side Center(LC)": 21629,
+          "Back Court(BC)": 501
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 114516,
+          "Layup Shot": 32998,
+          "Driving Layup Shot": 10722,
+          "Running Jump Shot": 4331,
+          "Dunk Shot": 3955,
+          "Hook Shot": 3915,
+          "Turnaround Jump Shot": 3792,
+          "Tip Shot": 3574,
+          "Reverse Layup Shot": 2830,
+          "Fadeaway Jump Shot": 2665,
+          "Slam Dunk Shot": 2307,
+          "Jump Bank Shot": 2164,
+          "Jump Hook Shot": 1400,
+          "Driving Dunk Shot": 977,
+          "Alley Oop Dunk Shot": 918,
+          "Driving Finger Roll Shot": 838,
+          "Running Layup Shot": 812,
+          "Follow Up Dunk Shot": 561,
+          "Alley Oop Layup shot": 548,
+          "Running Hook Shot": 521,
+          "Turnaround Hook Shot": 512,
+          "Finger Roll Shot": 413,
+          "Driving Hook Shot": 218,
+          "Reverse Dunk Shot": 203,
+          "Running Dunk Shot": 156,
+          "Running Finger Roll Shot": 105,
+          "Hook Bank Shot": 83,
+          "Turnaround Finger Roll Shot": 26,
+          "Running Tip Shot": 12
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 42270,
+        "bytes": 591780
+      }
     },
     {
       "year": 2007,
@@ -1463,8 +2137,98 @@
           "Putback Reverse Dunk Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 155957,
+          "3PT Field Goal": 44544
+        },
+        "RESULT": {
+          "Missed Shot": 108832,
+          "Made Shot": 91669
+        },
+        "ZONE": {
+          "Mid-Range": 65986,
+          "Restricted Area": 64133,
+          "Above the Break 3": 31841,
+          "In The Paint (Non-RA)": 25911,
+          "Left Corner 3": 6340,
+          "Right Corner 3": 5822,
+          "Backcourt": 468
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 79134,
+          "16-24 ft.": 47117,
+          "24+ ft.": 43874,
+          "8-16 ft.": 29779,
+          "Back Court Shot": 597
+        },
+        "AREA": {
+          "Center(C)": 102492,
+          "Left Side(L)": 26425,
+          "Right Side(R)": 24811,
+          "Right Side Center(RC)": 23259,
+          "Left Side Center(LC)": 22917,
+          "Back Court(BC)": 597
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 115060,
+          "Layup Shot": 30450,
+          "Driving Layup Shot": 10645,
+          "Dunk Shot": 4235,
+          "Running Jump Shot": 3986,
+          "Turnaround Jump Shot": 3941,
+          "Tip Shot": 3591,
+          "Hook Shot": 3213,
+          "Fadeaway Jump Shot": 2751,
+          "Reverse Layup Shot": 2383,
+          "Slam Dunk Shot": 2066,
+          "Pullup Jump shot": 1669,
+          "Jump Bank Shot": 1502,
+          "Jump Hook Shot": 1387,
+          "Alley Oop Dunk Shot": 1175,
+          "Driving Dunk Shot": 1147,
+          "Running Layup Shot": 1054,
+          "Driving Finger Roll Layup Shot": 979,
+          "Floating Jump shot": 905,
+          "Putback Layup Shot": 778,
+          "Turnaround Fadeaway shot": 762,
+          "Step Back Jump shot": 713,
+          "Driving Reverse Layup Shot": 628,
+          "Finger Roll Layup Shot": 596,
+          "Turnaround Hook Shot": 588,
+          "Running Hook Shot": 579,
+          "Alley Oop Layup shot": 562,
+          "Putback Dunk Shot": 493,
+          "Running Bank shot": 472,
+          "Driving Slam Dunk Shot": 327,
+          "Turnaround Bank shot": 247,
+          "Running Dunk Shot": 229,
+          "Driving Jump shot": 206,
+          "Driving Hook Shot": 182,
+          "Reverse Dunk Shot": 172,
+          "Putback Slam Dunk Shot": 156,
+          "Running Finger Roll Layup Shot": 85,
+          "Hook Bank Shot": 78,
+          "Fadeaway Bank shot": 75,
+          "Driving Bank shot": 73,
+          "Running Slam Dunk Shot": 67,
+          "Pullup Bank shot": 66,
+          "Running Reverse Layup Shot": 61,
+          "Reverse Slam Dunk Shot": 57,
+          "Jump Bank Hook Shot": 35,
+          "Turnaround Bank Hook Shot": 21,
+          "Running Tip Shot": 20,
+          "Driving Bank Hook Shot": 15,
+          "Running Bank Hook Shot": 15,
+          "Putback Reverse Dunk Shot": 4
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 41110,
+        "bytes": 575540
+      }
     },
     {
       "year": 2008,
@@ -1609,8 +2373,97 @@
           "Driving Bank Hook Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 154471,
+          "3PT Field Goal": 44559
+        },
+        "RESULT": {
+          "Missed Shot": 107728,
+          "Made Shot": 91302
+        },
+        "ZONE": {
+          "Restricted Area": 65152,
+          "Mid-Range": 63990,
+          "Above the Break 3": 31338,
+          "In The Paint (Non-RA)": 25414,
+          "Left Corner 3": 6748,
+          "Right Corner 3": 5943,
+          "Backcourt": 445
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 80050,
+          "16-24 ft.": 45142,
+          "24+ ft.": 43917,
+          "8-16 ft.": 29364,
+          "Back Court Shot": 557
+        },
+        "AREA": {
+          "Center(C)": 102403,
+          "Left Side(L)": 26593,
+          "Right Side(R)": 24591,
+          "Right Side Center(RC)": 22938,
+          "Left Side Center(LC)": 21948,
+          "Back Court(BC)": 557
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 110046,
+          "Layup Shot": 30268,
+          "Driving Layup Shot": 11534,
+          "Dunk Shot": 4322,
+          "Running Jump Shot": 3820,
+          "Tip Shot": 3638,
+          "Turnaround Jump Shot": 3488,
+          "Pullup Jump shot": 3386,
+          "Fadeaway Jump Shot": 3160,
+          "Hook Shot": 2828,
+          "Reverse Layup Shot": 2201,
+          "Slam Dunk Shot": 2077,
+          "Jump Bank Shot": 1574,
+          "Jump Hook Shot": 1337,
+          "Floating Jump shot": 1254,
+          "Alley Oop Dunk Shot": 1090,
+          "Putback Layup Shot": 1042,
+          "Driving Finger Roll Layup Shot": 1029,
+          "Step Back Jump shot": 1022,
+          "Running Layup Shot": 1005,
+          "Turnaround Fadeaway shot": 978,
+          "Driving Dunk Shot": 933,
+          "Driving Reverse Layup Shot": 823,
+          "Running Hook Shot": 677,
+          "Putback Dunk Shot": 676,
+          "Alley Oop Layup shot": 611,
+          "Turnaround Hook Shot": 581,
+          "Running Bank shot": 570,
+          "Finger Roll Layup Shot": 552,
+          "Driving Slam Dunk Shot": 454,
+          "Driving Jump shot": 322,
+          "Turnaround Bank shot": 273,
+          "Running Dunk Shot": 223,
+          "Driving Hook Shot": 204,
+          "Reverse Dunk Shot": 148,
+          "Putback Slam Dunk Shot": 135,
+          "Running Slam Dunk Shot": 113,
+          "Fadeaway Bank shot": 91,
+          "Driving Bank shot": 89,
+          "Hook Bank Shot": 85,
+          "Pullup Bank shot": 71,
+          "Reverse Slam Dunk Shot": 71,
+          "Running Reverse Layup Shot": 65,
+          "Running Finger Roll Layup Shot": 60,
+          "Turnaround Bank Hook Shot": 32,
+          "Jump Bank Hook Shot": 31,
+          "Running Tip Shot": 15,
+          "Running Bank Hook Shot": 15,
+          "Driving Bank Hook Shot": 11
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 43705,
+        "bytes": 611870
+      }
     },
     {
       "year": 2009,
@@ -1756,8 +2609,97 @@
           "Driving Bank Hook Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 156367,
+          "3PT Field Goal": 44599
+        },
+        "RESULT": {
+          "Missed Shot": 108246,
+          "Made Shot": 92720
+        },
+        "ZONE": {
+          "Restricted Area": 66762,
+          "Mid-Range": 63169,
+          "Above the Break 3": 32238,
+          "In The Paint (Non-RA)": 26426,
+          "Left Corner 3": 6263,
+          "Right Corner 3": 5633,
+          "Backcourt": 475
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 82651,
+          "24+ ft.": 44043,
+          "16-24 ft.": 43739,
+          "8-16 ft.": 29967,
+          "Back Court Shot": 566
+        },
+        "AREA": {
+          "Center(C)": 105293,
+          "Left Side(L)": 25979,
+          "Right Side(R)": 24452,
+          "Right Side Center(RC)": 22843,
+          "Left Side Center(LC)": 21833,
+          "Back Court(BC)": 566
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 107614,
+          "Layup Shot": 30440,
+          "Driving Layup Shot": 12472,
+          "Pullup Jump shot": 4368,
+          "Tip Shot": 4291,
+          "Dunk Shot": 4109,
+          "Running Jump Shot": 3649,
+          "Turnaround Jump Shot": 3364,
+          "Fadeaway Jump Shot": 3174,
+          "Hook Shot": 3107,
+          "Reverse Layup Shot": 2376,
+          "Slam Dunk Shot": 1738,
+          "Jump Bank Shot": 1684,
+          "Floating Jump shot": 1644,
+          "Jump Hook Shot": 1589,
+          "Step Back Jump shot": 1506,
+          "Putback Layup Shot": 1238,
+          "Alley Oop Dunk Shot": 1098,
+          "Driving Finger Roll Layup Shot": 1031,
+          "Turnaround Fadeaway shot": 1026,
+          "Driving Dunk Shot": 971,
+          "Driving Reverse Layup Shot": 957,
+          "Running Layup Shot": 927,
+          "Alley Oop Layup shot": 695,
+          "Running Hook Shot": 687,
+          "Running Bank shot": 683,
+          "Putback Dunk Shot": 632,
+          "Turnaround Hook Shot": 631,
+          "Finger Roll Layup Shot": 522,
+          "Driving Jump shot": 484,
+          "Driving Slam Dunk Shot": 404,
+          "Turnaround Bank shot": 294,
+          "Driving Hook Shot": 223,
+          "Running Dunk Shot": 219,
+          "Reverse Dunk Shot": 141,
+          "Putback Slam Dunk Shot": 139,
+          "Running Slam Dunk Shot": 119,
+          "Fadeaway Bank shot": 102,
+          "Driving Bank shot": 100,
+          "Pullup Bank shot": 90,
+          "Hook Bank Shot": 84,
+          "Running Finger Roll Layup Shot": 83,
+          "Running Reverse Layup Shot": 77,
+          "Reverse Slam Dunk Shot": 54,
+          "Turnaround Bank Hook Shot": 46,
+          "Jump Bank Hook Shot": 44,
+          "Running Tip Shot": 18,
+          "Running Bank Hook Shot": 16,
+          "Driving Bank Hook Shot": 6
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 44963,
+        "bytes": 629482
+      }
     },
     {
       "year": 2010,
@@ -1890,8 +2832,98 @@
           "Putback Reverse Dunk Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 155477,
+          "3PT Field Goal": 44284
+        },
+        "RESULT": {
+          "Missed Shot": 108148,
+          "Made Shot": 91613
+        },
+        "ZONE": {
+          "Restricted Area": 62928,
+          "Mid-Range": 61950,
+          "Above the Break 3": 31486,
+          "In The Paint (Non-RA)": 30583,
+          "Left Corner 3": 6474,
+          "Right Corner 3": 5871,
+          "Backcourt": 469
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 83269,
+          "24+ ft.": 43744,
+          "16-24 ft.": 42688,
+          "8-16 ft.": 29504,
+          "Back Court Shot": 556
+        },
+        "AREA": {
+          "Center(C)": 105568,
+          "Left Side(L)": 25463,
+          "Right Side(R)": 24121,
+          "Right Side Center(RC)": 22774,
+          "Left Side Center(LC)": 21279,
+          "Back Court(BC)": 556
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 111189,
+          "Layup Shot": 25150,
+          "Driving Layup Shot": 11055,
+          "Pullup Jump shot": 4702,
+          "Tip Shot": 4194,
+          "Dunk Shot": 3997,
+          "Running Jump Shot": 3546,
+          "Turnaround Jump Shot": 3391,
+          "Hook Shot": 3157,
+          "Fadeaway Jump Shot": 3136,
+          "Reverse Layup Shot": 2390,
+          "Floating Jump shot": 2074,
+          "Jump Bank Shot": 1921,
+          "Slam Dunk Shot": 1857,
+          "Step Back Jump shot": 1575,
+          "Jump Hook Shot": 1367,
+          "Putback Layup Shot": 1310,
+          "Alley Oop Dunk Shot": 1251,
+          "Driving Jump shot": 1192,
+          "Driving Reverse Layup Shot": 1019,
+          "Turnaround Fadeaway shot": 940,
+          "Driving Finger Roll Layup Shot": 913,
+          "Running Layup Shot": 898,
+          "Driving Dunk Shot": 880,
+          "Turnaround Hook Shot": 821,
+          "Alley Oop Layup shot": 789,
+          "Running Bank shot": 699,
+          "Running Hook Shot": 689,
+          "Putback Dunk Shot": 656,
+          "Finger Roll Layup Shot": 561,
+          "Driving Slam Dunk Shot": 472,
+          "Turnaround Bank shot": 282,
+          "Driving Hook Shot": 261,
+          "Running Dunk Shot": 192,
+          "Driving Bank shot": 168,
+          "Putback Slam Dunk Shot": 145,
+          "Reverse Dunk Shot": 127,
+          "Running Reverse Layup Shot": 114,
+          "Running Slam Dunk Shot": 106,
+          "Hook Bank Shot": 103,
+          "Pullup Bank shot": 102,
+          "Fadeaway Bank shot": 92,
+          "Running Finger Roll Layup Shot": 72,
+          "Reverse Slam Dunk Shot": 64,
+          "Turnaround Bank Hook Shot": 54,
+          "Running Bank Hook Shot": 29,
+          "Jump Bank Hook Shot": 26,
+          "Running Tip Shot": 23,
+          "Driving Bank Hook Shot": 9,
+          "Putback Reverse Dunk Shot": 1
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 43502,
+        "bytes": 609028
+      }
     },
     {
       "year": 2011,
@@ -2024,8 +3056,98 @@
           "Putback Reverse Dunk Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 124830,
+          "3PT Field Goal": 36375
+        },
+        "RESULT": {
+          "Missed Shot": 88998,
+          "Made Shot": 72207
+        },
+        "ZONE": {
+          "Restricted Area": 52099,
+          "Mid-Range": 48783,
+          "Above the Break 3": 26287,
+          "In The Paint (Non-RA)": 23943,
+          "Left Corner 3": 4998,
+          "Right Corner 3": 4791,
+          "Backcourt": 304
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 67741,
+          "24+ ft.": 36016,
+          "16-24 ft.": 33552,
+          "8-16 ft.": 23532,
+          "Back Court Shot": 364
+        },
+        "AREA": {
+          "Center(C)": 86352,
+          "Left Side(L)": 19769,
+          "Right Side(R)": 18794,
+          "Right Side Center(RC)": 18525,
+          "Left Side Center(LC)": 17401,
+          "Back Court(BC)": 364
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 88408,
+          "Layup Shot": 21204,
+          "Driving Layup Shot": 8717,
+          "Pullup Jump shot": 3906,
+          "Tip Shot": 3391,
+          "Dunk Shot": 3336,
+          "Running Jump Shot": 2893,
+          "Turnaround Jump Shot": 2660,
+          "Fadeaway Jump Shot": 2595,
+          "Hook Shot": 2376,
+          "Reverse Layup Shot": 1930,
+          "Floating Jump shot": 1856,
+          "Slam Dunk Shot": 1490,
+          "Jump Bank Shot": 1434,
+          "Step Back Jump shot": 1347,
+          "Putback Layup Shot": 1103,
+          "Jump Hook Shot": 1099,
+          "Alley Oop Dunk Shot": 1041,
+          "Turnaround Fadeaway shot": 900,
+          "Driving Jump shot": 861,
+          "Running Layup Shot": 843,
+          "Driving Finger Roll Layup Shot": 826,
+          "Driving Dunk Shot": 756,
+          "Driving Reverse Layup Shot": 733,
+          "Turnaround Hook Shot": 713,
+          "Running Bank shot": 580,
+          "Running Hook Shot": 573,
+          "Putback Dunk Shot": 528,
+          "Alley Oop Layup shot": 512,
+          "Finger Roll Layup Shot": 490,
+          "Driving Slam Dunk Shot": 357,
+          "Turnaround Bank shot": 236,
+          "Driving Hook Shot": 223,
+          "Running Dunk Shot": 186,
+          "Driving Bank shot": 169,
+          "Putback Slam Dunk Shot": 142,
+          "Running Slam Dunk Shot": 134,
+          "Reverse Dunk Shot": 107,
+          "Hook Bank Shot": 101,
+          "Fadeaway Bank shot": 98,
+          "Pullup Bank shot": 83,
+          "Running Reverse Layup Shot": 73,
+          "Running Finger Roll Layup Shot": 46,
+          "Turnaround Bank Hook Shot": 40,
+          "Reverse Slam Dunk Shot": 33,
+          "Jump Bank Hook Shot": 25,
+          "Running Tip Shot": 21,
+          "Running Bank Hook Shot": 16,
+          "Driving Bank Hook Shot": 13,
+          "Putback Reverse Dunk Shot": 1
+        }
+      },
       "contemporaneous": null,
-      "note": "lockout season (66 games per team) - short, not sparse"
+      "note": "lockout season (66 games per team) - short, not sparse",
+      "points": {
+        "cells": 40730,
+        "bytes": 570220
+      }
     },
     {
       "year": 2012,
@@ -2158,8 +3280,98 @@
           "Putback Reverse Dunk Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 152542,
+          "3PT Field Goal": 49037
+        },
+        "RESULT": {
+          "Missed Shot": 110304,
+          "Made Shot": 91275
+        },
+        "ZONE": {
+          "Restricted Area": 66135,
+          "Mid-Range": 57083,
+          "Above the Break 3": 35099,
+          "In The Paint (Non-RA)": 29312,
+          "Left Corner 3": 7056,
+          "Right Corner 3": 6474,
+          "Backcourt": 420
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 85193,
+          "24+ ft.": 48563,
+          "16-24 ft.": 38889,
+          "8-16 ft.": 28448,
+          "Back Court Shot": 486
+        },
+        "AREA": {
+          "Center(C)": 108766,
+          "Left Side(L)": 24207,
+          "Right Side Center(RC)": 23294,
+          "Right Side(R)": 22866,
+          "Left Side Center(LC)": 21960,
+          "Back Court(BC)": 486
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 107878,
+          "Layup Shot": 26657,
+          "Driving Layup Shot": 11255,
+          "Pullup Jump shot": 5815,
+          "Dunk Shot": 4488,
+          "Tip Shot": 4125,
+          "Running Jump Shot": 3351,
+          "Turnaround Jump Shot": 3327,
+          "Hook Shot": 3024,
+          "Fadeaway Jump Shot": 2825,
+          "Floating Jump shot": 2633,
+          "Reverse Layup Shot": 2300,
+          "Step Back Jump shot": 2188,
+          "Slam Dunk Shot": 1737,
+          "Jump Bank Shot": 1613,
+          "Putback Layup Shot": 1466,
+          "Jump Hook Shot": 1427,
+          "Driving Jump shot": 1385,
+          "Running Layup Shot": 1351,
+          "Alley Oop Dunk Shot": 1323,
+          "Turnaround Fadeaway shot": 1261,
+          "Driving Finger Roll Layup Shot": 1072,
+          "Driving Dunk Shot": 972,
+          "Driving Reverse Layup Shot": 936,
+          "Turnaround Hook Shot": 892,
+          "Running Hook Shot": 762,
+          "Running Bank shot": 718,
+          "Alley Oop Layup shot": 670,
+          "Putback Dunk Shot": 661,
+          "Finger Roll Layup Shot": 519,
+          "Driving Slam Dunk Shot": 493,
+          "Driving Hook Shot": 401,
+          "Turnaround Bank shot": 302,
+          "Driving Bank shot": 264,
+          "Running Dunk Shot": 246,
+          "Running Slam Dunk Shot": 190,
+          "Reverse Dunk Shot": 145,
+          "Putback Slam Dunk Shot": 141,
+          "Fadeaway Bank shot": 112,
+          "Running Finger Roll Layup Shot": 105,
+          "Running Reverse Layup Shot": 101,
+          "Pullup Bank shot": 94,
+          "Hook Bank Shot": 93,
+          "Turnaround Bank Hook Shot": 75,
+          "Reverse Slam Dunk Shot": 51,
+          "Jump Bank Hook Shot": 47,
+          "Running Tip Shot": 40,
+          "Running Bank Hook Shot": 31,
+          "Driving Bank Hook Shot": 16,
+          "Putback Reverse Dunk Shot": 1
+        }
+      },
       "contemporaneous": null,
-      "note": "1,229 games, not 1,230: BOS@IND (Apr 16, 2013) cancelled after the Boston Marathon bombing, never replayed - the record is complete"
+      "note": "1,229 games, not 1,230: BOS@IND (Apr 16, 2013) cancelled after the Boston Marathon bombing, never replayed - the record is complete",
+      "points": {
+        "cells": 44332,
+        "bytes": 620648
+      }
     },
     {
       "year": 2013,
@@ -2292,8 +3504,98 @@
           "Putback Reverse Dunk Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 151198,
+          "3PT Field Goal": 52928
+        },
+        "RESULT": {
+          "Missed Shot": 111360,
+          "Made Shot": 92766
+        },
+        "ZONE": {
+          "Restricted Area": 66016,
+          "Mid-Range": 54720,
+          "Above the Break 3": 38979,
+          "In The Paint (Non-RA)": 30451,
+          "Left Corner 3": 7136,
+          "Right Corner 3": 6380,
+          "Backcourt": 444
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 86165,
+          "24+ ft.": 52431,
+          "16-24 ft.": 36779,
+          "8-16 ft.": 28243,
+          "Back Court Shot": 508
+        },
+        "AREA": {
+          "Center(C)": 111492,
+          "Right Side Center(RC)": 23912,
+          "Left Side(L)": 23516,
+          "Left Side Center(LC)": 23243,
+          "Right Side(R)": 21455,
+          "Back Court(BC)": 508
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 108642,
+          "Layup Shot": 26236,
+          "Driving Layup Shot": 12070,
+          "Pullup Jump shot": 6635,
+          "Tip Shot": 4188,
+          "Dunk Shot": 3926,
+          "Running Jump Shot": 3609,
+          "Hook Shot": 3448,
+          "Turnaround Jump Shot": 3089,
+          "Step Back Jump shot": 2716,
+          "Floating Jump shot": 2716,
+          "Fadeaway Jump Shot": 2665,
+          "Reverse Layup Shot": 2210,
+          "Slam Dunk Shot": 1659,
+          "Driving Jump shot": 1631,
+          "Jump Bank Shot": 1592,
+          "Jump Hook Shot": 1476,
+          "Putback Layup Shot": 1338,
+          "Alley Oop Dunk Shot": 1329,
+          "Running Layup Shot": 1260,
+          "Driving Finger Roll Layup Shot": 1134,
+          "Turnaround Fadeaway shot": 1106,
+          "Driving Dunk Shot": 1062,
+          "Driving Reverse Layup Shot": 1061,
+          "Turnaround Hook Shot": 998,
+          "Running Bank shot": 860,
+          "Running Hook Shot": 739,
+          "Alley Oop Layup shot": 634,
+          "Putback Dunk Shot": 616,
+          "Driving Slam Dunk Shot": 572,
+          "Finger Roll Layup Shot": 568,
+          "Driving Hook Shot": 337,
+          "Turnaround Bank shot": 319,
+          "Driving Bank shot": 272,
+          "Running Dunk Shot": 190,
+          "Running Slam Dunk Shot": 176,
+          "Putback Slam Dunk Shot": 130,
+          "Reverse Dunk Shot": 120,
+          "Running Reverse Layup Shot": 117,
+          "Pullup Bank shot": 111,
+          "Fadeaway Bank shot": 92,
+          "Running Finger Roll Layup Shot": 89,
+          "Turnaround Bank Hook Shot": 89,
+          "Hook Bank Shot": 87,
+          "Reverse Slam Dunk Shot": 61,
+          "Running Tip Shot": 54,
+          "Jump Bank Hook Shot": 44,
+          "Running Bank Hook Shot": 27,
+          "Driving Bank Hook Shot": 23,
+          "Putback Reverse Dunk Shot": 3
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 42758,
+        "bytes": 598612
+      }
     },
     {
       "year": 2014,
@@ -2425,8 +3727,97 @@
           "Jump Bank Hook Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 150433,
+          "3PT Field Goal": 55117
+        },
+        "RESULT": {
+          "Missed Shot": 113271,
+          "Made Shot": 92279
+        },
+        "ZONE": {
+          "Restricted Area": 66134,
+          "Mid-Range": 53776,
+          "Above the Break 3": 40335,
+          "In The Paint (Non-RA)": 30517,
+          "Left Corner 3": 7374,
+          "Right Corner 3": 6987,
+          "Backcourt": 427
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 86330,
+          "24+ ft.": 54641,
+          "16-24 ft.": 35961,
+          "8-16 ft.": 28136,
+          "Back Court Shot": 482
+        },
+        "AREA": {
+          "Center(C)": 112466,
+          "Right Side Center(RC)": 24062,
+          "Left Side Center(LC)": 23442,
+          "Left Side(L)": 23155,
+          "Right Side(R)": 21943,
+          "Back Court(BC)": 482
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 108439,
+          "Layup Shot": 26035,
+          "Driving Layup Shot": 11997,
+          "Pullup Jump shot": 7058,
+          "Tip Shot": 4224,
+          "Hook Shot": 3869,
+          "Dunk Shot": 3750,
+          "Running Jump Shot": 3427,
+          "Turnaround Jump Shot": 3046,
+          "Floating Jump shot": 3023,
+          "Step Back Jump shot": 3005,
+          "Fadeaway Jump Shot": 2566,
+          "Reverse Layup Shot": 2178,
+          "Driving Jump shot": 1668,
+          "Slam Dunk Shot": 1627,
+          "Jump Bank Shot": 1608,
+          "Jump Hook Shot": 1433,
+          "Running Layup Shot": 1409,
+          "Alley Oop Dunk Shot": 1386,
+          "Putback Layup Shot": 1353,
+          "Driving Finger Roll Layup Shot": 1239,
+          "Turnaround Fadeaway shot": 1193,
+          "Turnaround Hook Shot": 1161,
+          "Driving Reverse Layup Shot": 1099,
+          "Driving Dunk Shot": 972,
+          "Running Bank shot": 908,
+          "Running Hook Shot": 760,
+          "Alley Oop Layup shot": 701,
+          "Driving Slam Dunk Shot": 601,
+          "Putback Dunk Shot": 593,
+          "Finger Roll Layup Shot": 561,
+          "Driving Bank shot": 390,
+          "Driving Hook Shot": 356,
+          "Turnaround Bank shot": 301,
+          "Running Dunk Shot": 228,
+          "Running Slam Dunk Shot": 204,
+          "Putback Slam Dunk Shot": 159,
+          "Running Finger Roll Layup Shot": 144,
+          "Running Reverse Layup Shot": 143,
+          "Reverse Dunk Shot": 123,
+          "Pullup Bank shot": 120,
+          "Hook Bank Shot": 110,
+          "Fadeaway Bank shot": 105,
+          "Turnaround Bank Hook Shot": 82,
+          "Running Tip Shot": 70,
+          "Reverse Slam Dunk Shot": 38,
+          "Running Bank Hook Shot": 30,
+          "Driving Bank Hook Shot": 29,
+          "Jump Bank Hook Shot": 29
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 43663,
+        "bytes": 611282
+      }
     },
     {
       "year": 2015,
@@ -2562,8 +3953,101 @@
           "Running Hook Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 148808,
+          "3PT Field Goal": 59085
+        },
+        "RESULT": {
+          "Missed Shot": 113876,
+          "Made Shot": 94017
+        },
+        "ZONE": {
+          "Restricted Area": 67443,
+          "Mid-Range": 51133,
+          "Above the Break 3": 43429,
+          "In The Paint (Non-RA)": 30224,
+          "Left Corner 3": 7864,
+          "Right Corner 3": 7360,
+          "Backcourt": 440
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 86795,
+          "24+ ft.": 58594,
+          "16-24 ft.": 33599,
+          "8-16 ft.": 28406,
+          "Back Court Shot": 499
+        },
+        "AREA": {
+          "Center(C)": 114120,
+          "Left Side Center(LC)": 24402,
+          "Right Side Center(RC)": 23982,
+          "Left Side(L)": 23044,
+          "Right Side(R)": 21846,
+          "Back Court(BC)": 499
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 98669,
+          "Layup Shot": 18143,
+          "Driving Layup Shot": 13066,
+          "Pullup Jump shot": 12254,
+          "Floating Jump shot": 5247,
+          "Hook Shot": 4655,
+          "Step Back Jump shot": 4456,
+          "Tip Layup Shot": 4214,
+          "Running Layup Shot": 3617,
+          "Turnaround Jump Shot": 3567,
+          "Dunk Shot": 3269,
+          "Cutting Layup Shot": 3262,
+          "Fadeaway Jump Shot": 2950,
+          "Driving Finger Roll Layup Shot": 2221,
+          "Driving Floating Jump Shot": 2213,
+          "Putback Layup Shot": 1967,
+          "Reverse Layup Shot": 1924,
+          "Running Jump Shot": 1861,
+          "Jump Bank Shot": 1783,
+          "Turnaround Hook Shot": 1765,
+          "Turnaround Fadeaway shot": 1638,
+          "Cutting Dunk Shot": 1507,
+          "Alley Oop Dunk Shot": 1488,
+          "Driving Reverse Layup Shot": 1435,
+          "Driving Dunk Shot": 1408,
+          "Running Dunk Shot": 1285,
+          "Driving Hook Shot": 992,
+          "Driving Bank shot": 980,
+          "Alley Oop Layup shot": 854,
+          "Finger Roll Layup Shot": 662,
+          "Putback Dunk Shot": 633,
+          "Driving Floating Bank Jump Shot": 514,
+          "Running Finger Roll Layup Shot": 483,
+          "Turnaround Bank shot": 387,
+          "Cutting Finger Roll Layup Shot": 385,
+          "Running Pull-Up Jump Shot": 342,
+          "Running Reverse Layup Shot": 288,
+          "Pullup Bank shot": 278,
+          "Tip Dunk Shot": 264,
+          "Hook Bank Shot": 183,
+          "Running Alley Oop Dunk Shot": 131,
+          "Fadeaway Bank shot": 128,
+          "Reverse Dunk Shot": 121,
+          "Turnaround Bank Hook Shot": 110,
+          "Driving Bank Hook Shot": 79,
+          "Turnaround Fadeaway Bank Jump Shot": 61,
+          "Step Back Bank Jump Shot": 42,
+          "Running Alley Oop Layup Shot": 34,
+          "Driving Reverse Dunk Shot": 30,
+          "No Shot": 21,
+          "Running Reverse Dunk Shot": 15,
+          "Driving Jump shot": 10,
+          "Running Hook Shot": 2
+        }
+      },
       "contemporaneous": null,
-      "note": "THE WINDOW: public SportVU corpus 2015-10-27 .. 2016-01-23"
+      "note": "THE WINDOW: public SportVU corpus 2015-10-27 .. 2016-01-23",
+      "points": {
+        "cells": 30671,
+        "bytes": 429394
+      }
     },
     {
       "year": 2016,
@@ -2699,8 +4183,101 @@
           "Running Hook Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 143692,
+          "3PT Field Goal": 66237
+        },
+        "RESULT": {
+          "Missed Shot": 113939,
+          "Made Shot": 95990
+        },
+        "ZONE": {
+          "Restricted Area": 67289,
+          "Above the Break 3": 50072,
+          "Mid-Range": 46575,
+          "In The Paint (Non-RA)": 29823,
+          "Left Corner 3": 8031,
+          "Right Corner 3": 7640,
+          "Backcourt": 499
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 85943,
+          "24+ ft.": 65680,
+          "16-24 ft.": 29910,
+          "8-16 ft.": 27834,
+          "Back Court Shot": 562
+        },
+        "AREA": {
+          "Center(C)": 114953,
+          "Right Side Center(RC)": 25820,
+          "Left Side Center(LC)": 25426,
+          "Left Side(L)": 21989,
+          "Right Side(R)": 21179,
+          "Back Court(BC)": 562
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 96869,
+          "Layup Shot": 16191,
+          "Pullup Jump shot": 15048,
+          "Driving Layup Shot": 13721,
+          "Floating Jump shot": 4612,
+          "Step Back Jump shot": 4536,
+          "Hook Shot": 4322,
+          "Tip Layup Shot": 4063,
+          "Cutting Layup Shot": 3894,
+          "Running Layup Shot": 3695,
+          "Turnaround Jump Shot": 3332,
+          "Driving Floating Jump Shot": 3231,
+          "Fadeaway Jump Shot": 2855,
+          "Dunk Shot": 2832,
+          "Putback Layup Shot": 2330,
+          "Driving Finger Roll Layup Shot": 2291,
+          "Cutting Dunk Shot": 2174,
+          "Reverse Layup Shot": 1917,
+          "Running Jump Shot": 1865,
+          "Turnaround Hook Shot": 1844,
+          "Turnaround Fadeaway shot": 1817,
+          "Driving Reverse Layup Shot": 1721,
+          "Alley Oop Dunk Shot": 1503,
+          "Jump Bank Shot": 1485,
+          "Driving Dunk Shot": 1458,
+          "Running Dunk Shot": 1333,
+          "Driving Hook Shot": 1311,
+          "Alley Oop Layup shot": 871,
+          "Driving Bank shot": 835,
+          "Driving Floating Bank Jump Shot": 789,
+          "Putback Dunk Shot": 663,
+          "Running Pull-Up Jump Shot": 617,
+          "Finger Roll Layup Shot": 601,
+          "Running Finger Roll Layup Shot": 485,
+          "Cutting Finger Roll Layup Shot": 443,
+          "Turnaround Bank shot": 394,
+          "Pullup Bank shot": 352,
+          "Tip Dunk Shot": 319,
+          "Running Reverse Layup Shot": 283,
+          "Hook Bank Shot": 158,
+          "Running Alley Oop Dunk Shot": 140,
+          "Fadeaway Bank shot": 130,
+          "Driving Bank Hook Shot": 122,
+          "Reverse Dunk Shot": 120,
+          "Turnaround Bank Hook Shot": 88,
+          "No Shot": 60,
+          "Running Alley Oop Layup Shot": 52,
+          "Driving Reverse Dunk Shot": 48,
+          "Turnaround Fadeaway Bank Jump Shot": 43,
+          "Step Back Bank Jump Shot": 38,
+          "Running Reverse Dunk Shot": 20,
+          "Driving Jump shot": 5,
+          "Running Hook Shot": 3
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 33726,
+        "bytes": 472164
+      }
     },
     {
       "year": 2017,
@@ -2836,8 +4413,94 @@
           "Running Reverse Dunk Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 140368,
+          "3PT Field Goal": 71339
+        },
+        "RESULT": {
+          "Missed Shot": 114272,
+          "Made Shot": 97435
+        },
+        "ZONE": {
+          "Restricted Area": 66875,
+          "Above the Break 3": 55120,
+          "Mid-Range": 40336,
+          "In The Paint (Non-RA)": 33243,
+          "Left Corner 3": 8169,
+          "Right Corner 3": 7440,
+          "Backcourt": 524
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 84911,
+          "24+ ft.": 70675,
+          "8-16 ft.": 30114,
+          "16-24 ft.": 25429,
+          "Back Court Shot": 578
+        },
+        "AREA": {
+          "Center(C)": 121111,
+          "Left Side Center(LC)": 27095,
+          "Right Side Center(RC)": 26150,
+          "Left Side(L)": 19022,
+          "Right Side(R)": 17751,
+          "Back Court(BC)": 578
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 83555,
+          "Pullup Jump shot": 20564,
+          "Driving Layup Shot": 17853,
+          "Layup Shot": 13563,
+          "Step Back Jump shot": 5987,
+          "Driving Floating Jump Shot": 5125,
+          "Cutting Layup Shot": 5003,
+          "Floating Jump shot": 4995,
+          "Tip Layup Shot": 4283,
+          "Running Layup Shot": 4269,
+          "Hook Shot": 4082,
+          "Turnaround Jump Shot": 3451,
+          "Driving Finger Roll Layup Shot": 3334,
+          "Fadeaway Jump Shot": 3242,
+          "Cutting Dunk Shot": 2540,
+          "Dunk Shot": 2533,
+          "Putback Layup Shot": 2391,
+          "Turnaround Fadeaway shot": 2264,
+          "Turnaround Hook Shot": 2128,
+          "Reverse Layup Shot": 1965,
+          "Driving Reverse Layup Shot": 1905,
+          "Driving Floating Bank Jump Shot": 1837,
+          "Alley Oop Dunk Shot": 1718,
+          "Driving Dunk Shot": 1649,
+          "Running Jump Shot": 1481,
+          "Running Dunk Shot": 1407,
+          "Driving Hook Shot": 1250,
+          "Alley Oop Layup shot": 1050,
+          "Jump Bank Shot": 1029,
+          "Running Pull-Up Jump Shot": 751,
+          "Running Finger Roll Layup Shot": 651,
+          "Finger Roll Layup Shot": 641,
+          "Putback Dunk Shot": 640,
+          "Turnaround Fadeaway Bank Jump Shot": 592,
+          "Cutting Finger Roll Layup Shot": 486,
+          "Tip Dunk Shot": 364,
+          "Running Reverse Layup Shot": 328,
+          "Turnaround Bank Hook Shot": 143,
+          "Hook Bank Shot": 136,
+          "Running Alley Oop Dunk Shot": 133,
+          "Driving Bank Hook Shot": 119,
+          "Reverse Dunk Shot": 91,
+          "Step Back Bank Jump Shot": 64,
+          "Running Alley Oop Layup Shot": 58,
+          "Driving Reverse Dunk Shot": 40,
+          "Running Reverse Dunk Shot": 17
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 66264,
+        "bytes": 927696
+      }
     },
     {
       "year": 2018,
@@ -2973,8 +4636,94 @@
           "Running Reverse Dunk Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 140716,
+          "3PT Field Goal": 78742
+        },
+        "RESULT": {
+          "Missed Shot": 118396,
+          "Made Shot": 101062
+        },
+        "ZONE": {
+          "Restricted Area": 72427,
+          "Above the Break 3": 60285,
+          "In The Paint (Non-RA)": 35121,
+          "Mid-Range": 33276,
+          "Left Corner 3": 9112,
+          "Right Corner 3": 8771,
+          "Backcourt": 466
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 91981,
+          "24+ ft.": 78125,
+          "8-16 ft.": 28699,
+          "16-24 ft.": 20144,
+          "Back Court Shot": 509
+        },
+        "AREA": {
+          "Center(C)": 127287,
+          "Left Side Center(LC)": 27604,
+          "Right Side Center(RC)": 27181,
+          "Left Side(L)": 18676,
+          "Right Side(R)": 18201,
+          "Back Court(BC)": 509
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 77517,
+          "Pullup Jump shot": 23959,
+          "Driving Layup Shot": 20340,
+          "Layup Shot": 11404,
+          "Step Back Jump shot": 7878,
+          "Driving Floating Jump Shot": 7327,
+          "Cutting Layup Shot": 5286,
+          "Tip Layup Shot": 4884,
+          "Floating Jump shot": 4880,
+          "Running Layup Shot": 4668,
+          "Driving Finger Roll Layup Shot": 4168,
+          "Hook Shot": 3664,
+          "Fadeaway Jump Shot": 3611,
+          "Turnaround Jump Shot": 3287,
+          "Cutting Dunk Shot": 3227,
+          "Turnaround Hook Shot": 2752,
+          "Putback Layup Shot": 2745,
+          "Turnaround Fadeaway shot": 2546,
+          "Dunk Shot": 2362,
+          "Driving Floating Bank Jump Shot": 2343,
+          "Driving Reverse Layup Shot": 2203,
+          "Driving Dunk Shot": 1950,
+          "Alley Oop Dunk Shot": 1863,
+          "Reverse Layup Shot": 1758,
+          "Running Dunk Shot": 1722,
+          "Driving Hook Shot": 1447,
+          "Running Jump Shot": 1398,
+          "Alley Oop Layup shot": 1090,
+          "Running Pull-Up Jump Shot": 1016,
+          "Jump Bank Shot": 943,
+          "Running Finger Roll Layup Shot": 819,
+          "Tip Dunk Shot": 762,
+          "Cutting Finger Roll Layup Shot": 640,
+          "Turnaround Fadeaway Bank Jump Shot": 581,
+          "Putback Dunk Shot": 525,
+          "Finger Roll Layup Shot": 519,
+          "Running Reverse Layup Shot": 339,
+          "Turnaround Bank Hook Shot": 229,
+          "Hook Bank Shot": 195,
+          "Driving Bank Hook Shot": 165,
+          "Running Alley Oop Dunk Shot": 135,
+          "Reverse Dunk Shot": 120,
+          "Running Alley Oop Layup Shot": 69,
+          "Step Back Bank Jump Shot": 53,
+          "Driving Reverse Dunk Shot": 49,
+          "Running Reverse Dunk Shot": 20
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 64795,
+        "bytes": 907130
+      }
     },
     {
       "year": 2019,
@@ -3110,8 +4859,94 @@
           "Running Reverse Dunk Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 115864,
+          "3PT Field Goal": 72252
+        },
+        "RESULT": {
+          "Missed Shot": 101566,
+          "Made Shot": 86550
+        },
+        "ZONE": {
+          "Restricted Area": 60503,
+          "Above the Break 3": 55519,
+          "In The Paint (Non-RA)": 30376,
+          "Mid-Range": 25066,
+          "Left Corner 3": 8380,
+          "Right Corner 3": 7867,
+          "Backcourt": 405
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 77418,
+          "24+ ft.": 71721,
+          "8-16 ft.": 24071,
+          "16-24 ft.": 14456,
+          "Back Court Shot": 450
+        },
+        "AREA": {
+          "Center(C)": 108007,
+          "Left Side Center(LC)": 24529,
+          "Right Side Center(RC)": 23444,
+          "Left Side(L)": 16052,
+          "Right Side(R)": 15634,
+          "Back Court(BC)": 450
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 64462,
+          "Pullup Jump shot": 20766,
+          "Driving Layup Shot": 17764,
+          "Step Back Jump shot": 7934,
+          "Driving Floating Jump Shot": 7855,
+          "Layup Shot": 7565,
+          "Cutting Layup Shot": 4752,
+          "Driving Finger Roll Layup Shot": 4393,
+          "Floating Jump shot": 4384,
+          "Running Layup Shot": 4197,
+          "Tip Layup Shot": 4012,
+          "Fadeaway Jump Shot": 3032,
+          "Cutting Dunk Shot": 2931,
+          "Turnaround Jump Shot": 2704,
+          "Putback Layup Shot": 2597,
+          "Hook Shot": 2266,
+          "Driving Floating Bank Jump Shot": 2228,
+          "Turnaround Fadeaway shot": 2121,
+          "Driving Reverse Layup Shot": 2093,
+          "Turnaround Hook Shot": 1880,
+          "Dunk Shot": 1789,
+          "Running Jump Shot": 1686,
+          "Alley Oop Dunk Shot": 1684,
+          "Driving Dunk Shot": 1659,
+          "Running Dunk Shot": 1516,
+          "Reverse Layup Shot": 1320,
+          "Running Pull-Up Jump Shot": 1237,
+          "Driving Hook Shot": 1021,
+          "Running Finger Roll Layup Shot": 954,
+          "Alley Oop Layup shot": 885,
+          "Jump Bank Shot": 713,
+          "Tip Dunk Shot": 693,
+          "Cutting Finger Roll Layup Shot": 584,
+          "Turnaround Fadeaway Bank Jump Shot": 466,
+          "Putback Dunk Shot": 446,
+          "Finger Roll Layup Shot": 404,
+          "Running Reverse Layup Shot": 309,
+          "Running Alley Oop Dunk Shot": 164,
+          "Driving Bank Hook Shot": 138,
+          "Turnaround Bank Hook Shot": 130,
+          "Hook Bank Shot": 116,
+          "Reverse Dunk Shot": 88,
+          "Step Back Bank Jump Shot": 61,
+          "Running Alley Oop Layup Shot": 46,
+          "Driving Reverse Dunk Shot": 45,
+          "Running Reverse Dunk Shot": 26
+        }
+      },
       "contemporaneous": null,
-      "note": "bubble season - short, not sparse"
+      "note": "bubble season - short, not sparse",
+      "points": {
+        "cells": 59129,
+        "bytes": 827806
+      }
     },
     {
       "year": 2020,
@@ -3247,8 +5082,94 @@
           "Running Reverse Dunk Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 116161,
+          "3PT Field Goal": 74822
+        },
+        "RESULT": {
+          "Missed Shot": 101963,
+          "Made Shot": 89020
+        },
+        "ZONE": {
+          "Restricted Area": 57440,
+          "Above the Break 3": 56819,
+          "In The Paint (Non-RA)": 34224,
+          "Mid-Range": 24558,
+          "Left Corner 3": 9173,
+          "Right Corner 3": 8460,
+          "Backcourt": 309
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 77256,
+          "24+ ft.": 74421,
+          "8-16 ft.": 25225,
+          "16-24 ft.": 13741,
+          "Back Court Shot": 340
+        },
+        "AREA": {
+          "Center(C)": 108447,
+          "Left Side Center(LC)": 25015,
+          "Right Side Center(RC)": 24031,
+          "Left Side(L)": 16825,
+          "Right Side(R)": 16325,
+          "Back Court(BC)": 340
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 65207,
+          "Pullup Jump shot": 22441,
+          "Driving Layup Shot": 17871,
+          "Step Back Jump shot": 8390,
+          "Driving Floating Jump Shot": 8306,
+          "Layup Shot": 7709,
+          "Cutting Layup Shot": 4740,
+          "Floating Jump shot": 4718,
+          "Running Layup Shot": 4378,
+          "Driving Finger Roll Layup Shot": 4117,
+          "Tip Layup Shot": 3888,
+          "Fadeaway Jump Shot": 2984,
+          "Putback Layup Shot": 2831,
+          "Turnaround Jump Shot": 2699,
+          "Cutting Dunk Shot": 2626,
+          "Turnaround Fadeaway shot": 2329,
+          "Driving Floating Bank Jump Shot": 2123,
+          "Turnaround Hook Shot": 2087,
+          "Hook Shot": 2017,
+          "Driving Reverse Layup Shot": 1998,
+          "Running Jump Shot": 1793,
+          "Running Dunk Shot": 1643,
+          "Driving Dunk Shot": 1566,
+          "Alley Oop Dunk Shot": 1551,
+          "Dunk Shot": 1535,
+          "Reverse Layup Shot": 1360,
+          "Running Pull-Up Jump Shot": 1271,
+          "Driving Hook Shot": 950,
+          "Running Finger Roll Layup Shot": 881,
+          "Alley Oop Layup shot": 815,
+          "Jump Bank Shot": 591,
+          "Tip Dunk Shot": 568,
+          "Cutting Finger Roll Layup Shot": 545,
+          "Putback Dunk Shot": 437,
+          "Turnaround Fadeaway Bank Jump Shot": 427,
+          "Running Reverse Layup Shot": 367,
+          "Finger Roll Layup Shot": 354,
+          "Running Alley Oop Dunk Shot": 191,
+          "Driving Bank Hook Shot": 161,
+          "Turnaround Bank Hook Shot": 145,
+          "Hook Bank Shot": 105,
+          "Running Alley Oop Layup Shot": 87,
+          "Reverse Dunk Shot": 75,
+          "Step Back Bank Jump Shot": 72,
+          "Driving Reverse Dunk Shot": 24,
+          "Running Reverse Dunk Shot": 10
+        }
+      },
       "contemporaneous": null,
-      "note": "72-game pandemic schedule - short, not sparse"
+      "note": "72-game pandemic schedule - short, not sparse",
+      "points": {
+        "cells": 60159,
+        "bytes": 842226
+      }
     },
     {
       "year": 2021,
@@ -3384,8 +5305,94 @@
           "Running Reverse Dunk Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 130187,
+          "3PT Field Goal": 86535
+        },
+        "RESULT": {
+          "Missed Shot": 116792,
+          "Made Shot": 99930
+        },
+        "ZONE": {
+          "Above the Break 3": 64447,
+          "Restricted Area": 62987,
+          "In The Paint (Non-RA)": 39668,
+          "Mid-Range": 27712,
+          "Left Corner 3": 11377,
+          "Right Corner 3": 10091,
+          "Backcourt": 440
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 86338,
+          "24+ ft.": 85880,
+          "8-16 ft.": 28560,
+          "16-24 ft.": 15469,
+          "Back Court Shot": 475
+        },
+        "AREA": {
+          "Center(C)": 120736,
+          "Left Side Center(LC)": 28896,
+          "Right Side Center(RC)": 27163,
+          "Left Side(L)": 20268,
+          "Right Side(R)": 19184,
+          "Back Court(BC)": 475
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 70930,
+          "Pullup Jump shot": 26249,
+          "Driving Layup Shot": 18944,
+          "Step Back Jump shot": 10310,
+          "Driving Floating Jump Shot": 9586,
+          "Layup Shot": 7977,
+          "Cutting Layup Shot": 5282,
+          "Running Layup Shot": 5152,
+          "Driving Finger Roll Layup Shot": 5048,
+          "Floating Jump shot": 4836,
+          "Tip Layup Shot": 4459,
+          "Fadeaway Jump Shot": 4031,
+          "Putback Layup Shot": 3314,
+          "Cutting Dunk Shot": 3121,
+          "Turnaround Jump Shot": 3080,
+          "Turnaround Fadeaway shot": 2976,
+          "Running Jump Shot": 2944,
+          "Driving Floating Bank Jump Shot": 2596,
+          "Turnaround Hook Shot": 2330,
+          "Running Dunk Shot": 2192,
+          "Hook Shot": 2135,
+          "Driving Reverse Layup Shot": 1986,
+          "Alley Oop Dunk Shot": 1845,
+          "Running Pull-Up Jump Shot": 1806,
+          "Dunk Shot": 1796,
+          "Driving Dunk Shot": 1760,
+          "Reverse Layup Shot": 1419,
+          "Driving Hook Shot": 1245,
+          "Running Finger Roll Layup Shot": 1207,
+          "Alley Oop Layup shot": 924,
+          "Tip Dunk Shot": 720,
+          "Cutting Finger Roll Layup Shot": 672,
+          "Turnaround Fadeaway Bank Jump Shot": 563,
+          "Jump Bank Shot": 546,
+          "Putback Dunk Shot": 518,
+          "Running Reverse Layup Shot": 472,
+          "Finger Roll Layup Shot": 429,
+          "Running Alley Oop Dunk Shot": 376,
+          "Driving Bank Hook Shot": 232,
+          "Turnaround Bank Hook Shot": 161,
+          "Hook Bank Shot": 149,
+          "Running Alley Oop Layup Shot": 127,
+          "Reverse Dunk Shot": 125,
+          "Step Back Bank Jump Shot": 77,
+          "Driving Reverse Dunk Shot": 43,
+          "Running Reverse Dunk Shot": 32
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 60220,
+        "bytes": 843080
+      }
     },
     {
       "year": 2022,
@@ -3523,8 +5530,96 @@
           "Running Reverse Dunk Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 133054,
+          "3PT Field Goal": 84164
+        },
+        "RESULT": {
+          "Missed Shot": 113958,
+          "Made Shot": 103260
+        },
+        "ZONE": {
+          "Restricted Area": 64982,
+          "Above the Break 3": 62624,
+          "In The Paint (Non-RA)": 42441,
+          "Mid-Range": 25762,
+          "Left Corner 3": 11064,
+          "Right Corner 3": 9939,
+          "Backcourt": 406
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 89929,
+          "24+ ft.": 83574,
+          "8-16 ft.": 29329,
+          "16-24 ft.": 13927,
+          "Back Court Shot": 459
+        },
+        "AREA": {
+          "Center(C)": 123903,
+          "Left Side Center(LC)": 27965,
+          "Right Side Center(RC)": 26512,
+          "Left Side(L)": 19515,
+          "Right Side(R)": 18864,
+          "Back Court(BC)": 459
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 63980,
+          "Pullup Jump shot": 27214,
+          "Driving Layup Shot": 19169,
+          "Driving Floating Jump Shot": 11246,
+          "Step Back Jump shot": 10457,
+          "Running Layup Shot": 6766,
+          "Layup Shot": 5824,
+          "Cutting Layup Shot": 5518,
+          "Driving Finger Roll Layup Shot": 5516,
+          "Tip Layup Shot": 4685,
+          "Running Jump Shot": 4398,
+          "Floating Jump shot": 4331,
+          "Fadeaway Jump Shot": 3923,
+          "Putback Layup Shot": 3525,
+          "Driving Floating Bank Jump Shot": 3356,
+          "Cutting Dunk Shot": 3340,
+          "Turnaround Fadeaway shot": 3214,
+          "Turnaround Jump Shot": 2868,
+          "Running Pull-Up Jump Shot": 2601,
+          "Running Dunk Shot": 2568,
+          "Turnaround Hook Shot": 2546,
+          "Driving Reverse Layup Shot": 2218,
+          "Driving Dunk Shot": 1940,
+          "Hook Shot": 1874,
+          "Dunk Shot": 1637,
+          "Alley Oop Dunk Shot": 1558,
+          "Running Finger Roll Layup Shot": 1500,
+          "Driving Hook Shot": 1500,
+          "Reverse Layup Shot": 1400,
+          "Tip Dunk Shot": 822,
+          "Alley Oop Layup shot": 795,
+          "Cutting Finger Roll Layup Shot": 678,
+          "Running Reverse Layup Shot": 624,
+          "Putback Dunk Shot": 560,
+          "Running Alley Oop Dunk Shot": 468,
+          "Jump Bank Shot": 451,
+          "Finger Roll Layup Shot": 405,
+          "Driving Bank Hook Shot": 393,
+          "Turnaround Bank shot": 306,
+          "Turnaround Bank Hook Shot": 201,
+          "Fadeaway Bank shot": 182,
+          "Running Alley Oop Layup Shot": 161,
+          "Hook Bank Shot": 142,
+          "Reverse Dunk Shot": 119,
+          "Turnaround Fadeaway Bank Jump Shot": 100,
+          "Step Back Bank Jump Shot": 74,
+          "Driving Reverse Dunk Shot": 41,
+          "Running Reverse Dunk Shot": 24
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 58918,
+        "bytes": 824852
+      }
     },
     {
       "year": 2023,
@@ -3662,8 +5757,96 @@
           "Running Reverse Dunk Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 132346,
+          "3PT Field Goal": 86355
+        },
+        "RESULT": {
+          "Missed Shot": 114962,
+          "Made Shot": 103739
+        },
+        "ZONE": {
+          "Restricted Area": 64669,
+          "Above the Break 3": 63770,
+          "In The Paint (Non-RA)": 43089,
+          "Mid-Range": 24590,
+          "Left Corner 3": 11523,
+          "Right Corner 3": 10627,
+          "Backcourt": 433
+        },
+        "RANGE": {
+          "Less Than 8 ft.": 90534,
+          "24+ ft.": 85888,
+          "8-16 ft.": 29250,
+          "16-24 ft.": 12564,
+          "Back Court Shot": 465
+        },
+        "AREA": {
+          "Center(C)": 124152,
+          "Left Side Center(LC)": 28055,
+          "Right Side Center(RC)": 26565,
+          "Left Side(L)": 19954,
+          "Right Side(R)": 19510,
+          "Back Court(BC)": 465
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 63313,
+          "Pullup Jump shot": 25945,
+          "Driving Layup Shot": 19567,
+          "Step Back Jump shot": 11029,
+          "Driving Floating Jump Shot": 11005,
+          "Running Layup Shot": 7215,
+          "Driving Finger Roll Layup Shot": 6143,
+          "Running Jump Shot": 5766,
+          "Layup Shot": 5399,
+          "Cutting Layup Shot": 5189,
+          "Tip Layup Shot": 4690,
+          "Fadeaway Jump Shot": 4265,
+          "Floating Jump shot": 4040,
+          "Putback Layup Shot": 3783,
+          "Turnaround Fadeaway shot": 3502,
+          "Driving Floating Bank Jump Shot": 3303,
+          "Cutting Dunk Shot": 3017,
+          "Running Pull-Up Jump Shot": 2936,
+          "Turnaround Jump Shot": 2928,
+          "Running Dunk Shot": 2735,
+          "Turnaround Hook Shot": 2394,
+          "Driving Reverse Layup Shot": 2345,
+          "Driving Dunk Shot": 2100,
+          "Hook Shot": 1900,
+          "Running Finger Roll Layup Shot": 1700,
+          "Alley Oop Dunk Shot": 1621,
+          "Driving Hook Shot": 1586,
+          "Dunk Shot": 1455,
+          "Reverse Layup Shot": 1253,
+          "Tip Dunk Shot": 842,
+          "Alley Oop Layup shot": 764,
+          "Cutting Finger Roll Layup Shot": 705,
+          "Running Reverse Layup Shot": 602,
+          "Running Alley Oop Dunk Shot": 555,
+          "Putback Dunk Shot": 494,
+          "Jump Bank Shot": 413,
+          "Finger Roll Layup Shot": 391,
+          "Turnaround Bank shot": 361,
+          "Driving Bank Hook Shot": 305,
+          "Fadeaway Bank shot": 218,
+          "Turnaround Bank Hook Shot": 216,
+          "Running Alley Oop Layup Shot": 185,
+          "Hook Bank Shot": 135,
+          "Reverse Dunk Shot": 127,
+          "Turnaround Fadeaway Bank Jump Shot": 109,
+          "Step Back Bank Jump Shot": 82,
+          "Driving Reverse Dunk Shot": 39,
+          "Running Reverse Dunk Shot": 34
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 58893,
+        "bytes": 824502
+      }
     },
     {
       "year": 2024,
@@ -3801,8 +5984,96 @@
           "Running Reverse Dunk Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 127072,
+          "3PT Field Goal": 92455
+        },
+        "RESULT": {
+          "Missed Shot": 116961,
+          "Made Shot": 102566
+        },
+        "ZONE": {
+          "Above the Break 3": 68359,
+          "Restricted Area": 61190,
+          "In The Paint (Non-RA)": 44475,
+          "Mid-Range": 21401,
+          "Left Corner 3": 12188,
+          "Right Corner 3": 11397,
+          "Backcourt": 517
+        },
+        "RANGE": {
+          "24+ ft.": 91906,
+          "Less Than 8 ft.": 87944,
+          "8-16 ft.": 28642,
+          "16-24 ft.": 10480,
+          "Back Court Shot": 555
+        },
+        "AREA": {
+          "Center(C)": 122658,
+          "Left Side Center(LC)": 29414,
+          "Right Side Center(RC)": 27259,
+          "Left Side(L)": 20117,
+          "Right Side(R)": 19524,
+          "Back Court(BC)": 555
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 63033,
+          "Pullup Jump shot": 25568,
+          "Driving Layup Shot": 18930,
+          "Driving Floating Jump Shot": 13437,
+          "Step Back Jump shot": 12361,
+          "Running Layup Shot": 7515,
+          "Running Jump Shot": 6853,
+          "Driving Finger Roll Layup Shot": 6036,
+          "Cutting Layup Shot": 5811,
+          "Tip Layup Shot": 4867,
+          "Fadeaway Jump Shot": 3900,
+          "Putback Layup Shot": 3689,
+          "Floating Jump shot": 3683,
+          "Driving Floating Bank Jump Shot": 3678,
+          "Layup Shot": 3458,
+          "Cutting Dunk Shot": 3303,
+          "Running Pull-Up Jump Shot": 3277,
+          "Turnaround Fadeaway shot": 3271,
+          "Running Dunk Shot": 3043,
+          "Turnaround Hook Shot": 2401,
+          "Turnaround Jump Shot": 2268,
+          "Driving Reverse Layup Shot": 2142,
+          "Driving Dunk Shot": 1984,
+          "Alley Oop Dunk Shot": 1790,
+          "Running Finger Roll Layup Shot": 1727,
+          "Driving Hook Shot": 1707,
+          "Hook Shot": 1247,
+          "Dunk Shot": 1101,
+          "Reverse Layup Shot": 975,
+          "Tip Dunk Shot": 839,
+          "Alley Oop Layup shot": 769,
+          "Cutting Finger Roll Layup Shot": 742,
+          "Running Reverse Layup Shot": 640,
+          "Running Alley Oop Dunk Shot": 631,
+          "Putback Dunk Shot": 521,
+          "Jump Bank Shot": 374,
+          "Driving Bank Hook Shot": 321,
+          "Finger Roll Layup Shot": 277,
+          "Turnaround Bank shot": 243,
+          "Turnaround Bank Hook Shot": 239,
+          "Running Alley Oop Layup Shot": 232,
+          "Fadeaway Bank shot": 192,
+          "Turnaround Fadeaway Bank Jump Shot": 102,
+          "Hook Bank Shot": 102,
+          "Reverse Dunk Shot": 84,
+          "Step Back Bank Jump Shot": 81,
+          "Driving Reverse Dunk Shot": 45,
+          "Running Reverse Dunk Shot": 38
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 59730,
+        "bytes": 836220
+      }
     },
     {
       "year": 2025,
@@ -3940,8 +6211,96 @@
           "Driving Reverse Dunk Shot"
         ]
       },
+      "classification": {
+        "TYPE": {
+          "2PT Field Goal": 128190,
+          "3PT Field Goal": 90970
+        },
+        "RESULT": {
+          "Missed Shot": 115933,
+          "Made Shot": 103227
+        },
+        "ZONE": {
+          "Above the Break 3": 67375,
+          "Restricted Area": 62253,
+          "In The Paint (Non-RA)": 43908,
+          "Mid-Range": 22025,
+          "Left Corner 3": 12210,
+          "Right Corner 3": 11360,
+          "Backcourt": 29
+        },
+        "RANGE": {
+          "24+ ft.": 90936,
+          "Less Than 8 ft.": 87848,
+          "8-16 ft.": 29583,
+          "16-24 ft.": 10755,
+          "Back Court Shot": 38
+        },
+        "AREA": {
+          "Center(C)": 123338,
+          "Left Side Center(LC)": 29376,
+          "Right Side Center(RC)": 26432,
+          "Left Side(L)": 20285,
+          "Right Side(R)": 19691,
+          "Back Court(BC)": 38
+        },
+        "DESCRIPTION": {
+          "Jump Shot": 64237,
+          "Pullup Jump shot": 26228,
+          "Driving Layup Shot": 19826,
+          "Driving Floating Jump Shot": 12697,
+          "Step Back Jump shot": 11301,
+          "Running Layup Shot": 7892,
+          "Running Jump Shot": 6485,
+          "Driving Finger Roll Layup Shot": 5814,
+          "Cutting Layup Shot": 5217,
+          "Tip Layup Shot": 4699,
+          "Fadeaway Jump Shot": 4083,
+          "Putback Layup Shot": 3871,
+          "Turnaround Fadeaway shot": 3484,
+          "Running Pull-Up Jump Shot": 3437,
+          "Driving Floating Bank Jump Shot": 3331,
+          "Layup Shot": 3149,
+          "Cutting Dunk Shot": 3112,
+          "Floating Jump shot": 3091,
+          "Running Dunk Shot": 3067,
+          "Turnaround Jump Shot": 2838,
+          "Turnaround Hook Shot": 2243,
+          "Driving Dunk Shot": 2231,
+          "Driving Reverse Layup Shot": 2084,
+          "Driving Hook Shot": 1796,
+          "Alley Oop Dunk Shot": 1692,
+          "Running Finger Roll Layup Shot": 1589,
+          "Dunk Shot": 1162,
+          "Reverse Layup Shot": 1076,
+          "Hook Shot": 979,
+          "Tip Dunk Shot": 830,
+          "Alley Oop Layup shot": 789,
+          "Running Alley Oop Dunk Shot": 706,
+          "Cutting Finger Roll Layup Shot": 645,
+          "Running Reverse Layup Shot": 616,
+          "Putback Dunk Shot": 515,
+          "Jump Bank Shot": 370,
+          "Driving Bank Hook Shot": 368,
+          "Turnaround Bank shot": 305,
+          "Finger Roll Layup Shot": 275,
+          "Running Alley Oop Layup Shot": 240,
+          "Turnaround Bank Hook Shot": 213,
+          "Fadeaway Bank shot": 147,
+          "Turnaround Fadeaway Bank Jump Shot": 124,
+          "Reverse Dunk Shot": 82,
+          "Hook Bank Shot": 82,
+          "Step Back Bank Jump Shot": 65,
+          "Running Reverse Dunk Shot": 39,
+          "Driving Reverse Dunk Shot": 38
+        }
+      },
       "contemporaneous": null,
-      "note": null
+      "note": null,
+      "points": {
+        "cells": 58836,
+        "bytes": 823704
+      }
     }
   ]
 }

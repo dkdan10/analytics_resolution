@@ -303,6 +303,29 @@ def measure_vocabulary(df):
     }
 
 
+def measure_classification(df):
+    """The machine's whole classification of the season, counted in full.
+
+    THE CENSUS used to tally from the 2,000-dot sample, so it reported 41.5%
+    for 1996-97's mid-range while the plate struck 39·9 into the floor beside
+    it - two numbers on screen contradicting each other. These are the season's
+    real counts, and they are what the census now reads.
+    """
+    fields = {
+        "TYPE": "SHOT_TYPE",
+        "RESULT": "EVENT_TYPE",
+        "ZONE": "SHOT_ZONE_BASIC",
+        "RANGE": "SHOT_ZONE_RANGE",
+        "AREA": "SHOT_ZONE_AREA",
+        "DESCRIPTION": "ACTION_TYPE",
+    }
+    out = {}
+    for title, col in fields.items():
+        counts = df[col].value_counts()
+        out[title] = {str(k): int(v) for k, v in counts.items()}
+    return out
+
+
 def aggregate_season(year):
     df = read_season_csv(year, usecols=USECOLS, dtype=DTYPES)
     n = len(df)
@@ -354,6 +377,7 @@ def aggregate_season(year):
         "shot_type_nulls": type_nulls,
         "resolution": measure_resolution(year, df),
         "vocabulary": measure_vocabulary(df),
+        "classification": measure_classification(df),
         "contemporaneous": measure_contemporaneous(year, df),
         "note": None,
     }
@@ -430,7 +454,69 @@ def aggregate_season(year):
         "counts": grid_counts.astype(int).tolist(),
     }
 
-    return row, sample, grid
+    points = build_points(year, half, row)
+    return row, sample, grid, points
+
+
+# One record per occupied coordinate, little-endian, 14 bytes.
+#
+# The counts are uint32, not uint16: 1996-97 files 67,351 shots at exactly
+# (0,0) - the record declining to say where at the rim - which overflows a
+# uint16 and silently loses 65,536 of them. The high bytes are zero for every
+# other cell, so gzip gives most of the width back.
+POINT_DTYPE = np.dtype([
+    ("x", "<i2"), ("y", "<i2"),
+    ("n_hires", "<u4"), ("n_rest", "<u4"),
+    ("zone", "u1"), ("pad", "u1"),
+])
+
+
+def build_points(year, half, row):
+    """Every shot, at its exact recorded coordinate.
+
+    The record's coordinates are already quantised to a tenth of a foot, so a
+    per-coordinate count is not an approximation of the shots - it *is* the
+    shots. Every attempt contributes one unit at the position the record filed
+    it; nothing is sampled, re-binned or dropped. There are only 25k-60k
+    occupied coordinates against 188k-219k attempts, which is why this costs a
+    sixth of shipping each shot separately.
+
+    The hires split is kept per coordinate because the arena inlay is NOT
+    positional - the same spot is shot in Boston and in Los Angeles - and
+    collapsing the two would silently kill Acts I-II's strongest content. Zone
+    IS positional (verified: no coordinate carries two zones in any season), so
+    one byte per cell holds it losslessly. `pin` needs no byte at all: it is
+    x == 0 and y == 0.
+    """
+    x = half.LOC_X.to_numpy(np.int32)
+    y = half.LOC_Y.to_numpy(np.int32)
+    hires_arenas = set(row["resolution"]["full_resolution_arenas"])
+    hires = half.HTM.isin(hires_arenas).to_numpy()
+
+    # Fold the lattice into one key so the counting is a single bincount.
+    span_y = HALF_Y_MAX - HALF_Y_MIN + 1
+    key = (x + 250) * span_y + (y - HALF_Y_MIN)
+    size = (500 + 1) * span_y
+
+    n_hires = np.bincount(key[hires], minlength=size)
+    n_rest = np.bincount(key[~hires], minlength=size)
+    occupied = np.nonzero(n_hires + n_rest)[0]
+
+    zone_index = {z: i for i, z in enumerate(ZONES)}
+    zone_of = np.zeros(size, dtype=np.uint8)
+    zone_of[key] = half.SHOT_ZONE_BASIC.map(zone_index).fillna(0).to_numpy(np.uint8)
+
+    rec = np.zeros(len(occupied), dtype=POINT_DTYPE)
+    rec["x"] = (occupied // span_y).astype(np.int16) - 250
+    rec["y"] = (occupied % span_y).astype(np.int16) + HALF_Y_MIN
+    rec["n_hires"] = n_hires[occupied]
+    rec["n_rest"] = n_rest[occupied]
+    rec["zone"] = zone_of[occupied]
+
+    total = int(rec["n_hires"].sum()) + int(rec["n_rest"].sum())
+    if total != len(half):
+        die(f"{season_label(year)}: points total {total} != halfcourt attempts {len(half)}")
+    return rec
 
 
 def main():
@@ -444,10 +530,14 @@ def main():
 
     rows = []
     for year in years:
-        row, sample, grid = aggregate_season(year)
+        row, sample, grid, points = aggregate_season(year)
         rows.append(row)
         write_json(PROCESSED_DIR / "samples" / f"season_{year}.json", sample, compact=True)
         write_json(PROCESSED_DIR / "grids" / f"season_{year}.json", grid, compact=True)
+        pts_path = PROCESSED_DIR / "points" / f"season_{year}.bin"
+        pts_path.parent.mkdir(parents=True, exist_ok=True)
+        pts_path.write_bytes(points.tobytes())
+        row["points"] = {"cells": int(len(points)), "bytes": int(points.nbytes)}
         res = row["resolution"]
         print(
             f"  {row['season']}  {row['attempts']:>7,} att  {row['n_games']:>5} games  "
