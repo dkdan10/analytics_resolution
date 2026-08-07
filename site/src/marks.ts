@@ -74,11 +74,17 @@ interface Stamp {
 }
 
 const stampCache = new Map<string, Stamp>();
+/** Deposited light depends only on a stamp's geometry, never on its hue, so the
+ *  measurement is taken once per geometry and shared by every colour. Without
+ *  this, seven zones times two hands would mean fourteen synchronous
+ *  getImageData readbacks on every resize. */
+const gainCache = new Map<string, number>();
 
 /** Pre-render a mark so soft edges cost nothing per dot, and measure the light
  *  it deposits so every hand can be normalised to the same total. */
-function stamp(hand: Hand, pxPerTenth: number, dpr: number): Stamp {
-  const key = `${hand.radius}|${hand.softness}|${pxPerTenth.toFixed(3)}|${dpr}`;
+export function stamp(hand: Hand, pxPerTenth: number, dpr: number, rgb = BONE_RGB): Stamp {
+  const geometry = `${hand.radius}|${hand.softness}|${pxPerTenth.toFixed(3)}|${dpr}`;
+  const key = `${geometry}|${rgb}`;
   const hit = stampCache.get(key);
   if (hit) return hit;
 
@@ -95,22 +101,25 @@ function stamp(hand: Hand, pxPerTenth: number, dpr: number): Stamp {
 
   const grad = g.createRadialGradient(pad, pad, 0, pad, pad, Math.max(r, 0.5) * (1 + hand.softness * 2));
   const core = Math.max(0.02, 1 - hand.softness);
-  grad.addColorStop(0, `rgba(${BONE_RGB}, 1)`);
-  grad.addColorStop(core, `rgba(${BONE_RGB}, 0.55)`);
-  grad.addColorStop(1, `rgba(${BONE_RGB}, 0)`);
+  grad.addColorStop(0, `rgba(${rgb}, 1)`);
+  grad.addColorStop(core, `rgba(${rgb}, 0.55)`);
+  grad.addColorStop(1, `rgba(${rgb}, 0)`);
   g.fillStyle = grad;
   g.fillRect(0, 0, size, size);
 
   // Measure rather than derive: sum the alpha the stamp actually lays down.
-  const data = g.getImageData(0, 0, size, size).data;
-  let sum = 0;
-  for (let i = 3; i < data.length; i += 4) sum += data[i]!;
-  const deposited = sum / 255 / (dpr * dpr); // in CSS px
-  const out: Stamp = {
-    canvas: c,
-    size: size / dpr,
-    gain: Math.min(0.95, INK / Math.max(deposited, 1e-6)),
-  };
+  // Cached by geometry, because the alpha profile is identical for every hue.
+  let gain = gainCache.get(geometry);
+  if (gain === undefined) {
+    const data = g.getImageData(0, 0, size, size).data;
+    let sum = 0;
+    for (let i = 3; i < data.length; i += 4) sum += data[i]!;
+    const deposited = sum / 255 / (dpr * dpr); // in CSS px
+    gain = Math.min(0.95, INK / Math.max(deposited, 1e-6));
+    gainCache.set(geometry, gain);
+  }
+
+  const out: Stamp = { canvas: c, size: size / dpr, gain };
   stampCache.set(key, out);
   return out;
 }
@@ -147,6 +156,22 @@ export interface MarkOpts {
    * outgoing season, which has already finished arriving.
    */
   arrived?: number;
+  /**
+   * One "r, g, b" string per zone index, for THE FIELD. Hue then comes from
+   * `sample.zone` — the NBA's own seven categories, filed by the pipeline — so
+   * the colour is their classification made visible, never a mood.
+   */
+  palette?: string[];
+}
+
+export interface StampSet {
+  sharp: Stamp;
+  coarse: Stamp;
+}
+
+/** Both hands in one hue, so a mode can pre-warm the cache it needs. */
+export function stampsFor(view: View, dpr: number, rgb?: string): StampSet {
+  return { sharp: stamp(SHARP, view.scale, dpr, rgb), coarse: stamp(COARSE, view.scale, dpr, rgb) };
 }
 
 export function drawMarks(
@@ -156,11 +181,13 @@ export function drawMarks(
   season: Season,
   opts: MarkOpts,
 ): void {
-  const { dpr, opacity, arrived = 1 } = opts;
+  const { dpr, opacity, arrived = 1, palette } = opts;
   if (opacity <= 0.001) return;
 
-  const sharp = stamp(SHARP, view.scale, dpr);
-  const coarse = stamp(COARSE, view.scale, dpr);
+  // One stamp pair per hue in play. Bone when no palette is given.
+  const sets: StampSet[] = palette
+    ? palette.map((rgb) => stampsFor(view, dpr, rgb))
+    : [stampsFor(view, dpr)];
 
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
@@ -175,7 +202,10 @@ export function drawMarks(
     const x = sample.x[i]!;
     const y = sample.y[i]!;
     const h = handFor(season, sample.hires[i] === 1, x, y);
-    const s = h === SHARP ? sharp : coarse;
+    const set = palette
+      ? sets[Math.min(sets.length - 1, Math.max(0, sample.zone?.[i] ?? 0))]!
+      : sets[0]!;
+    const s = h === SHARP ? set.sharp : set.coarse;
     if (s !== current) {
       ctx.globalAlpha = opacity * s.gain;
       current = s;

@@ -19,6 +19,10 @@ export interface Transport {
   togglePause(): void;
   isPaused(): boolean;
   position(): number;
+  /** Which hand is drawing right now. */
+  mode(): string;
+  /** Step to the next hand, pinning it; wraps back to letting the loop rotate. */
+  cycleMode(): void;
 }
 
 interface Row {
@@ -42,6 +46,7 @@ export class Navigator {
   private current: Row | null = null;
   private fill: HTMLElement;
   private clockEl: HTMLElement;
+  private handEl!: HTMLElement;
   private playBtn: HTMLButtonElement;
 
   /** The scrolling list. The transport lives outside it, because a rail that
@@ -118,6 +123,14 @@ export class Navigator {
     this.clockEl = document.createElement("div");
     this.clockEl.id = "clock";
     head.append(this.clockEl);
+
+    // Which hand is drawing. Click to pin one, click through to hand it back to
+    // the loop - the same record, rendered several ways, is the argument.
+    this.handEl = document.createElement("div");
+    this.handEl.id = "hand";
+    this.handEl.title = "the hand now drawing — click to change";
+    this.handEl.addEventListener("click", () => this.transport.cycleMode());
+    head.append(this.handEl);
 
     this.list = document.createElement("div");
     this.list.id = "nav-list";
@@ -204,6 +217,9 @@ export class Navigator {
     const label = st.coda > 0 ? "coda" : st.year === null ? "counts" : String(st.year);
     const next = `${fmt(time)} / ${fmt(this.schedule.duration)}  ·  ${label}`;
     if (this.clockEl.textContent !== next) this.clockEl.textContent = next;
+
+    const hand = `▣ ${this.transport.mode()}`;
+    if (this.handEl.textContent !== hand) this.handEl.textContent = hand;
 
     let row: Row | null = null;
     for (const r of this.rows) if (r.start <= time) row = r;

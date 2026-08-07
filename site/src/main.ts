@@ -5,16 +5,10 @@
  * other cannot reach.
  */
 
-import { drawBloom } from "./bloom";
 import { exhibitClock, TalkClock, type Clock } from "./clock";
-import { load, type Corpus, type Loaded } from "./data";
-import {
-  buildInscriptions,
-  drawInscriptions,
-  drawSlug,
-  type Inscription,
-} from "./inscription";
-import { drawMarks, drawPin } from "./marks";
+import { load, type Loaded } from "./data";
+import { buildInscriptions, drawSlug, type Inscription } from "./inscription";
+import { drawHand, isModeId, modeAt, MODE_IDS, MODE_TITLES, type ModeId } from "./modes";
 import { Navigator } from "./navigator";
 import { GROUND } from "./palette";
 import { drawPlate, makeView, SHORTENED_THREE_R, type View } from "./plate";
@@ -52,22 +46,13 @@ function resize(): void {
   view = makeView(w, h);
 }
 
-/** The empty archive dated the day the window closed.
- *
- *  Selected by parsing the MM.DD.YYYY prefix against the corpus's own last
- *  date, never by sorting the filenames: those strings are month-first, so
- *  lexicographic order is not chronological and a shell from December would
- *  sort after one from January. */
-function terminalShell(corpus: Corpus): string | null {
-  const iso = corpus.date_range[1];
-  for (const name of corpus.empty_32B_shells) {
-    const m = /^(\d{2})\.(\d{2})\.(\d{4})\./.exec(name);
-    if (m && `${m[3]}-${m[1]}-${m[2]}` === iso) return name;
-  }
-  return null;
-}
-
-function render(t: number, data: Loaded, schedule: Schedule, inscriptions: Inscription[]): void {
+function render(
+  t: number,
+  data: Loaded,
+  schedule: Schedule,
+  inscriptions: Inscription[],
+  modeOverride: ModeId | null,
+): void {
   const st = stateAt(t, schedule);
 
   ctx.fillStyle = GROUND;
@@ -97,7 +82,6 @@ function render(t: number, data: Loaded, schedule: Schedule, inscriptions: Inscr
   }
 
   const year = st.year!;
-  const season = data.byYear.get(year)!;
 
   // The arc carries the geometry in force: 1996-97 played to a 22-ft line that
   // the modern taxonomy has since drawn over.
@@ -109,58 +93,11 @@ function render(t: number, data: Loaded, schedule: Schedule, inscriptions: Inscr
   const remains = 1 - st.coda;
   if (remains <= 0.001) return;
 
-  ctx.save();
-  ctx.globalAlpha = remains;
-  // Cut into the plate, so every later season's shots settle over them.
-  drawInscriptions(ctx, view, inscriptions, st.t);
-  ctx.restore();
-
-  // Act III dims the field slightly: the rest of the league is still only dots,
-  // and the gestures have to be the brightest thing the window holds.
-  const inWindow = st.act === 3 && data.traces !== null;
-  const fieldDim = (inWindow ? 1 - 0.55 * Math.min(1, st.phase * 4) : 1) * remains;
-
-  // The season being replaced recedes as this one lands, so the plate is never
-  // empty and the drift is continuous rather than a pulse at each boundary.
-  if (st.prev !== null) {
-    const prevSeason = data.byYear.get(st.prev);
-    const prevSample = data.samples.get(st.prev);
-    if (prevSeason && prevSample) {
-      const fading = (1 - st.arrived) * fieldDim;
-      drawMarks(ctx, view, prevSample, prevSeason, { dpr, opacity: fading });
-      drawPin(ctx, view, prevSample, { dpr, opacity: fading });
-    }
-  }
-
-  const sample = data.samples.get(year);
-  if (sample) {
-    drawMarks(ctx, view, sample, season, { dpr, opacity: fieldDim, arrived: st.arrived });
-    drawPin(ctx, view, sample, { dpr, opacity: fieldDim, arrived: st.arrived });
-  }
-
-  if (inWindow && data.traces) {
-    drawBloom(ctx, view, data.traces.traces, {
-      phase: st.phase,
-      duration: secondsFor(year),
-    });
-  }
-
-  // The terminal beat. The public feed's last archive is a 32-byte shell: a
-  // file that exists and holds nothing. It is named, not dramatised - both the
-  // filename and the byte count come from the corpus probe.
-  if (st.act === 3 && data.corpus) {
-    const last = terminalShell(data.corpus);
-    if (last) {
-      const closing = Math.max(0, Math.min(1, (st.phase - 0.93) / 0.05));
-      drawSlug(
-        ctx,
-        view,
-        [data.corpus.date_range[1], last, `${data.corpus.empty_shell_bytes} BYTES · NO CONTENT`],
-        { x: 0, y: 210 },
-        closing,
-      );
-    }
-  }
+  // The hand for this moment. Everything above is shared by all of them: the
+  // ground, the prelude, the era's arc, the coda's early-out.
+  drawHand(modeAt(t, schedule, modeOverride), {
+    ctx, view, dpr, st, data, schedule, inscriptions, remains,
+  });
 }
 
 function bindTalkKeys(clock: TalkClock, schedule: Schedule): void {
@@ -208,8 +145,10 @@ function startOffset(schedule: Schedule): number {
   // there is no key to press to get it back.
   const year = Number(q.get("year"));
   if (Number.isFinite(year) && schedule.byYear.has(year)) return seekTo(year, schedule);
+  // Not wrapped into a single loop: `stateAt` already takes the modulo, and the
+  // un-wrapped value is what selects the pass, so `?t=` can reach a later hand.
   const t = Number(q.get("t"));
-  if (Number.isFinite(t)) return ((t % schedule.duration) + schedule.duration) % schedule.duration;
+  if (Number.isFinite(t)) return Math.max(0, t);
   return 0;
 }
 
@@ -222,6 +161,12 @@ async function main(): Promise<void> {
   // that looks like it wants to be touched, so it never gets one.
   const wantsNav = (q.has("talk") || q.has("nav")) && q.get("nav") !== "0";
   const offset = startOffset(schedule);
+
+  // With no override the loop rotates hands, so the mode axis stays a pure
+  // function of the same float and the rail keeps scrubbing it. Pinning one is
+  // the presenter's affordance, not the gallery's.
+  const requested = q.get("mode");
+  let modeOverride: ModeId | null = isModeId(requested) ? requested : null;
 
   let clock: Clock;
   let nav: Navigator | null = null;
@@ -240,6 +185,16 @@ async function main(): Promise<void> {
         // reads "playing" while nothing moves is worse than no button.
         isPaused: () => tc.held || tc.inFermata,
         position: () => tc.seconds,
+        mode: () =>
+          modeOverride
+            ? MODE_TITLES[modeOverride]
+            : `${MODE_TITLES[modeAt(tc.seconds, schedule, null)]} (rotating)`,
+        cycleMode: () => {
+          // Steps through the hands and then back to letting the loop rotate,
+          // so the gallery behaviour is always one click away.
+          const i = modeOverride === null ? 0 : MODE_IDS.indexOf(modeOverride) + 1;
+          modeOverride = i >= MODE_IDS.length ? null : MODE_IDS[i]!;
+        },
         nudgeSegment: (dir) => {
           const now = ((tc.seconds % schedule.duration) + schedule.duration) % schedule.duration;
           // Step by segment INDEX, never by elapsed seconds. A seek leaves the
@@ -269,7 +224,7 @@ async function main(): Promise<void> {
   const inscriptions = buildInscriptions(data.seasons, schedule);
   const frame = (now: number) => {
     const t = clock.at(now);
-    render(t, data, schedule, inscriptions);
+    render(t, data, schedule, inscriptions, modeOverride);
     nav?.update(t);
     requestAnimationFrame(frame);
   };

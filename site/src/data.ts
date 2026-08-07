@@ -82,6 +82,12 @@ export interface Sample {
   pin: number[];
   /** 1 where the shot came from an arena that recorded rim coordinates. */
   hires: number[];
+  /** Index into `zone_names` — the NBA's own category, filed by the pipeline. */
+  zone: number[];
+  /** Index into `action_vocab` — what the record says the shot was. */
+  action: number[];
+  zone_names: string[];
+  action_vocab: string[];
 }
 
 export type { Trace, TracesFile } from "./bloom";

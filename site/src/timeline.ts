@@ -184,6 +184,15 @@ export function seekTo(year: number, schedule: Schedule): number {
   return schedule.byYear.get(year)?.start ?? 0;
 }
 
+/**
+ * Which pass of the loop this is. The mode axis rides on it, so a hand is a
+ * pure function of the same float as everything else: the rail still scrubs it,
+ * and no state is held between frames.
+ */
+export function passAt(t: number, schedule: Schedule): number {
+  return Math.floor(Math.max(0, t) / schedule.duration);
+}
+
 export function seekAct(act: Act, schedule: Schedule): number {
   if (act === 0) return 0;
   return schedule.segments.find((s) => s.act === act)?.start ?? 0;
