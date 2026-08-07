@@ -12,6 +12,7 @@ import { drawHand, isModeId, modeAt, MODE_IDS, MODE_TITLES, type ModeId } from "
 import { Navigator } from "./navigator";
 import { GROUND } from "./palette";
 import { drawPlate, makeView, SHORTENED_THREE_R, type View } from "./plate";
+import { buildCurves, drawSynthesis } from "./synthesis";
 import { clearAtlas } from "./textatlas";
 import {
   ACT0_SECONDS,
@@ -55,6 +56,7 @@ function render(
   schedule: Schedule,
   inscriptions: Inscription[],
   modeOverride: ModeId | null,
+  curves: ReturnType<typeof buildCurves>,
 ): void {
   const st = stateAt(t, schedule);
 
@@ -89,18 +91,28 @@ function render(
   // The arc carries the geometry in force: 1996-97 played to a 22-ft line that
   // the modern taxonomy has since drawn over.
   const threeR = year === 1996 ? SHORTENED_THREE_R : undefined;
+  // The engraving recedes through the coda as well, so the piece's account of
+  // itself is read on near-bare stone rather than across a court.
+  ctx.save();
+  ctx.globalAlpha = 1 - 0.85 * st.coda;
   drawPlate(ctx, view, threeR);
+  ctx.restore();
 
   // The coda empties the plate back to bare stone so the loop turns over
   // without a seam - everything the piece drew recedes, the engraving stays.
   const remains = 1 - st.coda;
-  if (remains <= 0.001) return;
 
   // The hand for this moment. Everything above is shared by all of them: the
-  // ground, the prelude, the era's arc, the coda's early-out.
-  drawHand(modeAt(t, schedule, modeOverride), {
-    ctx, view, dpr, st, data, schedule, inscriptions, remains,
-  });
+  // ground, the prelude, the era's arc.
+  if (remains > 0.001) {
+    drawHand(modeAt(t, schedule, modeOverride), {
+      ctx, view, dpr, st, data, schedule, inscriptions, remains,
+    });
+  }
+
+  // The account belongs to no hand: every mode ends on the same three curves,
+  // because what was measured is the piece's rather than any one rendering's.
+  if (st.coda > 0) drawSynthesis(ctx, view, curves, st.coda, dpr);
 }
 
 function bindTalkKeys(clock: TalkClock, schedule: Schedule): void {
@@ -225,9 +237,10 @@ async function main(): Promise<void> {
   );
 
   const inscriptions = buildInscriptions(data.seasons, schedule);
+  const curves = buildCurves(data.seasons);
   const frame = (now: number) => {
     const t = clock.at(now);
-    render(t, data, schedule, inscriptions, modeOverride);
+    render(t, data, schedule, inscriptions, modeOverride, curves);
     nav?.update(t);
     requestAnimationFrame(frame);
   };

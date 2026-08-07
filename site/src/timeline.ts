@@ -24,12 +24,14 @@ export const ACT_TITLES: Record<Act, string> = {
 /** Act 0 has no coordinates, so it has no marks - the plate is bare stone. */
 export const ACT0_SECONDS = 24;
 /**
- * After the last season the plate empties again before the loop turns over.
- * Without it the finished ring of thirty numerals vanishes in a single frame
- * and the gallery loop shows a seam - the one cut the piece is allowed is
- * 2010-11, and it should not have to share that distinction with a wrap.
+ * After the last season the plate empties again before the loop turns over,
+ * and the piece gives its own account of itself - three curves, drawn plainly.
+ * The emptying also keeps the gallery loop seamless: without it the finished
+ * ring of thirty numerals vanished in a single frame, and the one cut this
+ * piece is allowed is 2010-11, which should not share the distinction with a
+ * wrap.
  */
-export const CODA_SECONDS = 7;
+export const CODA_SECONDS = 21;
 const SEASON_SECONDS = 11;
 /** The window dilates: the piece is slow exactly where the record is rich. */
 const WINDOW_SECONDS = 75;
