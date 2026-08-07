@@ -13,41 +13,21 @@
  */
 
 import { drawInscriptions, drawSlug } from "../inscription";
-import { drawMarks, drawPin } from "../marks";
-import { ZONE_RGB } from "../palette";
 import type { Frame } from "./types";
+import { drawSeasonField } from "./fieldlayer";
 
 export function drawFieldHand(f: Frame): void {
-  const { ctx, view, dpr, st, data, inscriptions, remains } = f;
-  const year = st.year!;
-  const season = data.byYear.get(year)!;
+  const { ctx, view, st, inscriptions, remains } = f;
 
   ctx.save();
   ctx.globalAlpha = remains * 0.8;
   drawInscriptions(ctx, view, inscriptions, st.t);
   ctx.restore();
 
-  const dim = remains;
-
-  if (st.prev !== null) {
-    const prevSeason = data.byYear.get(st.prev);
-    const prevSample = data.samples.get(st.prev);
-    if (prevSeason && prevSample) {
-      const fading = (1 - st.arrived) * dim;
-      drawMarks(ctx, view, prevSample, prevSeason, { dpr, opacity: fading, palette: ZONE_RGB });
-      drawPin(ctx, view, prevSample, { dpr, opacity: fading });
-    }
-  }
-
-  const sample = data.samples.get(year);
-  if (sample) {
-    drawMarks(ctx, view, sample, season, {
-      dpr, opacity: dim, arrived: st.arrived, palette: ZONE_RGB,
-    });
-    // The pin stays bone. It stands for shots the record would not place, so it
-    // belongs to no zone — colouring it would give it a category it never had.
-    drawPin(ctx, view, sample, { dpr, opacity: dim, arrived: st.arrived });
-  }
+  // Every shot in the league's own colours. The pin stays bone inside
+  // drawSeasonField: it stands for shots the record would not place, so it
+  // belongs to no zone and colouring it would invent a category it never had.
+  drawSeasonField(f, { coloured: true, dim: remains });
 
   // Whose categories these are, named on the plate rather than only on a wall.
   if (st.phase < 0.34) {

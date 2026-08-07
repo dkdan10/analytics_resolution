@@ -47,6 +47,12 @@ interface Hand {
  */
 const INK = 9.0;
 
+/** The light a whole season deposits, in the same measured units: the 2,000
+ *  marks the piece used to draw, at INK each. The field now draws every shot,
+ *  but a season still lays down this much, so the thirty stay comparable and
+ *  the pin stays exactly as heavy as the shots it stands for. */
+export const INK_TOTAL = 2000 * INK;
+
 function hand(radius: number, softness: number): Hand {
   // Alpha is set later, once the sprite's actual deposited light is measured -
   // a gradient's integral is not alpha*r^2, and deriving it by hand is how the
@@ -226,24 +232,23 @@ export function drawMarks(
 export function drawPin(
   ctx: CanvasRenderingContext2D,
   view: View,
-  sample: Sample,
+  pinFraction: number,
   opts: MarkOpts,
 ): void {
   const { opacity, arrived = 1 } = opts;
   if (opacity <= 0.001) return;
+  if (pinFraction <= 0) return;
 
   // The pile grows with the season, like every other mark.
-  const upto = Math.min(sample.n, Math.ceil(sample.n * Math.min(1, Math.max(0, arrived))));
-  let count = 0;
-  for (let i = 0; i < upto; i++) if (sample.pin[i] === 1) count++;
-  if (count === 0) return;
+  const grown = Math.min(1, Math.max(0, arrived)) * pinFraction;
 
-  // Same ink rule as the marks, and in the same measured units: each mark
-  // deposits INK of light, so the pile deposits count * INK. Solving for a disc
-  // of that total at the pin's mean alpha gives its radius directly in CSS px -
-  // no scale factor, because INK is already measured at the current view.
+  // Same ink rule as before, but taken from the season's own measured share of
+  // unplaced shots rather than counted out of a sample. The season's size
+  // cancels: count * INK_N = (fraction * N) * (INK_TOTAL / N). So the pile is
+  // exactly as heavy as the shots inside it whether the field is 2,000 marks or
+  // 219,000, and the two O(n) scans this used to need are gone.
   const meanAlpha = PIN_CORE_ALPHA * 0.7;
-  const r = Math.sqrt((count * INK) / (meanAlpha * Math.PI));
+  const r = Math.sqrt((grown * INK_TOTAL) / (meanAlpha * Math.PI));
   const cx = view.sx(0);
   const cy = view.sy(0);
 

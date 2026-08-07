@@ -21,8 +21,8 @@
 
 import type { Sample, Season } from "../data";
 import { drawSlug } from "../inscription";
-import { drawMarks, drawPin } from "../marks";
 import { label } from "../textatlas";
+import { drawSeasonField } from "./fieldlayer";
 import type { Frame } from "./types";
 
 /** Labels shown when four phrases cover ninety per cent of a season (1996-97). */
@@ -53,31 +53,26 @@ function labelBudget(season: Season): number {
 }
 
 export function drawLedgerHand(f: Frame): void {
-  const { ctx, view, dpr, st, data, remains } = f;
+  const { st, data, remains } = f;
   const year = st.year!;
   const season = data.byYear.get(year)!;
   const sample = data.samples.get(year);
 
   // The marks recede: here the description is the subject, and the dot is what
   // the description is about.
-  const dim = remains * 0.42;
-  if (st.prev !== null) {
-    const prevSeason = data.byYear.get(st.prev);
-    const prevSample = data.samples.get(st.prev);
-    if (prevSeason && prevSample) {
-      drawMarks(ctx, view, prevSample, prevSeason, { dpr, opacity: (1 - st.arrived) * dim });
-    }
-  }
-  if (sample) {
-    drawMarks(ctx, view, sample, season, { dpr, opacity: dim, arrived: st.arrived });
-    drawPin(ctx, view, sample, { dpr, opacity: dim, arrived: st.arrived });
-    drawLabels(f, sample, season);
-  }
+  drawSeasonField(f, { dim: remains * 0.42 });
 
-  // The pile, named once. Six hundred and eighty labels stacked on one point
-  // would be a rendering bug; one label saying how many shots the record
-  // declined to place is the fact itself.
-  if (sample) drawPinLabel(f, sample, season);
+  // The labels still address the 2,000-dot sample, and must. At full density a
+  // label would live a tenth of a frame - the arrival window advances 460 dots
+  // per frame - so the field beneath is every shot while the writing keeps to a
+  // pace a reader can follow.
+  if (sample) {
+    drawLabels(f, sample, season);
+    // The pile, named once. Labels stacked on a single point would be a
+    // rendering bug; one line saying how many shots the record declined to
+    // place is the fact itself.
+    drawPinLabel(f, season);
+  }
 
   if (st.act === 5) drawPublishedInstead(f);
 }
@@ -119,17 +114,19 @@ function drawLabels(f: Frame, sample: Sample, season: Season): void {
   ctx.restore();
 }
 
-function drawPinLabel(f: Frame, sample: Sample, season: Season): void {
+function drawPinLabel(f: Frame, season: Season): void {
   const { ctx, view, st, remains } = f;
-  const upto = Math.ceil(sample.n * Math.min(1, Math.max(0, st.arrived)));
-  let count = 0;
-  for (let i = 0; i < upto; i++) if (sample.pin[i] === 1) count++;
+  // The season's own measured count of unplaced shots, grown with arrival -
+  // 67,351 of them in 1996-97, not a number scaled off a sample.
+  const count = Math.round(
+    season.resolution.origin_snapped * Math.min(1, Math.max(0, st.arrived)),
+  );
   if (count === 0) return;
 
   // What the record refused to place, and what it called those shots. Both come
   // from the season's own measurement.
   const refused = Object.keys(season.resolution.refused_action_types)[0];
-  const lines = [`${count} SHOTS · NO PLACE GIVEN`];
+  const lines = [`${count.toLocaleString()} SHOTS · NO PLACE GIVEN`];
   if (refused) lines.push(refused.toUpperCase());
   drawSlug(ctx, view, lines, { x: 0, y: -30 }, remains * 0.85);
 }

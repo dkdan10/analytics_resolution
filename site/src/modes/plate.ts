@@ -7,15 +7,14 @@
 
 import { drawBloom } from "../bloom";
 import { drawInscriptions, drawSlug } from "../inscription";
-import { drawMarks, drawPin } from "../marks";
 import { secondsFor } from "../timeline";
+import { drawSeasonField } from "./fieldlayer";
 import { terminalShell } from "./shared";
 import type { Frame } from "./types";
 
 export function drawPlateHand(f: Frame): void {
-  const { ctx, view, dpr, st, data, inscriptions, remains } = f;
+  const { ctx, view, st, data, inscriptions, remains } = f;
   const year = st.year!;
-  const season = data.byYear.get(year)!;
 
   ctx.save();
   ctx.globalAlpha = remains;
@@ -28,23 +27,9 @@ export function drawPlateHand(f: Frame): void {
   const inWindow = st.act === 3 && data.traces !== null;
   const fieldDim = (inWindow ? 1 - 0.55 * Math.min(1, st.phase * 4) : 1) * remains;
 
-  // The season being replaced recedes as this one lands, so the plate is never
-  // empty and the drift is continuous rather than a pulse at each boundary.
-  if (st.prev !== null) {
-    const prevSeason = data.byYear.get(st.prev);
-    const prevSample = data.samples.get(st.prev);
-    if (prevSeason && prevSample) {
-      const fading = (1 - st.arrived) * fieldDim;
-      drawMarks(ctx, view, prevSample, prevSeason, { dpr, opacity: fading });
-      drawPin(ctx, view, prevSample, { dpr, opacity: fading });
-    }
-  }
-
-  const sample = data.samples.get(year);
-  if (sample) {
-    drawMarks(ctx, view, sample, season, { dpr, opacity: fieldDim, arrived: st.arrived });
-    drawPin(ctx, view, sample, { dpr, opacity: fieldDim, arrived: st.arrived });
-  }
+  // Every shot in the season, developing, with the one it replaces receding
+  // beneath it so the plate is never empty and the drift stays continuous.
+  drawSeasonField(f, { dim: fieldDim });
 
   if (inWindow && data.traces) {
     drawBloom(ctx, view, data.traces.traces, { phase: st.phase, duration: secondsFor(year) });

@@ -7,6 +7,7 @@
 
 /** How finely the record could draw a given season. Measured, not assigned. */
 import type { TracesFile } from "./bloom";
+import { decodePoints, type Points } from "./field";
 
 export type Regime =
   | "uniformly_blind"
@@ -77,6 +78,10 @@ export interface Season {
   date_max: string;
   resolution: Resolution;
   vocabulary: Vocabulary;
+  /** The season's whole classification, counted in full: taxonomy -> category
+   *  -> count. THE CENSUS reads these, so its figures equal the ones the plate
+   *  strikes into the floor instead of estimating them from a sample. */
+  classification: Record<string, Record<string, number>>;
   contemporaneous: Contemporaneous | null;
   note: string | null;
 }
@@ -131,6 +136,11 @@ export interface Loaded {
   seasons: Season[];
   byYear: Map<number, Season>;
   samples: Map<number, Sample>;
+  /** Every shot, per season, fetched on demand. `points(year)` returns what is
+   *  already here and starts a fetch if it is not; the piece renders without it
+   *  and gains it a frame or two later, rather than blocking the first paint on
+   *  4 MB. */
+  points(year: number): Points | null;
   corpus: Corpus | null;
   /** Act III's gestures; null if the bloom stage has not been run. */
   traces: TracesFile | null;
@@ -174,10 +184,27 @@ export async function load(): Promise<Loaded> {
     traces = null;
   }
 
+  const pointCache = new Map<number, Points>();
+  const inFlight = new Set<number>();
+  const fetchPoints = (year: number): Points | null => {
+    const have = pointCache.get(year);
+    if (have) return have;
+    if (!inFlight.has(year)) {
+      inFlight.add(year);
+      void fetch(`${BASE}data/points/season_${year}.bin`)
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+        .then((buf) => pointCache.set(year, decodePoints(buf)))
+        .catch(() => undefined)
+        .finally(() => inFlight.delete(year));
+    }
+    return null;
+  };
+
   return {
     seasons,
     byYear: new Map(seasons.map((s) => [s.year, s])),
     samples,
+    points: fetchPoints,
     corpus,
     traces,
     provenance: file.provenance,

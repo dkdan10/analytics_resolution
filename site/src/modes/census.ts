@@ -16,9 +16,9 @@
  * recounts rather than remembers.
  */
 
-import type { Sample } from "../data";
+import type { Season } from "../data";
 import { BONE_RGB, SLUG_FAMILY } from "../palette";
-import { drawMarks, drawPin } from "../marks";
+import { drawSeasonField } from "./fieldlayer";
 import type { Frame } from "./types";
 
 interface Row {
@@ -33,54 +33,39 @@ interface Group {
   of: number;
 }
 
-/** Tally one indexed field over the shots that have arrived. */
-function tally(index: number[], names: string[], upto: number, skip?: number[]): Row[] {
-  const counts = new Array<number>(names.length).fill(0);
-  let total = 0;
-  for (let i = 0; i < upto; i++) {
-    if (skip && skip[i] === 1) continue;
-    const k = index[i];
-    if (k === undefined || k < 0 || k >= counts.length) continue;
-    counts[k]!++;
-    total++;
-  }
-  const rows = names
-    .map((name, k) => ({ name, n: counts[k]! }))
-    .filter((r) => r.n > 0)
-    .sort((a, b) => b.n - a.n);
-  return total ? rows : [];
-}
+/**
+ * The season's own classification, counted in full and grown with arrival.
+ *
+ * This used to tally the 2,000-dot sample, which made the census an estimate:
+ * it printed 41.5% for 1996-97's mid-range while the plate struck 39·9 into the
+ * floor beside it. These are the record's real counts, so the two figures on
+ * screen now agree by construction, and qa.py gates that they do.
+ */
+function census(season: Season, arrived: number): { groups: Group[]; classified: number } {
+  const a = Math.min(1, Math.max(0, arrived));
+  const cls = season.classification;
+  const classified = Math.round(season.attempts * a);
 
-function census(sample: Sample, upto: number): { groups: Group[]; classified: number } {
-  const made: Row[] = [];
-  let m = 0;
-  let three = 0;
-  let unplaced = 0;
-  for (let i = 0; i < upto; i++) {
-    if (sample.made[i] === 1) m++;
-    if (sample.three[i] === 1) three++;
-    if (sample.pin[i] === 1) unplaced++;
-  }
-  if (upto > 0) {
-    made.push({ name: "Made Shot", n: m }, { name: "Missed Shot", n: upto - m });
-  }
+  const rows = (title: string): Row[] =>
+    Object.entries(cls[title] ?? {})
+      .map(([name, n]) => ({ name, n: Math.round(n * a) }))
+      .filter((r) => r.n > 0)
+      .sort((x, y) => y.n - x.n);
 
+  const unplaced = Math.round(season.resolution.origin_snapped * a);
   const groups: Group[] = [
-    { title: "TYPE", of: upto, rows: upto ? [
-      { name: "3PT Field Goal", n: three },
-      { name: "2PT Field Goal", n: upto - three },
-    ] : [] },
-    { title: "RESULT", of: upto, rows: made },
-    { title: "ZONE", of: upto, rows: tally(sample.zone, sample.zone_names, upto) },
-    { title: "RANGE", of: upto, rows: tally(sample.range, sample.range_names, upto) },
-    { title: "AREA", of: upto, rows: tally(sample.area, sample.area_names, upto) },
-    { title: "PLACEMENT", of: upto, rows: upto ? [
-      { name: "Located", n: upto - unplaced },
+    { title: "TYPE", of: classified, rows: rows("TYPE") },
+    { title: "RESULT", of: classified, rows: rows("RESULT") },
+    { title: "ZONE", of: classified, rows: rows("ZONE") },
+    { title: "RANGE", of: classified, rows: rows("RANGE") },
+    { title: "AREA", of: classified, rows: rows("AREA") },
+    { title: "PLACEMENT", of: classified, rows: classified ? [
+      { name: "Located", n: classified - unplaced },
       { name: "No place given", n: unplaced },
     ] : [] },
-    { title: "DESCRIPTION", of: upto, rows: tally(sample.action, sample.action_vocab, upto) },
+    { title: "DESCRIPTION", of: classified, rows: rows("DESCRIPTION") },
   ];
-  return { groups, classified: upto };
+  return { groups, classified };
 }
 
 const LINE = 13;
@@ -139,10 +124,8 @@ class Columns {
 }
 
 export function drawCensusHand(f: Frame): void {
-  const { ctx, view, dpr, st, data, remains } = f;
-  const year = st.year!;
-  const season = data.byYear.get(year)!;
-  const sample = data.samples.get(year);
+  const { ctx, view, st, data, remains } = f;
+  const season = data.byYear.get(st.year!)!;
 
   // The marks stay, quieter: the census is about them, so they have to be there.
   //
@@ -150,13 +133,11 @@ export function drawCensusHand(f: Frame): void {
   // counts this season's arrived shots, so a field still carrying two thousand
   // marks from the season before would contradict a census reading "3 SHOTS
   // CLASSIFIED". Here the plate empties and refills with the count.
-  const dim = remains * 0.55;
-  if (!sample) return;
-  drawMarks(ctx, view, sample, season, { dpr, opacity: dim, arrived: st.arrived });
-  drawPin(ctx, view, sample, { dpr, opacity: dim, arrived: st.arrived });
+  // No outgoing season here, unlike every other hand: a field still carrying
+  // the previous season's shots would contradict a tally counting only this one.
+  drawSeasonField(f, { dim: remains * 0.55, withPrevious: false });
 
-  const upto = Math.min(sample.n, Math.ceil(sample.n * Math.min(1, Math.max(0, st.arrived))));
-  const { groups, classified } = census(sample, upto);
+  const { groups, classified } = census(season, st.arrived);
 
   const px = Math.max(8.5, Math.min(11, view.width / 150));
   ctx.save();
