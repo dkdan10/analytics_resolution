@@ -30,7 +30,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from common import PROCESSED_DIR, require_env  # noqa: E402
+from common import PROCESSED_DIR, REPO_ROOT, require_env  # noqa: E402
 
 
 class Case:
@@ -38,14 +38,24 @@ class Case:
 
     `catches` is matched as a SUBSTRING of the printed FAIL line, so a check
     whose name carries a measured detail in parentheses still matches.
+
+    `scope` is which directory `mutate` is handed. Session 2's contract was
+    `mutate(processed_dir)` and every defect lived under data/processed/, which
+    would have left session 3's two new gates - the deploy allowlist under
+    pipeline/, and the memory claims in CLAUDE.md - as the only gates outside
+    the catalogue. An unstated exception is how "add a gate, add its defect"
+    decays, so the contract widened instead: `scope="repo"` hands `mutate` a
+    repo-shaped root holding data/processed/, CLAUDE.md, the allowlist and the
+    site source the gates read.
     """
 
-    def __init__(self, name, groups, catches, mutate, why):
+    def __init__(self, name, groups, catches, mutate, why, scope="processed"):
         self.name = name
         self.groups = groups
         self.catches = catches
         self.mutate = mutate
         self.why = why
+        self.scope = scope
 
 
 # --- helpers -----------------------------------------------------------------
@@ -291,11 +301,13 @@ def m_measures_count(d):
     _save(d, "window.json", w)
 
 
-def m_ceiling(d):
-    """A clipped caliper quietly un-clipped.
+def m_clip(d):
+    """F-05 itself, put back: the caliper clipped to one byte of tenths.
 
-    F-05's clipping is session 3's to fix; what must be impossible is shipping a
-    different amount of it without saying so.
+    This is what shipped through session 2 - 30 records whose stored length was
+    25.5 ft while the two coordinates in the same row described up to 51.85 ft,
+    and a renderer that read the clipped value as a distance. The endpoint
+    cross-check is what has to see it.
     """
     w = _load(d, "window.json")
     mb = w["measures_bin"]
@@ -303,10 +315,50 @@ def m_ceiling(d):
     raw = bytearray((d / "window_measures.bin").read_bytes())
     for i in range(len(raw) // size):
         f = struct.unpack_from(rec, raw, i * size)
-        if f[4] == 255:
-            struct.pack_into(rec, raw, i * size, *f[:4], 254, *f[5:])
-            break
+        if f[4] > 255:
+            struct.pack_into(rec, raw, i * size, *f[:4], 255, *f[5:])
     (d / "window_measures.bin").write_bytes(bytes(raw))
+
+
+def m_ceiling(d):
+    """One caliper filed at the field's own ceiling.
+
+    Under uint16 nothing on a floor can reach it, so a record sitting there is
+    an encoding that has stopped being able to say what it measured. The
+    endpoints are moved with it, so the row is internally consistent and only
+    the ceiling check can object to it on its own terms.
+    """
+    w = _load(d, "window.json")
+    mb = w["measures_bin"]
+    rec, size = mb["record"], struct.calcsize(mb["record"])
+    raw = bytearray((d / "window_measures.bin").read_bytes())
+    f = struct.unpack_from(rec, raw, 0)
+    struct.pack_into(rec, raw, 0, -32768, 0, 32767, 0, 0xFFFF, *f[5:])
+    (d / "window_measures.bin").write_bytes(bytes(raw))
+
+
+def m_caliper_p99(d):
+    """The reference THE HAND scales every splotch against, moved off the data.
+
+    Rule 3: a mark's material properties derive from a measurement. If p99 can
+    drift from the distribution it summarises, the splotch radius has quietly
+    stopped being a measurement of anything - which is F-05 in a new costume.
+    """
+    w = _load(d, "window.json")
+    w["contest"]["caliper_ft"]["p99"] = 25.5
+    _save(d, "window.json", w)
+
+
+def m_bias_disclosure(d):
+    """The wall text drifting from the measurement it discloses.
+
+    F-12's fix is a templated string the piece draws verbatim. A coverage figure
+    edited in the artifact - or left behind by a re-run - puts an unmeasured
+    number on a public wall, which is the defect the fix exists to prevent.
+    """
+    w = _load(d, "window.json")
+    w["bias"]["disclosure"][0] = w["bias"]["disclosure"][0].replace("23.2%", "48.0%")
+    _save(d, "window.json", w)
 
 
 def m_trace_anchor(d):
@@ -452,6 +504,44 @@ def m_c1_terminus(d):
     _save(d, "paint.json", p)
 
 
+def m_memory_figure(d):
+    """A quantitative claim in CLAUDE.md drifting from its own artifact.
+
+    Exactly what happened to `recovery.attribution_agreement`, which was written
+    into the file as 0.8536 while window.json said 0.8573 - inside one session,
+    with nothing able to see it.
+    """
+    p = d / "CLAUDE.md"
+    p.write_text(p.read_text().replace("`recovery.rate` **0.4545**",
+                                       "`recovery.rate` **0.5545**", 1))
+
+
+def m_memory_missing(d):
+    """A gated sentence reworded out of the file rather than corrected."""
+    p = d / "CLAUDE.md"
+    p.write_text(p.read_text().replace("Median **4.82 ft** apart",
+                                       "Median a few feet apart", 1))
+
+
+def m_allowlist_extra(d):
+    """A private artifact quietly added to the list the deploy reads.
+
+    F-07 in one line: publishing by editing a file instead of by deciding.
+    """
+    p = d / "pipeline" / "deploy_allowlist.json"
+    a = json.loads(p.read_text())
+    a["public"] = sorted(a["public"] + ["acquisition_manifest.json"])
+    p.write_text(json.dumps(a, indent=2) + "\n")
+
+
+def m_allowlist_drop(d):
+    """An artifact the piece fetches, dropped from the list the deploy reads."""
+    p = d / "pipeline" / "deploy_allowlist.json"
+    a = json.loads(p.read_text())
+    a["public"] = [f for f in a["public"] if f != "facts.json"]
+    p.write_text(json.dumps(a, indent=2) + "\n")
+
+
 CASES = [
     # --- the three deletions the audit proved survive -------------------------
     Case("delete-window", ["inventory"], "every required artifact is present",
@@ -524,8 +614,15 @@ CASES = [
     # --- new invariants this session adds ------------------------------------
     Case("measures-count", ["window"], "measures.bin holds the record count it declares",
          m_measures_count, "the declared count and the file's contents parting company"),
-    Case("ceiling", ["window"], "the number of calipers the one-byte encoding clips",
-         m_ceiling, "F-05's clipping changing silently"),
+    Case("clip", ["window"], "every caliper is the distance between its own endpoints",
+         m_clip, "F-05: the one-byte clip, put back"),
+    Case("ceiling", ["window"], "no caliper is filed at the encoding's ceiling",
+         m_ceiling, "a caliper the encoding could not say"),
+    Case("caliper-p99", ["window"], "every published caliper percentile is the one in the file",
+         m_caliper_p99, "the reference a mark's radius is measured against, detached"),
+    Case("bias-disclosure", ["window"],
+         "the disclosure the piece draws is composed of the figures beside it",
+         m_bias_disclosure, "F-12: wall text drifting from its own measurement"),
     Case("trace-anchor", ["traces"], "every trace's release point is the residual it reports",
          m_trace_anchor, "a gesture drawn at a dot it does not belong to"),
     Case("occupancy-share", ["window"], "every band's share is its own count",
@@ -558,6 +655,20 @@ CASES = [
          m_b_shipped_min, "Rule 7 at the precision it was measured at"),
     Case("C1-terminus", ["paint"], "the paint reaches the window's opening and its closure",
          m_c1_terminus, "C1: THE HAND stopping three weeks short of what it is about"),
+
+    # --- session 3's gates, which read outside data/processed/ --------------
+    Case("memory-figure", ["memory"], "every gated memory claim is what the artifact says",
+         m_memory_figure, "F-16: a figure in CLAUDE.md drifting from its own artifact",
+         scope="repo"),
+    Case("memory-missing", ["memory"], "every gated memory claim is what the artifact says",
+         m_memory_missing, "F-16: a gated claim reworded away instead of corrected",
+         scope="repo"),
+    Case("allowlist-extra", ["deploy"], "the allowlist the site reads is the table the gate holds",
+         m_allowlist_extra, "F-07: publishing by editing a file instead of by deciding",
+         scope="repo"),
+    Case("allowlist-drop", ["deploy"], "the allowlist the site reads is the table the gate holds",
+         m_allowlist_drop, "F-07: an artifact the piece fetches, silently unpublished",
+         scope="repo"),
 ]
 
 BY_NAME = {c.name: c for c in CASES}
@@ -576,13 +687,30 @@ def run_mutations(processed=PROCESSED_DIR, only=None, quiet=False):
     with tempfile.TemporaryDirectory() as tmp:
         pristine = Path(tmp) / "pristine"
         shutil.copytree(processed, pristine)
-        work = Path(tmp) / "work"
+        root = Path(tmp) / "work"
+
+        # A repo-shaped root, not a bare processed directory: the `memory` and
+        # `deploy` groups read CLAUDE.md, pipeline/deploy_allowlist.json and one
+        # site source file, and a gate that cannot be aimed at a copy cannot be
+        # mutation-tested at all.
+        def stage():
+            shutil.rmtree(root, ignore_errors=True)
+            (root / "data").mkdir(parents=True)
+            shutil.copytree(pristine, root / "data" / "processed")
+            (root / "pipeline").mkdir(exist_ok=True)
+            for rel in ("CLAUDE.md", "pipeline/deploy_allowlist.json",
+                        "site/src/inscription.ts"):
+                src = REPO_ROOT / rel
+                if src.exists():
+                    dst = root / rel
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src, dst)
 
         for c in cases:
-            shutil.rmtree(work, ignore_errors=True)
-            shutil.copytree(pristine, work)
-            c.mutate(work)
-            g = run_groups(c.groups, work, allow_raw=False, quiet=True)
+            stage()
+            work = root / "data" / "processed"
+            c.mutate(root if c.scope == "repo" else work)
+            g = run_groups(c.groups, work, allow_raw=False, quiet=True, repo=root)
             named = any(c.catches in n for n in g.names())
             caught = bool(g.failures) and named
             results.append((c, caught, g))

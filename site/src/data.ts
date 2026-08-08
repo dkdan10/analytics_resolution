@@ -33,10 +33,12 @@ export interface Resolution {
 /** How much the record has to say about what a shot WAS - the second curve,
  *  and the mirror of the first: as it stops saying where, it learns to say what. */
 export interface Vocabulary {
-  /** Distinct ACTION_TYPE values that season: 9 in 1996-97, 48 by 2024-25. */
+  /** Distinct ACTION_TYPE values that season. It grows: the record learns
+   *  adjectives as it stops saying where. */
   words: number;
-  /** How many are needed to account for 90% of shots: 4, then 20. The honest
-   *  measure of how varied the description actually is. */
+  /** How many are needed to account for most of a season's shots - the honest
+   *  measure of how varied the description actually is, and what drives THE
+   *  LEDGER's label density. It grows several-fold across the corpus. */
   words_covering_90pct: number;
   mean_words_per_shot: number;
   mean_chars_per_shot: number;
@@ -45,12 +47,72 @@ export interface Vocabulary {
   words_list: string[];
   /** Distinct values per classification field. */
   taxonomies: Record<string, number>;
-  /** All six added up: 31 categories in 1996-97, 75 by 2015-16. */
+  /** Every taxonomy's distinct values added up - the size of the machine's
+   *  whole vocabulary for saying what a shot was. */
   categories_total: number;
+}
+
+/**
+ * The facts no dump records, and the display facts derived from them.
+ *
+ * Written by pipeline/facts.py. `external` is history with a citation - the
+ * league's founding, the date the moment endpoint was already dead, the line in
+ * force through 1996-97, the measures the league publishes instead of the
+ * geometry. `derived` is computed from another artifact or from the schedule
+ * constants in timeline.ts, and carries `from` naming what it came out of.
+ *
+ * The piece reads both and restates neither. Loaded with `await`, NOT through
+ * the optional-stage try/catch below: display copy depends on it, and a silent
+ * null would put the piece back to authoring its own numbers at runtime.
+ */
+export interface ExternalFact<T = unknown> {
+  value: T;
+  statement: string;
+  source: string;
+  note?: string;
+}
+
+export interface DerivedFact {
+  value: number | string;
+  from: string;
+}
+
+export interface FactsFile {
+  generated_by: string;
+  generated_at: string;
+  external: Record<string, ExternalFact>;
+  derived: Record<string, DerivedFact>;
+}
+
+/** A derived display fact, as a number. Throws rather than returning a
+ *  fallback: a missing key means the piece would print something nobody
+ *  measured, and failing loudly is the whole point of the chain. */
+export function factNum(facts: FactsFile, key: string): number {
+  const e = facts.derived[key];
+  if (!e || typeof e.value !== "number") {
+    throw new Error(`facts.json: derived.${key} missing or not a number`);
+  }
+  return e.value;
+}
+
+export function factText(facts: FactsFile, key: string): string {
+  const e = facts.derived[key];
+  if (!e) throw new Error(`facts.json: derived.${key} missing`);
+  return String(e.value);
+}
+
+export function factExternal<T>(facts: FactsFile, key: string): T {
+  const e = facts.external[key];
+  if (!e) throw new Error(`facts.json: external.${key} missing`);
+  return e.value as T;
 }
 
 /** 1996-97 only: the taxonomy's reading against the line then in force. */
 export interface Contemporaneous {
+  /** The radius of the line actually in force, in feet. External history, so
+   *  it is declared once in the pipeline and read here - both the words the
+   *  plate prints and the arc it draws come from this key. */
+  line_ft: number;
   taxonomy_mid_attempts: number;
   taxonomy_mid_share: number;
   misfiled_threes: number;
@@ -124,12 +186,13 @@ export interface Sample {
 export type { Trace, TracesFile } from "./bloom";
 
 /**
- * The eleven weeks, recomputed.
+ * The window, recomputed.
  *
  * Every other season in this piece is a record of endpoints: one point and a
- * handful of categories per shot. For 89 days the optical feed itself was
- * public, and these are the measures the league still publishes today, remade
- * from the geometry it stopped releasing on 23 January 2016.
+ * handful of categories per shot. For the span in `corpus` the optical feed
+ * itself was public, and these are the measures the league still publishes
+ * today, remade from the geometry it stopped releasing after the corpus's last
+ * archive.
  *
  * The definitions are authored by the pipeline, not the league — theirs are not
  * published — which is why every measure carries a second reading under a
@@ -188,8 +251,34 @@ export interface WindowFile {
     weak_joins: { archive: string; offset: number; margin: number }[];
     n_weak_joins: number;
   };
+  /** What the instrument prefers, measured and stated rather than carried.
+   *
+   *  A release is only found by following the ball back from the rim, so the
+   *  recovered set over-represents shots that reach it — and every made shot
+   *  reaches it. Anything taken from this subset inherits that, which is why
+   *  `scope` and `disclosure` are drawn wherever a recovered-set proportion is.
+   *  Both are templated by the pipeline from the figures beside them; the site
+   *  renders them and never composes its own. */
+  bias: {
+    measured_attempts: number;
+    season_attempts: number;
+    share_of_season: number;
+    fg_pct_measured: number | null;
+    fg_pct_season: number;
+    fg_pct_gap: number | null;
+    why: string;
+    /** One short line, for beside a figure. */
+    scope: string | null;
+    /** Two lines, for the plate. */
+    disclosure: string[];
+  };
   contest: {
     buckets: DefenderBucket[];
+    /** The continuous quantity the four categories are cut out of, before the
+     *  cut. `p99` is the reference THE HAND scales a splotch's radius against —
+     *  a measured property of the distribution being drawn, where a storage
+     *  ceiling used to stand. */
+    caliper_ft: { n: number; p50: number; p90: number; p99: number; max: number };
     /** The continuous quantity the four categories are cut out of: mean
      *  closest-defender distance, sampled 2 s back at 25 Hz. */
     approach_curve_ft: (number | null)[];
@@ -338,15 +427,22 @@ export interface Measures {
   /** The nearest defender, same frame. The segment between is the statistic. */
   dx: Int16Array;
   dy: Int16Array;
-  /** Caliper length in tenths of a foot. */
-  dist: Uint8Array;
+  /** Caliper length in tenths of a foot, never clipped.
+   *
+   *  This was one byte, so every distance past the byte's range was filed at
+   *  its ceiling and read back as that distance, while the two endpoints stored
+   *  beside it described a much longer one (audit F-05). It is now uint16 and
+   *  the pipeline stops rather than clips, so there is no ceiling to normalise
+   *  against and nothing may divide by one. `contest.caliper_ft` carries the
+   *  measured distribution a renderer should scale against instead. */
+  dist: Uint16Array;
   bucket: Uint8Array;
   made: Uint8Array;
-  /** Days since the window opened — the flood runs as the eleven weeks did. */
+  /** Days since the window opened — the flood runs as the corpus did. */
   day: Uint8Array;
 }
 
-const MEASURE_REC = 12;
+const MEASURE_REC = 13;
 
 export function decodeMeasures(buf: ArrayBuffer): Measures {
   const n = Math.floor(buf.byteLength / MEASURE_REC);
@@ -355,7 +451,7 @@ export function decodeMeasures(buf: ArrayBuffer): Measures {
   const y = new Int16Array(n);
   const dx = new Int16Array(n);
   const dy = new Int16Array(n);
-  const dist = new Uint8Array(n);
+  const dist = new Uint16Array(n);
   const bucket = new Uint8Array(n);
   const made = new Uint8Array(n);
   const day = new Uint8Array(n);
@@ -365,10 +461,10 @@ export function decodeMeasures(buf: ArrayBuffer): Measures {
     y[i] = dv.getInt16(o + 2, true);
     dx[i] = dv.getInt16(o + 4, true);
     dy[i] = dv.getInt16(o + 6, true);
-    dist[i] = dv.getUint8(o + 8);
-    bucket[i] = dv.getUint8(o + 9);
-    made[i] = dv.getUint8(o + 10);
-    day[i] = dv.getUint8(o + 11);
+    dist[i] = dv.getUint16(o + 8, true);
+    bucket[i] = dv.getUint8(o + 10);
+    made[i] = dv.getUint8(o + 11);
+    day[i] = dv.getUint8(o + 12);
   }
   return { n, x, y, dx, dy, dist, bucket, made, day };
 }
@@ -384,6 +480,9 @@ export interface Corpus {
 
 export interface Loaded {
   seasons: Season[];
+  /** External history and derived display facts. Never null: every hand draws
+   *  copy out of it, so a failure to load is a failure to run. */
+  facts: FactsFile;
   byYear: Map<number, Season>;
   samples: Map<number, Sample>;
   /** Every shot, per season, fetched on demand. `points(year)` returns what is
@@ -394,7 +493,7 @@ export interface Loaded {
   corpus: Corpus | null;
   /** Act III's gestures; null if the bloom stage has not been run. */
   traces: TracesFile | null;
-  /** The eleven weeks recomputed; null if the window stage has not been run.
+  /** The window recomputed; null if the window stage has not been run.
    *  THE MEASURE degrades to the bare category names without it, which is
    *  exactly what every era outside the window looks like anyway. */
   window: WindowFile | null;
@@ -418,7 +517,14 @@ async function getJSON<T>(path: string): Promise<T> {
 }
 
 export async function load(): Promise<Loaded> {
-  const file = await getJSON<SeasonsFile>("seasons.json");
+  // Both are REQUIRED. getJSON throws on a non-ok response, and that is
+  // deliberate here: the optional stages below degrade to null and the piece
+  // still runs, but a piece that cannot read its own facts would fall back to
+  // authoring numbers, which is the one thing it may not do.
+  const [file, facts] = await Promise.all([
+    getJSON<SeasonsFile>("seasons.json"),
+    getJSON<FactsFile>("facts.json"),
+  ]);
   const seasons = file.seasons;
 
   const samples = new Map<number, Sample>();
@@ -521,6 +627,7 @@ export async function load(): Promise<Loaded> {
 
   return {
     seasons,
+    facts,
     byYear: new Map(seasons.map((s) => [s.year, s])),
     samples,
     points: fetchPoints,

@@ -1256,9 +1256,21 @@ def load_anchors():
 # record's own frame (tenths, hoop at origin), the caliper's length, and the
 # category it was filed under. No player identities and no trajectories: the
 # frame-level record never leaves this machine (CLAUDE.md data rights).
-MEASURE_REC = "<hhhhBBBB"  # x, y, dx, dy, dist_tenths, bucket, made, day
-MEASURE_BYTES = 12
-DIST_TENTHS_MAX = 255  # 25.5 ft; farther than any defender the caliper draws
+MEASURE_REC = "<hhhhHBBB"  # x, y, dx, dy, dist_tenths, bucket, made, day
+MEASURE_BYTES = 13
+
+# The caliper's field ceiling, in tenths of a foot.
+#
+# This was one byte - 25.5 ft - under a comment claiming no defender the caliper
+# draws is further away than that. The comment was false by 26.35 ft: 30 of
+# 48,330 records had endpoint geometries beyond 25.5 ft and all of them collapsed
+# onto the same byte, the longest of them 51.85 ft (audit F-05). A uint16 costs
+# one byte per record and cannot be reached by anything on a basketball floor -
+# the longest diagonal of a 94 x 50 ft court is ~106 ft, or 1,065 tenths - so the
+# encoding no longer decides anything. Reaching this ceiling is now a hard stop
+# rather than a silent clip, and qa.py gates every stored length against the two
+# endpoints stored beside it.
+DIST_TENTHS_MAX = 65535
 
 
 def _pct(sorted_or_not, q):
@@ -1442,15 +1454,26 @@ def reduce_all():
     # shots inside a day keep the order their games were reduced in, which is
     # spatially arbitrary and therefore honest.
     measures.sort(key=lambda m: m["date"])
+    # The measured caliper distribution, at full precision - taken before the
+    # pack rounds it into tenths, so the reference the renderer scales against
+    # is the measurement and not the storage.
+    caliper_ft = [m["dist"] for m in measures]
     day0 = min(dates) if dates else None
     blob = bytearray()
     for m in measures:
         d = datetime.date.fromisoformat(m["date"]) - datetime.date.fromisoformat(day0)
+        # No clip. A caliper that cannot fit the field is a measurement this
+        # stage does not understand, and the honest response to that is to stop,
+        # not to file it at the ceiling and let the renderer read the ceiling as
+        # a distance.
+        dist_tenths = int(round(m["dist"] * 10))
+        if not 0 <= dist_tenths < DIST_TENTHS_MAX:
+            die(f"caliper {m['dist']:.2f} ft does not fit {MEASURE_REC} - "
+                f"{dist_tenths} tenths against a ceiling of {DIST_TENTHS_MAX}")
         blob += struct.pack(
             MEASURE_REC,
             int(round(m["x"])), int(round(m["y"])), int(round(m["dx"])), int(round(m["dy"])),
-            min(DIST_TENTHS_MAX, int(round(m["dist"] * 10))),
-            m["bucket"], m["made"], min(255, d.days),
+            dist_tenths, m["bucket"], m["made"], min(255, d.days),
         )
     bin_path = PROCESSED_DIR / "window_measures.bin"
     bin_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1521,18 +1544,36 @@ def reduce_all():
     # and shipped rather than quietly carried.
     made_total = sum(bucket_made)
     fg_measured = made_total / measured if measured else None
+    bias_share = round(measured / season15["attempts"], 4)
+    bias_fg_m = round(100 * fg_measured, 1) if fg_measured else None
+    bias_fg_s = round(100 * season15["fg_pct"], 1)
     bias = {
         "measured_attempts": measured,
         "season_attempts": season15["attempts"],
-        "share_of_season": round(measured / season15["attempts"], 4),
-        "fg_pct_measured": round(100 * fg_measured, 1) if fg_measured else None,
-        "fg_pct_season": round(100 * season15["fg_pct"], 1),
+        "share_of_season": bias_share,
+        "fg_pct_measured": bias_fg_m,
+        "fg_pct_season": bias_fg_s,
         "fg_pct_gap": round(100 * (fg_measured - season15["fg_pct"]), 1) if fg_measured else None,
         "why": (
             "a release is recovered by following the ball back from the rim, so shots that "
             "reach the rim are over-represented and made shots all reach it; the recovered set "
             "shoots better than the league did and every figure taken from it inherits that"
         ),
+        # DISPLAY-BOUND, and templated the way seasons.json's season notes are:
+        # every numeral below is one of the measured values above, formatted, so
+        # the wall text cannot drift from the measurement and a re-run updates
+        # it. `why` is the full statement and is too long for the plate; these
+        # are what THE MEASURE and THE LEDGER actually draw, so the piece
+        # discloses the selection in the same frame as any figure taken from it
+        # rather than composing a sentence of its own (audit F-12).
+        "scope": (
+            f"RECOVERED SET · {100 * bias_share:.1f}% OF THE SEASON"
+            if measured else None
+        ),
+        "disclosure": [
+            f"{measured:,} RECOVERED SHOTS · {100 * bias_share:.1f}% OF THE SEASON",
+            f"FOUND FROM THE RIM · THEY GO IN {bias_fg_m}% AGAINST THE SEASON'S {bias_fg_s}%",
+        ] if measured else [],
     }
 
     out = {
@@ -1560,6 +1601,17 @@ def reduce_all():
                 "earlier, on that same bound body"
             ),
             "buckets": "the league's own four published categories: 0-2, 2-4, 4-6, 6+ ft",
+            "hero": (
+                "one of the four shots the opening beat draws, one per published category, "
+                "chosen by the tightest corroboration with the record. A hero must BE one "
+                "confrontation: a complete track, no frame gap, and no step over "
+                f"{MAX_STEP_FT} ft between consecutive frames - for the bound shooter or "
+                "within any one defender slot - because 40 ms of feed cannot carry a body "
+                "further than that and a track that says otherwise is two bodies spliced. "
+                "The same limit governs `distance_run`; it is stated here as well so the "
+                "figure the continuity of a drawn track rests on is disclosed where the "
+                "track is defined"
+            ),
             "touch": (
                 f"ball within {TOUCH_RADIUS_FT} ft of its nearest player for at least "
                 f"{TOUCH_MIN_FRAMES} frames ({TOUCH_MIN_FRAMES / HZ:.1f} s) and at most "
@@ -1753,6 +1805,22 @@ def reduce_all():
                 }
                 for i in range(len(DEFENDER_BUCKETS))
             ],
+            # THE CONTINUOUS QUANTITY, before it is cut into the four boxes
+            # above. Shipped because the piece needs a MEASURED reference to
+            # scale a mark against: THE HAND draws each shot as a splotch whose
+            # radius rises with how open the shooter was, and it used to
+            # normalise that against 255 - the old one-byte storage ceiling -
+            # which was a property of the file format and not of basketball
+            # (audit F-05). The renderer now normalises at p99 and draws the
+            # 1% beyond it at the maximum radius, so the reference is a measured
+            # property of the distribution being drawn.
+            "caliper_ft": {
+                "n": len(caliper_ft),
+                "p50": _pct(caliper_ft, 0.50),
+                "p90": _pct(caliper_ft, 0.90),
+                "p99": _pct(caliper_ft, 0.99),
+                "max": round(max(caliper_ft), 2) if caliper_ft else None,
+            },
             "approach_curve_ft": approach,
             "approach_hz": HZ,
             "approach_seconds_before_release": 2.0,
@@ -1861,7 +1929,8 @@ def reduce_all():
             "bytes_per_record": MEASURE_BYTES,
             "records": len(measures),
             "bytes": len(blob),
-            "fields": "x, y, dx, dy (tenths, hoop at origin); dist (tenths ft); bucket; made; day",
+            "fields": ("x, y, dx, dy (int16 tenths, hoop at origin); dist (uint16 tenths ft, "
+                       "never clipped); bucket; made; day"),
             "day0": day0,
         },
     }

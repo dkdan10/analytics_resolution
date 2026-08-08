@@ -30,6 +30,7 @@ Usage: python3 pipeline/qa.py                  # the full shipping gate
        python3 pipeline/qa.py --mutations      # the mutation suite alone
        python3 pipeline/qa.py --slow           # + the raw-corpus recomputations
        python3 pipeline/qa.py --write-zone-fixture   # regenerate the parity fixture
+       python3 pipeline/qa.py --write-deploy-allowlist   # regenerate the deploy list
 """
 
 import argparse
@@ -208,13 +209,21 @@ APPROACH_RELEASE_TOL_FT = 0.10
 # paint's chord-against-arc.
 QUANTUM_FT = math.hypot(0.1, 0.1) + 0.05
 
-# window_measures.bin stores the caliper in ONE BYTE of tenths, so anything at or
-# beyond 25.5 ft is filed at the ceiling. That is finding F-05 and the fix to the
-# ENCODING belongs to session 3; what this gate does is make the clipping
-# impossible to ship silently. Measured 2026-08-08 from the current artifact:
-# 30 of 48,330 records sit at the ceiling, the largest recomputing to 51.85 ft.
-# A regeneration that clips a different number of records turns this red.
-MEASURES_CEILING_RECORDS = 30
+# window_measures.bin used to store the caliper in ONE BYTE of tenths, so
+# anything at or beyond 25.5 ft was filed at the ceiling: 30 of 48,330 records,
+# the longest of them 51.85 ft, all collapsed onto the same value while the
+# renderer read that value as a distance (audit F-05). Session 3 widened the
+# field to uint16, which nothing on a basketball floor can reach, and window.py
+# now stops rather than clips. So the count is ZERO and stays zero.
+#
+# The encoding's adequacy is enforced where the bytes are written - window.py
+# dies on a caliper that does not fit - rather than by a check here that no
+# mutation of the artifact could ever fail.
+#
+# MEASURES_MAX_RECOMPUTED_FT reads the ENDPOINTS, not the stored length, which is
+# why it is unchanged by the re-encoding: 51.85 ft was always what the two
+# coordinates described, and it is now also what the file says.
+MEASURES_CEILING_RECORDS = 0
 MEASURES_MAX_RECOMPUTED_FT = 51.85
 
 # window_measures.bin is NOT clipped to the plate box the renderer draws. It
@@ -427,9 +436,13 @@ class Ctx:
     produces one clear red line instead of a traceback.
     """
 
-    def __init__(self, root, allow_raw=True):
+    def __init__(self, root, allow_raw=True, repo=None):
         self.root = Path(root)
         self.allow_raw = allow_raw
+        # Two groups read files OUTSIDE data/processed/ - the deploy allowlist
+        # under pipeline/, and CLAUDE.md. Both must be aimable at a copy, or
+        # the mutation suite cannot test the gates that read them.
+        self.repo = Path(repo) if repo else REPO_ROOT
         self._json = {}
         self._bytes = {}
 
@@ -483,21 +496,57 @@ class Artifact:
         return [self.path.format(year=y) for y in years]
 
 
+# THE DEPLOY SERVES THE ARTWORK. `public` is reviewed, one row at a time, and
+# the rule it was reviewed under is stated so a later session can apply it
+# rather than guess: an artifact ships if the piece FETCHES it, or if it is
+# provenance the piece cites on screen. Everything else stays in the repo -
+# which is public from deploy day - without being served to every visitor.
+#
+# Before session 3 there was no such list. site/scripts/sync-data.mjs was 22
+# lines of `rm -rf` then `cp -r`, so any file that appeared under
+# data/processed/ - a future private intermediate, a scratch export, a debug
+# dump - was published the moment it existed, and nobody decided that (F-07).
 REQUIRED_ARTIFACTS = [
     Artifact("seasons.json", "json"),
-    Artifact("acquisition_manifest.json", "json", stamp="fetched_at"),
+    Artifact("facts.json", "json"),
+    # Operational metadata. Nothing fetches it, and the provenance the piece
+    # actually cites ships inside seasons.json:provenance, so the deploy does
+    # not serve the workshop's own paperwork.
+    Artifact("acquisition_manifest.json", "json", public=False, stamp="fetched_at"),
+    # Fetched: data.ts reads `corpus_listing` out of it for Act III.
     Artifact("sportvu_probe.json", "json", stamp="probed_at"),
     Artifact("window.json", "json"),
-    Artifact("window_manifest.json", "json", stamp="fetched_at"),
+    # Archive names, hashes and sizes that nothing renders.
+    Artifact("window_manifest.json", "json", public=False, stamp="fetched_at"),
     Artifact("window_measures.bin", "bin"),
     Artifact("paint.json", "json"),
     Artifact("paint_strokes.bin", "bin"),
     Artifact("paint_index.bin", "bin"),
+    # Ships identity on purpose - names, games, matchups - and that is the
+    # accepted tracking-publication decision recorded in CLAUDE.md, not an
+    # oversight. group_traces gates it as shipped.
     Artifact("traces.json", "json"),
     Artifact("samples/season_{year}.json", "json", stamp=None, per_season=True),
-    Artifact("grids/season_{year}.json", "json", stamp=None, per_season=True),
+    # Complete one-foot density grids. Superseded on screen by points/*.bin,
+    # which THE FIELD bakes every shot from; no renderer fetches these.
+    Artifact("grids/season_{year}.json", "json", public=False, stamp=None,
+             per_season=True),
+    # The near-complete native-coordinate multiset. PUBLICATION ACCEPTED by the
+    # artist, 2026-08-08: "points/*.bin does satisfy the project's standard."
+    # It is a per-coordinate COUNT, not a per-shot row carrying identities,
+    # dates or teams; the shot record is already public via stats.nba.com and
+    # the shufinskiy mirror; and the work's argument - every shot renders -
+    # cannot be made from a residue of itself. Reviewed, not defaulted.
     Artifact("points/season_{year}.bin", "bin", per_season=True),
 ]
+
+# Where the Node half reads the same decision. Written by
+# `python3 pipeline/qa.py --write-deploy-allowlist`, committed, and gated below
+# against the table above so the two cannot drift. It lives under pipeline/ and
+# NOT at the repo root: checks/break_gates.py assembles its mutation root from
+# pipeline/, data/processed/, site/src/ and two dotfiles, so a repo-root file
+# would be absent there and the unmutated baseline would go red.
+DEPLOY_ALLOWLIST = Path(__file__).resolve().parent / "deploy_allowlist.json"
 
 
 # --- decoders ----------------------------------------------------------------
@@ -508,6 +557,18 @@ REQUIRED_ARTIFACTS = [
 
 def decode_points(buf):
     return np.frombuffer(buf, dtype=POINT_DTYPE)
+
+
+def _field_ceiling(rec, index):
+    """The largest value the `index`-th field of a struct format can hold.
+
+    Read from the layout the artifact declares, so a check about clipping
+    follows a re-encoding rather than asking after a sentinel that has stopped
+    meaning anything. Signed fields return None: nothing clips onto them.
+    """
+    codes = rec.lstrip("<>=!@")
+    return {"B": 0xFF, "H": 0xFFFF, "I": 0xFFFFFFFF,
+            "L": 0xFFFFFFFF, "Q": (1 << 64) - 1}.get(codes[index])
 
 
 def decode_measures(buf, spec):
@@ -938,6 +999,40 @@ def zone_fixture_cases():
     return xs, ys, grid, cases
 
 
+def deploy_allowlist(years):
+    """The public artifact list, from REQUIRED_ARTIFACTS and nowhere else."""
+    files = []
+    for art in REQUIRED_ARTIFACTS:
+        if art.public:
+            files += art.paths(years)
+    return {
+        "generated_by": "pipeline/qa.py --write-deploy-allowlist",
+        "_why": (
+            "The explicit, reviewed list of artifacts the site deploy may serve. "
+            "site/scripts/sync-data.mjs copies ONLY these and fails loudly on "
+            "anything else under data/processed/, so a new artifact is published "
+            "by decision rather than by appearing. The source of truth is "
+            "REQUIRED_ARTIFACTS in pipeline/qa.py, whose `public` column carries "
+            "the rationale per row; this file is generated from it and gated "
+            "against it, so the Python and Node halves cannot drift. "
+            "Regenerate with: python3 pipeline/qa.py --write-deploy-allowlist"
+        ),
+        "public": sorted(files),
+        "private": sorted(
+            p for art in REQUIRED_ARTIFACTS if not art.public for p in art.paths(years)
+        ),
+    }
+
+
+def write_deploy_allowlist():
+    seasons = json.loads((PROCESSED_DIR / "seasons.json").read_text())["seasons"]
+    years = sorted(row["year"] for row in seasons)
+    out = deploy_allowlist(years)
+    DEPLOY_ALLOWLIST.write_text(json.dumps(out, indent=2) + "\n")
+    print(f"wrote {DEPLOY_ALLOWLIST.relative_to(REPO_ROOT)}: "
+          f"{len(out['public'])} public, {len(out['private'])} private")
+
+
 def write_zone_fixture():
     import datetime  # noqa: PLC0415
 
@@ -1251,28 +1346,33 @@ def _window_measures(g, ctx, w):
             [b["made"] for b in buckets])
 
     # ENDPOINT GEOMETRY. The caliper is stored twice - as two endpoints and as a
-    # length - so the two must agree. One byte of tenths cannot hold more than
-    # 25.5 ft, and what that costs is counted rather than hidden: F-05's fix to
-    # the encoding is session 3's, but a regeneration that clips a different
-    # number of records turns this red today.
+    # length - so the two must agree, and now they must agree for EVERY record.
+    # There is no clipped set to exempt: the exemption is what let 30 records
+    # ship a length 26 ft short of the distance printed beside it in the same
+    # row (F-05). Reintroducing the one-byte clip is a mutation, and this is the
+    # check that owns it.
     geom = np.hypot(m["x"].astype(float) - m["dx"], m["y"].astype(float) - m["dy"]) / 10.0
-    ceiling = m["dist"] == 255
     off = np.abs(geom - d) > QUANTUM_FT
-    g.check("every unclipped caliper is the distance between its own endpoints",
-            int((off & ~ceiling).sum()), 0)
-    g.check("every clipped caliper really does reach the encoding ceiling",
-            int((geom[ceiling] < 25.5).sum()), 0)
-    g.check("the number of calipers the one-byte encoding clips",
+    g.check("every caliper is the distance between its own endpoints", int(off.sum()), 0)
+
+    # The field's own ceiling, read from the layout the artifact declares rather
+    # than from a sentinel written here - so this follows a re-encoding instead
+    # of quietly asking a false question of real records. Under the old byte,
+    # 255 meant "at least 25.5 ft"; under uint16 it would be a legitimate
+    # 6,553.5 ft reading, which is why the value cannot be hardcoded.
+    cap = _field_ceiling(mb["record"], 4)
+    ceiling = m["dist"] == cap if cap is not None else np.zeros(m["n"], bool)
+    g.check("no caliper is filed at the encoding's ceiling",
             int(ceiling.sum()), MEASURES_CEILING_RECORDS)
     g.check("the longest caliper the endpoints describe",
             round(float(geom.max()), 2), MEASURES_MAX_RECOMPUTED_FT)
     g.holds("no caliper is longer than the floor it was measured on",
             float(geom.max()) <= MAX_ON_COURT_FT,
             f"{geom.max():.2f} <= {MAX_ON_COURT_FT:.2f} ft")
-    g.info(f"{int(ceiling.sum())} of {m['n']:,} calipers sit at the 25.5 ft byte ceiling, "
-           f"the longest recomputing to {geom.max():.2f} ft; widening the encoding is "
-           f"F-05 and belongs to session 3, and this gate reddens the moment the count "
-           f"moves without the fixture moving with it")
+    g.info(f"the caliper is stored in {mb['record']!r} field 5, ceiling {cap:,} tenths; the "
+           f"longest of {m['n']:,} recomputes to {geom.max():.2f} ft and the file agrees with "
+           f"its own endpoints on every record (worst {float(np.abs(geom - d).max()):.3f} ft "
+           f"against a {QUANTUM_FT:.3f} ft storage quantum)")
     m["geom"] = geom
     return m
 
@@ -1311,6 +1411,22 @@ def _window_bias(g, w, seasons, m):
     g.holds("make-bias stays inside the disclosed bound",
             abs(bias["fg_pct_gap"]) <= WINDOW_MAX_FG_BIAS_PP,
             f"{bias['fg_pct_gap']:+.1f} pp")
+
+    # THE WALL TEXT IS TEMPLATED, so it can be recomposed here from the figures
+    # it quotes rather than read back. THE MEASURE and THE LEDGER draw these two
+    # strings verbatim, so a disclosure whose numerals have drifted from the
+    # measurement it discloses would be the F-12 defect wearing a fix's clothes -
+    # a sentence about selection bias that is itself no longer measured.
+    g.check("the scope tag is the coverage it reports",
+            bias["scope"],
+            f"RECOVERED SET · {100 * bias['share_of_season']:.1f}% OF THE SEASON")
+    g.check("the disclosure the piece draws is composed of the figures beside it",
+            bias["disclosure"], [
+                f"{bias['measured_attempts']:,} RECOVERED SHOTS · "
+                f"{100 * bias['share_of_season']:.1f}% OF THE SEASON",
+                f"FOUND FROM THE RIM · THEY GO IN {bias['fg_pct_measured']}% AGAINST "
+                f"THE SEASON'S {bias['fg_pct_season']}%",
+            ])
     g.info(f"the recovered set shoots {bias['fg_pct_measured']}% against the season's "
            f"{bias['fg_pct_season']}% ({bias['fg_pct_gap']:+.1f} pp) and covers "
            f"{100 * bias['share_of_season']:.1f}% of 2015-16's attempts")
@@ -1320,6 +1436,28 @@ def _window_contest(g, w, m):
     con = w["contest"]
     buckets = con["buckets"]
     g.check("four published categories", len(buckets), 4)
+
+    # THE CONTINUOUS QUANTITY the four boxes are cut out of, recomputed from the
+    # bytes rather than read back. THE HAND scales every splotch it draws against
+    # `p99`, so this is a MATERIAL property of a mark and Rule 3 applies to it:
+    # if the reference is not the measurement, the mark is not a measurement.
+    # The artifact takes its percentiles at full precision and the file stores
+    # tenths, so they agree to within the storage quantum, not exactly.
+    cal = con["caliper_ft"]
+    g.check("the caliper distribution counts the shots the binary holds", cal["n"], m["n"])
+    if m["n"]:
+        d = np.sort(m["dist"] / 10.0)
+        drift = {
+            k: round(abs(cal[k] - float(d[min(m["n"] - 1, int(m["n"] * q))])), 3)
+            for k, q in (("p50", 0.50), ("p90", 0.90), ("p99", 0.99))
+        }
+        drift["max"] = round(abs(cal["max"] - float(d[-1])), 3)
+        g.check("every published caliper percentile is the one in the file",
+                sorted(k for k, v in drift.items() if v > QUANTUM_FT), [])
+        g.info(f"the caliper runs p50 {cal['p50']} p90 {cal['p90']} p99 {cal['p99']} "
+               f"max {cal['max']} ft; recomputed from the bytes it drifts by at most "
+               f"{max(drift.values()):.3f} ft, and THE HAND normalises its splotch radius "
+               f"at p99 rather than against any storage ceiling")
     g.check("the categories start at the rim and end open",
             [buckets[0]["lo_ft"], buckets[-1]["hi_ft"]], [0.0, None])
     g.check("the category bounds are contiguous and ordered", [
@@ -1505,6 +1643,8 @@ WINDOW_SCHEMA = {
                  "games_offset": int, "weak_joins": list, "n_weak_joins": int},
     "contest": {"buckets": [{"name": str, "lo_ft": float, "hi_ft": (float, type(None)),
                              "attempts": int, "made": int, "share": float, "fg_pct": float}],
+                "caliper_ft": {"n": int, "p50": float, "p90": float, "p99": float,
+                               "max": float},
                 "approach_curve_ft": list, "approach_hz": int,
                 "approach_seconds_before_release": float,
                 "heroes": [{"bucket": int, "bucket_name": str, "date": str, "action": str,
@@ -1524,13 +1664,17 @@ WINDOW_SCHEMA = {
                   "touches_alt_radius": int, "passes": int, "drives": int,
                   "mean_seconds_per_touch": float,
                   "per_game": {"touches": float, "passes": float, "drives": float}},
+    "bias": {"measured_attempts": int, "season_attempts": int, "share_of_season": float,
+             "fg_pct_measured": float, "fg_pct_season": float, "fg_pct_gap": float,
+             "why": str, "scope": str, "disclosure": list},
     "measures_bin": {"records": int, "bytes": int, "bytes_per_record": int, "day0": str,
                      "record": str, "path": str},
 }
 
 PAINT_SCHEMA = {
     "definitions": dict, "canvases": int, "strokes": int, "vertices": int,
-    "days_covered": int, "seconds_painted": float, "stroke_seconds": float,
+    "days_covered": int, "days_by_month": dict,
+    "seconds_painted": float, "stroke_seconds": float,
     "simplify_ft": float, "vertices_outside_plate": int,
     "speed_ft_s": {"p10": float, "p25": float, "p50": float, "p75": float,
                    "p90": float, "p99": float},
@@ -1592,15 +1736,15 @@ def group_paint(g, ctx):
     g.check("the paint reaches the window's opening and its closure",
             [p["date_first"], p["date_last"]],
             [p["corpus_date_first"], p["corpus_date_last"]])
-    # `canvases_by_month` counts the DAYS the paint reaches in each month, not
-    # the canvases - paint.py builds it from the set of distinct dates. The key
-    # is a misnomer; it is flagged for session 3's honesty sweep and gated here
-    # against what it actually holds rather than against what it is called.
+    # `days_by_month` counts the DAYS the paint reaches in each month - paint.py
+    # builds it from the set of distinct dates, so it sums to `days_covered` and
+    # not to `canvases`. It shipped as `canvases_by_month` through session 2 and
+    # was renamed here, because a key whose name states what its own value
+    # denies is exactly the defect F-16 is about.
     g.check("every painted day is counted in exactly one month",
-            sum(p["canvases_by_month"].values()), p["days_covered"])
-    g.info(f"painted days by month {p['canvases_by_month']} - {p['days_covered']} distinct "
-           f"days carrying {p['canvases']} canvases (the key name says canvases and the "
-           f"value counts days; noted for session 3)")
+            sum(p["days_by_month"].values()), p["days_covered"])
+    g.info(f"painted days by month {p['days_by_month']} - {p['days_covered']} distinct "
+           f"days carrying {p['canvases']} canvases")
 
     vbuf = ctx.raw(g, "paint_strokes.bin")
     ibuf = ctx.raw(g, "paint_index.bin")
@@ -2169,6 +2313,227 @@ def _decoder_parity(g, ctx):
     g.check("no decoder waiver outlives the mismatch it names", stale, [])
 
 
+# --- group: the memory ------------------------------------------------------
+# CLAUDE.md is a working memory file and its prose is why it works, so this does
+# not try to generate it. What it does is make the QUANTITATIVE half checkable:
+# each claim below is an exact substring of the file with one hole in it, and
+# the hole is filled from an artifact. A claim fails if the sentence has been
+# reworded away from the gate OR if the artifact has moved underneath it.
+#
+# That second half is the one that matters. `attribution_agreement` was written
+# into CLAUDE.md as 0.8536 while window.json said 0.8573 - a hand-typed figure
+# that drifted from its own artifact inside a single session, which is the F-16
+# defect in miniature. Nothing could have caught it.
+#
+# The same idiom TABLE_1_6 uses: a fixture in the gate, not display copy.
+
+
+class Claim:
+    """One quantitative sentence in CLAUDE.md, and where its number lives."""
+
+    def __init__(self, template, source, path, fmt="raw"):
+        self.template = template   # exact text, with a single {} for the value
+        self.source = source       # "window" | "paint" | "facts" | "season:YYYY" | "code"
+        self.path = path
+        self.fmt = fmt
+
+    def render(self, value):
+        return self.template.format(self._format(value))
+
+    def _format(self, v):
+        if self.fmt == "raw":
+            return v
+        if self.fmt == "comma":
+            return f"{int(v):,}"
+        if self.fmt == "pct1":
+            return f"{100 * v:.1f}"
+        if self.fmt == "f2":
+            return f"{v:.2f}"
+        if self.fmt == "f4":
+            return f"{v:.4f}"
+        raise ValueError(self.fmt)
+
+
+MEMORY_CLAIMS = [
+    # --- the window's headline figures, all of which moved in session 1b ----
+    Claim("corpus recovery is `recovery.rate` **{}**", "window", "recovery.rate", "f4"),
+    Claim("recovery **{}**", "window", "recovery.rate", "f4"),
+    Claim("measured **{}** shots", "window", "recovery.measured", "comma"),
+    Claim("`disagreement.median_ft`); {}% within 6 ft", "window",
+          "disagreement.within_6ft", "pct1"),
+    Claim("Median **{} ft** apart", "window", "disagreement.median_ft", "f2"),
+    Claim("{}% differ by more than 15 ft", "window", "disagreement.beyond_15ft", "pct1"),
+    Claim("**{}%** of detected shots at 6 ft", "window", "disagreement.within_6ft", "pct1"),
+    # The figure that was already adrift when session 3 opened.
+    Claim("`recovery.attribution_agreement` **{}**", "window",
+          "recovery.attribution_agreement", "f4"),
+    Claim("`recovery.event_offsets` is `{}`", "window", "recovery.event_offsets", "offsets"),
+    Claim("`WINDOW_RECOVERY_FLOOR` in qa.py (**{}**)", "code", "WINDOW_RECOVERY_FLOOR", "f2"),
+
+    # --- the paint ----------------------------------------------------------
+    Claim("lifts **{} strokes**", "paint", "strokes", "comma"),
+    Claim("**{}** corroborated possessions", "paint", "canvases", "comma"),
+    Claim("**Mid-Range {}% of painted time**", "paint", "ink_by_zone.Mid-Range", "pct1"),
+    Claim("**p10 {},", "paint", "speed_ft_s.p10", "f2"),
+    Claim("p90 {}** as of", "paint", "speed_ft_s.p90", "f2"),
+    Claim("{} of its 89 days", "paint", "days_covered", "comma"),
+
+    # --- the record's own resolution and vocabulary -------------------------
+    Claim("**{}** shots that were threes when taken", "season:1996",
+          "contemporaneous.misfiled_threes", "comma"),
+    Claim("under the line then in force it is **{}%**", "season:1996",
+          "contemporaneous.contemporaneous_mid_share", "pct1"),
+    Claim("{}% of rim shots unplaced", "season:1996", "resolution.ra_origin_share", "pct1"),
+    Claim("**{}** in 1996-97 (four cover 90% of shots)", "season:1996",
+          "vocabulary.words", "comma"),
+    Claim("**{}**\n(2007-08)", "season:2007", "vocabulary.words", "comma"),
+    Claim("**{} categories in 1996-97", "season:1996", "vocabulary.categories_total", "comma"),
+    Claim("{} in 2015-16", "season:2015", "vocabulary.categories_total", "comma"),
+    Claim("{} in 2024-25**", "season:2024", "vocabulary.categories_total", "comma"),
+
+    # --- the schedule, and the ring the numerals settle on ------------------
+    Claim("for **{} seconds**", "facts", "loop.seconds"),
+    Claim("(**{}**)", "facts", "loop.clock"),
+    Claim("**{} inclusive days**", "facts", "window.days_inclusive"),
+    Claim("{} weeks", "facts", "window.weeks"),
+    Claim("**{}-ft annulus**", "code", "RING_FT"),
+]
+
+
+def _memory_value(g, ctx, claim):
+    """Resolve one claim's value out of the artifact that owns it."""
+    if claim.source == "code":
+        if claim.path == "WINDOW_RECOVERY_FLOOR":
+            return WINDOW_RECOVERY_FLOOR
+        if claim.path == "RING_FT":
+            # The annulus the season numerals settle on, from the renderer that
+            # draws it. CLAUDE.md called it "the 16-ft annulus" for three
+            # sessions while inscription.ts drew it somewhere else.
+            import re  # noqa: PLC0415
+
+            src = (ctx.repo / "site" / "src" / "inscription.ts")
+            if not src.exists():
+                return None
+            m = re.search(r"^const RING_R = (\d+);", src.read_text(), re.M)
+            return round(int(m.group(1)) / 10, 1) if m else None
+        return None
+
+    if claim.source.startswith("season:"):
+        seasons = ctx.seasons(g)
+        if not seasons:
+            return None
+        obj = seasons.get(int(claim.source.split(":")[1]))
+    elif claim.source == "facts":
+        f = ctx.json(g, "facts.json")
+        obj = (f or {}).get("derived", {})
+        e = obj.get(claim.path)
+        return e["value"] if e else None
+    else:
+        obj = ctx.json(g, {"window": "window.json", "paint": "paint.json"}[claim.source])
+
+    for part in claim.path.split("."):
+        if not isinstance(obj, dict) or part not in obj:
+            return None
+        obj = obj[part]
+    return obj
+
+
+def _offsets_text(d):
+    """`{-2: 7, -1: 1, 0: 531, ...}` - the histogram as CLAUDE.md writes it."""
+    items = sorted(((int(k), v) for k, v in d.items()), key=lambda kv: kv[0])
+    return "{" + ", ".join(f"{'+' if k > 0 else ''}{k}: {v}" for k, v in items) + "}"
+
+
+def group_memory(g, ctx):
+    """The machine-verifiable subset of CLAUDE.md, against the artifacts.
+
+    Not every sentence - most of the file is reasoning and belongs to a reader.
+    These are the ones that carry a number an artifact can settle.
+    """
+    g.section("Project memory")
+    path = ctx.repo / "CLAUDE.md"
+    if not path.exists():
+        g.fail("project memory is present", f"{path} missing")
+        return
+    # Whitespace-normalised on both sides. CLAUDE.md is hard-wrapped prose and
+    # gets re-wrapped constantly; a gate that broke every time a sentence moved
+    # across a line boundary would be re-worded around rather than fixed.
+    text = " ".join(path.read_text().split())
+
+    unresolved, wrong = [], []
+    for claim in MEMORY_CLAIMS:
+        value = _memory_value(g, ctx, claim)
+        if value is None:
+            unresolved.append(f"{claim.source}:{claim.path}")
+            continue
+        if claim.fmt == "offsets":
+            want = claim.template.format(_offsets_text(value))
+        else:
+            want = claim.render(value)
+        if " ".join(want.split()) not in text:
+            wrong.append(f"{claim.source}:{claim.path} -> {want!r}")
+    g.check("every gated memory claim resolves to an artifact", unresolved, [])
+    g.check("every gated memory claim is what the artifact says", wrong, [])
+    g.info(f"{len(MEMORY_CLAIMS)} quantitative claims in CLAUDE.md are gated against "
+           f"window.json, paint.json, seasons.json, facts.json and the code; the rest "
+           f"of the file is reasoning and carries its artifact key inline")
+
+
+# --- group: the deploy allowlist ---------------------------------------------
+
+
+def group_deploy(g, ctx):
+    """What the site may publish, decided rather than defaulted.
+
+    The defect this closes is not the payload, it is PUBLISH-BY-DEFAULT:
+    sync-data.mjs copied data/processed/ wholesale, so anything that appeared
+    there shipped. The list is now explicit, reviewed per row in
+    REQUIRED_ARTIFACTS, and read by the Node side from a committed file - the
+    same cross-toolchain shape the zone fixture already uses.
+
+    This group gates the FILE against the table. The `dist/data` test belongs to
+    the toolchain that builds dist and lives in site/scripts/check-public-data.mjs,
+    which `npm run build` runs after vite; putting it here would mean a check
+    that silently does nothing on a repo nobody has built, and session 2 removed
+    the last of those.
+    """
+    g.section("The deploy allowlist")
+    seasons = ctx.seasons(g)
+    if not seasons:
+        return
+    years = sorted(seasons)
+    path = ctx.repo / "pipeline" / "deploy_allowlist.json"
+    if not path.exists():
+        g.fail("the deploy allowlist exists",
+               f"{path} missing - run python3 pipeline/qa.py --write-deploy-allowlist")
+        return
+    try:
+        got = json.loads(path.read_text())
+    except Exception as e:  # noqa: BLE001
+        g.fail("the deploy allowlist parses", f"{type(e).__name__}: {e}")
+        return
+
+    want = deploy_allowlist(years)
+    g.check("the allowlist the site reads is the table the gate holds",
+            got.get("public"), want["public"])
+    g.check("the artifacts held back are the ones the table holds back",
+            got.get("private"), want["private"])
+    g.check("every allowlisted path is a required artifact",
+            sorted(set(got.get("public", [])) - set(want["public"] + want["private"])), [])
+    # A file cannot be both served and withheld, and between them the two lists
+    # must account for every required artifact - otherwise a new one could be
+    # added to the table and reach neither, which is publish-by-default again
+    # wearing a list.
+    g.check("no artifact is both served and withheld",
+            sorted(set(got.get("public", [])) & set(got.get("private", []))), [])
+    expected = {rel for art in REQUIRED_ARTIFACTS for rel in art.paths(years)}
+    g.check("the two lists account for every required artifact",
+            sorted(expected - set(want["public"]) - set(want["private"])), [])
+    g.info(f"{len(want['public'])} of {len(expected)} artifacts are served; "
+           f"{len(want['private'])} are held back "
+           f"({', '.join(sorted({a.path for a in REQUIRED_ARTIFACTS if not a.public}))})")
+
+
 # --- the groups, in the order they print -------------------------------------
 
 GROUPS = {
@@ -2182,6 +2547,8 @@ GROUPS = {
     "paint": group_paint,
     "traces": group_traces,
     "inventory": group_inventory,
+    "deploy": group_deploy,
+    "memory": group_memory,
 }
 SPINE_ONLY = ["spine", "resolution", "vocabulary", "shot_artifacts", "inventory"]
 # Everything except the one group that reads the raw season dumps. This is also
@@ -2189,9 +2556,9 @@ SPINE_ONLY = ["spine", "resolution", "vocabulary", "shot_artifacts", "inventory"
 FAST_GROUPS = [k for k in GROUPS if k != "zone_vs_league"]
 
 
-def run_groups(names, root, allow_raw=True, quiet=False):
+def run_groups(names, root, allow_raw=True, quiet=False, repo=None):
     g = Gate(quiet=quiet)
-    ctx = Ctx(root, allow_raw=allow_raw)
+    ctx = Ctx(root, allow_raw=allow_raw, repo=repo)
     for name in names:
         g.group = name
         try:
@@ -2290,10 +2657,16 @@ def main():
                     help="also run the recomputations that reopen the raw corpus")
     ap.add_argument("--write-zone-fixture", action="store_true",
                     help="regenerate pipeline/checks/zone_fixture.json from common.zone_at")
+    ap.add_argument("--write-deploy-allowlist", action="store_true",
+                    help="regenerate pipeline/deploy_allowlist.json from REQUIRED_ARTIFACTS")
     args = ap.parse_args()
 
     if args.write_zone_fixture:
         write_zone_fixture()
+        return
+
+    if args.write_deploy_allowlist:
+        write_deploy_allowlist()
         return
 
     from checks.mutations import run_mutations  # noqa: PLC0415

@@ -779,7 +779,12 @@ def reduce_all():
         "date_last": max(dates) if dates else None,
         "corpus_date_first": sel.get("corpus_date_first"),
         "corpus_date_last": sel.get("corpus_date_last"),
-        "canvases_by_month": {
+        # DAYS per month, not canvases: `dates` is a set, so a month holding
+        # four canvases painted on one day contributes 1. It shipped as
+        # `canvases_by_month` and summed to `days_covered` (85) rather than to
+        # `canvases` (249) - a key whose name states what the artifact denies,
+        # which is the honesty defect in a different file (audit F-16).
+        "days_by_month": {
             k: v for k, v in sorted(Counter(d[:7] for d in dates).items())
         },
         # How far down the residual ordering each canvas sat. Rank 0 is the rule

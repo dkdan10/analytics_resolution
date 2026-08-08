@@ -140,6 +140,12 @@ MOSTLY_SIGHTED_MAX = 0.02        # league-wide share below which the rim is plac
 # so the taxonomy files thousands of that era's threes as "Mid-Range". Only
 # 1996-97 is in this dataset; 1997-98 onward needs no correction.
 SHORTENED_LINE_YEARS = {1996}
+# The radius of that line, in feet. External history, not a measurement: no dump
+# records the geometry it was played under. It is declared HERE, beside the years
+# it applies to, and emitted into `contemporaneous.line_ft` so that the words the
+# plate prints ("UNDER THE 22-FT LINE THEN IN FORCE") and the arc the plate draws
+# for 1996-97 both read one key instead of each carrying their own copy of 22.
+SHORTENED_LINE_FT = 22.0
 
 # Fallback for the window span if the probe artifact is absent; measured in
 # pipeline/sportvu_probe.py, which gates this exact value (plan section 1.1).
@@ -252,6 +258,7 @@ def measure_contemporaneous(year, df):
     mid = df.SHOT_ZONE_BASIC == "Mid-Range"
     misfiled = mid & is3
     return {
+        "line_ft": SHORTENED_LINE_FT,
         "taxonomy_mid_attempts": int(mid.sum()),
         "taxonomy_mid_share": float(mid.mean()),
         "misfiled_threes": int(misfiled.sum()),
@@ -265,6 +272,34 @@ def measure_contemporaneous(year, df):
             "the 3PT line stood at 22 ft in 1994-97; SHOT_ZONE_BASIC applies the modern "
             "23'9\" geometry retroactively, filing these attempts as Mid-Range"
         ),
+    }
+
+
+def measure_schema(year):
+    """How wide the record is per shot, measured from the dump's own header.
+
+    CLAUDE.md asserts that the per-shot field count does NOT grow - "same 24
+    columns in all 30 seasons" - while the vocabulary does. That was a claim
+    nobody had checked, and it is the honest counterweight to the second curve:
+    Act V's crowding comes from richer DESCRIPTION, never from more fields. So
+    it is measured here and asserted constant across the thirty in main().
+
+    `positions_per_shot` is counted the same way rather than written down: the
+    record holds exactly one coordinate pair for a shot, which is the whole of
+    what THE CENSUS means by "Points per shot · 1". Counting the LOC_ columns
+    means that line would change if the schema ever held a second position.
+    """
+    import re
+
+    header = read_season_csv(year, nrows=0)
+    cols = list(header.columns)
+    loc = [c for c in cols if re.fullmatch(r"LOC_[XY]", c)]
+    if len(loc) % 2:
+        die(f"{season_label(year)}: {len(loc)} coordinate column(s), not whole pairs: {loc}")
+    return {
+        "fields_per_shot": len(cols),
+        "positions_per_shot": len(loc) // 2,
+        "fields": cols,
     }
 
 
@@ -381,6 +416,7 @@ def aggregate_season(year):
         "date_max": str(df.GAME_DATE.max()),
         "shot_type_nulls": type_nulls,
         "resolution": measure_resolution(year, df),
+        "schema": measure_schema(year),
         "vocabulary": measure_vocabulary(df),
         "classification": measure_classification(df),
         "contemporaneous": measure_contemporaneous(year, df),
@@ -553,6 +589,17 @@ def main():
             f"  | {row['vocabulary']['words']:>2} words"
         )
 
+    # THE FIELD COUNT DOES NOT GROW. The record learns adjectives, not columns:
+    # if this ever varies, THE LEDGER's whole argument - that Act V's crowding is
+    # substitution and never a richer per-shot record - has to be restated rather
+    # than asserted. Checked over the seasons actually run, so a --years subset
+    # still checks what it can.
+    widths = {r["schema"]["fields_per_shot"] for r in rows}
+    positions = {r["schema"]["positions_per_shot"] for r in rows}
+    if len(widths) > 1 or len(positions) > 1:
+        die(f"the per-shot schema is not constant across {len(rows)} seasons: "
+            f"{sorted(widths)} field widths, {sorted(positions)} position counts")
+
     out = {
         "generated_by": "pipeline/aggregate.py",
         "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
@@ -571,8 +618,16 @@ def main():
                 "2009-10 only five or six did, and it follows the building, not the team"
             ),
             "contemporaneous": (
-                "1996-97 only: mid-range recomputed under the 22-ft line then in force, "
-                "against the modern polygons SHOT_ZONE_BASIC applies retroactively"
+                f"1996-97 only: mid-range recomputed under the {SHORTENED_LINE_FT:g}-ft line "
+                "then in force, against the modern polygons SHOT_ZONE_BASIC applies "
+                "retroactively. `line_ft` is that line's radius - external history no dump "
+                "records - and both the words the piece prints and the arc it draws for "
+                "1996-97 read it from here"
+            ),
+            "schema": (
+                "the dump's own header, counted: how many fields the record keeps per shot "
+                "and how many positions among them. Asserted constant across all thirty "
+                "seasons - the vocabulary grows, the schema does not"
             ),
         },
         "seasons": rows,

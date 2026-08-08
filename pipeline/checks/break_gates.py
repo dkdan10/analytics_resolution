@@ -62,7 +62,7 @@ def build_root(tmp):
         src = REPO_ROOT / "data" / name
         if src.exists():
             (root / "data" / name).symlink_to(src)
-    for name in (".python-version", "requirements.txt"):
+    for name in (".python-version", "requirements.txt", "CLAUDE.md"):
         if (REPO_ROOT / name).exists():
             shutil.copy2(REPO_ROOT / name, root / name)
     return root
@@ -104,10 +104,24 @@ def main():
             sys.exit("the unmutated copy is already red - fix that first")
 
         results = []
+        pristine_repo = {
+            rel: (Path(tmp) / "pristine-repo" / rel.replace("/", "_"))
+            for rel in ("CLAUDE.md", "pipeline/deploy_allowlist.json")
+        }
+        (Path(tmp) / "pristine-repo").mkdir(exist_ok=True)
+        for rel, keep in pristine_repo.items():
+            if (root / rel).exists():
+                shutil.copy2(root / rel, keep)
+
         for c in cases:
             shutil.rmtree(root / "data" / "processed")
             shutil.copytree(pristine, root / "data" / "processed")
-            c.mutate(root / "data" / "processed")
+            for rel, keep in pristine_repo.items():
+                if keep.exists():
+                    shutil.copy2(keep, root / rel)
+            # A repo-scope case mutates CLAUDE.md or the deploy allowlist,
+            # which live outside data/processed/ - both are in this root.
+            c.mutate(root if c.scope == "repo" else root / "data" / "processed")
             code, out = run_qa(root)
             named = any(ln.startswith("  FAIL") and c.catches in ln for ln in out.splitlines())
             good = code != 0 and named

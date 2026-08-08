@@ -1,0 +1,143 @@
+{
+  "generated_by": "pipeline/facts.py",
+  "generated_at": "2026-08-08T08:37:11+00:00",
+  "provenance": {
+    "shots_source": "stats.nba.com shotchartdetail, bulk archive github.com/shufinskiy/nba_data",
+    "sportvu_source": "NBA/STATS SportVU public 2015-16 release, github.com/linouk23/NBA-Player-Movements + mirrors (github.com/sealneaward/nba-movement-data, HF dcayton/nba_tracking_data_15_16)",
+    "license_note": "derived data only; bulk dumps are never committed (see CLAUDE.md data rights)"
+  },
+  "definitions": {
+    "external": "history no dump records. Every entry carries a source specific enough to check. Nothing here is a measurement and nothing here may be presented as one",
+    "derived": "a display fact computed from another artifact or from the site's own schedule constants; `from` names what it was computed out of. The site reads these; it never restates them",
+    "_why": "the piece is not entitled to author a number. Where one is not in the shot record it is either cited here or it is not shown"
+  },
+  "external": {
+    "league_founded": {
+      "value": 1946,
+      "statement": "the league's founding year; Act 0's slug closes on the first season the shot record holds, which is read from seasons.json",
+      "source": "external history; the Basketball Association of America was founded in June 1946 and the corpus begins fifty seasons later",
+      "note": "the body founded in 1946 was the BAA. It absorbed the National Basketball League and took the name NBA in 1949, so 1946 is the league's own founding date and not, strictly, the NBA's. The piece prints the year alone and makes no claim about the name."
+    },
+    "endpoint_known_dead_by": {
+      "value": "2016-02-10",
+      "statement": "the date by which the public moment endpoint was already dead - NOT the date it closed, which is not established",
+      "source": "docs/build-plan-v2.md section 1.4-1.5, citing the earliest dated artifact: github.com/bttmly/nba-movement issue #1, 10 February 2016, \"especially locations_getmoments, are no longer active\"",
+      "note": "the shutdown date itself is unknown. The corpus's last archive is 2016-01-23 and the endpoint was dead by this date; everything between the two is dark. The widely repeated \"mid-January\" cutoff has no primary source. The piece therefore shows both dates and explains neither, because that is the state of the evidence."
+    },
+    "three_point_line_1994_97_ft": {
+      "value": 22.0,
+      "statement": "the radius of the three-point line in force through 1996-97, which SHOT_ZONE_BASIC's modern polygons are applied over retroactively",
+      "source": "external history, declared in pipeline/aggregate.py:SHORTENED_LINE_FT and emitted per season into seasons.json:contemporaneous.line_ft, which is where this value was read from",
+      "note": "the line stood at 22 ft everywhere from 1994-95 through 1996-97. Only 1996-97 is in this dataset. The piece draws the arc and prints the figure from this one key so the two cannot disagree."
+    },
+    "published_instead": {
+      "value": [
+        {
+          "name": "SPEED & DISTANCE",
+          "source": "LeagueDashPtStats, PtMeasureType=SpeedDistance"
+        },
+        {
+          "name": "DRIVES",
+          "source": "LeagueDashPtStats, PtMeasureType=Drives"
+        },
+        {
+          "name": "TOUCHES",
+          "source": "LeagueDashPtStats, PtMeasureType=Possessions (touches per game); a measure within that type, not a type of its own"
+        },
+        {
+          "name": "PASSING",
+          "source": "LeagueDashPtStats, PtMeasureType=Passing"
+        },
+        {
+          "name": "POSSESSIONS",
+          "source": "LeagueDashPtStats, PtMeasureType=Possessions"
+        },
+        {
+          "name": "CATCH & SHOOT",
+          "source": "LeagueDashPtStats, PtMeasureType=CatchShoot"
+        },
+        {
+          "name": "PULL-UP SHOOTING",
+          "source": "LeagueDashPtStats, PtMeasureType=PullUpShot"
+        },
+        {
+          "name": "CLOSEST DEFENDER",
+          "source": "PlayerDashPtShots - closest-defender shot dashboards"
+        },
+        {
+          "name": "REBOUNDING",
+          "source": "LeagueDashPtStats, PtMeasureType=Rebounding"
+        },
+        {
+          "name": "PLAY TYPES",
+          "source": "SynergyPlayTypes - play-type frequencies from 2015-16"
+        },
+        {
+          "name": "HUSTLE",
+          "source": "HustleStats - begins with the 2016 playoffs, so it is NOT available for the corpus window and stays bare in every act"
+        },
+        {
+          "name": "EFFICIENCY",
+          "source": "LeagueDashPtStats, PtMeasureType=Efficiency"
+        }
+      ],
+      "statement": "the tracking measures the league publishes in place of the optical geometry it stopped releasing; THE LEDGER draws these names, with recomputed values inside the window and bare outside it",
+      "source": "docs/build-plan-v2.md section 1.4-1.5 (LeagueDashPtStats PtMeasureType values, PlayerDashPtShots, SynergyPlayTypes, HustleStats)",
+      "note": "the league publishes VALUES for all of these; what it stopped publishing is the geometry they are made from. The list is the twelve the piece draws, not an exhaustive one: LeagueDashPtStats also carries PtMeasureType=Defense, which is not shown - a compositional limit of two arcs on one halfcourt, not a claim."
+    }
+  },
+  "derived": {
+    "window.days_inclusive": {
+      "value": 89,
+      "from": "window.json:corpus.date_first..date_last (2015-10-27..2016-01-23), inclusive"
+    },
+    "window.days_elapsed": {
+      "value": 88,
+      "from": "window.json:corpus.date_first..date_last (2015-10-27..2016-01-23)"
+    },
+    "window.weeks": {
+      "value": 12.71,
+      "from": "window.json:corpus date span / 7"
+    },
+    "loop.seconds": {
+      "value": 500,
+      "from": "site/src/timeline.ts: ACT0_SECONDS 24 + 29 x SEASON_SECONDS 11 + WINDOW_SECONDS 150 + CODA_SECONDS 7, over seasons.json's 30 seasons"
+    },
+    "loop.clock": {
+      "value": "8:20",
+      "from": "facts.json:derived.loop.seconds, as m:ss"
+    },
+    "loop.window_share": {
+      "value": 0.3,
+      "from": "site/src/timeline.ts:WINDOW_SECONDS / facts.json:derived.loop.seconds"
+    },
+    "season.games_full": {
+      "value": 1230,
+      "from": "window.json:corpus.season_games"
+    },
+    "season.count": {
+      "value": 30,
+      "from": "seasons.json:seasons, counted"
+    },
+    "season.first_year": {
+      "value": 1996,
+      "from": "seasons.json:seasons[0].year"
+    },
+    "schema.fields_per_shot": {
+      "value": 24,
+      "from": "seasons.json:seasons[].schema.fields_per_shot, asserted constant across all 30 seasons"
+    },
+    "schema.positions_per_shot": {
+      "value": 1,
+      "from": "seasons.json:seasons[].schema.positions_per_shot, asserted constant across all 30 seasons"
+    },
+    "taxonomies.count": {
+      "value": 6,
+      "from": "seasons.json:seasons[].vocabulary.taxonomies, counted and asserted constant across all 30 seasons"
+    },
+    "contest.categories": {
+      "value": 4,
+      "from": "window.json:contest.buckets, counted"
+    }
+  }
+}
