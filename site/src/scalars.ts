@@ -383,9 +383,10 @@ export const SCALARS = {
     value: 9000,
     material: true,
     controls:
-      "ink for the whole splotch layer, so a season of ~190,000 marks and a window " +
-      "of ~48,000 lay down the same paint and neither floods the plate. Conserved " +
-      "the way marks.ts conserves it for dots.",
+      "ink for the window's drop layer, divided equally between its shots, so " +
+      "the layer weighs the same whatever the recovered set turns out to hold. " +
+      "Conserved the way marks.ts conserves it for dots. The seasons outside " +
+      "the window conserve theirs by AREA instead and use DROP_AREA.",
   },
   SPLOTCH_MIN_R: {
     class: "authored",
@@ -405,26 +406,70 @@ export const SCALARS = {
       "THE FIELD already draws every shot as a photographic density, and at the " +
       "same size this hand would simply BE THE FIELD with a different caption.",
   },
-  SPLOTCH_FLAT_BONUS_R: {
-    class: "authored",
-    value: 1.6,
-    material: true,
-    controls:
-      "how much larger every splotch is outside the window than the tightest one " +
-      "inside it. Outside, the record says nothing about room, so all of them are " +
-      "this one size — and that sameness is the hand's argument.",
-  },
   SPLOTCH_ALPHA_CAP_WINDOW: {
     class: "authored",
     value: 0.34,
     material: true,
-    controls: "opacity ceiling on a splotch inside the window.",
+    controls:
+      "opacity ceiling on a drop inside the window. A MATERIAL cap - the most " +
+      "ink one mark may hold - and no longer a fade cap: the frame's own alpha " +
+      "used to be folded in before it, so how hard it bound depended on how far " +
+      "the coda had receded. It is now applied to the unmultiplied value and the " +
+      "frame's alpha multiplies the finished layer.",
   },
-  SPLOTCH_ALPHA_CAP_SEASON: {
+  DROP_AREA: {
     class: "authored",
-    value: 0.3,
+    value: 250000,
     material: true,
-    controls: "opacity ceiling on a splotch outside it, where one mark stands for many shots at a coordinate.",
+    controls:
+      "the total area of paint one season lays down outside the window, in court " +
+      "tenths squared, divided between its coordinates in proportion to their " +
+      "SHARE of that season. It is what makes a drop's radius carry how many " +
+      "shots landed there. Fixed across all thirty seasons and reckoned in share " +
+      "rather than count, for the reason field.ts:tone gives: normalising each " +
+      "season to its own maximum would falsely equalise them, and the lockout " +
+      "years and the bubble are short, not sparse.",
+  },
+  DROP_MIN_R: {
+    class: "authored",
+    value: 1.0,
+    material: true,
+    controls:
+      "the smallest drop the brush makes, in court tenths. A coordinate whose " +
+      "share would spread thinner than this still deposits all of its ink - what " +
+      "area refuses goes to opacity instead - so nothing the record filed is " +
+      "dropped and the conservation stays exact at both ends of the range.",
+  },
+  DROP_MAX_R: {
+    class: "authored",
+    value: 20,
+    material: true,
+    controls:
+      "the widest a drop may spread. It binds only where the record piles an " +
+      "extraordinary share of a season onto one coordinate, which it does: past " +
+      "this the mark would read as a region of the floor rather than as a place.",
+  },
+  DROP_ALPHA: {
+    class: "authored",
+    value: 0.19,
+    material: true,
+    controls:
+      "how wet one drop is, outside the window - and it is CONSTANT, which is " +
+      "this layer's whole material argument. THE FIELD varies brightness at a " +
+      "fixed size and adds light; this varies size at a fixed opacity and " +
+      "COVERS. At the same size and a varying opacity the two hands would be the " +
+      "same picture with a different caption.",
+  },
+  KEPT_OVER_PAINT: {
+    class: "authored",
+    value: 0.55,
+    material: true,
+    controls:
+      "how strongly the kept coordinates come back up over the painting through " +
+      "THE INSTANT. Five seconds of body were recorded and one point was filed, " +
+      "and this is that point asserting itself over the gesture it stands for. " +
+      "Nothing new is drawn at all: it is the same layer composited a second " +
+      "time, above instead of below.",
   },
   SPLOTCH_VISIBLE: {
     class: "authored",
@@ -630,9 +675,12 @@ export const POOL_R_CAP: number = SCALARS.POOL_R_CAP.value;
 export const SPLOTCH_INK: number = SCALARS.SPLOTCH_INK.value;
 export const SPLOTCH_MIN_R: number = SCALARS.SPLOTCH_MIN_R.value;
 export const SPLOTCH_MAX_R: number = SCALARS.SPLOTCH_MAX_R.value;
-export const SPLOTCH_FLAT_BONUS_R: number = SCALARS.SPLOTCH_FLAT_BONUS_R.value;
 export const SPLOTCH_ALPHA_CAP_WINDOW: number = SCALARS.SPLOTCH_ALPHA_CAP_WINDOW.value;
-export const SPLOTCH_ALPHA_CAP_SEASON: number = SCALARS.SPLOTCH_ALPHA_CAP_SEASON.value;
+export const DROP_AREA: number = SCALARS.DROP_AREA.value;
+export const DROP_MIN_R: number = SCALARS.DROP_MIN_R.value;
+export const DROP_MAX_R: number = SCALARS.DROP_MAX_R.value;
+export const DROP_ALPHA: number = SCALARS.DROP_ALPHA.value;
+export const KEPT_OVER_PAINT: number = SCALARS.KEPT_OVER_PAINT.value;
 export const SPLOTCH_VISIBLE: number = SCALARS.SPLOTCH_VISIBLE.value;
 
 export const CALIPER_SERIF: number = SCALARS.CALIPER_SERIF.value;

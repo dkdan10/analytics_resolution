@@ -11,9 +11,12 @@
     "preview": "vite preview",
     "check:numbers": "node scripts/check-numbers.mjs",
     "disclose": "node scripts/disclose.mjs",
-    "check:public": "node scripts/check-public-data.mjs"
+    "check:public": "node scripts/check-public-data.mjs",
+    "probe:purity": "node scripts/probe-run.mjs purity",
+    "probe:perf": "node scripts/probe-run.mjs perf"
   },
   "devDependencies": {
+    "playwright": "^1.62.1",
     "typescript": "^5.7.2",
     "vite": "^6.0.5"
   }

@@ -54,6 +54,7 @@ import {
   hashPixels,
   makeTarget,
   MODES,
+  narrow,
   warmUp,
   aboveNoise,
   measureNoiseFloor,
@@ -102,7 +103,10 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
    */
   const exact = q.get("exact") === "1";
   const target = makeTarget(exact);
-  const beats = beatsOf(schedule);
+  // Narrowed the same way the perf probe is, and an unmatched name throws
+  // rather than silently sweeping nothing. A full sweep is the default.
+  const modes = narrow("hand", MODES, q.get("mode"), (m) => m);
+  const beats = narrow("beat", beatsOf(schedule), q.get("beat"), (b) => b.id);
   // Every beat is taken on the SECOND pass of the loop, so that continuous
   // playback into the prelude arrives out of the previous loop's coda exactly
   // as the gallery does, rather than out of nothing.
@@ -128,8 +132,23 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
 
   // The environment's own variation, measured under the pressure this run
   // creates, before any of it is attributed to the piece.
+  //
+  // MEASURED ON THE HEAVIEST FRAME IN THE SWEEP, not the cheapest. It used to
+  // render `beats[0]` — the prelude, where `renderTo` returns before any hand
+  // is called and the plate is bare — and then apply that floor to frames
+  // carrying tens of thousands of marks. Session 2's handoff named this as a
+  // limit of the instrument and it turns out to matter: a bare frame's floor
+  // came back at zero channels on this machine while a window beat's is
+  // thousands, so the cheap floor promoted the browser's own jitter on a heavy
+  // frame into a finding about the piece. The floor is a property of the FRAME,
+  // so it is measured on the frame it will be used to judge.
+  // The window beats are the heaviest the piece has: every hand that draws
+  // there has the whole recovered set and the whole painting resident.
+  const heaviest = [...beats].reverse().find((b) => b.id.startsWith("window-")) ?? beats[0]!;
   const noise = measureNoiseFloor(
-    () => draw(base + beats[0]!.at, "plate"),
+    () => {
+      for (const mode of modes) draw(base + heaviest.at, mode);
+    },
     () => target.ctx.getImageData(0, 0, PROBE_W * PROBE_DPR, PROBE_H * PROBE_DPR).data,
     PROBE_W * PROBE_DPR,
   );
@@ -141,7 +160,7 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
   let inconclusive = 0;
   let withinNoise = 0;
 
-  for (const mode of MODES) {
+  for (const mode of modes) {
     for (const beat of beats) {
       // Hand the main thread back between beats. Five thousand renders onto a
       // software-rasterised surface is minutes of work, and a page that cannot
@@ -174,7 +193,7 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
         if (hashes[h] === hashes.direct) continue;
         identical = false;
         diffs[h] = diffPixels(ref, shots[h]!, PROBE_W * PROBE_DPR);
-        if (aboveNoise(diffs[h]!.channels, noise)) real = true;
+        if (aboveNoise(diffs[h]!, noise)) real = true;
       }
       // Three-valued on purpose. `within-noise` is not a pass and not a
       // failure: it is the instrument saying the difference is smaller than
@@ -199,7 +218,7 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
   }
 
   const byMode = Object.fromEntries(
-    MODES.map((m) => {
+    modes.map((m) => {
       const mine = rows as { mode: string; verdict: string; diffs?: Record<string, { channels: number }> }[];
       const ours = mine.filter((r) => r.mode === m);
       const bad = ours.filter((r) => r.verdict === "IMPURE");
@@ -231,6 +250,7 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
     withinNoiseBeats: withinNoise,
     inconclusiveBeats: inconclusive,
     noiseFloor: noise,
+    noiseFloorBeat: heaviest.id,
     totalBeats: rows.length,
     rasterisation: exact
       ? "software (willReadFrequently), pinned - the floor is zero and a single "

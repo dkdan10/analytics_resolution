@@ -364,6 +364,13 @@ export interface PaintFile {
   strokes: number;
   vertices: number;
   days_covered: number;
+  /** The day index's own calendar: `day_dates[d]` is the date `day == d` stands
+   *  for, and `day_offsets[d]` is that date's distance in days from the corpus's
+   *  first. Both are dense from zero - the pipeline refuses to ship a mapping
+   *  with a hole in it - which is what lets a renderer put a stroke on the
+   *  window's calendar without parsing a date or interpolating one. */
+  day_dates: string[];
+  day_offsets: number[];
   seconds_painted: number;
   stroke_seconds: number;
   simplify_ft: number;

@@ -32,6 +32,7 @@ import {
   FRAME_BUDGET_MS,
   makeTarget,
   MODES,
+  narrow,
   PROBE_DPR,
   PROBE_H,
   PROBE_W,
@@ -94,9 +95,11 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
   const residency = await forceResidency(data, (s) => console.log(s));
 
   const frames = Number(q.get("frames")) || DEFAULT_FRAMES;
-  const only = q.get("mode");
-  const modes = only ? MODES.filter((m) => m === only) : MODES;
-  const beats = beatsOf(schedule);
+  // `MODES.filter((m) => m === only)` yielded an empty table and no error on a
+  // typo, so a driver read "no rows" as "nothing over budget". An unmatched
+  // name now throws and reaches the probe's error path.
+  const modes = narrow("hand", MODES, q.get("mode"), (m) => m);
+  const beats = narrow("beat", beatsOf(schedule), q.get("beat"), (b) => b.id);
   // `q.has` first: Number(null) is 0 and Number.isFinite(0) is true, so parsing
   // an absent `t` silently collapses a twelve-beat sweep onto second zero of
   // Act 0 - a frame that draws nothing and times at a hundredth of a
@@ -194,12 +197,13 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
     framesPerBeat: frames,
     warmupFrames: WARMUP,
     residency,
-    // THE HAND is decoding paint_strokes.bin with the pre-session-1 record
-    // widths until session 4 lands, so whatever it costs here is the cost of
-    // drawing garbage. Said out loud rather than handed over as a baseline.
-    caveat: "the `hand` rows are measured on a stale decode of paint_strokes.bin "
-      + "(site/src/data.ts still reads 6- and 8-byte records against the pipeline's "
-      + "8 and 11); they are NOT a valid pre-session-4 baseline for THE HAND",
+    // The `caveat` field that stood here through session 3 said the `hand` rows
+    // were measured on a stale decode of paint_strokes.bin and were not a valid
+    // baseline. That was true and is not any more: session 4 landed the reader,
+    // and `decodeStrokes` now asserts the layout against paint.json before it
+    // reads a byte. An instrument that goes on disclaiming a defect it no longer
+    // has is the same class of error this project audits itself for, so the
+    // field is GONE rather than reworded - and its absence is the claim.
     byMode,
     rows,
   };

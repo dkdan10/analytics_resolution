@@ -76,6 +76,10 @@ const MARK_LAYERS = [
   /^marks\.ts$/,
   /^modes\/hand\.ts$/,
   /^modes\/measure\.ts$/,
+  // THE HAND's accumulating layers live here. It declares no material scalar
+  // today - it is caching machinery - but it is the file a future rebuild would
+  // most naturally hide one in, which is exactly what this list is for.
+  /^prefix\.ts$/,
 ];
 
 /** Sinks. A literal on a line that reaches one of these changes a mark. */

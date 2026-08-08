@@ -106,16 +106,29 @@ cd site && npm run gate                       # the TypeScript side (npm run bui
 Two diagnostics of the renderer, behind `?probe=`. Neither is reachable from the exhibit path:
 `main.ts` imports the probe module dynamically and only when the parameter is present, so the
 gallery build never fetches the chunk and a probe run never starts the loop. Both write a
-machine-readable verdict into the page, the console and `window.probePurity` / `window.probePerf`.
+machine-readable verdict into the page, the console and the window globals — which are HYPHENATED,
+`window["probe-purity"]` and `window["probe-perf"]`, and are not reachable as dotted identifiers.
+This line named them `window.probePurity` / `window.probePerf` for two sessions; those read
+`undefined`.
+
+Both are driven headlessly by a committed runner, which is how a sweep gets run repeatably and its
+verdict committed. Neither is wired into `npm run build`: a purity sweep is a minute and performance
+numbers are a property of the machine that took them.
 
 ```bash
-cd site && npm run dev
+cd site && npm run dev                    # in one shell - the probes need the data synced
+cd site && npm run probe:purity           # all six hands x twelve beats, ~47 s
+cd site && npm run probe:perf             # 72 rows, ~8 s
 ```
+
+Verdicts land in `docs/probe/`. `--mode`, `--beat` and `--out` narrow a run and name its output;
+an unmatched name is an error rather than an empty table.
 
 - `http://localhost:5173/?probe=purity` — the same instant reached four ways (continuous playback,
   a forward seek, a backward seek, and a cold direct load) and compared by exact pixel hash, for
-  every hand at twelve schedule-derived beats. **THE HAND differs at exactly the four window
-  beats** — audit finding F-04, session 4's to fix; the harness measures it rather than hiding it.
+  every hand at twelve schedule-derived beats. Read every verdict against the run's own measured
+  noise floor: Canvas2D rasterisation is not bit-stable under memory pressure, and the floor is a
+  property of the FRAME, so it is measured on the heaviest one in the sweep.
   Read every verdict against the probe's own **noise floor**, which it measures at startup: Canvas2D
   rasterisation is not stable across memory pressure, and an uncalibrated run blames the piece for
   the browser. `&exact=1` pins software rasterisation instead — the floor drops to zero and the run

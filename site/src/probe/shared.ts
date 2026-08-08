@@ -51,9 +51,15 @@ export const FRAME_BUDGET_MS = 1000 / 60;
  * exactly the thing that provokes it. It reads as impurity in every hand and it
  * is nothing of the sort.
  *
- * So a pixel comparison asks for the software path up front and never moves.
- * The performance probe must NOT: it is measuring the pipeline the gallery
- * actually runs on, and it compares no pixels.
+ * WHAT THIS FUNCTION ACTUALLY DOES, since two places in the repo said otherwise
+ * and the code is the truth: `readback` DEFAULTS TO FALSE, so both probes run
+ * on the accelerated surface the gallery uses unless the purity probe is asked
+ * for `&exact=1`. The purity run therefore reads every verdict against its own
+ * MEASURED noise floor rather than assuming a stable rasteriser; `&exact=1`
+ * pins the software path, drops the floor to zero, and takes hours.
+ *
+ * The performance probe must never pin it: it is measuring the pipeline the
+ * gallery actually runs on, and it compares no pixels.
  */
 export function makeTarget(readback = false): Target {
   const el = document.createElement("canvas");
@@ -123,6 +129,34 @@ export function beatsOf(schedule: Schedule): Beat[] {
 export const MODES: readonly ModeId[] = MODE_IDS;
 
 /**
+ * Narrow a sweep, and refuse a filter that matches nothing.
+ *
+ * The purity probe had no narrowing at all: every run was the whole sweep of
+ * every hand at every beat along every history, all or nothing, which is why
+ * iterating on one hand meant paying for all of them. The perf probe had `&mode=` but a typo in
+ * it yielded `rows: []` and no error, so a driver read an empty table as a
+ * clean one. Both are one function now, and an unmatched name is a THROW - the
+ * probe's error path exists precisely so a driver can tell that apart from a
+ * slow run.
+ */
+export function narrow<T>(
+  what: string,
+  all: readonly T[],
+  wanted: string | null,
+  nameOf: (t: T) => string,
+): readonly T[] {
+  if (wanted === null) return all;
+  const names = wanted.split(",").map((s) => s.trim()).filter(Boolean);
+  const missing = names.filter((n) => !all.some((t) => nameOf(t) === n));
+  if (missing.length) {
+    throw new Error(
+      `no such ${what}: ${missing.join(", ")} (have ${all.map(nameOf).join(", ")})`,
+    );
+  }
+  return all.filter((t) => names.includes(nameOf(t)));
+}
+
+/**
  * Wait until every lazily-fetched asset is in memory.
  *
  * `points()`, `measures()` and `strokes()` return null and start a fetch, so a
@@ -134,7 +168,12 @@ export async function forceResidency(
   data: Loaded,
   log: (s: string) => void,
   timeoutMs = 60_000,
-): Promise<{ resident: string[]; missing: string[]; fonts: FontFaceSetLoadStatus }> {
+): Promise<{
+  resident: string[];
+  missing: string[];
+  errors: string[];
+  fonts: FontFaceSetLoadStatus;
+}> {
   const wanted: [string, () => unknown][] = [
     ...data.seasons.map((s) => [`points/${s.year}`, () => data.points(s.year)] as [string, () => unknown]),
     ["measures", () => data.measures()],
@@ -149,13 +188,17 @@ export async function forceResidency(
         resident.push(name);
         break;
       }
-      if (performance.now() - t0 > timeoutMs) {
+      // A failed fetch now LATCHES rather than being retried from the loop, so
+      // waiting out the timeout on one would be waiting for something that is
+      // never coming. Give up on it at once and say why.
+      if (data.assetErrors().length || performance.now() - t0 > timeoutMs) {
         missing.push(name);
         break;
       }
       await new Promise((r) => setTimeout(r, 20));
     }
   }
+  const errors = data.assetErrors();
   // Fonts are an asset too, and the least obvious one.
   //
   // Text is drawn through `textatlas`, which rasterises each string once. The
@@ -166,8 +209,8 @@ export async function forceResidency(
   // remembering anything, and this harness exists to tell those apart.
   await document.fonts.ready;
   log(`resident: ${resident.length} assets, missing: ${missing.length}, `
-    + `fonts: ${document.fonts.status}`);
-  return { resident, missing, fonts: document.fonts.status };
+    + `errors: ${errors.length}, fonts: ${document.fonts.status}`);
+  return { resident, missing, errors, fonts: document.fonts.status };
 }
 
 /**
@@ -180,7 +223,7 @@ export async function forceResidency(
  */
 export function warmUp(
   draw: (t: number, mode: ModeId) => void,
-  beats: Beat[],
+  beats: readonly Beat[],
   base: number,
   modes: readonly ModeId[] = MODES,
 ): void {
@@ -294,11 +337,23 @@ export function measureNoiseFloor(
 
 /** How far above the measured floor a difference has to sit to be the piece's
  *  rather than the browser's. Four times, and never fewer than a thousand
- *  channels — F-04 clears it by more than an order of magnitude. */
+ *  channels — F-04 cleared it by more than an order of magnitude. */
 export const NOISE_MARGIN = 4;
 
-export function aboveNoise(channels: number, floor: NoiseFloor): boolean {
-  return channels > Math.max(1000, floor.channels * NOISE_MARGIN);
+/**
+ * Above the floor on EITHER axis, because the two say different things.
+ *
+ * The floor has a size and a depth: how many channels the browser moves on its
+ * own, and by how much. Judging on the count alone throws away the second, and
+ * that is not a hypothetical — a run of this sweep measured a floor of a few
+ * thousand channels at a maximum delta of TWO, while THE PLATE differed from
+ * itself in a comparable number of channels at a maximum delta of THIRTY-EIGHT.
+ * Those are not the same finding: one is the rasteriser rounding, the other is
+ * a different picture in a small region. A count-only test called them equal.
+ */
+export function aboveNoise(diff: PixelDiff, floor: NoiseFloor): boolean {
+  return diff.channels > Math.max(1000, floor.channels * NOISE_MARGIN)
+    || diff.maxDelta > Math.max(2, floor.maxDelta * NOISE_MARGIN);
 }
 
 /** Publish the verdict where a driver or a person can read it. */
