@@ -4,7 +4,7 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**72 scalars**, 69 of them material: 2 measured, 3 geometry, 67 authored.
+**82 scalars**, 72 of them material: 2 measured, 3 geometry, 77 authored.
 
 A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
@@ -166,3 +166,23 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   Act II's four category names, struck with no figures beside them - the league has begun publishing the measure and nobody outside can make it.
 - **BUCKET_LABEL_ALPHA** — **0.55** *(not material)*  
   the four category names beside the boundaries, as the boxes are cut.
+- **SLUG_VOICE_TENTHS** — **9** *(not material)*  
+  the four sentences the piece is ABOUT - the prelude's, the one that names what a caliper measures, the one that says the league will not name the instant, and the one that says the record keeps only endpoints. At most one is ever on the plate, and it is the loudest thing on it.
+- **SLUG_STATEMENT_TENTHS** — **6.6** *(not material)*  
+  every other statement: disclosures, dates, counts, the act slugs. Reads without effort on a laptop at a normal viewing distance, which is the only surface this piece has been judged on.
+- **SLUG_ASIDE_TENTHS** — **5.5** *(not material)*  
+  an annotation subordinate to a mark beside it - the category name under a struck numeral, and the counter-reading's margin line. Unchanged from the one size the piece used everywhere, so these stay put while the sentences around them grow.
+- **SLUG_MIN_PX** — **9** *(not material)*  
+  a floor in CSS pixels, the one place slug type is NOT in court units: below it the mono face stops resolving at all and the statement is simply lost. It binds only on a small window.
+- **SLUG_VOICE_ALPHA** — **0.78** *(not material)*  
+  how far the loudest rank is lifted out of the ground it sits on.
+- **SLUG_STATEMENT_ALPHA** — **0.62** *(not material)*  
+  the ordinary rank's ink. Every slug in the piece used to be multiplied by the aside value below, whatever its caller asked for.
+- **SLUG_ASIDE_ALPHA** — **0.5** *(not material)*  
+  the subordinate rank's ink, and the value every slug used to take.
+- **STRIKE_FACE_ALPHA** — **0.62**  
+  the dull face of a struck numeral, under the shadowed wall above it. Raising it turns a cut in the floor into a label laid on top of it.
+- **STRIKE_SHADOW_K** — **1.1**  
+  how much darker the numeral's upper wall is than its face - the whole of the illusion that the figure is cut rather than printed.
+- **STRIKE_SHADOW_MAX** — **0.85**  
+  a ceiling on that shadow, so a numeral at full strength does not punch a hole of pure black through the plate.

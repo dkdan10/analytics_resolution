@@ -378,8 +378,9 @@ function beatOne(f: Frame, w: WindowFile, k: number): void {
     }
   });
 
+  // `voice`: what a caliper IS, said once, over the one shot that shows it.
   drawSlug(ctx, view, ["ONE SHOT · THE DISTANCE AT THE MOMENT THE BALL LEAVES THE HAND"],
-    { x: 0, y: 330 }, a * 0.45);
+    { x: 0, y: 330 }, a * 0.45, "voice");
 }
 
 /** MANY — the rate climbs from one to all of them, in calendar order. */
@@ -505,11 +506,13 @@ function beatInstant(f: Frame, w: WindowFile, k: number): void {
     // What the definition is worth, in the piece's own terms.
     const g = w.contest.gather_rule;
     if (g.changed_share !== null) {
+      // `voice`: the piece's thesis, over the image of it - a continuous
+      // quantity being cut into four boxes at an instant nobody will name.
       drawSlug(ctx, view, [
         "THE LEAGUE DOES NOT PUBLISH WHICH INSTANT IT MEANS",
         `READ AT THE GATHER INSTEAD, ${struck(100 * g.changed_share)}% CHANGE CATEGORY`,
         ...(w.bias.scope ? [w.bias.scope] : []),
-      ], { x: 0, y: 330 }, a * cut * 0.5);
+      ], { x: 0, y: 330 }, a * cut * 0.5, "voice");
     }
   }
 }

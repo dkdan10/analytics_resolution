@@ -80,6 +80,12 @@ const MARK_LAYERS = [
   // today - it is caching machinery - but it is the file a future rebuild would
   // most naturally hide one in, which is exactly what this list is for.
   /^prefix\.ts$/,
+  // Typography is a material property too, and V-08 widened this list to reach
+  // it: `drawSlug`'s three ranks and the struck numeral's face and shadow are
+  // authored, so they belong in the register like any other mark's alpha. The
+  // file's composition literals - the strike/hold/migrate beats, the annulus,
+  // the weight curve - reach no material sink and are session 5b's.
+  /^inscription\.ts$/,
 ];
 
 /** Sinks. A literal on a line that reaches one of these changes a mark. */

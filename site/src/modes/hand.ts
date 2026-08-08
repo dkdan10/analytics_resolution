@@ -653,10 +653,11 @@ export function drawHandHand(f: Frame): void {
   if (!inWindow && st.year === WINDOW_YEAR + 1) {
     // The whole point, said once, on the first season after the window closes.
     const days = factNum(data.facts, "window.days_inclusive");
+    // `voice`: the enclosure, named once, on the first season after it closes.
     drawSlug(ctx, view, [
       "THE RECORD KEEPS ENDPOINTS",
       `WHAT HAPPENED BETWEEN THEM WAS PUBLIC FOR ${days} DAYS`,
-    ], { x: 0, y: 330 }, remains * Math.min(1, st.phase * 2) * 0.45);
+    ], { x: 0, y: 330 }, remains * Math.min(1, st.phase * 2) * 0.45, "voice");
   }
 
   ctx.restore();

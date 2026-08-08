@@ -15,6 +15,18 @@
 import type { Season } from "./data";
 import { BONE_RGB, INSCRIPTION_FAMILY, SLUG_FAMILY } from "./palette";
 import type { View } from "./plate";
+import {
+  SLUG_ASIDE_ALPHA,
+  SLUG_ASIDE_TENTHS,
+  SLUG_MIN_PX,
+  SLUG_STATEMENT_ALPHA,
+  SLUG_STATEMENT_TENTHS,
+  SLUG_VOICE_ALPHA,
+  SLUG_VOICE_TENTHS,
+  STRIKE_FACE_ALPHA,
+  STRIKE_SHADOW_K,
+  STRIKE_SHADOW_MAX,
+} from "./scalars";
 import type { Schedule } from "./timeline";
 
 /** Struck on the centreline, out in the middle the piece is about. */
@@ -153,34 +165,62 @@ function strike(
   ctx.letterSpacing = `${Math.max(1, px * 0.08)}px`;
 
   const depth = Math.max(1, px * 0.045);
-  ctx.fillStyle = `rgba(0, 0, 0, ${Math.min(0.85, alpha * 1.1)})`;
+  ctx.fillStyle = `rgba(0, 0, 0, ${Math.min(STRIKE_SHADOW_MAX, alpha * STRIKE_SHADOW_K)})`;
   ctx.fillText(text, 0, -depth);
-  ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha * 0.62})`;
+  ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha * STRIKE_FACE_ALPHA})`;
   ctx.fillText(text, 0, 0);
   ctx.letterSpacing = "0px";
   ctx.restore();
 }
 
 /**
- * Small machine type, for the two moments the piece names a thing rather than
- * counts it: the era with no coordinates, and the archive that holds nothing.
+ * Machine type: everything the piece says in words, at one of three ranks.
+ *
+ * THE DEFECT THIS EXISTS TO REMOVE (audit V-08). This function had ONE size and
+ * ONE alpha for every place it is called from, so "NO SHOT WAS GIVEN A
+ * PLACE" — the sentence the piece opens on, alone over bare stone — was set
+ * exactly like a date stamp ticking past during the flood, and at half whatever
+ * alpha its caller asked for. The piece could not say anything loudly because it
+ * had no loud. That is the whole of "the same typography is asked to be both
+ * texture and argument": not that the texture is small, but that there was only
+ * one voice.
+ *
+ *   voice      the four sentences the piece is ABOUT. At most one is ever up.
+ *   statement  the default, and every other thing the piece states.
+ *   aside      an annotation subordinate to the mark beside it. Numerically the
+ *              size and ink every slug used to take, so these stay exactly where
+ *              they were while the sentences around them grow.
+ *
+ * Sizes are in court tenths, so type does not change with the window. Which
+ * string is which rank is docs/typography-inventory.md, approved by the artist;
+ * this function does not decide it and no string's CONTENT changes with rank.
  */
+export type SlugRank = "voice" | "statement" | "aside";
+
+const SLUG_RANK: Record<SlugRank, { tenths: number; alpha: number }> = {
+  voice: { tenths: SLUG_VOICE_TENTHS, alpha: SLUG_VOICE_ALPHA },
+  statement: { tenths: SLUG_STATEMENT_TENTHS, alpha: SLUG_STATEMENT_ALPHA },
+  aside: { tenths: SLUG_ASIDE_TENTHS, alpha: SLUG_ASIDE_ALPHA },
+};
+
 export function drawSlug(
   ctx: CanvasRenderingContext2D,
   view: View,
   lines: string[],
   at: { x: number; y: number },
   alpha: number,
+  rank: SlugRank = "statement",
   offsetPx = 0,
 ): void {
   if (alpha <= 0.01) return;
-  const px = Math.max(9, 11 * (view.scale / 2));
+  const r = SLUG_RANK[rank];
+  const px = Math.max(SLUG_MIN_PX, view.s(r.tenths));
   ctx.save();
   ctx.font = `${px}px ${SLUG_FAMILY}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.letterSpacing = `${px * 0.14}px`;
-  ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha * 0.5})`;
+  ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha * r.alpha})`;
   lines.forEach((line, i) => {
     ctx.fillText(line, view.sx(at.x), view.sy(at.y) + offsetPx + i * px * 1.9);
   });
@@ -218,7 +258,9 @@ export function drawInscriptions(
     // thing the piece was rightly criticised for.
     const naming = (1 - p.settled) * p.alpha;
     if (naming > 0.01) {
-      drawSlug(ctx, view, [ins.label], { x: p.x, y: p.y }, naming * 0.9, -px * 0.85);
+      // `aside`: this names the numeral above it and must stay subordinate to
+      // it. Numerically what every slug in the piece used to be.
+      drawSlug(ctx, view, [ins.label], { x: p.x, y: p.y }, naming * 0.9, "aside", -px * 0.85);
     }
 
     // The counter-reading rides just below, and only for as long as the two
@@ -237,7 +279,7 @@ export function drawInscriptions(
         );
         if (ins.counterLabel) {
           drawSlug(ctx, view, [ins.counterLabel], { x: p.x, y: p.y },
-            p.alpha * fade * 0.75, px * 1.75);
+            p.alpha * fade * 0.75, "aside", px * 1.75);
         }
       }
     }

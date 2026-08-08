@@ -54,12 +54,15 @@ export function renderTo(
     const p = st.preludePhase;
     const firstCharted = data.seasons[0]?.year;
     const founded = factExternal<number>(data.facts, "league_founded");
+    // `voice`: the piece opens on this, alone, over bare stone. Nothing else is
+    // on the plate and nothing else is competing with it (audit V-08).
     drawSlug(
       ctx,
       view,
       [`${founded} — ${firstCharted ?? ""}`, "NO SHOT WAS GIVEN A PLACE"],
       { x: 0, y: 200 },
       Math.min(1, p * 4) * Math.min(1, (1 - p) * 5),
+      "voice",
     );
     return;
   }

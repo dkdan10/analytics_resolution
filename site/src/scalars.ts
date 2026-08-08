@@ -30,9 +30,16 @@
  *              disclosure, and `npm run disclose` renders it.
  *
  * ENFORCEMENT. `site/scripts/check-numbers.mjs` fails the build when a material
- * literal appears inline in a mark layer (field.ts, bloom.ts, marks.ts,
- * modes/hand.ts, modes/measure.ts). It cannot be bypassed by writing a new
+ * literal appears inline in a mark layer — read `MARK_LAYERS` there for the
+ * list rather than trusting a sentence here, which is how this one came to omit
+ * `prefix.ts` and then `inscription.ts`. It cannot be bypassed by writing a new
  * renderer: add a file to that list and its scalars have to come from here.
+ *
+ * SCOPE IS DELIBERATELY PARTIAL AND SAYING SO IS PART OF THE DISCLOSURE. The
+ * list covers the layers that deposit marks, plus (since V-08) the type ranks
+ * the piece speaks at. It does NOT cover composition — where a slug sits, how
+ * long a numeral holds before it migrates, which act a thing appears in. Those
+ * are session 5b's, and widening the list is how they come in.
  *
  * SESSION 4, READ THIS. THE HAND is rebuilt against F-04 and V-07 and nearly
  * every scalar below marked `hand` will be rewritten. New material scalars go
@@ -611,6 +618,101 @@ export const SCALARS = {
     material: false,
     controls: "the four category names beside the boundaries, as the boxes are cut.",
   },
+
+  // --- inscription.ts — how loudly the plate is allowed to speak (V-08) -----
+  //
+  // `drawSlug` is the only way the piece says anything in words, and until now
+  // it had ONE size and ONE alpha for every place it is called from: the
+  // sentence the piece opens on, alone over bare stone, was set exactly like
+  // a date stamp ticking past during the flood. The register below is that
+  // single voice given three ranks. It changes no word — every string still
+  // resolves to data/processed/ or to a cited entry in facts.json.
+  //
+  // Sizes are in COURT TENTHS, like every other grain in the piece, so type does
+  // not change with the window. The inventory that assigns every drawn string in
+  // the piece to a rank is docs/typography-inventory.md.
+  SLUG_VOICE_TENTHS: {
+    class: "authored",
+    value: 9,
+    material: false,
+    controls:
+      "the four sentences the piece is ABOUT - the prelude's, the one that names " +
+      "what a caliper measures, the one that says the league will not name the " +
+      "instant, and the one that says the record keeps only endpoints. At most " +
+      "one is ever on the plate, and it is the loudest thing on it.",
+  },
+  SLUG_STATEMENT_TENTHS: {
+    class: "authored",
+    value: 6.6,
+    material: false,
+    controls:
+      "every other statement: disclosures, dates, counts, the act slugs. Reads " +
+      "without effort on a laptop at a normal viewing distance, which is the only " +
+      "surface this piece has been judged on.",
+  },
+  SLUG_ASIDE_TENTHS: {
+    class: "authored",
+    value: 5.5,
+    material: false,
+    controls:
+      "an annotation subordinate to a mark beside it - the category name under a " +
+      "struck numeral, and the counter-reading's margin line. Unchanged from the " +
+      "one size the piece used everywhere, so these stay put while the sentences " +
+      "around them grow.",
+  },
+  SLUG_MIN_PX: {
+    class: "authored",
+    value: 9,
+    material: false,
+    controls:
+      "a floor in CSS pixels, the one place slug type is NOT in court units: " +
+      "below it the mono face stops resolving at all and the statement is simply " +
+      "lost. It binds only on a small window.",
+  },
+  SLUG_VOICE_ALPHA: {
+    class: "authored",
+    value: 0.78,
+    material: false,
+    controls: "how far the loudest rank is lifted out of the ground it sits on.",
+  },
+  SLUG_STATEMENT_ALPHA: {
+    class: "authored",
+    value: 0.62,
+    material: false,
+    controls:
+      "the ordinary rank's ink. Every slug in the piece used to be multiplied by " +
+      "the aside value below, whatever its caller asked for.",
+  },
+  SLUG_ASIDE_ALPHA: {
+    class: "authored",
+    value: 0.5,
+    material: false,
+    controls: "the subordinate rank's ink, and the value every slug used to take.",
+  },
+  STRIKE_FACE_ALPHA: {
+    class: "authored",
+    value: 0.62,
+    material: true,
+    controls:
+      "the dull face of a struck numeral, under the shadowed wall above it. " +
+      "Raising it turns a cut in the floor into a label laid on top of it.",
+  },
+  STRIKE_SHADOW_K: {
+    class: "authored",
+    value: 1.1,
+    material: true,
+    controls:
+      "how much darker the numeral's upper wall is than its face - the whole of " +
+      "the illusion that the figure is cut rather than printed.",
+  },
+  STRIKE_SHADOW_MAX: {
+    class: "authored",
+    value: 0.85,
+    material: true,
+    controls:
+      "a ceiling on that shadow, so a numeral at full strength does not punch a " +
+      "hole of pure black through the plate.",
+  },
 } as const satisfies Record<string, Entry>;
 
 // --- the values, for the renderers ------------------------------------------
@@ -699,3 +801,14 @@ export const INSTANT_CUT_ALPHA: number = SCALARS.INSTANT_CUT_ALPHA.value;
 export const FIGURE_SUB_ALPHA: number = SCALARS.FIGURE_SUB_ALPHA.value;
 export const NAMES_ONLY_ALPHA: number = SCALARS.NAMES_ONLY_ALPHA.value;
 export const BUCKET_LABEL_ALPHA: number = SCALARS.BUCKET_LABEL_ALPHA.value;
+
+export const SLUG_VOICE_TENTHS: number = SCALARS.SLUG_VOICE_TENTHS.value;
+export const SLUG_STATEMENT_TENTHS: number = SCALARS.SLUG_STATEMENT_TENTHS.value;
+export const SLUG_ASIDE_TENTHS: number = SCALARS.SLUG_ASIDE_TENTHS.value;
+export const SLUG_MIN_PX: number = SCALARS.SLUG_MIN_PX.value;
+export const SLUG_VOICE_ALPHA: number = SCALARS.SLUG_VOICE_ALPHA.value;
+export const SLUG_STATEMENT_ALPHA: number = SCALARS.SLUG_STATEMENT_ALPHA.value;
+export const SLUG_ASIDE_ALPHA: number = SCALARS.SLUG_ASIDE_ALPHA.value;
+export const STRIKE_FACE_ALPHA: number = SCALARS.STRIKE_FACE_ALPHA.value;
+export const STRIKE_SHADOW_K: number = SCALARS.STRIKE_SHADOW_K.value;
+export const STRIKE_SHADOW_MAX: number = SCALARS.STRIKE_SHADOW_MAX.value;
