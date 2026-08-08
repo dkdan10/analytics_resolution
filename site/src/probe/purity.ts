@@ -22,6 +22,43 @@
  * Exact bytes, not screenshots. `getImageData` has no capture noise, so a
  * difference reported here is a difference in what was drawn.
  *
+ * TWO DESTINATIONS, AND ONLY ONE OF THEM CARRIES THE VERDICT (session 5a).
+ *
+ * Every history above differs in a second way nobody had separated out: how
+ * many render passes the DESTINATION canvas has received before the readback.
+ * `direct` draws once into it, `forward` twice, `continuous` sixty-one times.
+ * Chrome does not rasterise pass two of a canvas identically to pass one, so
+ * that difference alone moves pixels — and it is not the piece.
+ *
+ * It was measured rather than argued. At the beat this probe had been calling
+ * THE PLATE impure since session 2, the drawing commands the renderer issues
+ * are identical op for op under every history, the field layers it composites
+ * are byte-identical, and the frames still differ. Identical inputs, identical
+ * command stream, different pixels: whatever that is, no change to a renderer
+ * can remove it.
+ *
+ * So each frame is captured twice.
+ *
+ *   RENDERER   the history is replayed onto a scratch surface, warming exactly
+ *              the caches it would warm, and the frame under test is then drawn
+ *              on a VIRGIN one. The destination is in the same condition in
+ *              every history, so a difference here is renderer state — which is
+ *              what the fifth rule is about. THIS IS THE VERDICT.
+ *   SURFACE    what this probe did before: the history and the frame share one
+ *              destination. Reported, never verdict-bearing, because it cannot
+ *              tell the piece's memory from the canvas's.
+ *
+ * The surface arm is kept rather than deleted for two reasons. It is the only
+ * arm that would notice a hand accumulating into the target context itself
+ * (`renderTo` opens by filling the whole surface opaque, so nothing does today
+ * — but nothing enforces it either), and the sweeps sessions 2 to 4 committed
+ * are surface-arm numbers, so dropping it would strand the evidence they left.
+ *
+ * A capture method that reported everything identical whatever happened would
+ * be worse than the confound it replaced. This one was checked against a staged
+ * impurity before it was believed; the check is written up in the session 5a
+ * handoff.
+ *
  * THE HAND IS EXPECTED TO FAIL. That is audit finding F-04 and it belongs to
  * session 4. This harness exists to measure it, not to hide it.
  *
@@ -42,7 +79,7 @@
  * before reading a verdict.
  */
 
-import { renderTo } from "../render";
+import { renderTo, type Target } from "../render";
 import type { ModeId } from "../modes";
 import type { PixelDiff } from "./shared";
 import {
@@ -102,7 +139,10 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
    * Reach for it to characterise something the default has already found.
    */
   const exact = q.get("exact") === "1";
-  const target = makeTarget(exact);
+  /** The surface arm's destination: ONE canvas for the whole run, exactly as
+   *  this probe has always had, so its numbers stay comparable with the sweeps
+   *  sessions 2 to 4 committed. */
+  const surface = makeTarget(exact);
   // Narrowed the same way the perf probe is, and an unmatched name throws
   // rather than silently sweeping nothing. A full sweep is the default.
   const modes = narrow("hand", MODES, q.get("mode"), (m) => m);
@@ -112,18 +152,37 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
   // as the gallery does, rather than out of nothing.
   const base = schedule.duration;
 
-  const draw = (t: number, mode: ModeId) =>
-    renderTo(target, t, data, schedule, inscriptions, mode);
+  const drawOn = (tg: Target, t: number, mode: ModeId) =>
+    renderTo(tg, t, data, schedule, inscriptions, mode);
+  const draw = (t: number, mode: ModeId) => drawOn(surface, t, mode);
+  const pixels = (tg: Target) =>
+    tg.ctx.getImageData(0, 0, PROBE_W * PROBE_DPR, PROBE_H * PROBE_DPR).data;
 
-  const capture = (t: number, mode: ModeId, history: History): Uint8ClampedArray => {
-    cold();
-    if (history === "forward") draw(t - SEEK_S, mode);
-    if (history === "backward") draw(t + SEEK_S, mode);
+  /** The frames a history draws BEFORE the one under test. */
+  const replay = (tg: Target, t: number, mode: ModeId, history: History): void => {
+    if (history === "forward") drawOn(tg, t - SEEK_S, mode);
+    if (history === "backward") drawOn(tg, t + SEEK_S, mode);
     if (history === "continuous") {
-      for (let k = Math.round(playback / STEP); k >= 1; k--) draw(t - k * STEP, mode);
+      for (let k = Math.round(playback / STEP); k >= 1; k--) drawOn(tg, t - k * STEP, mode);
     }
+  };
+
+  /** THE VERDICT ARM. The history warms the renderer's caches on a surface
+   *  nobody reads, and the frame under test is drawn on a virgin one. */
+  const captureRenderer = (t: number, mode: ModeId, history: History): Uint8ClampedArray => {
+    cold();
+    if (history !== "direct") replay(makeTarget(exact), t, mode, history);
+    const tg = makeTarget(exact);
+    drawOn(tg, t, mode);
+    return pixels(tg);
+  };
+
+  /** The old arm, unchanged: history and frame share one destination. */
+  const captureSurface = (t: number, mode: ModeId, history: History): Uint8ClampedArray => {
+    cold();
+    replay(surface, t, mode, history);
     draw(t, mode);
-    return target.ctx.getImageData(0, 0, PROBE_W * PROBE_DPR, PROBE_H * PROBE_DPR).data;
+    return pixels(surface);
   };
 
   // Settle every first-use cost before anything is captured. Without this the
@@ -145,20 +204,35 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
   // The window beats are the heaviest the piece has: every hand that draws
   // there has the whole recovered set and the whole painting resident.
   const heaviest = [...beats].reverse().find((b) => b.id.startsWith("window-")) ?? beats[0]!;
+  // EACH ARM IS JUDGED AGAINST A FLOOR MEASURED THE WAY THAT ARM CAPTURES.
+  // A floor taken on a shared surface says nothing about an arm that draws on a
+  // virgin one, and the reverse: the two differ by precisely the effect the
+  // renderer arm exists to remove.
+  let floorTarget: Target = surface;
   const noise = measureNoiseFloor(
+    () => {
+      floorTarget = makeTarget(exact);
+      for (const mode of modes) drawOn(floorTarget, base + heaviest.at, mode);
+    },
+    () => pixels(floorTarget),
+    PROBE_W * PROBE_DPR,
+  );
+  const surfaceNoise = measureNoiseFloor(
     () => {
       for (const mode of modes) draw(base + heaviest.at, mode);
     },
-    () => target.ctx.getImageData(0, 0, PROBE_W * PROBE_DPR, PROBE_H * PROBE_DPR).data,
+    () => pixels(surface),
     PROBE_W * PROBE_DPR,
   );
   console.log(`noise floor: ${noise.channels} channels, max delta ${noise.maxDelta}, `
-    + `under ${noise.ballastMB} MB of ballast`);
+    + `under ${noise.ballastMB} MB of ballast `
+    + `(surface arm: ${surfaceNoise.channels} at ${surfaceNoise.maxDelta})`);
 
   const rows: unknown[] = [];
   let impure = 0;
   let inconclusive = 0;
   let withinNoise = 0;
+  let surfaceImpure = 0;
 
   for (const mode of modes) {
     for (const beat of beats) {
@@ -168,52 +242,79 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
       // than busy.
       await new Promise((r) => setTimeout(r, 0));
       const t = base + beat.at;
-      const shots: Partial<Record<History, Uint8ClampedArray>> = {};
-      const hashes: Partial<Record<History, string>> = {};
-      for (const h of HISTORIES) {
-        shots[h] = capture(t, mode, h);
-        hashes[h] = hashPixels(shots[h]!);
-      }
-      // THE CONTROL. `direct` again, with nothing whatever changed between the
-      // two. It must be byte-identical, and if it is not then the measurement
-      // has moved and nothing else in this row can be believed. An instrument
-      // that cannot tell "the piece is impure" from "the instrument drifted"
-      // is not evidence, and this is the difference between the two.
-      const control = capture(t, mode, "direct");
-      const stable = hashPixels(control) === hashes.direct;
 
-      // `direct` is what a fresh load produces, so it is what the others are
-      // measured against.
-      const ref = shots.direct!;
-      const diffs: Record<string, PixelDiff> = {};
-      let identical = true;
-      let real = false;
-      for (const h of HISTORIES) {
-        if (h === "direct") continue;
-        if (hashes[h] === hashes.direct) continue;
-        identical = false;
-        diffs[h] = diffPixels(ref, shots[h]!, PROBE_W * PROBE_DPR);
-        if (aboveNoise(diffs[h]!, noise)) real = true;
-      }
+      /**
+       * One arm, four histories, and its own control.
+       *
+       * THE CONTROL is `direct` again, with nothing whatever changed between
+       * the two. It must be byte-identical, and if it is not then the
+       * measurement has moved and nothing else in that arm can be believed. An
+       * instrument that cannot tell "the piece is impure" from "the instrument
+       * drifted" is not evidence, and this is the difference between the two.
+       */
+      const arm = (cap: (t: number, m: ModeId, h: History) => Uint8ClampedArray, floor = noise) => {
+        const shots: Partial<Record<History, Uint8ClampedArray>> = {};
+        const hashes: Partial<Record<History, string>> = {};
+        for (const h of HISTORIES) {
+          shots[h] = cap(t, mode, h);
+          hashes[h] = hashPixels(shots[h]!);
+        }
+        const control = cap(t, mode, "direct");
+        const stable = hashPixels(control) === hashes.direct;
+        // `direct` is what a fresh load produces, so it is what the others are
+        // measured against.
+        const ref = shots.direct!;
+        const diffs: Record<string, PixelDiff> = {};
+        let identical = true;
+        let real = false;
+        for (const h of HISTORIES) {
+          if (h === "direct") continue;
+          if (hashes[h] === hashes.direct) continue;
+          identical = false;
+          diffs[h] = diffPixels(ref, shots[h]!, PROBE_W * PROBE_DPR);
+          if (aboveNoise(diffs[h]!, floor)) real = true;
+        }
+        return {
+          hashes,
+          controlStable: stable,
+          identical,
+          real,
+          ...(stable ? {} : { control: diffPixels(ref, control, PROBE_W * PROBE_DPR) }),
+          ...(identical ? {} : { diffs }),
+        };
+      };
+
+      const renderer = arm(captureRenderer, noise);
+      const { identical: _si, real: _sr, ...surfaceArm } = arm(captureSurface, surfaceNoise);
+      const surfaceReal = _sr;
+
       // Three-valued on purpose. `within-noise` is not a pass and not a
       // failure: it is the instrument saying the difference is smaller than
       // its own hands shake, and the numbers are reported either way.
+      const { controlStable: stable, identical, real } = renderer;
       if (!stable) inconclusive++;
       else if (real) impure++;
       else if (!identical) withinNoise++;
       const verdict = !stable ? "INCONCLUSIVE"
         : real ? "IMPURE" : identical ? "pure" : "within-noise";
-      console.log(`purity ${mode}/${beat.id}: ${verdict}`);
+      const surfaceVerdict = !surfaceArm.controlStable ? "INCONCLUSIVE"
+        : surfaceReal ? "IMPURE" : _si ? "pure" : "within-noise";
+      console.log(`purity ${mode}/${beat.id}: ${verdict} (surface arm ${surfaceVerdict})`);
       rows.push({
         mode,
         beat: beat.id,
         t: Number(t.toFixed(4)),
         verdict,
         controlStable: stable,
-        hashes,
-        ...(stable ? {} : { control: diffPixels(ref, control, PROBE_W * PROBE_DPR) }),
-        ...(identical ? {} : { diffs }),
+        hashes: renderer.hashes,
+        ...(renderer.control ? { control: renderer.control } : {}),
+        ...(renderer.diffs ? { diffs: renderer.diffs } : {}),
+        // Reported, never verdict-bearing: this arm cannot tell the piece's
+        // memory from the destination canvas's. It is here because it is what
+        // the committed sweeps of sessions 2 to 4 measured.
+        surfaceArm: { verdict: surfaceVerdict, ...surfaceArm },
       });
+      if (surfaceVerdict === "IMPURE") surfaceImpure++;
     }
   }
 
@@ -252,6 +353,20 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
     noiseFloor: noise,
     noiseFloorBeat: heaviest.id,
     totalBeats: rows.length,
+    /** What the verdict rests on, said in the report rather than only in the
+     *  source, because a reader meets the numbers before they meet the code. */
+    arms: {
+      verdictArm: "renderer",
+      renderer: "the history warms the renderer's caches on a scratch surface; "
+        + "the frame under test is drawn on a virgin one, so the destination is "
+        + "in the same condition in every history and a difference is the piece's",
+      surface: "history and frame share one destination, as this probe did "
+        + "through session 4 - reported for continuity with those sweeps, and "
+        + "not verdict-bearing, because a canvas does not rasterise its second "
+        + "pass the way it rasterised its first",
+    },
+    surfaceImpureBeats: surfaceImpure,
+    surfaceNoiseFloor: surfaceNoise,
     rasterisation: exact
       ? "software (willReadFrequently), pinned - the floor is zero and a single "
         + "differing channel is real"
