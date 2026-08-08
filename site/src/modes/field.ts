@@ -6,10 +6,10 @@
  * colour at all, since its governing rule is that every material property of a
  * mark derives from a measurement.
  *
- * What it makes legible is the migration itself. Across thirty seasons the warm
- * middle of the floor drains (mid-range 21.5% → 7.0% of attempts by radial band)
- * while the cool arc floods (20.1% → 34.3%), so the whole image cools as the
- * game reorganises — the argument as colour rather than as thinning.
+ * What it makes legible is the migration itself. Across the corpus the warm
+ * middle of the floor drains while the cool arc floods — `mid_share` and
+ * `three_share` in seasons.json are the two curves — so the whole image cools
+ * as the game reorganises: the argument as colour rather than as thinning.
  */
 
 import { drawInscriptions, drawSlug } from "../inscription";

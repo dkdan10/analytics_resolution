@@ -29,9 +29,14 @@ const RIM_R = 7.5;
 const BACKBOARD_Y = -12.5;
 const BACKBOARD_HALF_W = 30;
 
-/** The line in force in 1994-97: a uniform 22 ft. Drawn only for the
- *  1996-97 disagreement, where the taxonomy and the era part company. */
-export const SHORTENED_THREE_R = 220;
+/** The line in force in 1994-97, in court tenths, from the season's own
+ *  artifact. Drawn only for the 1996-97 disagreement, where the taxonomy and
+ *  the era part company - and read from `contemporaneous.line_ft`, the same key
+ *  the counter-inscription prints, so the arc and the words agree by
+ *  construction rather than by coincidence. */
+export function shortenedThreeR(lineFt: number): number {
+  return 10 * lineFt;
+}
 
 export interface View {
   /** Court tenths -> screen px. */

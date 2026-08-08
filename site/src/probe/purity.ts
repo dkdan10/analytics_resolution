@@ -4,8 +4,9 @@
  * remembers. Derived caches are allowed; accumulated state is not. That claim
  * had never been tested, and the 2026-08-08 audit found it false for THE HAND,
  * which extends one module-level canvas in 64-stroke blocks: two frames of the
- * same instant, reached along different histories, differed in 110,983 of
- * 2,233,440 RGB channel bytes.
+ * same instant, reached along different histories, do not match. Run this to
+ * see by how much; the count belongs in the report, not in a comment that will
+ * outlive it.
  *
  * So: for each hand, at each representative beat, the same `t` is reached four
  * ways and the resulting pixels are hashed.
@@ -22,9 +23,23 @@
  * difference reported here is a difference in what was drawn.
  *
  * THE HAND IS EXPECTED TO FAIL. That is audit finding F-04 and it belongs to
- * session 4. This harness exists to measure it, not to hide it, and it is also
- * how the `renderTo` extraction was shown to have moved nothing: the five pure
- * hands come back byte-identical across all four histories.
+ * session 4. This harness exists to measure it, not to hide it.
+ *
+ * WHAT IS AND IS NOT ESTABLISHED — read this before trusting a verdict.
+ * THE HAND's impurity is measured, at the window beats, and reproduced on every
+ * version of this harness. The other five hands are NOT yet proven clean: no
+ * completed calibrated sweep of all six exists. What session 2 had was an
+ * uncalibrated run in which all six read impure INCLUDING the prelude, where
+ * `renderTo` returns before any hand is called and the frame is therefore
+ * mode-independent — which is what exposed the instrument rather than the
+ * piece — plus a software-rasterised partial run in which THE PLATE came back
+ * clean. An earlier version of this comment said the extraction "was shown to
+ * have moved nothing: the five pure hands come back byte-identical". That was
+ * asserting an unproven result inside the source of the instrument that would
+ * prove it, which is exactly the honesty defect this project audits itself for.
+ *
+ * So: run a full sweep before changing a renderer, and read the noise floor
+ * before reading a verdict.
  */
 
 import { renderTo } from "../render";

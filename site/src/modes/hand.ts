@@ -2,11 +2,11 @@
  *
  * Every other hand draws what the archive holds. This one draws what it lost.
  *
- * For twenty-nine of the thirty seasons a shot is a point and there is nothing
- * between the points, so those seasons are splotches and nothing else. For
- * eleven weeks the optical feed held the motion too, and only there can the
- * paint that connects the endpoints be laid at all. The painting's subject is
- * the absence everywhere else.
+ * In every season but one a shot is a point and there is nothing between the
+ * points, so those seasons are splotches and nothing else. For the span of the
+ * window the optical feed held the motion too, and only there can the paint
+ * that connects the endpoints be laid at all. The painting's subject is the
+ * absence everywhere else.
  *
  * THE PAINT IS PHYSICS, NOT TASTE
  *
@@ -30,12 +30,13 @@
  * COLOUR IS THE LEAGUE'S OWN MAP
  *
  * Hue is SHOT_ZONE_BASIC read at the vertex. That is legitimate for exactly the
- * reason THE FIELD's colour is: the seven zones are a partition of the FLOOR
- * the NBA drew, so a body crossing the court crosses the league's own regions,
- * and qa.py gates the reconstruction against the league's own labels at 99.993%.
- * Colour adds no classification. It exposes one that was already imposed — and
- * one continuous stroke recolours along its own length, indigo to gold, because
- * that is the map the players are moving across.
+ * reason THE FIELD's colour is: the zones are a partition of the FLOOR the NBA
+ * drew, so a body crossing the court crosses the league's own regions, and
+ * qa.py gates the reconstruction against the league's own labels (the agreement
+ * rate is printed by the gate, not restated here). Colour adds no
+ * classification. It exposes one that was already imposed — and one continuous
+ * stroke recolours along its own length, indigo to gold, because that is the
+ * map the players are moving across.
  *
  * PAINT COVERS
  *
@@ -49,38 +50,51 @@
  * remembering it.
  */
 
-import type { PaintFile, Strokes } from "../data";
+import { factNum, type PaintFile, type Strokes } from "../data";
 import { drawSlug } from "../inscription";
 import { BONE_RGB, ZONE_RGB } from "../palette";
 import { COURT, type View } from "../plate";
 // One implementation of the league's map, checked against the Python one
 // through a committed fixture. See site/src/zone.ts.
 import { zoneAt } from "../zone";
+import {
+  BEAD_CAP,
+  BORE,
+  DRIP,
+  FILAMENT_ALPHA_CAP,
+  FILAMENT_ALPHA_K,
+  POOL_ALPHA_CAP,
+  POOL_ALPHA_K,
+  POOL_EXCESS_K,
+  POOL_R_CAP,
+  POOL_V_FLOOR,
+  RAYLEIGH,
+  SPLOTCH_ALPHA_CAP_SEASON,
+  SPLOTCH_ALPHA_CAP_WINDOW,
+  SPLOTCH_FLAT_BONUS_R,
+  SPLOTCH_INK,
+  SPLOTCH_MAX_R,
+  SPLOTCH_MIN_R,
+  SPLOTCH_VISIBLE,
+} from "../scalars";
+import { WINDOW_YEAR } from "../timeline";
 import type { Frame } from "./types";
 
 const ZONE = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
+/** The ball, and the fallback for a coordinate no zone claims: the plate's own
+ *  bone, taken from the palette rather than written out a third time. */
+const BONE = BONE_RGB.split(",").map((v) => Number(v.trim()));
 
 /**
- * The one authored scalar in this hand, named the way `marks.ts` names INK.
+ * THE AUTHORED SCALARS IN THIS HAND ARE DECLARED IN src/scalars.ts.
  *
- * Paint deposited per tracked frame. Everything else — every width, every
- * opacity, every regime boundary — is derived from it and from the record's own
- * measured speeds.
+ * This file used to announce DRIP as "the one authored scalar", eight lines
+ * above a comment recording that BORE had been looked at by eye — which was two
+ * claims and only one of them true (audit F-06). DRIP is the brush's flow rate
+ * and BORE its width, and both were chosen; the regime boundaries and the
+ * splotch scale are measured and come from the artifacts; RAYLEIGH is physics.
+ * Each is classified and disclosed in the register, with what it controls.
  */
-const DRIP = 0.055;
-/** Filament radius in court tenths at the median measured speed.
- *
- *  Looked at by eye at 2.4 with DRIP 0.62 and the plate went to opaque mush:
- *  2,772 strokes is ~39,000 segments, and paint COVERS, so anything that reads
- *  well as one gesture reads as a slab at that count. The canvas has to survive
- *  its own accumulation - a stroke laid at the end must still be able to sit on
- *  top of everything before it and be seen. */
-const BORE = 1.15;
-
-/** Plateau–Rayleigh: the fastest-growing instability on a falling stream has a
- *  wavelength of 9.02 radii, so beyond it a filament beads instead of wetting.
- *  Physics, not a tuning knob. */
-const RAYLEIGH = 9.02;
 
 interface Regimes {
   v10: number;
@@ -91,7 +105,10 @@ interface Regimes {
 /** Radius and alpha for a measured speed, conserving ink against time. */
 function filament(v: number, r: Regimes): { rad: number; alpha: number } {
   const k = Math.sqrt(r.v50 / Math.max(v, r.v10));
-  return { rad: BORE * k, alpha: Math.min(0.95, DRIP * k * 0.5) };
+  return {
+    rad: BORE * k,
+    alpha: Math.min(FILAMENT_ALPHA_CAP, DRIP * k * FILAMENT_ALPHA_K),
+  };
 }
 
 // --- the canvas --------------------------------------------------------------
@@ -174,7 +191,7 @@ function paintStroke(
     const y1 = view.sy(s.y[b]!);
 
     // Hue at the vertex the paint is landing on: the league's own region.
-    const rgb = ball ? [232, 226, 214] : (ZONE[zoneAt(s.x[b]!, s.y[b]!)] ?? [232, 226, 214]);
+    const rgb = ball ? BONE : (ZONE[zoneAt(s.x[b]!, s.y[b]!)] ?? BONE);
     const col = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, `;
 
     if (v > r.v90) {
@@ -183,7 +200,7 @@ function paintStroke(
       // fainter than this: below it paint does not wet at all.
       const wl = RAYLEIGH * rad;
       const lenT = arcT / 1;
-      const beads = Math.max(1, Math.min(24, Math.round(lenT / wl)));
+      const beads = Math.max(1, Math.min(BEAD_CAP, Math.round(lenT / wl)));
       for (let d = 0; d < beads; d++) {
         const t = (d + 0.5) / beads;
         ctx.beginPath();
@@ -206,12 +223,12 @@ function paintStroke(
     if (v < r.v10) {
       // POOL. The filament is capped, and the ink the cap refuses goes down as
       // a blot: a body standing still for three seconds leaves a real mark.
-      const excess = (r.v10 / Math.max(v, 0.05) - 1) * 0.5;
-      if (excess > 0.05) {
+      const excess = (r.v10 / Math.max(v, POOL_V_FLOOR) - 1) * POOL_EXCESS_K;
+      if (excess > POOL_V_FLOOR) {
         ctx.beginPath();
-        ctx.fillStyle = `${col}${Math.min(0.9, alpha * 1.1)})`;
+        ctx.fillStyle = `${col}${Math.min(POOL_ALPHA_CAP, alpha * POOL_ALPHA_K)})`;
         ctx.arc((x0 + x1) / 2, (y0 + y1) / 2,
-          view.s(rad * Math.min(3.2, 1 + excess)), 0, Math.PI * 2);
+          view.s(rad * Math.min(POOL_R_CAP, 1 + excess)), 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -224,52 +241,50 @@ function paintStroke(
  * A shot as paint.
  *
  * Inside the window the record held how open the shooter was, so the splotch
- * spreads exactly as far as the room he had: radius is the caliper at true
- * floor scale and alpha falls as 1/r² so the ink is the same either way. A
- * contested shot is a hot tight dot; a wide-open one is a broad pale wash.
- * Outside the window the record says nothing about room, so every splotch is
- * the same size — which is the difference the hand is about.
- */
-/** Ink for the whole splotch layer, so a season of 190,000 marks and a window
- *  of 48,000 lay down the same amount of paint and neither floods the plate.
- *  Conserved the way `marks.ts` conserves it for dots. */
-const SPLOTCH_INK = 9000;
-/**
- * Splotch radii in court tenths.
+ * spreads with the room he had: a contested shot is a hot tight dot and a
+ * wide-open one a broad pale wash, and alpha falls as 1/r^2 so the ink is the
+ * same either way. Outside the window the record says nothing about room, so
+ * every splotch is the same size — which is the difference the hand is about.
  *
- * Deliberately fat. THE FIELD already draws every shot as a photographic
- * density, and if these marks were the same size this hand would simply BE
- * THE FIELD with a different caption for the six minutes it spends outside the
- * window. Paint is a different material: fewer visible marks, hard edges, and
- * enough overlap that the crowded parts of the floor go opaque while the thin
- * parts stay discrete blobs. That contrast is what makes it read as a painting
- * across a room rather than as a chart.
+ * THE RADIUS IS NOT THE CALIPER AT FLOOR SCALE, and this file used to say it
+ * was. A caliper runs the length of the floor (`contest.caliper_ft`) and a
+ * splotch is under a foot across; literal scale would put a single shot's mark
+ * over a large part of the court. THE MEASURE draws the caliper at literal
+ * scale, as a line, because that is the hand whose subject it is.
+ *
+ * What this is instead, said plainly: A MONOTONE AUTHORED MAP of a measured
+ * distance onto an authored radius range. Two ends are authored — SPLOTCH_MIN_R
+ * and SPLOTCH_MAX_R — and the reference the distance is normalised against is
+ * MEASURED: `window.json:contest.caliper_ft.p99`, the 99th percentile of the
+ * very distribution being drawn. It used to be the old one-byte STORAGE
+ * CEILING of window_measures.bin — a property of the file format, not
+ * of basketball, and one that also silently clipped the longest calipers in
+ * the corpus onto a single value (audit F-05).
+ * Every scalar below is declared and classified in src/scalars.ts.
  */
-const SPLOTCH_MIN_R = 2.6;
-const SPLOTCH_MAX_R = 9.0;
-
 function splotches(f: Frame, alpha: number): void {
   const { ctx, view, st, data } = f;
   const year = st.year!;
   const arrived = Math.min(1, Math.max(0, st.arrived));
 
-  if (year === 2015 && data.window) {
+  if (year === WINDOW_YEAR && data.window) {
     const m = data.measures();
     if (m && m.n) {
       const upto = Math.round(m.n * arrived);
       // Ink per mark, so the layer weighs the same whatever the count.
       const per = (SPLOTCH_INK / m.n) * alpha;
+      // The measured distribution this hand is drawing, in tenths to match the
+      // stored caliper. The transfer function reaches its widest radius here;
+      // the tail beyond it draws at that radius rather than past it.
+      const scaleAt = 10 * data.window.contest.caliper_ft.p99;
       for (let i = 0; i < upto; i++) {
-        // The splotch spreads as far as the room the shooter had: radius is the
-        // measured caliper, and alpha falls as 1/r^2 so the ink is the same
-        // either way. A contested shot is a hot tight dot; a wide-open one is a
-        // broad pale wash. Only the window can say this - outside it the record
-        // does not record how open anyone was.
-        const open = m.dist[i]! / 255;
+        // How open the shooter was, as a fraction of p99 - see the note above:
+        // a monotone authored map of a measured distance, not floor scale.
+        const open = Math.min(1, m.dist[i]! / scaleAt);
         const rad = SPLOTCH_MIN_R + open * (SPLOTCH_MAX_R - SPLOTCH_MIN_R);
-        const rgb = ZONE[zoneAt(m.x[i]!, m.y[i]!)] ?? [232, 226, 214];
-        const a = Math.min(0.34, per / (rad * rad));
-        if (a < 0.004) continue;
+        const rgb = ZONE[zoneAt(m.x[i]!, m.y[i]!)] ?? BONE;
+        const a = Math.min(SPLOTCH_ALPHA_CAP_WINDOW, per / (rad * rad));
+        if (a < SPLOTCH_VISIBLE) continue;
         ctx.beginPath();
         ctx.fillStyle = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${a})`;
         ctx.arc(view.sx(m.x[i]!), view.sy(m.y[i]!), view.s(rad), 0, Math.PI * 2);
@@ -285,7 +300,7 @@ function splotches(f: Frame, alpha: number): void {
   const pts = data.points(year);
   if (!pts) return;
   const upto = Math.round(pts.n * arrived);
-  const rad = SPLOTCH_MIN_R + 1.6;
+  const rad = SPLOTCH_MIN_R + SPLOTCH_FLAT_BONUS_R;
   const rpx = view.s(rad);
   const per = (SPLOTCH_INK / Math.max(1, pts.total)) * alpha / (rad * rad);
   ctx.save();
@@ -295,9 +310,9 @@ function splotches(f: Frame, alpha: number): void {
     if (cx === 0 && cy === 0) continue;
     const count = pts.hires[i]! + pts.rest[i]!;
     if (count === 0) continue;
-    const a = Math.min(0.30, per * count);
-    if (a < 0.004) continue;
-    const rgb = ZONE[pts.zone[i]!] ?? [232, 226, 214];
+    const a = Math.min(SPLOTCH_ALPHA_CAP_SEASON, per * count);
+    if (a < SPLOTCH_VISIBLE) continue;
+    const rgb = ZONE[pts.zone[i]!] ?? BONE;
     ctx.beginPath();
     ctx.fillStyle = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${a})`;
     ctx.arc(view.sx(cx), view.sy(cy), rpx, 0, Math.PI * 2);
@@ -317,10 +332,11 @@ export function drawHandHand(f: Frame): void {
   ctx.globalCompositeOperation = "source-over";
   ctx.globalAlpha = remains;
 
-  // The plate is one halfcourt and bodies run the whole floor, so ~6% of the
-  // measured vertices sit past the halfcourt line. They are real positions and
-  // they stay in the artifact; the canvas is simply the frame the whole piece
-  // is composed in, and paint stops at its edge.
+  // The plate is one halfcourt and bodies run the whole floor, so some of the
+  // measured vertices sit past the halfcourt line - `vertices_outside_plate`
+  // counts them. They are real positions and they stay in the artifact; the
+  // canvas is simply the frame the whole piece is composed in, and paint stops
+  // at its edge.
   ctx.beginPath();
   ctx.rect(view.sx(COURT.x0), view.sy(COURT.y1),
     view.s(COURT.x1 - COURT.x0), view.s(COURT.y1 - COURT.y0));
@@ -363,9 +379,10 @@ export function drawHandHand(f: Frame): void {
   } else if (st.act !== 3) {
     // The whole point, said once, on the first season after the window closes.
     if (st.year === 2016) {
+      const days = factNum(data.facts, "window.days_inclusive");
       drawSlug(ctx, view, [
         "THE RECORD KEEPS ENDPOINTS",
-        "WHAT HAPPENED BETWEEN THEM WAS PUBLIC FOR ELEVEN WEEKS",
+        `WHAT HAPPENED BETWEEN THEM WAS PUBLIC FOR ${days} DAYS`,
       ], { x: 0, y: 330 }, remains * Math.min(1, st.phase * 2) * 0.45);
     }
   }

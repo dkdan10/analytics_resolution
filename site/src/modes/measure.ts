@@ -3,22 +3,23 @@
  * The other four hands draw what the record holds. This one draws what the
  * record was ONCE ABLE to produce, and then cannot.
  *
- * The NBA publishes closest-defender distance in four categories — Very Tight,
- * Tight, Open, Wide Open — and still does. It is not observed; it is
- * manufactured, out of optical geometry, by choosing an instant and cutting a
- * continuous quantity into four boxes. For eleven weeks that geometry was
- * public, so for eleven weeks the manufacture can be watched. Since 23 January
- * 2016 only the output has been published.
+ * The NBA publishes closest-defender distance in a handful of categories —
+ * Very Tight, Tight, Open, Wide Open — and still does. It is not observed; it
+ * is manufactured, out of optical geometry, by choosing an instant and cutting
+ * a continuous quantity into boxes. For the span of the window that geometry
+ * was public, so for that span the manufacture can be watched. After the
+ * corpus's last archive, only the output has been published. Every count and
+ * every date below comes from window.json and facts.json.
  *
  * So this hand spans the whole timeline, because its subject is a statistic's
  * three states and only one of them is in the window:
  *
  *   Acts 0-I   no such measure exists. The record does not say who was near.
  *   Act II     the league begins publishing it; nobody outside can make it.
- *              Four category names cut into the floor, with no figures.
- *   Act III    it is made, out of all 632 games, in four beats.
- *   Acts IV-V  four figures hold above four empty calipers, for the remaining
- *              eleven seasons of the loop. The number outlives its evidence.
+ *              The category names cut into the floor, with no figures.
+ *   Act III    it is made, out of every game in the corpus, in four beats.
+ *   Acts IV-V  the figures hold above empty calipers for the rest of the loop.
+ *              The number outlives its evidence.
  *
  * Everything is a pure function of the scrub float, like every other hand:
  * beats are phase windows, the flood is a slice of a fixed-order array, and
@@ -27,10 +28,35 @@
  * No figure is written here. Every number resolves to a key in window.json.
  */
 
-import type { DefenderBucket, HeroShot, Measures, WindowFile } from "../data";
+import {
+  factExternal,
+  factNum,
+  type DefenderBucket,
+  type HeroShot,
+  type Measures,
+  type WindowFile,
+} from "../data";
 import { drawSlug } from "../inscription";
 import { BONE_RGB, INSCRIPTION_FAMILY } from "../palette";
 import type { View } from "../plate";
+import {
+  BUCKET_LABEL_ALPHA,
+  CALIPER_SERIF,
+  CALIPER_SERIF_CLOSE,
+  CALIPER_SERIF_FLOOD,
+  CLOSE_ALPHA,
+  DEFENDER_RING_R,
+  FIGURE_SUB_ALPHA,
+  FLOOD_ALPHA_BASE,
+  FLOOD_ALPHA_FRESH,
+  HERO_ALPHA,
+  HERO_PATH_ALPHA,
+  HERO_RING_ALPHA,
+  HERO_TAIL,
+  INSTANT_CUT_ALPHA,
+  INSTANT_LINE_ALPHA,
+  NAMES_ONLY_ALPHA,
+} from "../scalars";
 import { label } from "../textatlas";
 import { WINDOW_BEATS } from "../timeline";
 import { drawSeasonField } from "./fieldlayer";
@@ -42,18 +68,18 @@ const BEAT = Object.fromEntries(
   WINDOW_BEATS.map((b) => [b.id, [b.from, b.to] as const]),
 ) as Record<(typeof WINDOW_BEATS)[number]["id"], readonly [number, number]>;
 
-/** The inner annulus the four figures settle on: 11 ft, inside the 17-ft ring
- *  the thirty season numerals garland, so Act III leaves two rings around the
- *  same void — thirty seasons outside, four categories within. */
+/** The inner annulus the figures settle on, in court tenths: inside the ring
+ *  the season numerals garland, so Act III leaves two rings around the same
+ *  void — the seasons outside, the categories within. */
 const FIGURE_R = 110;
 
 /**
  * How many calipers are ever drawn at once.
  *
- * Looked at by eye at 400 and it was exactly the failure this project is built
- * against: a caliper is a long line, and four hundred of them crossing one
- * halfcourt is a tangle in which nothing can be read - not one measure, not the
- * four figures settling underneath. The flood has to read as weather over the
+ * Looked at by eye at several times this and it was exactly the failure this
+ * project is built against: a caliper is a long line, and that many crossing
+ * one halfcourt is a tangle in which nothing can be read - not one measure, not
+ * the figures settling underneath. The flood has to read as weather over the
  * floor, with a legible leading edge.
  *
  * The true scale is never hidden by this: the counter beside the flood carries
@@ -70,9 +96,22 @@ function fade(x: number, inAt = 0.12, outAt = 0.88): number {
   return Math.min(1, Math.min(x / inAt, (1 - x) / (1 - outAt)));
 }
 
-/** 44.4 -> "44·4": a struck numeral, in the piece's own face. */
+/** A measured figure as a struck numeral, in the piece's own face. */
 function struck(v: number): string {
   return v.toFixed(1).replace(".", "·");
+}
+
+/**
+ * A small COUNT, spelled. The piece says "THESE FOUR CATEGORIES" because that
+ * is how a wall label reads, and the four used to be typed here - so the slug
+ * would have gone on saying four if the league had ever published five. This
+ * formats a number the artifact supplies; it never supplies one.
+ */
+const WORDS = ["ZERO", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN",
+  "EIGHT", "NINE", "TEN", "ELEVEN", "TWELVE"];
+
+function spell(n: number): string {
+  return WORDS[n] ?? String(n);
 }
 
 // --- marks -------------------------------------------------------------------
@@ -92,7 +131,7 @@ function caliper(
   dx: number,
   dy: number,
   alpha: number,
-  serif = 3.2,
+  serif: number = CALIPER_SERIF,
 ): void {
   if (alpha <= 0.01) return;
   const x0 = view.sx(sx);
@@ -138,8 +177,8 @@ function emptyCaliper(
   const x1 = view.sx(dx);
   const y1 = view.sy(dy);
   const ang = Math.atan2(y1 - y0, x1 - x0);
-  const nx = -Math.sin(ang) * 3.2;
-  const ny = Math.cos(ang) * 3.2;
+  const nx = -Math.sin(ang) * CALIPER_SERIF;
+  const ny = Math.cos(ang) * CALIPER_SERIF;
   ctx.save();
   ctx.strokeStyle = `rgba(${BONE_RGB}, ${alpha})`;
   ctx.lineWidth = 1;
@@ -156,8 +195,8 @@ function emptyCaliper(
  * THE DEFENDER RING — open, never filled.
  *
  * The feed gave the ball a third dimension and the players none: player z is
- * 0.0 in every measured row. So the ball carries height and the bodies stay
- * flat and hollow. Grain is a measurement here too.
+ * zero in every measured row of the corpus. So the ball carries height and the
+ * bodies stay flat and hollow. Grain is a measurement here too.
  */
 function ring(
   ctx: CanvasRenderingContext2D,
@@ -165,7 +204,7 @@ function ring(
   x: number,
   y: number,
   alpha: number,
-  r = 9,
+  r: number = DEFENDER_RING_R,
 ): void {
   if (alpha <= 0.01) return;
   ctx.save();
@@ -199,7 +238,7 @@ function strikeFigure(
   if (sub) {
     const sp = Math.max(7, px * 0.32);
     ctx.font = `${sp}px ${INSCRIPTION_FAMILY}`;
-    ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha * 0.55})`;
+    ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha * FIGURE_SUB_ALPHA})`;
     ctx.letterSpacing = `${sp * 0.16}px`;
     ctx.fillText(sub, view.sx(x), view.sy(y) + px * 0.82);
     ctx.letterSpacing = "0px";
@@ -238,12 +277,13 @@ function drawNamesOnly(f: Frame, w: WindowFile | null): void {
     const slot = figureSlot(i, names.length);
     const lab = label(name.toUpperCase(), Math.max(8, 9.5 * (view.scale / 2)), f.dpr);
     ctx.save();
-    ctx.globalAlpha = remains * 0.5;
+    ctx.globalAlpha = remains * NAMES_ONLY_ALPHA;
     ctx.drawImage(lab.canvas, view.sx(slot.x) - lab.width / 2,
       view.sy(slot.y) - lab.height / 2, lab.width, lab.height);
     ctx.restore();
   });
-  drawSlug(ctx, view, ["THE LEAGUE BEGINS PUBLISHING THESE FOUR CATEGORIES"],
+  drawSlug(ctx, view,
+    [`THE LEAGUE BEGINS PUBLISHING THESE ${spell(names.length)} CATEGORIES`],
     { x: 0, y: 300 }, remains * Math.min(1, st.phase * 2) * 0.5);
 }
 
@@ -264,17 +304,25 @@ function drawOrphaned(f: Frame, w: WindowFile | null): void {
       slot.x, slot.y, remains * 0.72, 18);
     // Two serifs and nothing between them, under each figure. This is the
     // piece's argument as a mark rather than as a sentence, and it holds for
-    // eleven seasons, so it is drawn at the strength of a thing meant to be read.
+    // every act after the window - most of the loop - so it is drawn at the
+    // strength of a thing meant to be read.
     const y = slot.y - 34;
     emptyCaliper(ctx, view, slot.x - 22, y, slot.x + 22, y, remains * 0.6);
   });
+
+  // The figures above are shares of the RECOVERED set, and they hold here for
+  // the rest of the loop with no evidence under them at all - so the one place
+  // a viewer sees them longest is the place the selection must be stated.
+  if (w.bias.scope) {
+    drawSlug(ctx, view, [w.bias.scope], { x: 0, y: 250 }, remains * 0.4);
+  }
 
   // Said once, on the first season after the window closes - which is read off
   // the corpus's own last date, not written here.
   const closedIn = w.corpus.date_last ? Number(w.corpus.date_last.slice(0, 4)) : null;
   if (closedIn !== null && st.year === closedIn) {
     drawSlug(ctx, view, [
-      "THE LEAGUE STILL PUBLISHES THESE FOUR CATEGORIES",
+      `THE LEAGUE STILL PUBLISHES THESE ${spell(buckets.length)} CATEGORIES`,
       "THESE ARE THE LAST FIGURES ANYONE OUTSIDE COULD COMPUTE",
     ], { x: 0, y: 320 }, remains * Math.min(1, st.phase * 2) * 0.5);
   }
@@ -300,11 +348,11 @@ function beatOne(f: Frame, w: WindowFile, k: number): void {
     if (!frames.length) return;
     const idx = Math.min(frames.length - 1, Math.floor(t * (frames.length - 1)));
     const p = frames[idx]!;
-    const alpha = a * (local > 1 ? Math.max(0, 1 - (local - 1) / 0.35) : 1);
+    const alpha = a * (local > 1 ? Math.max(0, 1 - (local - 1) / HERO_TAIL) : 1);
 
     // The path the defender has already covered, so the closing is legible.
     ctx.save();
-    ctx.strokeStyle = `rgba(${BONE_RGB}, ${alpha * 0.16})`;
+    ctx.strokeStyle = `rgba(${BONE_RGB}, ${alpha * HERO_PATH_ALPHA})`;
     ctx.lineWidth = 1;
     ctx.beginPath();
     frames.slice(0, idx + 1).forEach((q, j) => {
@@ -316,8 +364,8 @@ function beatOne(f: Frame, w: WindowFile, k: number): void {
     ctx.stroke();
     ctx.restore();
 
-    ring(ctx, view, p[2]!, p[3]!, alpha * 0.7);
-    caliper(ctx, view, p[0]!, p[1]!, p[2]!, p[3]!, alpha * 0.85);
+    ring(ctx, view, p[2]!, p[3]!, alpha * HERO_RING_ALPHA);
+    caliper(ctx, view, p[0]!, p[1]!, p[2]!, p[3]!, alpha * HERO_ALPHA);
 
     // The number changing as the defender closes, struck at the midpoint.
     const dist = Math.hypot(p[2]! - p[0]!, p[3]! - p[1]!) / 10;
@@ -340,8 +388,8 @@ function beatMany(f: Frame, w: WindowFile, k: number, m: Measures | null): void 
   const a = fade(k, 0.06, 0.94) * remains;
   const measured = w.recovery.measured;
 
-  // Exponential ramp: 1, 4, 30, 400, thousands, all of them. The eye is given
-  // a countable number for long enough to count it.
+  // Exponential ramp: one, a few, a few dozen, hundreds, thousands, all of
+  // them. The eye is given a countable number for long enough to count it.
   const reached = Math.max(1, Math.round(Math.pow(measured, Math.min(1, k * 1.12))));
 
   if (m && m.n) {
@@ -352,8 +400,8 @@ function beatMany(f: Frame, w: WindowFile, k: number, m: Measures | null): void 
       // instead of swimming in the accumulated tangle behind it.
       const age = (upto - i) / Math.max(1, upto - from);
       const fresh = (1 - age) * (1 - age);
-      const alpha = a * (0.045 + 0.34 * fresh);
-      caliper(ctx, view, m.x[i]!, m.y[i]!, m.dx[i]!, m.dy[i]!, alpha, 1.8);
+      const alpha = a * (FLOOD_ALPHA_BASE + FLOOD_ALPHA_FRESH * fresh);
+      caliper(ctx, view, m.x[i]!, m.y[i]!, m.dx[i]!, m.dy[i]!, alpha, CALIPER_SERIF_FLOOD);
     }
   }
 
@@ -368,12 +416,17 @@ function beatMany(f: Frame, w: WindowFile, k: number, m: Measures | null): void 
   }
 
   const drawn = Math.min(CALIPER_BUDGET, reached);
+  // The span is the corpus's own, and the second line no longer implies the
+  // recovered set stands for the season: it says what the set IS. Both strings
+  // are templated by the pipeline from the figures they quote (audit F-12).
+  const days = factNum(f.data.facts, "window.days_inclusive");
   drawSlug(ctx, view, [
     `${drawn.toLocaleString()} DRAWN OF ${reached.toLocaleString()} MEASURED`,
-    `${w.corpus.games_parsed} GAMES · ELEVEN WEEKS · HALF OF ONE SEASON`,
+    `${w.corpus.games_parsed} GAMES · ${days} DAYS`,
+    ...w.bias.disclosure,
   ], { x: 0, y: 330 }, a * 0.45);
 
-  // The four figures assemble as the flood fills, and settle.
+  // The figures assemble as the flood fills, and settle.
   const settle = Math.max(0, (k - 0.55) / 0.45);
   if (settle > 0) {
     w.contest.buckets.forEach((b, i) => {
@@ -407,7 +460,7 @@ function beatInstant(f: Frame, w: WindowFile, k: number): void {
   const y0 = 0;
   const y1 = dist * 10;
   ctx.save();
-  ctx.strokeStyle = `rgba(${BONE_RGB}, ${a * 0.7})`;
+  ctx.strokeStyle = `rgba(${BONE_RGB}, ${a * INSTANT_LINE_ALPHA})`;
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(view.sx(0), view.sy(y0));
@@ -424,7 +477,7 @@ function beatInstant(f: Frame, w: WindowFile, k: number): void {
   if (cut > 0) {
     const buckets: DefenderBucket[] = w.contest.buckets;
     ctx.save();
-    ctx.strokeStyle = `rgba(${BONE_RGB}, ${a * cut * 0.6})`;
+    ctx.strokeStyle = `rgba(${BONE_RGB}, ${a * cut * INSTANT_CUT_ALPHA})`;
     ctx.lineWidth = 1;
     buckets.forEach((b) => {
       if (b.hi_ft === null) return;
@@ -441,7 +494,7 @@ function beatInstant(f: Frame, w: WindowFile, k: number): void {
       const hi = b.hi_ft === null ? Math.max(y1, lo + 60) : b.hi_ft * 10;
       const lab = label(b.name.toUpperCase(), Math.max(8, 9 * (view.scale / 2)), f.dpr);
       ctx.save();
-      ctx.globalAlpha = a * cut * 0.55;
+      ctx.globalAlpha = a * cut * BUCKET_LABEL_ALPHA;
       ctx.drawImage(lab.canvas, view.sx(22), view.sy((lo + hi) / 2) - lab.height / 2,
         lab.width, lab.height);
       ctx.restore();
@@ -455,12 +508,24 @@ function beatInstant(f: Frame, w: WindowFile, k: number): void {
       drawSlug(ctx, view, [
         "THE LEAGUE DOES NOT PUBLISH WHICH INSTANT IT MEANS",
         `READ AT THE GATHER INSTEAD, ${struck(100 * g.changed_share)}% CHANGE CATEGORY`,
+        ...(w.bias.scope ? [w.bias.scope] : []),
       ], { x: 0, y: 330 }, a * cut * 0.5);
     }
   }
 }
 
-/** THE CLOSE — 23 January 2016. Everything goes but the figures. */
+/**
+ * THE CLOSE — the corpus's last archive. Everything goes but the figures.
+ *
+ * This slug used to read `date_last` above "THE PUBLIC FEED CLOSES", which
+ * converted a corpus terminus into a proven shutdown date. It is not one. The
+ * last archive anyone holds is dated `window.json:corpus.date_last`; the
+ * earliest artifact showing the endpoint already dead is a GitHub issue dated
+ * `facts.json:external.endpoint_known_dead_by`. The day it actually closed is
+ * between the two and nobody outside recorded it.
+ *
+ * So the piece shows both dates and explains neither. The gap is the content.
+ */
 function beatClose(f: Frame, w: WindowFile, k: number, m: Measures | null): void {
   const { ctx, view, remains } = f;
   const remain = Math.max(0, 1 - k / 0.7);
@@ -470,7 +535,8 @@ function beatClose(f: Frame, w: WindowFile, k: number, m: Measures | null): void
     const upto = Math.round(m.n * remain);
     const from = Math.max(0, upto - CALIPER_BUDGET);
     for (let i = from; i < upto; i++) {
-      caliper(ctx, view, m.x[i]!, m.y[i]!, m.dx[i]!, m.dy[i]!, a * 0.25 * remain, 2.2);
+      caliper(ctx, view, m.x[i]!, m.y[i]!, m.dx[i]!, m.dy[i]!,
+        a * CLOSE_ALPHA * remain, CALIPER_SERIF_CLOSE);
     }
   }
 
@@ -479,11 +545,17 @@ function beatClose(f: Frame, w: WindowFile, k: number, m: Measures | null): void
     strikeFigure(ctx, view, struck(100 * b.share), b.name.toUpperCase(),
       slot.x, slot.y, a * 0.7, 20);
   });
+  // What survives the close is a proportion of the recovered subset, and it
+  // survives for the rest of the loop. It says so.
+  if (w.bias.scope) drawSlug(ctx, view, [w.bias.scope], { x: 0, y: 250 }, a * 0.4);
 
   const closing = Math.max(0, (k - 0.55) / 0.45);
   if (closing > 0 && w.corpus.date_last) {
-    drawSlug(ctx, view, [w.corpus.date_last, "THE PUBLIC FEED CLOSES"],
-      { x: 0, y: 330 }, a * closing * 0.55);
+    const deadBy = factExternal<string>(f.data.facts, "endpoint_known_dead_by");
+    drawSlug(ctx, view, [
+      `${w.corpus.date_last} · THE LAST GAME THE RECORD HOLDS`,
+      `${deadBy} · THE ENDPOINT WAS ALREADY DEAD`,
+    ], { x: 0, y: 330 }, a * closing * 0.55);
   }
 }
 
@@ -494,8 +566,8 @@ export function drawMeasureHand(f: Frame): void {
   const w = data.window;
 
   if (st.act === 3 && w) {
-    // The field recedes almost entirely: for these 150 seconds the caliper is
-    // the subject and the dots are only where it lands.
+    // The field recedes almost entirely: for the whole of the window's dilated
+    // segment the caliper is the subject and the dots are only where it lands.
     drawSeasonField(f, { dim: remains * 0.3 });
     const m = data.measures();
     const p = st.phase;

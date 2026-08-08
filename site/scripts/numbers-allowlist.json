@@ -1,0 +1,229 @@
+{
+  "_why": [
+    "Every entry is a deliberate exemption from site/scripts/check-numbers.mjs, with the",
+    "reason it is one. An entry here is a claim that the number is NOT a measurement the",
+    "piece is restating - syntax, an identifier, a cited external fact, or an authored",
+    "choice already named and disclosed somewhere. Adding one is a decision; leaving one",
+    "unjustified is the defect the check exists to prevent.",
+    "",
+    "`file` is relative to site/src. `text` matches the whole literal, `contains` a",
+    "substring. Omit `file` to allow a literal anywhere."
+  ],
+  "display": [
+    {
+      "file": "palette.ts",
+      "text": "232, 226, 214",
+      "why": "the plate's bone, as RGB channels. A colour, not a quantity the record measured - and palette.ts names, isolates and discloses the whole scheme in its own header (CLAUDE.md rule 3). Out of the mark layers' scope; session 5 owns the palette."
+    },
+    {
+      "file": "palette.ts",
+      "contains": "255, 196, 107",
+      "why": "ZONE_RGB[0], Restricted Area. Rule 4 says colour EXPOSES the league's own SHOT_ZONE_BASIC partition rather than adding a classification; which hue stands for which zone is authored, and the file states the scheme and its reasoning."
+    },
+    {
+      "file": "palette.ts",
+      "contains": "242, 146, 78",
+      "why": "ZONE_RGB[1], In The Paint (Non-RA) - see above."
+    },
+    {
+      "file": "palette.ts",
+      "contains": "224, 90, 65",
+      "why": "ZONE_RGB[2], Mid-Range - the colour that drains away. See above."
+    },
+    {
+      "file": "palette.ts",
+      "contains": "89, 184, 201",
+      "why": "ZONE_RGB[3], Left Corner 3 - see above."
+    },
+    {
+      "file": "palette.ts",
+      "contains": "79, 163, 212",
+      "why": "ZONE_RGB[4], Right Corner 3 - see above."
+    },
+    {
+      "file": "palette.ts",
+      "contains": "125, 146, 224",
+      "why": "ZONE_RGB[5], Above the Break 3 - see above."
+    },
+    {
+      "file": "palette.ts",
+      "contains": "143, 138, 132",
+      "why": "ZONE_RGB[6], Backcourt - see above."
+    },
+    {
+      "file": "palette.ts",
+      "text": ", 0.085)",
+      "why": "the tail of an rgba() template. Syntax, not copy."
+    },
+    {
+      "file": "palette.ts",
+      "text": ", 0.05)",
+      "why": "the tail of an rgba() template. Syntax, not copy."
+    },
+    {
+      "file": "marks.ts",
+      "text": ", 1)",
+      "why": "the tail of an rgba() gradient stop. Syntax, not copy."
+    },
+    {
+      "file": "marks.ts",
+      "text": ", 0)",
+      "why": "the tail of an rgba() gradient stop. Syntax, not copy."
+    },
+    {
+      "file": "zone.ts",
+      "text": "Left Corner 3",
+      "why": "the NBA's own SHOT_ZONE_BASIC name. The record's vocabulary, not authored text: qa.py gates this list against the league's labels, and the piece would be misquoting the archive if it renamed it."
+    },
+    {
+      "file": "zone.ts",
+      "text": "Right Corner 3",
+      "why": "the record's own SHOT_ZONE_BASIC name - see above."
+    },
+    {
+      "file": "zone.ts",
+      "text": "Above the Break 3",
+      "why": "the record's own SHOT_ZONE_BASIC name - see above."
+    },
+    {
+      "file": "modes/measure.ts",
+      "text": "T00:00:00Z",
+      "why": "an ISO-8601 time suffix, appended to window.json's own day0 so Date parses it as UTC. Syntax."
+    },
+    {
+      "file": "navigator.ts",
+      "text": "h1",
+      "why": "a DOM tag name passed to createElement. Not copy."
+    },
+    {
+      "file": "main.ts",
+      "text": "(Act 0 ",
+      "why": "a console.log for whoever is running the piece; never drawn. Its figures are already derived from the schedule."
+    }
+  ],
+  "comments": [
+    {
+      "file": "plate.ts",
+      "contains": "5.25",
+      "why": "the court's own dimensions, from the rule book: the hoop sits 5.25 ft in from the baseline, which is why the baseline is at -52.5. Geometry the NBA drew, not a pipeline output."
+    },
+    {
+      "file": "plate.ts",
+      "contains": "52.5",
+      "why": "the baseline, in court tenths - the same rule-book geometry as above."
+    },
+    {
+      "file": "zone.ts",
+      "contains": "5.25",
+      "why": "the same rule-book geometry, explaining the frame zoneAt works in."
+    },
+    {
+      "file": "zone.ts",
+      "contains": "237.5",
+      "why": "THREE_R in court tenths - the arc the NBA drew at 23'9\". Rule-book geometry, and the constant is declared two lines below."
+    },
+    {
+      "file": "zone.ts",
+      "contains": "220",
+      "why": "CORNER_X in court tenths - where the corner line stands. Rule-book geometry, declared beside the comment."
+    },
+    {
+      "file": "zone.ts",
+      "contains": "8.75",
+      "why": "the corner cut's depth in feet, derived from the two constants above it. Rule-book geometry."
+    },
+    {
+      "file": "probe/shared.ts",
+      "contains": "60,253",
+      "why": "measured by the instrument itself, not by the pipeline: the Canvas2D noise floor under memory pressure. Reproduce with `npm run dev` then ?probe=purity, which prints it. Nothing persists it to data/processed/, and inventing an artifact for a browser measurement would be worse than marking it."
+    },
+    {
+      "file": "probe/shared.ts",
+      "contains": "320",
+      "why": "the ballast, in MB, the noise-floor control allocates. An instrument parameter; reproduce with ?probe=purity."
+    },
+    {
+      "file": "probe/purity.ts",
+      "contains": "4,800",
+      "why": "an instrument parameter of the purity harness; reproduce with ?probe=purity."
+    },
+    {
+      "file": "probe/purity.ts",
+      "contains": "2560",
+      "why": "the probe's fixed surface in device pixels (1280x720 at DPR 2). Calibration of the instrument, meaningless to the piece."
+    },
+    {
+      "file": "probe/purity.ts",
+      "contains": "60,000",
+      "why": "an instrument parameter of the purity harness; reproduce with ?probe=purity."
+    },
+    {
+      "file": "probe/perf.ts",
+      "contains": "16.7",
+      "why": "the frame budget in ms at 60 Hz. The instrument's own yardstick."
+    }
+  ],
+  "words": [
+    {
+      "file": "modes/ledger.ts",
+      "text": "ninety",
+      "why": "definitional, not measured: `words_covering_90pct` IS 'how many phrases cover ninety per cent', so the threshold names the metric. The counts it produces are read from the artifact and never written here."
+    },
+    {
+      "file": "probe/purity.ts",
+      "text": "sixty",
+      "why": "prose in the instrument's own account of the noise floor it measured; reproduce with ?probe=purity."
+    },
+    {
+      "file": "probe/purity.ts",
+      "text": "seventy",
+      "why": "as above - the harness describing its own measurement."
+    },
+    {
+      "file": "probe/purity.ts",
+      "text": "thirty",
+      "why": "as above."
+    },
+    {
+      "file": "probe/purity.ts",
+      "text": "thousand",
+      "why": "as above."
+    },
+    {
+      "file": "probe/shared.ts",
+      "text": "fifty",
+      "why": "as above - the resident record the probe holds while measuring."
+    },
+    {
+      "file": "probe/shared.ts",
+      "text": "hundred",
+      "why": "as above."
+    },
+    {
+      "file": "probe/shared.ts",
+      "text": "thousand",
+      "why": "as above."
+    },
+    {
+      "file": "probe/shared.ts",
+      "text": "fourteen",
+      "why": "as above - the pixel buffers the harness holds."
+    },
+    {
+      "file": "probe/shared.ts",
+      "text": "thirty",
+      "why": "as above."
+    },
+    {
+      "file": "probe/shared.ts",
+      "text": "seventy",
+      "why": "as above."
+    },
+    {
+      "file": "probe/perf.ts",
+      "text": "twelve",
+      "why": "the twelve schedule-derived beats the sweep runs, which the harness itself computes."
+    }
+  ],
+  "material": []
+}

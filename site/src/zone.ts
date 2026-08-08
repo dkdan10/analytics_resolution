@@ -7,11 +7,12 @@
  * hue is a measurement rather than a choice (CLAUDE.md Rule 4).
  *
  * Which means this file cannot be allowed to drift from `pipeline/common.py`.
- * The Python copy is scored against the league's own labels at 99.993% over all
- * 207,893 of 2015-16's shots — the misses are five boundary coordinates the
- * record labels consistently under a convention that rounds the other way from
- * these polygons. This copy is scored against the Python one, at 100%, through
- * a committed fixture both sides read:
+ * The Python copy is scored against the league's own labels over every one of
+ * 2015-16's shots, and qa.py prints the agreement rate and gates it — the
+ * misses are a few boundary coordinates the record labels consistently under a
+ * convention that rounds the other way from these polygons. This copy is scored
+ * against the Python one, and required to agree exactly, through a committed
+ * fixture both sides read:
  *
  *     pipeline/checks/zone_fixture.json     the coordinates and their regions
  *     python3 pipeline/qa.py                re-derives it from common.zone_at

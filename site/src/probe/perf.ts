@@ -2,9 +2,11 @@
  *
  * Audit finding F-14: THE HAND's splotches iterate tens of thousands of records
  * and issue an individual `beginPath`/`arc`/`fill` per mark, every animation
- * frame. In a controlled browser proxy the central window scene delivered a
- * mean of 31.6 ms against THE PLATE's 16.7 ms on the same machine. The fix is
- * session 4's; this is the instrument it will be graded against.
+ * frame. The audit estimated the cost with a controlled browser proxy; this
+ * harness measures it directly, and measures it far worse, because the proxy
+ * was not drawing at the gallery's device pixel ratio. Run it rather than
+ * quoting it — the numbers live in the report this prints, not in this comment.
+ * The fix is session 4's; this is the instrument it will be graded against.
  *
  * Two passes per beat, deliberately separate:
  *

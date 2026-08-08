@@ -1,10 +1,11 @@
 /** Every shot, baked.
  *
- * A season is 188,000–219,000 attempts. They cannot be drawn one at a time —
- * and drawing them additively would not even be honest: at conserved ink each
- * mark deposits about 0.09 px² of alpha, a peak contribution below one
- * 255-level, so most marks would round to nothing and the survivors would
- * round up. "Ink is conserved" cannot be true in an 8-bit accumulator.
+ * A season is hundreds of thousands of attempts — `seasons.json:attempts` says
+ * how many, and it is not this file's business to remember. They cannot be
+ * drawn one at a time, and drawing them additively would not even be honest: at
+ * conserved ink each mark's peak contribution is a small fraction of one 8-bit
+ * level, so most marks would round to nothing and the survivors would round up.
+ * "Ink is conserved" cannot be true in an 8-bit accumulator.
  *
  * So the summation happens in the pipeline instead, as exact integers, and
  * arrives here as a count per coordinate. Each cell is resolved once into a
@@ -18,6 +19,13 @@
 
 import { BONE_RGB, ZONE_RGB } from "./palette";
 import { COURT, type View } from "./plate";
+import {
+  FALLOFF_DISC_INTEGRAL,
+  SPLAT_MIN_PX,
+  SPLAT_SPACING_K,
+  TONE_CEILING,
+  TONE_K,
+} from "./scalars";
 
 /** Bytes per record in points/season_YYYY.bin — must match POINT_DTYPE. */
 const REC = 14;
@@ -57,28 +65,24 @@ export function decodePoints(buf: ArrayBuffer): Points {
 }
 
 /**
- * One tone curve for all thirty seasons.
+ * One tone curve for every season.
  *
  * Counts are first divided by the season's own total, so brightness reads as a
- * shot's SHARE of its season and the thirty distributions stay comparable —
- * which is also what "short seasons are short, not sparse" requires, since
- * 1998-99 has 113,377 attempts against 1999-00's 195,220.
+ * shot's SHARE of its season and the distributions stay comparable — which is
+ * also what "short seasons are short, not sparse" requires, the lockout years
+ * holding barely half the attempts of the ones around them
+ * (`seasons.json:attempts`).
  *
  * The curve itself is then fixed. Per-season auto-normalisation would falsely
  * equalise the seasons, and this piece does not do that. It is compressive
- * because the dynamic range is enormous — a single coordinate can hold 715
- * shots while the median holds a handful — and because photographic density
- * response is compressive, which is the idiom the plate already speaks.
+ * because the dynamic range is enormous — the densest single coordinate in a
+ * season holds hundreds of shots while the median holds a handful — and because
+ * photographic density response is compressive, which is the idiom the plate
+ * already speaks.
+ *
+ * TONE_K and TONE_CEILING are declared in src/scalars.ts with what each one
+ * controls; nothing material is written here.
  */
-// Tuned so that a coordinate holding a single shot still reads — most occupied
-// coordinates hold one or two, and at a gentler slope the record's long tail
-// disappears into the ground while a handful of dense cells carry the image.
-const TONE_K = 35000;
-/** The curve tops out below 1 so nothing clips before the per-frame dim is
- *  applied; clipping first and dimming after would darken exactly the dense
- *  rim where the piece's argument lives. */
-const TONE_CEILING = 0.92;
-
 function tone(share: number): number {
   return TONE_CEILING * (1 - Math.exp(-TONE_K * share));
 }
@@ -117,7 +121,7 @@ export function bakeLayer(
   const h = Math.max(1, Math.round(view.height * dpr));
 
   // Accumulate in float, never in 8-bit. A cell's alpha is a fraction of one
-  // 255-level for all but the densest coordinates, so summing into an
+  // channel level for all but the densest coordinates, so summing into an
   // ImageData directly rounds almost every shot in the record away to nothing -
   // which is exactly the failure this whole approach exists to avoid.
   const acc = new Float32Array(w * h * 3);
@@ -131,20 +135,24 @@ export function bakeLayer(
   // mechanical dot-screen - an artefact of the renderer, not a property of the
   // record. Each cell is instead splatted at its true fractional position with
   // a soft falloff just wide enough that neighbours meet.
-  // Wide enough that occupied coordinates merge. Only about a tenth of the
-  // lattice is occupied in a season, so a tight splat renders the record's grid
-  // rather than its density - true, but it reads as a halftone screen instead
-  // of the photographic field the plate is composed in.
+  // Wide enough that occupied coordinates merge. Only a fraction of the lattice
+  // is occupied in a season, so a tight splat renders the record's grid rather
+  // than its density - true, but it reads as a halftone screen instead of the
+  // photographic field the plate is composed in.
   const spacing = view.s(1) * dpr;
-  const radius = Math.max(1.5, spacing * 1.45);
+  const radius = Math.max(SPLAT_MIN_PX, spacing * SPLAT_SPACING_K);
   const span = Math.ceil(radius);
   const inv = 1 / (radius * radius);
   // A wider splat lands on more pixels and would simply make the plate
   // brighter. Dividing by the splat's own overlap - the integral of the falloff
   // over the lattice - keeps a coordinate's density the thing that sets its
   // brightness, so `radius` controls smoothness only and nothing else changes
-  // when it is tuned.
-  const overlap = Math.max(1, (Math.PI * radius * radius * 0.5) / (spacing * spacing));
+  // when it is tuned. FALLOFF_DISC_INTEGRAL is that integral and is derived
+  // from the falloff below, not chosen; see src/scalars.ts.
+  const overlap = Math.max(
+    1,
+    (Math.PI * radius * radius * FALLOFF_DISC_INTEGRAL) / (spacing * spacing),
+  );
 
   for (let i = 0; i < pts.n; i++) {
     const cx = pts.x[i]!;

@@ -27,19 +27,28 @@ export const ACT0_SECONDS = 24;
  * After the last season the plate empties again before the loop turns over.
  *
  * This exists for the wrap, not for anything drawn in it: without the emptying
- * the finished ring of thirty numerals vanished in a single frame, and the one
- * cut this piece is allowed is 2010-11, which should not have to share the
- * distinction with a loop boundary.
+ * the finished ring of numerals vanished in a single frame, and the one cut
+ * this piece is allowed is the season the record's rim blindness ends, which
+ * should not have to share the distinction with a loop boundary.
  */
 export const CODA_SECONDS = 7;
 const SEASON_SECONDS = 11;
 /**
  * The window dilates: the piece is slow exactly where the record is rich.
  *
- * 150 seconds of a 514-second loop - 29% of the piece on eleven weeks of one
- * season. That is deliberate and it is the argument: this is the only period
- * whose raw record survives in public, and the only place the manufacture of a
- * published statistic can be watched rather than asserted.
+ * A large fraction of the whole loop is spent on part of one season. That is
+ * deliberate and it is the argument: this is the only period whose raw record
+ * survives in public, and the only place the manufacture of a published
+ * statistic can be watched rather than asserted.
+ *
+ * THE FOUR CONSTANTS IN THIS FILE ARE THE SCHEDULE'S ONLY SOURCE.
+ * `pipeline/facts.py` reads them out of this source, multiplies them against
+ * the season count in seasons.json, and emits `facts.json:derived.loop.seconds`
+ * and `loop.clock`. Every statement of the runtime - in the README, in
+ * CLAUDE.md, in the rail - resolves back here, and qa.py gates the prose
+ * against it. This comment used to state the loop length and the window's share
+ * of it directly, and both were wrong: the arithmetic had moved and the
+ * sentence had not.
  */
 const WINDOW_SECONDS = 150;
 export const WINDOW_YEAR = 2015;

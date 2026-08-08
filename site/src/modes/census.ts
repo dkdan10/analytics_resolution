@@ -1,11 +1,12 @@
 /** THE CENSUS — the machine classifying basketball, live.
  *
- * Every shot that lands on the plate is simultaneously filed under six
- * taxonomies: whether it was a two or a three, whether it went in, which of
- * seven zones, which of five ranges, which of six areas, and which of the
- * record's phrases for what the shot *was*. That last one runs from nine words
- * in 1996-97 to forty-eight by 2024-25, so the machine's whole vocabulary for
- * describing a shot grows from **31 categories to 75** across the piece.
+ * Every shot that lands on the plate is simultaneously filed under every
+ * taxonomy the record applies at once: whether it was a two or a three,
+ * whether it went in, which zone, which range, which area, and which of the
+ * record's phrases for what the shot *was*. Only that last one grows - see
+ * `vocabulary.words` and `vocabulary.categories_total`, which is what the
+ * header below counts. The number of taxonomies never moves, and facts.py
+ * asserts that across the seasons.
  *
  * The tallies run as the marks arrive, counts and percentages settling as the
  * season fills. Nothing here is summarised after the fact: this is the record
@@ -16,7 +17,7 @@
  * recounts rather than remembers.
  */
 
-import type { Season } from "../data";
+import { factNum, type Season } from "../data";
 import { BONE_RGB, SLUG_FAMILY } from "../palette";
 import { drawSeasonField } from "./fieldlayer";
 import type { Frame } from "./types";
@@ -36,10 +37,10 @@ interface Group {
 /**
  * The season's own classification, counted in full and grown with arrival.
  *
- * This used to tally the 2,000-dot sample, which made the census an estimate:
- * it printed 41.5% for 1996-97's mid-range while the plate struck 39·9 into the
- * floor beside it. These are the record's real counts, so the two figures on
- * screen now agree by construction, and qa.py gates that they do.
+ * This used to tally the fixed-seed sample, which made the census an estimate:
+ * it printed one mid-range share while the plate struck a different one into
+ * the floor beside it. These are the record's real counts, so the two figures
+ * on screen now agree by construction, and qa.py gates that they do.
  */
 function census(season: Season, arrived: number): { groups: Group[]; classified: number } {
   const a = Math.min(1, Math.max(0, arrived));
@@ -130,9 +131,9 @@ export function drawCensusHand(f: Frame): void {
   // The marks stay, quieter: the census is about them, so they have to be there.
   //
   // The outgoing season is NOT drawn here, unlike every other hand. The tally
-  // counts this season's arrived shots, so a field still carrying two thousand
-  // marks from the season before would contradict a census reading "3 SHOTS
-  // CLASSIFIED". Here the plate empties and refills with the count.
+  // counts this season's arrived shots, so a field still carrying the previous
+  // season's marks would contradict a census reading "3 SHOTS CLASSIFIED".
+  // Here the plate empties and refills with the count.
   // No outgoing season here, unlike every other hand: a field still carrying
   // the previous season's shots would contradict a tally counting only this one.
   drawSeasonField(f, { dim: remains * 0.55, withPrevious: false });
@@ -155,8 +156,11 @@ export function drawCensusHand(f: Frame): void {
   ctx.textAlign = "left";
   ctx.fillText(`${season.season}  ·  ${classified} SHOTS CLASSIFIED`, pad, pad + LINE);
   ctx.fillStyle = `rgba(${BONE_RGB}, ${0.45 * remains})`;
+  // How many ways a shot is filed, counted from this season's own artifact -
+  // the machine's vocabulary grows and the shape of its filing does not.
+  const taxonomies = Object.keys(season.vocabulary.taxonomies).length;
   ctx.fillText(
-    `${season.vocabulary.categories_total} CATEGORIES IN SIX TAXONOMIES`,
+    `${season.vocabulary.categories_total} CATEGORIES IN ${taxonomies} TAXONOMIES`,
     pad,
     pad + LINE * 2,
   );
@@ -194,12 +198,13 @@ export function drawCensusHand(f: Frame): void {
 }
 
 /**
- * What the machine held, for eleven weeks.
+ * What the machine held, for the length of the window.
  *
  * Set against a census whose largest number is a season's attempts, these are
- * the measure of what a shot record throws away: twenty-nine seasons keep one
- * point per shot, and for 89 days the same league held half a billion body
- * positions and never published one of them again.
+ * the measure of what a shot record throws away: every other season keeps one
+ * point per shot (`facts.json:schema.positions_per_shot`), and for the window's
+ * span the same league held the body positions in `inventory` and never
+ * published one of them again.
  */
 function drawWindowInventory(f: Frame, col: Columns): void {
   const { st, data, remains } = f;
@@ -219,6 +224,11 @@ function drawWindowInventory(f: Frame, col: Columns): void {
   col.line("Drives", grown(inv.drives), 0.72 * remains);
   col.gap();
   col.line("THE RECORD KEPT", "", 0.45 * remains, true);
-  col.line("Points per shot", "1", 0.72 * remains);
-  col.line("Games of 1,230", String(w.corpus.games_parsed), 0.72 * remains);
+  // Both measured. The record's width per shot is counted from the dump's own
+  // header, and the full schedule from the season the window sits inside -
+  // neither is a number this file is entitled to know.
+  const positions = factNum(data.facts, "schema.positions_per_shot");
+  const full = factNum(data.facts, "season.games_full");
+  col.line("Positions per shot", String(positions), 0.72 * remains);
+  col.line(`Games of ${full.toLocaleString()}`, String(w.corpus.games_parsed), 0.72 * remains);
 }

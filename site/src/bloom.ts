@@ -14,6 +14,19 @@
 
 import { BONE_RGB } from "./palette";
 import type { View } from "./plate";
+import {
+  RIM_FT,
+  TRACE_ANCHOR_ALPHA,
+  TRACE_ANCHOR_MIN_PX,
+  TRACE_ANCHOR_SCALE,
+  TRACE_APPROACH_DIM,
+  TRACE_HEIGHT_CLAMP,
+  TRACE_LIT_FLOOR,
+  TRACE_LIT_RANGE,
+  TRACE_W_APPROACH,
+  TRACE_W_IN_FLIGHT,
+  TRACE_W_SCALE,
+} from "./scalars";
 
 export interface Trace {
   game: string;
@@ -35,16 +48,14 @@ export interface TracesFile {
   traces: Trace[];
 }
 
-/** Rim height, the only scale the ball's third dimension needs. */
-const RIM_FT = 10;
-
 /**
  * Traces pass one at a time, the way possessions do.
  *
- * Drawn simultaneously, thirty-two gestures overlap into a starburst at the rim
- * and nothing is legible - the opposite of the claim Act III makes, which is
- * that for 89 days you could see *the gesture*. So each trace draws itself,
- * holds, and fades, staggered so only two or three share the plate at once.
+ * Drawn simultaneously, every curated gesture in `traces.json` overlaps into a
+ * starburst at the rim and nothing is legible - the opposite of the claim Act
+ * III makes, which is that for the window's span you could see *the gesture*.
+ * So each trace draws itself, holds, and fades, staggered so only two or three
+ * share the plate at once.
  */
 const DRAW_S = 1.3;
 const HOLD_S = 2.2;
@@ -105,13 +116,15 @@ export function drawBloom(
       const a = pts[k - 1]!;
       const b = pts[k]!;
       // Height above the floor, normalised at the rim.
-      const h = Math.min(1.4, Math.max(0, b[2] / RIM_FT));
-      const lit = 0.1 + 0.62 * h;
+      const h = Math.min(TRACE_HEIGHT_CLAMP, Math.max(0, b[2] / RIM_FT));
+      const lit = TRACE_LIT_FLOOR + TRACE_LIT_RANGE * h;
       // The gesture before the release is quieter than the shot itself.
       const inFlight = k >= tr.release_index;
-      const w = (inFlight ? 1.5 : 1.0) * Math.max(1, view.scale * 0.55);
+      const w = (inFlight ? TRACE_W_IN_FLIGHT : TRACE_W_APPROACH)
+        * Math.max(1, view.scale * TRACE_W_SCALE);
 
-      ctx.strokeStyle = `rgba(${BONE_RGB}, ${lit * alpha * (inFlight ? 1 : 0.72)})`;
+      ctx.strokeStyle =
+        `rgba(${BONE_RGB}, ${lit * alpha * (inFlight ? 1 : TRACE_APPROACH_DIM)})`;
       ctx.lineWidth = w;
       ctx.beginPath();
       ctx.moveTo(view.sx(a[0]), view.sy(a[1]));
@@ -121,9 +134,10 @@ export function drawBloom(
 
     // The dot it grew out of, held brighter than the field around it.
     const [ax, ay] = tr.anchor;
-    ctx.fillStyle = `rgba(${BONE_RGB}, ${0.8 * alpha})`;
+    ctx.fillStyle = `rgba(${BONE_RGB}, ${TRACE_ANCHOR_ALPHA * alpha})`;
     ctx.beginPath();
-    ctx.arc(view.sx(ax), view.sy(ay), Math.max(1.2, view.scale * 0.9), 0, Math.PI * 2);
+    ctx.arc(view.sx(ax), view.sy(ay),
+      Math.max(TRACE_ANCHOR_MIN_PX, view.scale * TRACE_ANCHOR_SCALE), 0, Math.PI * 2);
     ctx.fill();
   });
 

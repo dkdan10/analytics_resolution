@@ -10,7 +10,7 @@
  * the record's own resolution changes.
  */
 
-import type { Season } from "./data";
+import { factExternal, type FactsFile, type Season } from "./data";
 import { ACT_TITLES, CUT_YEAR, stateAt, WINDOW_BEATS, WINDOW_YEAR, type Act, type Schedule } from "./timeline";
 
 export interface Transport {
@@ -31,9 +31,6 @@ interface Row {
   year: number | null;
   start: number;
 }
-
-/** External history, matching main.ts: nothing in the shot record reaches here. */
-const LEAGUE_FOUNDED = 1946;
 
 function fmt(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
@@ -58,6 +55,7 @@ export class Navigator {
     private schedule: Schedule,
     seasons: Season[],
     private transport: Transport,
+    facts: FactsFile,
   ) {
     root.hidden = false;
     root.innerHTML = "";
@@ -135,11 +133,13 @@ export class Navigator {
     this.list.id = "nav-list";
     root.append(this.list);
 
-    // The closing year is the first season the record holds; 1946 is the
-    // league's founding, the one date no dump can supply - which is Act 0.
+    // The closing year is the first season the record holds; the opening one is
+    // the league's founding, the one date no dump can supply - which is Act 0.
+    // Same key the plate reads, so the rail cannot disagree with the slug.
+    const founded = factExternal<number>(facts, "league_founded");
     this.addRow("Counts", null, 0, "act");
     this.rows.push({
-      el: this.addSeg(`${LEAGUE_FOUNDED} — ${seasons[0]?.year ?? ""}`, "no coordinates", null, 0, ""),
+      el: this.addSeg(`${founded} — ${seasons[0]?.year ?? ""}`, "no coordinates", null, 0, ""),
       year: null,
       start: 0,
     });
@@ -166,9 +166,9 @@ export class Navigator {
       const el = this.addSeg(season?.season ?? String(seg.year), share, mark, seg.start, cls);
       this.rows.push({ el, year: seg.year, start: seg.start });
 
-      // The window is 150 seconds and moves through four distinct beats, so it
-      // gets the only sub-list in the rail: a presenter should be able to reach
-      // "the instant" directly rather than scrubbing for it.
+      // The window is dilated far past any other season and moves through
+      // distinct beats, so it gets the only sub-list in the rail: a presenter
+      // should be able to reach "the instant" directly rather than scrubbing.
       if (seg.year === WINDOW_YEAR) {
         for (const b of WINDOW_BEATS) {
           const at = seg.start + b.from * seg.duration;
@@ -249,9 +249,9 @@ export class Navigator {
   /**
    * Every place the step buttons can land.
    *
-   * The window's four beats are stops in their own right: at 150 seconds it is
-   * fourteen times the length of any other season, and a presenter who can only
-   * step over it in one jump cannot get to "the instant" at all.
+   * The window's beats are stops in their own right: it runs many times the
+   * length of any other season (`secondsFor` in timeline.ts), and a presenter
+   * who can only step over it in one jump cannot get to "the instant" at all.
    */
   static starts(schedule: Schedule): number[] {
     const stops = [0, ...schedule.segments.map((s) => s.start), schedule.lastEnds];

@@ -165,7 +165,7 @@ async function main(): Promise<void> {
           for (let k = 0; k < starts.length; k++) if (starts[k]! <= now + 0.01) i = k;
           tc.seek(starts[i + dir] ?? (dir === 1 ? 0 : starts[starts.length - 1]!));
         },
-      });
+      }, data.facts);
     }
   } else {
     document.body.classList.add("exhibit");

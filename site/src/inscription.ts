@@ -1,9 +1,9 @@
 /** Numbers struck into the floor.
  *
  * Nothing the piece says lives in a row. Each season's figure is cut into the
- * middle of the court, held, then migrates out to a permanent slot on the 16-ft
- * annulus - the exact region draining of evidence - so that by the end thirty
- * numerals garland the void they measure.
+ * middle of the court, held, then migrates out to a permanent slot on the ring
+ * below - the exact region draining of evidence - so that by the end one
+ * numeral per season garlands the void they measure.
  *
  * Inscriptions are drawn *under* the marks, because they are cut into the plate
  * rather than laid on it: the shots of every later season settle over them.
@@ -19,8 +19,9 @@ import type { Schedule } from "./timeline";
 
 /** Struck on the centreline, out in the middle the piece is about. */
 const STRIKE_AT = { x: 0, y: 200 };
-/** The annulus the numerals end on: 17 ft, mid-way through the emptying
- *  mid-range, and wide enough that thirty numerals sit clear of each other. */
+/** The annulus the numerals end on, in court tenths: mid-way through the
+ *  emptying mid-range, and wide enough that one numeral per season sits clear
+ *  of its neighbours. */
 const RING_R = 172;
 
 const STRIKE_IN = 0.8;
@@ -30,7 +31,7 @@ const MIGRATE = 2.6;
 const STRIKE_DELAY = 2.2;
 
 const FACE_SIZE = 34;
-/** Small enough that thirty of them fit the annulus without touching. */
+/** Small enough that a numeral per season fits the annulus without touching. */
 const RESIDENT_SCALE = 0.3;
 
 export interface Inscription {
@@ -56,7 +57,12 @@ export interface Inscription {
 /** The NBA's own category, named as theirs. Disclosed in wall text. */
 const TRACKED_ZONE = "Mid-Range";
 
-/** 39.9% -> "39·9" - a struck numeral, not a label with a percent sign. */
+/** A measured length, as the plate says it: "22", not "22.0". */
+function fmtFt(ft: number): string {
+  return Number.isInteger(ft) ? String(ft) : ft.toFixed(1);
+}
+
+/** A share -> a struck numeral, not a label with a percent sign. */
 function struckFigure(share: number): string {
   return (100 * share).toFixed(1).replace(".", "·");
 }
@@ -77,7 +83,12 @@ export function buildInscriptions(seasons: Season[], schedule: Schedule): Inscri
       counter: s.contemporaneous
         ? struckFigure(s.contemporaneous.contemporaneous_mid_share)
         : undefined,
-      counterLabel: s.contemporaneous ? "UNDER THE 22-FT LINE THEN IN FORCE" : undefined,
+      // The line's own radius, from the season's artifact. The arc the plate
+      // draws for 1996-97 comes from the same key, so the words and the
+      // geometry cannot disagree (seasons.json:contemporaneous.line_ft).
+      counterLabel: s.contemporaneous
+        ? `UNDER THE ${fmtFt(s.contemporaneous.line_ft)}-FT LINE THEN IN FORCE`
+        : undefined,
       weight: s.mid_share,
       strikeAt: (seg?.start ?? 0) + STRIKE_DELAY,
       slot: { x: RING_R * Math.cos(a), y: RING_R * Math.sin(a) },

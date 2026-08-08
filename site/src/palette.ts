@@ -21,14 +21,15 @@ export function bone(alpha: number): string {
  * THE FIELD's hues — one per SHOT_ZONE_BASIC category, in the pipeline's own
  * ZONES order.
  *
- * The categories are the NBA's, not the artist's, and the wall text says so:
+ * The categories are the NBA's, not the artist's, and the wall text says so;
+ * which hue stands for which is authored, and named and disclosed here:
  * colouring by zone does not add a classification, it exposes one the league
  * already imposed. Hue is therefore a measurement like every other material
  * property here, which is the only footing on which this piece may use colour
  * at all.
  *
  * The assignment runs warm through the middle of the floor and cool along the
- * arc, so thirty seasons carry the image from warm-centred to cool-edged as a
+ * arc, so the corpus carries the image from warm-centred to cool-edged as a
  * consequence of the migration rather than as a second, invented channel. The
  * split is warm-versus-cool rather than red-versus-green, and lightness varies
  * with hue, so the seven stay separable for colour-blind viewers and survive a

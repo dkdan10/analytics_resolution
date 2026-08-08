@@ -2,12 +2,13 @@
  *
  * The expensive part of a label is not `fillText`, it is assigning `ctx.font`
  * and `ctx.letterSpacing`, which invalidates the shaping cache every time. At
- * two hundred labels a frame that drops frames on a gallery display. So each
- * distinct string is rendered once into its own small canvas and thereafter
- * blitted — exactly what `stamp()` already does for marks.
+ * the label counts THE LEDGER reaches that drops frames on a gallery display.
+ * So each distinct string is rendered once into its own small canvas and
+ * thereafter blitted — exactly what `stamp()` already does for marks.
  *
- * The record uses at most about sixty distinct phrases across all thirty
- * seasons, so one atlas serves the whole piece.
+ * The record's whole vocabulary is small — `vocabulary.words_list` is the
+ * season's, and the union across the corpus is not much larger — so one atlas
+ * serves the whole piece.
  */
 
 import { BONE_RGB, SLUG_FAMILY } from "./palette";

@@ -11,17 +11,12 @@
  * what it was extracted for.
  */
 
-import type { Loaded } from "./data";
+import { factExternal, type Loaded } from "./data";
 import { drawSlug, type Inscription } from "./inscription";
 import { drawHand, modeAt, type ModeId } from "./modes";
 import { GROUND } from "./palette";
-import { drawPlate, SHORTENED_THREE_R, type View } from "./plate";
+import { drawPlate, shortenedThreeR, type View } from "./plate";
 import { stateAt, type Schedule } from "./timeline";
-
-/** External history: the league's founding year. Nothing in the shot record
- *  reaches back this far - that is the point of Act 0 - so it cannot be
- *  derived, and it is the only date in the piece that is not a measurement. */
-const LEAGUE_FOUNDED = 1946;
 
 /** Where a frame is drawn. `main()` keeps one and `resize()` updates it in
  *  place; the probes make their own at a fixed size and DPR. */
@@ -51,16 +46,18 @@ export function renderTo(
     ctx.globalAlpha = Math.min(1, st.preludePhase * 1.6);
     drawPlate(ctx, view);
     ctx.restore();
-    // Fifty years of basketball and not one coordinate. The plate is bare
+    // Half a century of basketball and not one coordinate. The plate is bare
     // because the record is - this is the absence, not a stylised version of it.
-    // The closing year is the first season the record holds, read from the data;
-    // 1946 is the league's founding, external history the dumps cannot supply.
+    // The closing year is the first season the record holds; the opening one is
+    // the league's founding, external history no dump can supply, so it is
+    // cited in facts.json rather than written here.
     const p = st.preludePhase;
     const firstCharted = data.seasons[0]?.year;
+    const founded = factExternal<number>(data.facts, "league_founded");
     drawSlug(
       ctx,
       view,
-      [`${LEAGUE_FOUNDED} — ${firstCharted ?? ""}`, "NO SHOT WAS GIVEN A PLACE"],
+      [`${founded} — ${firstCharted ?? ""}`, "NO SHOT WAS GIVEN A PLACE"],
       { x: 0, y: 200 },
       Math.min(1, p * 4) * Math.min(1, (1 - p) * 5),
     );
@@ -69,9 +66,12 @@ export function renderTo(
 
   const year = st.year!;
 
-  // The arc carries the geometry in force: 1996-97 played to a 22-ft line that
-  // the modern taxonomy has since drawn over.
-  const threeR = year === 1996 ? SHORTENED_THREE_R : undefined;
+  // The arc carries the geometry in force: the earliest season here was played
+  // to a shorter line that the modern taxonomy has since drawn over. Which
+  // season, and how short, both come from the record - the season carries a
+  // `contemporaneous` block exactly when its line differed.
+  const era = data.byYear.get(year)?.contemporaneous;
+  const threeR = era ? shortenedThreeR(era.line_ft) : undefined;
   // The engraving recedes through the coda too, so the wrap arrives on near-bare
   // stone rather than on a fully drawn court.
   ctx.save();

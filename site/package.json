@@ -7,8 +7,11 @@
     "sync-data": "node scripts/sync-data.mjs",
     "gate": "node scripts/zone-gate.mjs",
     "dev": "npm run sync-data && vite",
-    "build": "npm run sync-data && npm run gate && tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "build": "npm run sync-data && npm run check:numbers && npm run gate && npm run disclose -- --check && tsc --noEmit && vite build && npm run check:public",
+    "preview": "vite preview",
+    "check:numbers": "node scripts/check-numbers.mjs",
+    "disclose": "node scripts/disclose.mjs",
+    "check:public": "node scripts/check-public-data.mjs"
   },
   "devDependencies": {
     "typescript": "^5.7.2",
