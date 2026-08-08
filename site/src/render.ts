@@ -72,10 +72,17 @@ export function renderTo(
   // `contemporaneous` block exactly when its line differed.
   const era = data.byYear.get(year)?.contemporaneous;
   const threeR = era ? shortenedThreeR(era.line_ft) : undefined;
-  // The engraving recedes through the coda too, so the wrap arrives on near-bare
-  // stone rather than on a fully drawn court.
+  // The engraving recedes through the coda too, and it recedes ALL THE WAY.
+  //
+  // It used to stop a little short of nothing, so the last frame before the wrap
+  // held a court and the first frame after it held none: the loop turned over on
+  // a visible step, in a piece whose whole coda exists so that it would not
+  // (audit F-13). The two ends have to agree, and the value they agree on is
+  // zero, because the engraving's arrival over the prelude is a composed event -
+  // the court recognised a beat after the image is - and starting the prelude
+  // part-drawn would be cutting it.
   ctx.save();
-  ctx.globalAlpha = 1 - 0.85 * st.coda;
+  ctx.globalAlpha = 1 - st.coda;
   drawPlate(ctx, view, threeR);
   ctx.restore();
 
