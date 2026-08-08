@@ -38,6 +38,7 @@ import json
 import math
 import struct
 import sys
+from datetime import date as _date
 from pathlib import Path
 
 # The interpreter check runs before numpy is imported. Reversed, a reader on the
@@ -345,14 +346,16 @@ DECODER_SOURCES = {
 # mismatch has gone also fails, so whoever fixes it has to delete the waiver
 # rather than leave a dead exemption behind.
 #
-# Session 1 re-encoded the paint binaries to fix F-02 and left site/src/data.ts
-# on the old widths deliberately - session 1 was pipeline-only. Session 4
-# rebuilds THE HAND and turns these green (audit F-04 / V-07). Recorded
-# 2026-08-08.
-DECODER_WAIVERS = {
-    "vertex": (6, 8, "session 4 (THE HAND rebuild) updates site/src/data.ts"),
-    "stroke": (8, 11, "session 4 (THE HAND rebuild) updates site/src/data.ts"),
-}
+# THE TABLE IS EMPTY, and that is the finished state, not an oversight. Session
+# 1 re-encoded the paint binaries to fix F-02 and left site/src/data.ts on the
+# old widths deliberately - session 1 was pipeline-only - so `vertex` (6 vs 8)
+# and `stroke` (8 vs 11) sat here waived for three sessions. Session 4 landed
+# the reader and deleted them, which is what the reverse direction exists to
+# force. One consequence, stated rather than left to be discovered: while this
+# table is empty the reverse direction cannot be exercised by any mutation, so
+# the catalogue's decoder case now proves the FORWARD one - see
+# checks/mutations.py:m_paint_stale_reader.
+DECODER_WAIVERS = {}
 
 # The parity fixture both zone implementations are checked against. Python
 # writes it, python re-derives it, and site/scripts/zone-gate.mjs checks the
@@ -1672,8 +1675,10 @@ WINDOW_SCHEMA = {
 }
 
 PAINT_SCHEMA = {
-    "definitions": dict, "canvases": int, "strokes": int, "vertices": int,
+    "definitions": dict, "format_version": int,
+    "canvases": int, "strokes": int, "vertices": int,
     "days_covered": int, "days_by_month": dict,
+    "day_dates": list, "day_offsets": list,
     "seconds_painted": float, "stroke_seconds": float,
     "simplify_ft": float, "vertices_outside_plate": int,
     "speed_ft_s": {"p10": float, "p25": float, "p50": float, "p75": float,
@@ -1745,6 +1750,40 @@ def group_paint(g, ctx):
             sum(p["days_by_month"].values()), p["days_covered"])
     g.info(f"painted days by month {p['days_by_month']} - {p['days_covered']} distinct "
            f"days carrying {p['canvases']} canvases")
+
+    # WHAT A `day` BYTE MEANS. paint_index.bin's `day` indexes the corroborated
+    # corpus's own game-days; window_measures.bin's `day` counts days since the
+    # window opened. The two scales differ by the days nobody played, and until
+    # this key shipped nothing in either file said so - a renderer pacing both
+    # hands off "day" was pacing them off two different clocks, and the mapping
+    # back to a date existed only in the gitignored provenance manifest.
+    dates = p["day_dates"]
+    offsets = p["day_offsets"]
+    g.check("the day index has an entry for every day the paint covers",
+            len(dates), p["days_covered"])
+    g.check("the day index ascends with its own calendar", dates, sorted(dates))
+    g.check("no date is filed under two day indices", len(set(dates)), len(dates))
+    g.check("the day index opens and closes on the paint's own span",
+            [dates[0], dates[-1]] if dates else [],
+            [p["date_first"], p["date_last"]])
+    # Re-derived here rather than read back: the offsets are the one half a
+    # renderer paces on, so they are recomputed from the dates beside them.
+    day0 = _date.fromisoformat(dates[0]) if dates else None
+    g.check("every day offset is its own date's distance from the first",
+            offsets,
+            [(_date.fromisoformat(d) - day0).days for d in dates] if day0 else [])
+    w = ctx.json(g, "window.json")
+    if w is not None and offsets:
+        # The paint's calendar against the window's. `days_inclusive` is derived
+        # from window.json's corpus span, so a paint that ended early - the
+        # session-1b defect - would show here as a short span rather than only
+        # as a date comparison.
+        g.check("the paint's calendar spans the window the corpus defines",
+                offsets[-1] + 1,
+                (_date.fromisoformat(w["corpus"]["date_last"])
+                 - _date.fromisoformat(w["corpus"]["date_first"])).days + 1)
+        g.info(f"the paint's {len(dates)} game-days span {offsets[-1] + 1} calendar days; "
+               f"{offsets[-1] + 1 - len(dates)} days in the window carry no game")
 
     vbuf = ctx.raw(g, "paint_strokes.bin")
     ibuf = ctx.raw(g, "paint_index.bin")
@@ -1832,9 +1871,17 @@ def _paint_index(g, p, strokes, verts):
     g.check("a stroke is a body or the ball", sorted(kinds), [0, 1])
     span = p["days_covered"]
     days = {s[5] for s in strokes}
-    g.holds("every stroke's day is inside the window", max(days) < 256 and min(days) >= 0,
-            f"{min(days)}..{max(days)}")
+    # `day` is a uint8, so the gate this replaces - `max(days) < 256 and
+    # min(days) >= 0` - was true of every byte that can be stored in the field
+    # and could not fail. It is now an index into `day_dates`, which is a claim
+    # that can be wrong: a stroke naming a day the calendar does not have is a
+    # stroke a renderer would pace off nothing.
+    calendar = len(p["day_dates"])
+    g.check("every stroke's day names a day the calendar has",
+            sorted(d for d in days if d >= calendar), [])
     g.check("the painted days are the ones counted", len(days), span)
+    g.check("every day in the calendar carries at least one stroke",
+            sorted(set(range(calendar)) - days), [])
 
     # PER CANVAS, not as a rounded average. The old check was
     # `round(strokes / canvases) in (10, 11)`, which one canvas at three strokes
@@ -2369,6 +2416,7 @@ MEMORY_CLAIMS = [
           "recovery.attribution_agreement", "f4"),
     Claim("`recovery.event_offsets` is `{}`", "window", "recovery.event_offsets", "offsets"),
     Claim("`WINDOW_RECOVERY_FLOOR` in qa.py (**{}**)", "code", "WINDOW_RECOVERY_FLOOR", "f2"),
+    Claim("`pipeline/checks/mutations.py` holds **{} defects**", "code", "MUTATION_CASES"),
 
     # --- the paint ----------------------------------------------------------
     Claim("lifts **{} strokes**", "paint", "strokes", "comma"),
@@ -2405,6 +2453,14 @@ def _memory_value(g, ctx, claim):
     if claim.source == "code":
         if claim.path == "WINDOW_RECOVERY_FLOOR":
             return WINDOW_RECOVERY_FLOOR
+        if claim.path == "MUTATION_CASES":
+            # The size of the defect catalogue, read from the catalogue. This
+            # sentence said 42 for a session after the catalogue reached 49 -
+            # the same drift F-16 exists to stop, in the section that explains
+            # how a gate earns belief.
+            from checks.mutations import CASES  # noqa: PLC0415
+
+            return len(CASES)
         if claim.path == "RING_FT":
             # The annulus the season numerals settle on, from the renderer that
             # draws it. CLAUDE.md called it "the 16-ft annulus" for three

@@ -378,12 +378,50 @@ def m_occupancy_share(d):
     _save(d, "window.json", w)
 
 
-def m_paint_stale_reader(d):
-    """The site's decoder waiver outliving the mismatch it names.
+def m_day_offset_drift(d):
+    """A day offset detached from the date it is supposed to measure.
 
-    The mirror image of a missing check: a dated exemption that has silently
-    become a lie. Simulated by re-declaring the paint records at the widths
-    site/src/data.ts still reads.
+    `day_offsets` is the half a renderer paces on and `day_dates` is the half a
+    reader can check, so the one that must not drift silently is the first. A
+    stroke paced off this would land on the wrong day of the window with nothing
+    on screen to say so.
+    """
+    p = _load(d, "paint.json")
+    p["day_offsets"][40] = p["day_offsets"][40] + 3
+    _save(d, "paint.json", p)
+
+
+def m_day_past_calendar(d):
+    """A stroke naming a day the calendar does not have.
+
+    The gate this replaces asked `max(day) < 256` of a uint8 field, which is
+    true of every byte that can be stored in it and could not fail. One stroke's
+    `day` byte is pushed past the end of `day_dates`: a renderer pacing that
+    stroke would look its day up in a calendar that stops short of it.
+    """
+    p = _load(d, "paint.json")
+    rec = p["files"]["index"]["record"]
+    size = struct.calcsize(rec)
+    raw = bytearray((d / "paint_index.bin").read_bytes())
+    s = struct.unpack_from(rec, raw, 0)
+    struct.pack_into(rec, raw, 0, *s[:5], len(p["day_dates"]) + 1)
+    (d / "paint_index.bin").write_bytes(bytes(raw))
+
+
+def m_paint_stale_reader(d):
+    """The two halves of the project disagreeing about a byte layout.
+
+    Nothing type-checks a record width: site/src/data.ts decoded 6- and 8-byte
+    paint records for three sessions after the pipeline moved to 8 and 11, and
+    `tsc --noEmit` and `npm run build` both stayed clean while THE HAND drew a
+    starburst of garbage. This re-declares the paint records at those old widths
+    against the reader session 4 landed.
+
+    It used to prove the REVERSE direction - a dated waiver outliving the
+    mismatch it names - which is what it caught while data.ts was still on the
+    old widths. With DECODER_WAIVERS empty that direction cannot be staged at
+    all, so the case proves the forward one instead. Same one-line mutation,
+    different check.
     """
     p = _load(d, "paint.json")
     p["files"]["vertices"]["bytes_per_record"] = 6
@@ -627,8 +665,13 @@ CASES = [
          m_trace_anchor, "a gesture drawn at a dot it does not belong to"),
     Case("occupancy-share", ["window"], "every band's share is its own count",
          m_occupancy_share, "a published share detached from the count beneath it"),
-    Case("stale-waiver", ["inventory"], "no decoder waiver outlives the mismatch it names",
-         m_paint_stale_reader, "an exemption that has quietly become a lie"),
+    Case("stale-reader", ["inventory"], "the site decodes the records the pipeline writes",
+         m_paint_stale_reader, "a renderer reading a byte layout the pipeline stopped writing"),
+    Case("day-offset-drift", ["paint"],
+         "every day offset is its own date's distance from the first",
+         m_day_offset_drift, "the calendar a hand paces on, detached from its own dates"),
+    Case("day-past-calendar", ["paint"], "every stroke's day names a day the calendar has",
+         m_day_past_calendar, "a day index past the end of the calendar it indexes"),
 
     # --- the four unfailable gates session 1b replaced -----------------------
     # These arrived in break_gates.py, which is where they were first shown to

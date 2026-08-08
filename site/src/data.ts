@@ -331,6 +331,10 @@ export interface WindowFile {
     per_game: { touches: number | null; passes: number | null; drives: number | null };
   };
   measures_bin: {
+    /** The struct format the pipeline packed with, so the reader below can
+     *  assert against what was written rather than against its own memory. */
+    record: string;
+    path: string;
     records: number;
     bytes: number;
     bytes_per_record: number;
@@ -351,6 +355,11 @@ export interface WindowFile {
  */
 export interface PaintFile {
   definitions: Record<string, string>;
+  /** The shape of the two binaries. Session 1 re-encoded both to stop `arc`
+   *  clipping and to carry the canvas and body a split run belongs to; the
+   *  reader below refuses anything it does not recognise rather than
+   *  best-effort a layout it was not written for. */
+  format_version: number;
   canvases: number;
   strokes: number;
   vertices: number;
@@ -364,9 +373,21 @@ export interface PaintFile {
    *  ink is deposited per unit time, so this is where the paint actually goes. */
   ink_by_zone: Record<string, number>;
   files: {
-    vertices: { records: number; bytes: number; bytes_per_record: number };
-    index: { records: number; bytes: number; bytes_per_record: number };
+    vertices: BinaryFile;
+    index: BinaryFile;
   };
+}
+
+/** What the pipeline says it wrote: the struct format, the record width, and
+ *  how many records the file holds. Every one of them is asserted before a
+ *  byte is read - a decoder that trusts its own constant is a decoder that
+ *  cannot notice the pipeline moved underneath it. */
+export interface BinaryFile {
+  path: string;
+  record: string;
+  records: number;
+  bytes: number;
+  bytes_per_record: number;
 }
 
 /** Decoded strokes. Flat arrays: a stroke is a slice, never an object. */
@@ -375,47 +396,127 @@ export interface Strokes {
   /** Per stroke. */
   first: Uint32Array;
   count: Uint16Array;
+  /** Which possession this run was lifted from - the key into the private
+   *  provenance manifest, and half of the identity that makes Rule 7 checkable.
+   *  One canvas is one corroborated possession: every body on the floor, and
+   *  the ball. `paint.json:bodies_per_canvas` says how many that is. */
+  canvas: Uint16Array;
   /** 0 = a body, 1 = the ball — the only row the feed gave a third dimension. */
   kind: Uint8Array;
+  /** The body slot within that canvas, stable across the runs of one body.
+   *  After session 1 split every path at its discontinuities a body CAN be
+   *  several strokes, so a body is `(canvas, body)` and never a stroke count. */
+  body: Uint8Array;
+  /** Index into the corroborated corpus's own GAME-days - NOT days since the
+   *  window opened, which is what `Measures.day` counts. The two scales differ
+   *  by the days nobody played: `paint.json:days_covered` game-days spread over
+   *  `facts.json:window.days_inclusive` calendar days. Nothing in either file's
+   *  name says so, and a hand pacing off both was pacing off two clocks.
+   *  `PaintFile.day_dates` maps this index back to its own date and
+   *  `day_offsets` to its distance from the first, both measured. */
   day: Uint8Array;
   /** Per vertex, in the plate's own frame (tenths, hoop at origin). */
   x: Int16Array;
   y: Int16Array;
-  dt: Uint8Array;
-  arc: Uint8Array;
+  /** Frames since the previous vertex; 0 on a stroke's first vertex. */
+  dt: Uint16Array;
+  /** Tenths the body actually covered over that span, summed at the full 25 Hz
+   *  BEFORE simplification, so speed is the true measured mean however few
+   *  control points survived. Widened from one byte in session 1: 24 stored
+   *  values had been pinned at the old ceiling. Nothing here may re-impose one. */
+  arc: Uint16Array;
 }
 
-const VERTEX_REC = 6;
-const STROKE_REC = 8;
+// The layouts the pipeline writes, mirrored here as literals so qa.py's
+// decoder-parity check can read them out of this source and compare them with
+// what the artifacts declare. They are ALSO asserted against the artifact at
+// decode time below - the constant is what the check reads, the assertion is
+// what makes it safe.
+const VERTEX_REC = 8;
+const STROKE_REC = 11;
+const VERTEX_LAYOUT = "<hhHH";
+const STROKE_LAYOUT = "<IHHBBB";
+const PAINT_FORMAT_VERSION = 2;
 
-export function decodeStrokes(vbuf: ArrayBuffer, ibuf: ArrayBuffer): Strokes {
-  const nv = Math.floor(vbuf.byteLength / VERTEX_REC);
-  const ns = Math.floor(ibuf.byteLength / STROKE_REC);
+/** A declared binary against the bytes that actually arrived.
+ *
+ *  Nothing type-checks a byte layout: the site decoded 6- and 8-byte paint
+ *  records for two sessions after the pipeline moved to 8 and 11, and both
+ *  `tsc --noEmit` and `npm run build` stayed clean while THE HAND rendered a
+ *  starburst of garbage. So the reader states what it expects and stops. */
+function assertLayout(
+  what: string,
+  file: BinaryFile,
+  buf: ArrayBuffer,
+  record: string,
+  bytesPerRecord: number,
+): void {
+  const said: string[] = [];
+  if (file.record !== record) said.push(`format ${file.record} not ${record}`);
+  if (file.bytes_per_record !== bytesPerRecord) {
+    said.push(`${file.bytes_per_record} B per record, this reader decodes ${bytesPerRecord}`);
+  }
+  if (buf.byteLength !== file.records * bytesPerRecord) {
+    said.push(`${buf.byteLength} bytes on the wire, ${file.records} x ${bytesPerRecord} declared`);
+  }
+  if (said.length) throw new Error(`${what} (${file.path}): ${said.join("; ")}`);
+}
+
+export function decodeStrokes(
+  vbuf: ArrayBuffer,
+  ibuf: ArrayBuffer,
+  paint: PaintFile,
+): Strokes {
+  if (paint.format_version !== PAINT_FORMAT_VERSION) {
+    throw new Error(
+      `paint.json declares format_version ${paint.format_version}; this reader `
+      + `decodes ${PAINT_FORMAT_VERSION} and will not guess at another`,
+    );
+  }
+  assertLayout("the paint's vertices", paint.files.vertices, vbuf, VERTEX_LAYOUT, VERTEX_REC);
+  assertLayout("the paint's index", paint.files.index, ibuf, STROKE_LAYOUT, STROKE_REC);
+
+  const nv = paint.files.vertices.records;
+  const ns = paint.files.index.records;
   const vd = new DataView(vbuf);
   const id = new DataView(ibuf);
   const x = new Int16Array(nv);
   const y = new Int16Array(nv);
-  const dt = new Uint8Array(nv);
-  const arc = new Uint8Array(nv);
+  const dt = new Uint16Array(nv);
+  const arc = new Uint16Array(nv);
   for (let i = 0; i < nv; i++) {
     const o = i * VERTEX_REC;
     x[i] = vd.getInt16(o, true);
     y[i] = vd.getInt16(o + 2, true);
-    dt[i] = vd.getUint8(o + 4);
-    arc[i] = vd.getUint8(o + 5);
+    dt[i] = vd.getUint16(o + 4, true);
+    arc[i] = vd.getUint16(o + 6, true);
   }
   const first = new Uint32Array(ns);
   const count = new Uint16Array(ns);
+  const canvas = new Uint16Array(ns);
   const kind = new Uint8Array(ns);
+  const body = new Uint8Array(ns);
   const day = new Uint8Array(ns);
   for (let i = 0; i < ns; i++) {
+    // `canvas` sits BETWEEN count and kind. A reader that merely widened the
+    // record from 8 to 11 bytes and kept the old offsets would read the two
+    // halves of `canvas` as `kind` and `day`, and every stroke would become a
+    // body or a ball at random on a nonsense day, with no error anywhere.
     const o = i * STROKE_REC;
     first[i] = id.getUint32(o, true);
     count[i] = id.getUint16(o + 4, true);
-    kind[i] = id.getUint8(o + 6);
-    day[i] = id.getUint8(o + 7);
+    canvas[i] = id.getUint16(o + 6, true);
+    kind[i] = id.getUint8(o + 8);
+    body[i] = id.getUint8(o + 9);
+    day[i] = id.getUint8(o + 10);
+    const last = first[i]! + count[i]!;
+    if (last > nv) {
+      throw new Error(
+        `${paint.files.index.path}: stroke ${i} runs to vertex ${last} of ${nv}`,
+      );
+    }
   }
-  return { n: ns, first, count, kind, day, x, y, dt, arc };
+  return { n: ns, first, count, canvas, kind, body, day, x, y, dt, arc };
 }
 
 /** One shot's caliper, decoded from window_measures.bin. */
@@ -443,9 +544,11 @@ export interface Measures {
 }
 
 const MEASURE_REC = 13;
+const MEASURE_LAYOUT = "<hhhhHBBB";
 
-export function decodeMeasures(buf: ArrayBuffer): Measures {
-  const n = Math.floor(buf.byteLength / MEASURE_REC);
+export function decodeMeasures(buf: ArrayBuffer, w: WindowFile): Measures {
+  assertLayout("the window's calipers", w.measures_bin, buf, MEASURE_LAYOUT, MEASURE_REC);
+  const n = w.measures_bin.records;
   const dv = new DataView(buf);
   const x = new Int16Array(n);
   const y = new Int16Array(n);
@@ -505,6 +608,10 @@ export interface Loaded {
   /** The strokes themselves, fetched on demand. THE HAND draws splotches
    *  without them and gains the motion a frame or two later. */
   strokes(): Strokes | null;
+  /** Every lazily-fetched asset that failed for good, with why. A failure
+   *  latches rather than being retried from the animation loop, so this is a
+   *  finite list and the probes assert it is empty before believing a row. */
+  assetErrors(): string[];
   provenance: Record<string, string>;
 }
 
@@ -514,6 +621,58 @@ async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}data/${path}`);
   if (!res.ok) throw new Error(`failed to load data/${path}: ${res.status}`);
   return (await res.json()) as T;
+}
+
+/**
+ * A binary, or a loud failure - never a silently mis-decoded one.
+ *
+ * `fetchStrokes` used to hand the response body straight to the decoder without
+ * checking `Response.ok`, so a not-found page's HTML was decoded as paint. Every
+ * lazy fetch here also swallowed its rejection into `.catch(() => undefined)`
+ * while resetting its in-flight flag in `finally`, which let the animation loop
+ * re-issue the same doomed request on every frame for the rest of the run.
+ *
+ * So: the status is checked, and a failure LATCHES. The piece degrades to what
+ * it can draw without the asset - which for THE HAND is the splotches, exactly
+ * the state every era outside the window is in anyway - and says once, loudly,
+ * what it could not read.
+ */
+async function getBinary(path: string): Promise<ArrayBuffer> {
+  const res = await fetch(`${BASE}data/${path}`);
+  if (!res.ok) throw new Error(`failed to load data/${path}: ${res.status}`);
+  return await res.arrayBuffer();
+}
+
+/** One lazily-fetched asset: absent, arriving, arrived, or failed for good. */
+interface Lazy<T> {
+  get(): T | null;
+  error(): string | null;
+}
+
+function lazy<T>(name: string, fetcher: () => Promise<T>): Lazy<T> {
+  let value: T | null = null;
+  let failure: string | null = null;
+  let inFlight = false;
+  return {
+    get(): T | null {
+      if (value || failure || inFlight) return value;
+      inFlight = true;
+      void fetcher()
+        .then((v) => {
+          value = v;
+        })
+        .catch((e: unknown) => {
+          failure = e instanceof Error ? e.message : String(e);
+          // eslint-disable-next-line no-console
+          console.error(`FADEAWAY: ${name} will not be drawn - ${failure}`);
+        })
+        .finally(() => {
+          inFlight = false;
+        });
+      return null;
+    },
+    error: () => failure,
+  };
 }
 
 export async function load(): Promise<Loaded> {
@@ -562,20 +721,15 @@ export async function load(): Promise<Loaded> {
     windowFile = null;
   }
 
-  const pointCache = new Map<number, Points>();
-  const inFlight = new Set<number>();
+  const pointLoaders = new Map<number, Lazy<Points>>();
   const fetchPoints = (year: number): Points | null => {
-    const have = pointCache.get(year);
-    if (have) return have;
-    if (!inFlight.has(year)) {
-      inFlight.add(year);
-      void fetch(`${BASE}data/points/season_${year}.bin`)
-        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
-        .then((buf) => pointCache.set(year, decodePoints(buf)))
-        .catch(() => undefined)
-        .finally(() => inFlight.delete(year));
+    let l = pointLoaders.get(year);
+    if (!l) {
+      l = lazy(`points/season_${year}.bin`,
+        () => getBinary(`points/season_${year}.bin`).then(decodePoints));
+      pointLoaders.set(year, l);
     }
-    return null;
+    return l.get();
   };
 
   let paintFile: PaintFile | null = null;
@@ -585,45 +739,18 @@ export async function load(): Promise<Loaded> {
     paintFile = null;
   }
 
-  let strokeCache: Strokes | null = null;
-  let strokesInFlight = false;
-  const fetchStrokes = (): Strokes | null => {
-    if (strokeCache) return strokeCache;
-    if (!strokesInFlight && paintFile) {
-      strokesInFlight = true;
-      void Promise.all([
-        fetch(`${BASE}data/paint_strokes.bin`).then((r) => r.arrayBuffer()),
-        fetch(`${BASE}data/paint_index.bin`).then((r) => r.arrayBuffer()),
-      ])
-        .then(([v, i]) => {
-          strokeCache = decodeStrokes(v, i);
-        })
-        .catch(() => undefined)
-        .finally(() => {
-          strokesInFlight = false;
-        });
-    }
-    return null;
-  };
+  const strokeLoader = lazy("the paint", async (): Promise<Strokes> => {
+    const [v, i] = await Promise.all([
+      getBinary("paint_strokes.bin"),
+      getBinary("paint_index.bin"),
+    ]);
+    return decodeStrokes(v, i, paintFile!);
+  });
+  const fetchStrokes = (): Strokes | null => (paintFile ? strokeLoader.get() : null);
 
-  let measureCache: Measures | null = null;
-  let measuresInFlight = false;
-  const fetchMeasures = (): Measures | null => {
-    if (measureCache) return measureCache;
-    if (!measuresInFlight && windowFile) {
-      measuresInFlight = true;
-      void fetch(`${BASE}data/window_measures.bin`)
-        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
-        .then((buf) => {
-          measureCache = decodeMeasures(buf);
-        })
-        .catch(() => undefined)
-        .finally(() => {
-          measuresInFlight = false;
-        });
-    }
-    return null;
-  };
+  const measureLoader = lazy("the calipers",
+    () => getBinary("window_measures.bin").then((b) => decodeMeasures(b, windowFile!)));
+  const fetchMeasures = (): Measures | null => (windowFile ? measureLoader.get() : null);
 
   return {
     seasons,
@@ -637,6 +764,14 @@ export async function load(): Promise<Loaded> {
     measures: fetchMeasures,
     paint: paintFile,
     strokes: fetchStrokes,
+    assetErrors: () => {
+      const all: [string, string | null][] = [
+        ...[...pointLoaders].map(([y, l]) => [`points/${y}`, l.error()] as [string, string | null]),
+        ["strokes", strokeLoader.error()],
+        ["measures", measureLoader.error()],
+      ];
+      return all.filter(([, e]) => e !== null).map(([n, e]) => `${n}: ${e}`);
+    },
     provenance: file.provenance,
   };
 }

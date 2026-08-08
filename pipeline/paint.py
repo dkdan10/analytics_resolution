@@ -599,6 +599,10 @@ def reduce_all():
     quantized = 0
     days = set()
     dates = set()
+    # day index -> the date it stands for, collected from the canvases
+    # themselves rather than rebuilt from the archive listing, so what ships
+    # cannot disagree with what was painted.
+    day_dates_by_index = {}
     residuals = []
     bodies_per_canvas = []
     strokes_per_canvas = []
@@ -609,6 +613,9 @@ def reduce_all():
     for canvas, (p, g) in enumerate(chosen):
         days.add(g["day"])
         dates.add(g["date"])
+        was = day_dates_by_index.setdefault(g["day"], g["date"])
+        if was != g["date"]:
+            die(f"day index {g['day']} stands for both {was} and {g['date']}")
         ranks[g.get("selection_rank", 0)] += 1
         if g.get("closest_sustained_ft") is not None:
             canvas_closest.append(g["closest_sustained_ft"])
@@ -688,6 +695,19 @@ def reduce_all():
 
     ink_total = sum(zone_ink.values()) or 1
     strokes_alt = sum(v for k, v in run_lengths.items() if k >= max(MIN_RUN_FRAMES_ALT, 3))
+    # A day index is an index, so the mapping must be DENSE from zero or the
+    # array that ships cannot be looked up by it. It is dense on this corpus
+    # because every one of the 85 game-days carries at least one canvas; a
+    # selection that skipped a day would produce a hole, and a hole silently
+    # filled with the next date is exactly the class of error this key exists
+    # to remove. So refuse instead.
+    holes = [i for i in range(max(day_dates_by_index) + 1) if i not in day_dates_by_index]
+    if holes:
+        die(f"the paint covers no game on day index(es) {holes[:8]} - `day` could not be "
+            f"used to look up a date, so the mapping is not shipped rather than shipped wrong")
+    day_dates = [day_dates_by_index[i] for i in range(len(day_dates_by_index))]
+    if day_dates != sorted(day_dates):
+        die("day indices do not ascend with their own dates")
     out = {
         "generated_by": "pipeline/paint.py",
         "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
@@ -822,6 +842,27 @@ def reduce_all():
         "zone_quantized_frames": quantized,
         "zone_quantized_share": round(quantized / max(1, sum(zone_ink.values())), 5),
         "days_covered": len(days),
+        # WHAT A `day` BYTE MEANS, shipped rather than left to be inferred.
+        #
+        # paint_index.bin's `day` is an index into the game-days of the
+        # corroborated corpus (0..84), NOT days since the window opened, which
+        # is what window_measures.bin's `day` counts (0..88). 632 archives fall
+        # on 85 distinct dates spanning 89 calendar days, so the two scales
+        # differ by the four days nobody played, and nothing in either file's
+        # name said so. A renderer pacing both hands off "day" was therefore
+        # pacing them off two different clocks.
+        #
+        # `day_dates` is the index's own calendar and `day_offsets` is the same
+        # thing measured against the corpus's first date, so a consumer can put
+        # a stroke on the window's calendar without parsing anything or
+        # interpolating a date the artifact does not contain. qa.py re-derives
+        # the second from the first.
+        "day_dates": day_dates,
+        "day_offsets": [
+            (datetime.date.fromisoformat(d)
+             - datetime.date.fromisoformat(day_dates[0])).days
+            for d in day_dates
+        ],
         # What was actually painted, not what was available: the frames the
         # shipped strokes span, which is the same total ink_by_zone divides up.
         "seconds_painted": round(sum(zone_ink.values()) / HZ, 1),
