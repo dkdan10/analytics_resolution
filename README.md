@@ -11,13 +11,13 @@ measurement, not a mood.
 Six hands draw the same record in turn, one per pass of the loop: **the plate** (evidence), **the
 field** (the league's own colours), **the ledger** (its words), **the census** (its counts), **the
 hand** (paint), and **the measure** — which follows a single published statistic, closest-defender distance, through
-its three states. For most of the piece no such measure exists. For eleven weeks in 2015-16 the
+its three states. For most of the piece no such measure exists. For 89 days in 2015-16 the
 optical feed was public and the number can be *made*, out of all 632 games, in front of you. After
 23 January 2016 four figures stay lit above four empty calipers for the rest of the loop: the
 league still publishes those categories, and those are the last figures anyone outside could
 compute. The enclosure is of the geometry, not of the numbers.
 
-**The hand** is the painting. Its brush strokes are real player trajectories from the eleven weeks
+**The hand** is the painting. Its brush strokes are real player trajectories from the window
 — one body, five seconds, one possession, every vertex a position the machine recorded — and its
 colour is the league's own seven-region map of the floor, so a stroke recolours along its own
 length as it crosses the lines the NBA drew. Twenty-nine seasons are splotches and nothing between
@@ -70,6 +70,7 @@ python3 pipeline/qa.py --spine-only    # the shot stage alone, while working on 
 python3 pipeline/qa.py --only window,paint
 python3 pipeline/qa.py --processed DIR # point every read at another artifact root
 python3 pipeline/qa.py --slow          # + the recomputations that reopen the raw corpus
+python3 pipeline/qa.py --write-deploy-allowlist   # regenerate pipeline/deploy_allowlist.json
 ```
 
 Anything but a bare run prints `QA GREEN (REDUCED — …)` and says what it did not do. Only the
@@ -134,7 +135,10 @@ alone: the stage is bound by memory rather than cores, and more workers make it 
 **Two modes, one codebase** — the whole piece is a pure function of one float, so both modes are
 the same work sampled differently:
 
-- **exhibit** (default) — autoplaying ~8.3 min loop, no chrome, no cursor, no loop seam.
+- **exhibit** (default) — autoplaying 500-second (8:20) loop, no chrome, no cursor, no loop seam.
+  The schedule is declared once, in `site/src/timeline.ts`, and `pipeline/facts.py` derives the
+  runtime from it into `facts.json:derived.loop.seconds`; `qa.py` gates every prose statement of
+  it against that. Nothing here restates it.
 - **talk** (`?talk`) — a rail beside the plate listing every segment (Act 0, all thirty seasons
   under their act headings, the coda) with each season's measured mid-range share; click any of
   them to jump. Transport for start / previous / pause / next, plus a draggable scrub. Keys still
