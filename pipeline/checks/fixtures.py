@@ -168,6 +168,20 @@ def check_offsets():
     ok("a game with no releases decides zero with no votes",
        off == 0 and d["reconciled_at_best"] == 0, f"{off:+d}")
 
+    # A REFUSAL IS NOT AN ANSWER. Both of these apply offset zero, and only one
+    # of them chose it: a rejected argmax keeps the straight join because the
+    # evidence for a shift was refused, not because zero won a comparison. The
+    # held-out split reads `named`, so a half that decided nothing can no longer
+    # be paired with a genuine straight join and counted as agreement.
+    shots, anchors = vector({0: 10, 3: 43, 4: 41, 5: 38})
+    off_r, refused = decide_offset(score_offsets(shots, anchors))
+    shots, anchors = vector({0: 90, 1: 20, -1: 18})
+    off_a, answered = decide_offset(score_offsets(shots, anchors))
+    ok("a refusal names nothing where an accepted zero names zero",
+       off_r == 0 and off_a == 0
+       and refused["named"] is None and answered["named"] == 0,
+       f"refused names {refused['named']}, accepted zero names {answered['named']}")
+
 
 # --- synthetic frames ---------------------------------------------------------
 

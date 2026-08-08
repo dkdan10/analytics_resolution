@@ -132,6 +132,7 @@ def main():
 
     # PASSES.
     passes = []
+    kept_pairs = []
     cross_period = 0
     over_gap = 0
     for a, b in zip(touches, touches[1:]):
@@ -146,8 +147,15 @@ def main():
             over_gap += 1
             continue
         passes.append(g)
-    ok("no pass crosses a period", cross_period == 0 or True,
-       f"{cross_period} same-team adjacencies rejected for crossing a period")
+        kept_pairs.append((a, b))
+    # `cross_period == 0 or True` was a dead assertion: it cannot be false, so
+    # the criterion it claims to verify independently was verified by a
+    # tautology. What the rule actually promises is that no adjacency counted as
+    # a pass spans two periods, so that is what is asserted - over the passes,
+    # not over the rejections.
+    ok("no counted pass crosses a period",
+       all(frames[a[3]][0] == frames[b[2]][0] for a, b in kept_pairs),
+       f"{len(kept_pairs)} passes, {cross_period} adjacencies rejected for crossing a period")
     ok("no counted pass exceeds the declared gap",
        not passes or max(passes) <= MAX_PASS_GAP_MS, f"max {max(passes) if passes else 0} ms")
 

@@ -60,6 +60,26 @@ from window import (  # noqa: E402
 # in the drawn line looks like.
 QUANT_TOLERANCE_FT = math.hypot(0.1, 0.1) + 0.05
 
+# What a BODY vertex may report, as a regression guard on the measured
+# distribution rather than a claim about anatomy. Measured over the shipped
+# bytes on 2026-08-08: bodies run p99 18.3 and max 37.5 ft/s, and only over
+# spans of one or two frames; over half a second the maximum is 25.3. The
+# splitter's own ceiling is MAX_STEP_FT * HZ = 75, which is why asserting
+# against it could not fail. These sit above what ships and far below that, so
+# a splitter that stopped splitting - or a synthetic chord standing in for a
+# measurement - trips them. Second readings: 30 and 26, which the current
+# corpus also clears; the pair above is the looser and therefore the guard.
+MAX_BODY_SPEED_FT_S = 40.0
+MAX_BODY_SPEED_ALT_FT_S = 30.0
+SUSTAINED_FRAMES = 12          # half a second at 25 Hz
+MAX_SUSTAINED_SPEED_FT_S = 30.0
+MAX_SUSTAINED_SPEED_ALT_FT_S = 26.0
+# Roughly the fastest a basketball player is clocked moving, used only to COUNT
+# the vertices above it, never to gate. Arc summed at 25 Hz over a noisy path
+# accumulates length a still body never travelled, so some vertices exceed this
+# and that is the instrument, not the player.
+SPRINT_FT_S = 22.0
+
 def speed_tolerance(dt):
     """How far arc/dt may sit from the full-rate mean, for a span of `dt` frames.
 
@@ -172,17 +192,53 @@ def check_geometry(p, verts, strokes, sizes):
     print(f"  (measured) {len(runs):,} (canvas, body) groups, {split} of them split "
           f"into more than one run; bodies per canvas min {min(bodies)} max {max(bodies)}")
 
+    # SPEED, asked of bodies and the ball separately.
+    #
+    # `speeds[-1] <= MAX_STEP_FT * HZ` could not fail. The splitter already cuts
+    # any step over MAX_STEP_FT in one frame, so 75 ft/s is a bound the geometry
+    # enforces before this check sees it, and the assertion held by
+    # construction. It also asked one question of two different things: the ball
+    # is thrown and legitimately passes 60 ft/s, so conflating the two forced
+    # the bound up to where no body could ever trip it.
+    kind_of = {}
+    for first, count, _c, kind, _b, _d in strokes:
+        for i in range(first, first + count):
+            kind_of[i] = kind
     speeds = sorted((arc / 10.0) / (dt / HZ) for _x, _y, dt, arc in verts if dt)
-    def q(f):
-        return round(speeds[min(len(speeds) - 1, int(len(speeds) * f))], 2)
-    print(f"  (measured) speed p10 {q(.10)} p50 {q(.50)} p90 {q(.90)} p99 {q(.99)} "
-          f"max {round(speeds[-1], 2)} ft/s")
-    ok("no vertex reports a speed a body could not reach",
-       speeds[-1] <= MAX_STEP_FT * HZ + 1e-6, f"max {speeds[-1]:.2f} ft/s")
-    for k in ("p10", "p50", "p90", "p99"):
-        if abs(p["speed_ft_s"][k] - q(float("0." + k[1:]) if k != "p10" else 0.10)) > 0.011:
-            ok(f"paint.json's {k} matches the shipped bytes", False,
-               f"{p['speed_ft_s'][k]} vs {q(0.10 if k == 'p10' else float('0.' + k[1:]))}")
+    body = sorted((verts[i][3] / 10.0) / (verts[i][2] / HZ)
+                  for i in range(len(verts)) if verts[i][2] and kind_of.get(i) == 0)
+    ball = sorted((verts[i][3] / 10.0) / (verts[i][2] / HZ)
+                  for i in range(len(verts)) if verts[i][2] and kind_of.get(i) == 1)
+    sustained = sorted((verts[i][3] / 10.0) / (verts[i][2] / HZ)
+                       for i in range(len(verts))
+                       if verts[i][2] >= SUSTAINED_FRAMES and kind_of.get(i) == 0)
+
+    def q(v, f):
+        return round(v[min(len(v) - 1, int(len(v) * f))], 2)
+    print(f"  (measured) speed p10 {q(speeds, .10)} p50 {q(speeds, .50)} "
+          f"p90 {q(speeds, .90)} p99 {q(speeds, .99)} max {round(speeds[-1], 2)} ft/s")
+    print(f"  (measured) bodies p99 {q(body, .99)} max {round(body[-1], 2)}; "
+          f"ball p99 {q(ball, .99)} max {round(ball[-1], 2)} ft/s")
+    ok("no body vertex reports a speed outside the measured distribution",
+       body[-1] <= MAX_BODY_SPEED_FT_S, f"max {body[-1]:.2f} of {MAX_BODY_SPEED_FT_S} ft/s")
+    ok("no body sustains a speed outside it for half a second",
+       not sustained or sustained[-1] <= MAX_SUSTAINED_SPEED_FT_S,
+       f"max {sustained[-1]:.2f} of {MAX_SUSTAINED_SPEED_FT_S} ft/s over "
+       f">= {SUSTAINED_FRAMES} frames" if sustained else "no long spans")
+    ok("the ball stays inside the splitter's own ceiling",
+       ball[-1] <= MAX_STEP_FT * HZ + 1e-6, f"max {ball[-1]:.2f} ft/s")
+    # What the record actually contains, stated rather than gated away: arc is
+    # summed at 25 Hz along a path the feed measures with noise, so a body that
+    # is merely jittering accumulates length it never travelled. That is why
+    # some body vertices read above a sprint, and it is a property of the
+    # instrument, not of the player.
+    print(f"  (measured) {sum(1 for s in body if s > SPRINT_FT_S)} of {len(body):,} body "
+          f"vertices read above {SPRINT_FT_S} ft/s - arc summed at {HZ} Hz over a noisy "
+          f"path, not a body moving that fast")
+    for k, f in (("p10", 0.10), ("p50", 0.50), ("p90", 0.90), ("p99", 0.99)):
+        ok(f"paint.json's {k} matches the shipped bytes",
+           abs(p["speed_ft_s"][k] - q(speeds, f)) <= 0.011,
+           f"{p['speed_ft_s'][k]} vs {q(speeds, f)}")
     return by_canvas
 
 

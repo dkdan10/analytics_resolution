@@ -6,6 +6,9 @@ docs/build-plan-v2.md section 1.6 EXACTLY. If these numbers differ, the
 pipeline is wrong, not the plan (CLAUDE.md ground truth).
 
 Usage: python3 pipeline/qa.py            # exits 1 on any mismatch
+       python3 pipeline/qa.py --slow     # ... and runs the independent
+                                         #     recomputations over the raw
+                                         #     corpus (minutes, not seconds)
 """
 
 import json
@@ -151,6 +154,176 @@ MAX_BODIES_PER_CANVAS = 11
 # boundary means the search was too narrow to see its own peak, so both the
 # range and the boundary count are gated.
 EXPECTED_MAX_EVENT_OFFSET = 12
+
+# The offset rule's own constants, imported rather than restated: a gate that
+# reads its threshold out of the file it is checking is not a gate. Session 1
+# shipped four of those, and the paint's residual gate compared paint.py's
+# reported maximum against paint.py's reported threshold.
+from window import (  # noqa: E402
+    MAX_ANCHOR_RESIDUAL_FT,
+    MIN_OFFSET_VOTES,
+    OFFSET_MIN_MARGIN,
+    OFFSET_OVER_ZERO,
+)
+from paint import (  # noqa: E402
+    COINCIDENCE_FRAMES,
+    COINCIDENCE_FT,
+    COINCIDENCE_SECONDS as COINCIDENCE_SECONDS_QA,
+)
+
+# What the same rule can be asked of the SHIPPED BYTES, which is not the same
+# question. paint.py refuses on the measured 25 Hz path; the bytes carry the
+# simplified line, and Douglas-Peucker can pull two genuinely separated bodies
+# closer than their measured separation - the shipped minimum is 0.368 ft on the
+# feed and 0.275 ft once drawn. So the byte-level gate is the STORAGE-level one:
+# a merged track is the feed repeating a row, which survives simplification as
+# literally the same tenths, and two distinct bodies drawn to within one
+# coordinate quantum for half a second is that signature. Derived from the
+# storage, and it has 2.75x headroom against what ships.
+BYTE_COINCIDENCE_FT = 0.1
+
+# The held-out split is only evidence if it is drawn from most of the corpus and
+# the straight join actually reproduces on half of it. Both are regression
+# guards set below the measured values, not targets. Session 1's gate asked only
+# that the figure EXISTED, which one testable game at 0.0001 satisfied.
+#
+# Measured 2026-08-08, over the FULL release set: 384 of 632 games testable
+# (0.608), and within them the straight join reproduces 304/307 = 0.9902. The
+# figure this replaces was 444/444 = 1.000, which was the anchor-keyed selection
+# reproducing itself rather than anything out of sample.
+HELD_OUT_MIN_SHARE = 0.5
+HELD_OUT_STRAIGHT_FLOOR = 0.95
+
+# Coordinates round to whole tenths of a foot, so a drawn chord can exceed the
+# arc stored for it by up to the diagonal of one quantum plus the arc's own
+# rounding. Derived, not chosen - and the bound a decoded vertex must hold to.
+CHORD_OVER_ARC_MAX_FT = (0.1 ** 2 + 0.1 ** 2) ** 0.5 + 0.05
+
+
+def _decode_paint(p):
+    """paint_index.bin and paint_strokes.bin, decoded from their own record
+    strings. Nothing else in qa.py had ever opened paint_strokes.bin."""
+    import struct
+
+    srec, vrec = p["files"]["index"]["record"], p["files"]["vertices"]["record"]
+    ssz, vsz = struct.calcsize(srec), struct.calcsize(vrec)
+    iraw = (PROCESSED_DIR / "paint_index.bin").read_bytes()
+    vraw = (PROCESSED_DIR / "paint_strokes.bin").read_bytes()
+    strokes = [struct.unpack_from(srec, iraw, i * ssz) for i in range(len(iraw) // ssz)]
+    verts = [struct.unpack_from(vrec, vraw, i * vsz) for i in range(len(vraw) // vsz)]
+    return strokes, verts
+
+
+def _full_rate(vs):
+    """A stroke's control points walked back out to one point per frame.
+
+    The drawn line, which is what a consumer sees: straight between control
+    points, dt frames apart. The first vertex opens the stroke with dt = 0.
+    """
+    out = [(vs[0][0], vs[0][1])]
+    for i in range(1, len(vs)):
+        x0, y0 = vs[i - 1][0], vs[i - 1][1]
+        x1, y1, dt = vs[i][0], vs[i][1], vs[i][2]
+        for k in range(1, dt + 1):
+            out.append((x0 + (x1 - x0) * k / dt, y0 + (y1 - y0) * k / dt))
+    return out
+
+
+def _coincident_bodies(strokes, verts):
+    """Two body slots of one canvas that are one detection reported twice.
+
+    Each body's FIRST stroke is the run that begins at frame 0 of the span, so
+    two bodies can be compared without any clock shipping. A merged track gives
+    identical coordinates, hence identical control points, hence separation 0
+    for as long as the feed repeated it.
+    """
+    first_run = {}
+    for first, count, canvas, kind, body, _day in strokes:
+        if kind != 0 or (canvas, body) in first_run:
+            continue
+        first_run[(canvas, body)] = verts[first:first + count]
+
+    by_canvas = {}
+    for (canvas, body), vs in first_run.items():
+        by_canvas.setdefault(canvas, []).append((body, vs))
+
+    bad, dupes = [], []
+    closest = None
+    for canvas, bodies in sorted(by_canvas.items()):
+        paths = [(b, _full_rate(vs), tuple(vs)) for b, vs in sorted(bodies)]
+        for i in range(len(paths)):
+            for j in range(i + 1, len(paths)):
+                (bi, pi, ti), (bj, pj, tj) = paths[i], paths[j]
+                if ti == tj:
+                    dupes.append([canvas, bi, bj])
+                n = min(len(pi), len(pj))
+                if n < COINCIDENCE_FRAMES:
+                    continue
+                sep = [((pi[k][0] - pj[k][0]) ** 2
+                        + (pi[k][1] - pj[k][1]) ** 2) ** 0.5 / 10.0 for k in range(n)]
+                # The closest the pair gets and STAYS: the smallest maximum over
+                # any window of COINCIDENCE_FRAMES. Momentary contact in a scrum
+                # parts again; one detection reported twice does not.
+                sustained = min(max(sep[k:k + COINCIDENCE_FRAMES])
+                                for k in range(n - COINCIDENCE_FRAMES + 1))
+                if closest is None or sustained < closest:
+                    closest = sustained
+                if sustained <= BYTE_COINCIDENCE_FT:
+                    bad.append([canvas, bi, bj])
+    return bad, dupes, round(closest, 3) if closest is not None else None
+
+
+def _chord_over_arc(strokes, verts):
+    """Every drawn segment against the arc stored for it.
+
+    The measurement must cover the line: a body that travelled `arc` cannot be
+    drawn across a longer chord. Coordinates round to tenths and arc rounds
+    once, which is the only slack allowed.
+    """
+    worst, n_over = 0.0, 0
+    for first, count, _canvas, _kind, _body, _day in strokes:
+        vs = verts[first:first + count]
+        for i in range(1, len(vs)):
+            chord = ((vs[i][0] - vs[i - 1][0]) ** 2 + (vs[i][1] - vs[i - 1][1]) ** 2) ** 0.5 / 10.0
+            excess = chord - vs[i][3] / 10.0
+            worst = max(worst, excess)
+            if excess > CHORD_OVER_ARC_MAX_FT:
+                n_over += 1
+    return worst, n_over
+
+
+def _paint_join_reconstruction():
+    """Rebuild every canvas's join from the private per-game window artifacts.
+
+    Returns (rows, residual mismatches, canvases with no corroborated shot,
+    worst residual), or None where data/window/ is not on this machine. This is
+    the reconstruction the paint's residual gate was missing: the numbers come
+    from the window stage's own corroborated sets, never from paint.json.
+    """
+    from window import GAMES_DIR  # noqa: PLC0415
+
+    prov_path = GAMES_DIR.parent / "paint_provenance.json"
+    if not prov_path.exists() or not GAMES_DIR.exists():
+        return None
+    rows = json.loads(prov_path.read_text())["canvases"]
+
+    mismatched, orphaned, worst = [], [], 0.0
+    for r in rows:
+        gp = GAMES_DIR / f"{Path(r['archive']).stem}.json"
+        if not gp.exists():
+            orphaned.append(r["archive"])
+            continue
+        corr = {c["event_id"]: c for c in (json.loads(gp.read_text()).get("corroborated") or [])}
+        c = corr.get(r["tracking_event_id"])
+        if c is None:
+            orphaned.append(r["archive"])
+            continue
+        if (abs(c["residual"] - r["residual_ft"]) > 1e-9
+                or c["anchor_event_id"] != r["anchor_event_id"]
+                or c["release_frame"] != r["release_frame"]):
+            mismatched.append(r["archive"])
+        worst = max(worst, c["residual"])
+    return len(rows), mismatched, orphaned, round(worst, 2)
 
 
 def main():
@@ -385,15 +558,58 @@ def main():
         # instead of being reported.
         check("no accepted offset sits on the search boundary",
               rec["offsets_on_search_boundary"], 0)
-        check("no non-zero offset was accepted below the minimum vote count",
-              rec["votes"]["games_under_min"] >= 0
-              and all(int(k) == 0 or v == 0
-                      for k, v in rec["event_offsets"].items()
-                      if abs(int(k)) == EXPECTED_MAX_EVENT_OFFSET), True)
+        # ... and the number that would actually reveal a search too narrow to
+        # see its own peak is how many games had to be REFUSED for landing on
+        # the edge. That one was printed and never gated, while the gate above
+        # - which is zero by construction, because decide_offset converts a
+        # boundary argmax to zero before it is ever counted - carried the claim.
+        check("no game's argmax was refused for landing on the search boundary",
+              rec["offsets_rejected_by_reason"].get("argmax on the search boundary", 0), 0)
+
+        # EVERY ACCEPTED SHIFT, re-tested here against the rule's own constants.
+        # This replaces a gate whose first term was a count >= 0 and whose
+        # second filtered the offset distribution to |k| == 12, a value
+        # decide_offset converts to zero before counting - so `all()` ran over
+        # an empty sequence and the whole check was vacuously true. Setting
+        # games_under_min to 631 left it green.
+        acc = rec.get("accepted_offsets")
+        check("every accepted shift is listed with the evidence for it",
+              acc is not None and len(acc) == rec["games_offset"], True)
+        if acc is not None:
+            check("no accepted shift falls below the minimum vote count",
+                  [a["archive"] for a in acc if a["votes"] < MIN_OFFSET_VOTES], [])
+            check("every accepted shift clears the straight join by the declared factor",
+                  [a["archive"] for a in acc
+                   if a["votes"] < OFFSET_OVER_ZERO * max(1, a["at_zero"])], [])
+            check("every accepted shift beats its own runner-up by the declared margin",
+                  [a["archive"] for a in acc if a["margin"] < OFFSET_MIN_MARGIN], [])
+            check("no accepted shift sits on the search boundary",
+                  [a["archive"] for a in acc
+                   if abs(a["offset"]) >= EXPECTED_MAX_EVENT_OFFSET], [])
+        # A1: no game may be decided on a vector where the rivals are
+        # structurally attenuated. 445 games shipped on the anchor-keyed release
+        # set, where offset zero has a candidate anchor for every member by
+        # construction and no rival does.
+        check("every game's offset was decided on the full release set",
+              rec.get("searched"), {"full": corp["games_parsed"]})
+
         # The calibration is validated, not merely computed: even-numbered
-        # tracking events decide, odd ones check.
-        check("the offset calibration is validated out of sample",
-              rec["held_out_agreement"] is not None and rec["held_out_games"] > 0, True)
+        # tracking events decide, odd ones check. Session 1 gated only that the
+        # figure EXISTED, which one testable game agreeing 0.0001 of the time
+        # satisfied. These three ask what it says.
+        ho = rec["held_out_by_outcome"]
+        check("the held-out split is drawn from most of the corpus",
+              rec["held_out_games"] >= HELD_OUT_MIN_SHARE * corp["games_parsed"], True)
+        check("the straight join reproduces on half the evidence",
+              ho["straight"]["rate"] is not None
+              and ho["straight"]["rate"] >= HELD_OUT_STRAIGHT_FLOOR, True)
+        # ... and the aggregate must BE the split it summarises, recomputed
+        # here, so the headline figure cannot move without the evidence moving.
+        agg_games = sum(v["games"] for v in ho.values())
+        agg_agree = sum(v["agree"] for v in ho.values())
+        check("the held-out aggregate is the split it summarises",
+              [rec["held_out_games"], rec["held_out_agreement"]],
+              [agg_games, round(agg_agree / agg_games, 4) if agg_games else None])
         offset_share = rec["games_offset"] / corp["games_parsed"]
         check("most games need no offset", offset_share < 0.5, True)
         print(f"  (informational) {rec['games_offset']} of {corp['games_parsed']} games "
@@ -407,7 +623,8 @@ def main():
         # to quote one flattering number for three different findings.
         check("the held-out split is reported, not just its aggregate",
               sorted(rec["held_out_by_outcome"]), ["rejected", "shifted", "straight"])
-        ho = rec["held_out_by_outcome"]
+        print(f"  (informational) {rec['held_out_refused_halves']} halves refused to name an "
+              f"offset at all and are counted as neither agreement nor disagreement")
         print(f"  (informational) held-out validation over {rec['held_out_games']} testable "
               f"games: the straight join reproduces on half the evidence "
               f"{100 * ho['straight']['rate']:.1f}% of the time ({ho['straight']['games']} "
@@ -415,11 +632,28 @@ def main():
               f"({ho['shifted']['games']}), a rejected one {100 * ho['rejected']['rate']:.1f}% "
               f"({ho['rejected']['games']}); aggregate "
               f"{100 * rec['held_out_agreement']:.1f}%")
-        print(f"  (informational) votes carrying an accepted offset: p05 {rec['votes']['p05']}, "
-              f"p50 {rec['votes']['p50']}, p95 {rec['votes']['p95']}; the minimum is "
-              f"{rec['votes']['min_required']} and {rec['votes']['games_under_min']} games "
-              f"fall under it ({rec['votes']['games_under_min_alt']} under the alternate "
-              f"{rec['votes']['min_required_alt']})")
+        # HONESTLY SCOPED. This used to read "the minimum is 25 and 84 games
+        # fall under it", which sounds like 84 accepted offsets below the
+        # minimum - the opposite of what the rule guarantees. Those 84 were
+        # counted over all 632 games including the 553 straight joins the floor
+        # never touches. The population below is the games where the floor is
+        # reached at all, and the only figure that says what the second reading
+        # is worth is how many games it decides differently.
+        vt = rec["votes"]
+        check("no game where the vote floor is reached went unrecorded",
+              vt["games_in_population"] >= len(acc or []), True)
+        check("the alternate vote floor's cost is recomputed, not asserted",
+              "games_changed_by_alt" in vt, True)
+        print(f"  (informational) the vote floor is reached in {vt['games_in_population']} games "
+              f"(those with a non-zero argmax), never in the {rec['event_offsets'].get('0', 0)} "
+              f"straight joins: min {vt['min_in_population']}, p50 {vt['p50']}, p95 {vt['p95']}; "
+              f"{vt['under_min']} fall under the minimum of {vt['min_required']} and are "
+              f"refused, {vt['under_min_alt']} under the alternate {vt['min_required_alt']}")
+        print(f"  (informational) the smallest vote count carrying an ACCEPTED shift is "
+              f"{rec['min_votes_accepted']}; the alternate floor of {vt['min_required_alt']} "
+              f"decides {vt['games_changed_by_alt']} games differently"
+              + (" - on this corpus the two values are the same rule"
+                 if not vt["games_changed_by_alt"] else ""))
 
         # What the instrument prefers, stated rather than carried. A release is
         # only found by following the ball back from the rim, so the recovered
@@ -502,6 +736,15 @@ def main():
         check("one possession per game", p["canvases"] >= EXPECTED_PAINT_CANVASES, True)
         check("the canvas spans the window rather than one week of it",
               p["days_covered"] >= EXPECTED_PAINT_DAYS, True)
+        # ... against the CORPUS's own span, not a constant. The old gate cleared
+        # 67 >= 60 while the painting stopped on 3 January and never reached the
+        # 23 January closure Act III is built toward: an integer stride could not
+        # index past game 498 of 632.
+        check("the paint reaches the window's opening and its closure",
+              [p["date_first"], p["date_last"]],
+              [p["corpus_date_first"], p["corpus_date_last"]])
+        print(f"  (informational) canvases by month {p['canvases_by_month']}; "
+              f"{p['days_covered']} distinct days")
 
         f = p["files"]
         vb = PROCESSED_DIR / "paint_strokes.bin"
@@ -537,11 +780,84 @@ def main():
 
         # Every canvas is one shot the window stage corroborated, and the join
         # is retained privately rather than asserted.
+        #
+        # AGAINST THE RULE'S OWN CONSTANT, not against the number the file being
+        # checked reports as its threshold. `res["max"] <= res["max_allowed"]`
+        # took both sides from paint.json, so a canvas at 480 ft against a
+        # declared 500 ft threshold passed - and the informational line beneath
+        # it printed "residual median 260.0 ft" without a single gate reddening.
         res = p["anchor_residual_ft"]
-        check("no canvas ships an anchor residual over the declared threshold",
-              res["max"] <= res["max_allowed"], True)
+        check("no canvas ships an anchor residual over the corroboration threshold",
+              res["max"] <= MAX_ANCHOR_RESIDUAL_FT, True)
+        check("the paint declares the same threshold the window stage joins at",
+              res["max_allowed"], MAX_ANCHOR_RESIDUAL_FT)
         check("the shipped binaries declare the format the piece decodes",
               p.get("format_version"), 2)
+
+        # And where the private intermediates are on this machine, the join is
+        # RECONSTRUCTED rather than believed: every shipped canvas must be a
+        # shot the window stage's own corroborated set holds, at the residual
+        # the paint reports for it. This is what makes the gate independent of
+        # paint.json's summary of itself.
+        prov = _paint_join_reconstruction()
+        if prov is None:
+            print("  (informational) private intermediates absent - the paint join is gated "
+                  "against the threshold only; run pipeline/checks/check_paint_join.py "
+                  "where data/window/ exists")
+        else:
+            n_rows, mismatched, orphaned, worst = prov
+            check("the private join carries one row per shipped canvas", n_rows, p["canvases"])
+            check("every canvas is a shot the window stage corroborated", orphaned, [])
+            check("every canvas's residual is the one the window stage measured",
+                  mismatched, [])
+            print(f"  (informational) the join reconstructed from data/window/: {n_rows} canvases, "
+                  f"worst residual {worst} ft against {MAX_ANCHOR_RESIDUAL_FT}")
+
+        # RULE 7, gated from the bytes. The split cuts jumps; a merged track -
+        # the feed reporting one detection under two player ids - has none, so
+        # it passes every continuity check and paints one measurement twice.
+        # 20 such pairs shipped across 19 of 250 canvases before this existed.
+        co = p["coincidence_ft"]
+        # The rule at full precision, from the 25 Hz path paint.py measured.
+        check("the refusal rule and its tolerance ship with the paint",
+              [co["tolerance"], co["seconds"]], [COINCIDENCE_FT, COINCIDENCE_SECONDS_QA])
+        check("no shipped canvas holds two bodies closer than the rule allows",
+              co["shipped_min"] is not None and co["shipped_min"] > COINCIDENCE_FT, True)
+        # ... and independently, from the bytes, at the storage level.
+        strokes, verts = _decode_paint(p)
+        coincident, exact_dupes, closest = _coincident_bodies(strokes, verts)
+        check("no canvas draws two bodies inside one coordinate quantum", coincident, [])
+        check("no two body slots ship an identical path", exact_dupes, [])
+        print(f"  (informational) closest sustained approach between two painted bodies: "
+              f"{co['shipped_min']} ft measured on the feed, {closest} ft once drawn "
+              f"(simplification pulls them closer), against a {COINCIDENCE_FT} ft refusal "
+              f"over {COINCIDENCE_FRAMES} frames and a {BYTE_COINCIDENCE_FT} ft byte gate")
+        print(f"  (informational) paint.py refused {co['spans_refused']} of "
+              f"{co['spans_examined']} spans for holding one detection twice "
+              f"({co['spans_refused_alt']} at the alternate {co['tolerance_alt']} ft); "
+              f"{co['hist'].get('0.0', 0)} of those sat at exactly 0.0 ft, which is the "
+              f"feed repeating a row")
+
+        # F-02's criterion, which nothing was checking: paint_strokes.bin was
+        # never decoded, so 60 vertices drawing 40-ft chords against 0.1 ft of
+        # stored arc left the gate green. A drawn segment may not exceed the arc
+        # measured for it by more than the coordinate quantum allows.
+        worst_excess, n_over = _chord_over_arc(strokes, verts)
+        check("no drawn segment exceeds the arc measured for it",
+              n_over, 0)
+        print(f"  (informational) worst chord-minus-arc excess {worst_excess:.4f} ft against a "
+              f"{CHORD_OVER_ARC_MAX_FT:.4f} ft quantization bound, over {len(verts):,} vertices")
+
+        # The selection rule, as implemented. 76 of 250 canvases are not their
+        # game's smallest-residual corroborated shot, so a rule naming only the
+        # ordering was describing something the code does not do.
+        rk = p["selection_rank"]
+        check("every canvas's place in the residual ordering is reported",
+              sum(rk.values()), p["canvases"])
+        print(f"  (informational) canvases at each rank in their game's residual ordering: "
+              f"{dict(list(rk.items())[:8])}; {p['canvases'] - p['selection_rank_zero']} of "
+              f"{p['canvases']} are NOT their game's smallest-residual corroborated shot, "
+              f"which is the feed-quality half of the selection rule doing the choosing")
 
         # The measured speeds THE HAND's three fluid regimes are bounded by. If
         # these move, the paint's physics is describing a different record.
@@ -590,10 +906,54 @@ def main():
               f"{100 * c['contemporaneous_mid_share']:.1f}% under the line then in force "
               f"({c['misfiled_threes']:,} threes filed as Mid-Range)")
 
+    if "--slow" in sys.argv:
+        failures += run_slow_checks()
+
     if failures:
         print(f"\nQA RED: {len(failures)} mismatch(es). The pipeline is wrong, not the plan.")
         sys.exit(1)
     print("\nQA GREEN: section 1.6 reproduced exactly.")
+
+
+# The independent recomputations that need the raw corpus, reachable from the
+# gate rather than orphaned beside it. check_paint_join.py in particular does
+# the reconstruction the paint's residual gate could not do from data/processed/
+# alone - it reopens every painted archive and rebuilds the join from the
+# physics - and until now nothing ran it. Off by default because it parses
+# gigabytes; session 2 owns making the DEFAULT gate semantic.
+SLOW_CHECKS = [
+    ["checks/check_paint_join.py"],
+    ["checks/check_offsets.py"],
+    ["checks/check_strokes.py", "--slow"],
+    ["checks/check_movement.py"],
+]
+
+
+def run_slow_checks():
+    import subprocess  # noqa: PLC0415
+
+    here = Path(__file__).resolve().parent
+    failed = []
+    print("\n--slow: the independent recomputations, from the raw corpus")
+    for cmd in SLOW_CHECKS:
+        script = here / cmd[0]
+        if not script.exists():
+            failed.append(f"{cmd[0]} missing")
+            continue
+        print(f"\n  $ {' '.join(['python3', cmd[0]] + cmd[1:])}")
+        r = subprocess.run([sys.executable, str(script)] + cmd[1:],
+                           cwd=here.parent, capture_output=True, text=True)
+        tail = [ln for ln in r.stdout.splitlines() if ln.strip()][-6:]
+        for ln in tail:
+            print(f"    {ln}")
+        if r.returncode != 0:
+            print(f"    FAIL  exit {r.returncode}")
+            if r.stderr.strip():
+                print(f"    {r.stderr.strip().splitlines()[-1]}")
+            failed.append(f"{cmd[0]} exit {r.returncode}")
+    print(f"\n  {len(SLOW_CHECKS) - len(failed)}/{len(SLOW_CHECKS)} independent "
+          f"recomputations agree with what shipped")
+    return failed
 
 
 if __name__ == "__main__":

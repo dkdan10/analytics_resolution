@@ -53,6 +53,7 @@ Usage: python3 pipeline/paint.py [--games N] [--jobs N] [--reduce]
 
 import argparse
 import datetime
+import hashlib
 import json
 import math
 import struct
@@ -90,6 +91,9 @@ from window import (  # noqa: E402
 
 PAINT_DIR = WINDOW_DIR / "paint"
 PROVENANCE_PATH = WINDOW_DIR / "paint_provenance.json"
+# What the current selection chose, written by the paint run and read by the
+# reduce. Private, like everything else under data/window/.
+SELECTION_PATH = WINDOW_DIR / "paint_selection.json"
 
 # --- authored: a span, a selection rule, and a floor -------------------------
 # Three things are chosen in this file and nothing else is. Each is named here,
@@ -103,11 +107,26 @@ PROVENANCE_PATH = WINDOW_DIR / "paint_provenance.json"
 STROKE_SECONDS = 5.0
 
 # WHICH corroborated shot of the game gets painted. The window stage may have
-# corroborated a hundred; exactly one canvas per game ships. Tightest
-# corroboration first, ties broken by ascending tracking event id - so the rule
-# is the same one the heroes are chosen by, it is deterministic, and it is not
-# an aesthetic preference.
-SELECTION = "smallest anchor residual, ties by ascending tracking event id"
+# corroborated a hundred; exactly one canvas per game ships.
+#
+# THIS STRING IS THE RULE, not a summary of it. It read "smallest anchor
+# residual, ties by ascending tracking event id" and shipped in paint.json and
+# in the private provenance under that name, while the loop below also required
+# the release to reproduce, the span to fit inside the event, the ball to be
+# present throughout, ten bodies to be complete, and eight to survive the run
+# floor. Those are a selection on FEED QUALITY - exactly the part that changes
+# what a reader would conclude - and 76 of 250 canvases are not their game's
+# smallest-residual corroborated shot because of them. `selection_rank` in
+# paint.json ships how far down the ordering each canvas actually sat.
+SELECTION = (
+    "the game's corroborated shots in ascending anchor residual, ties by ascending tracking "
+    "event id; the first that also yields a complete canvas is painted. Complete means: the "
+    "release frame and hoop re-derive to the ones the window stage corroborated; the whole "
+    "span fits inside the event before the release; the ball is present in every frame of it; "
+    "at least ten bodies are recorded in every frame of it; no two of those bodies are one "
+    "detection reported under two ids; and at least eight distinct bodies survive the run "
+    "floor. A game with no such shot is not painted"
+)
 
 # Douglas-Peucker tolerance. A tenth of a foot is the record's own coordinate
 # quantum, so simplifying to it discards nothing the record could resolve.
@@ -131,6 +150,36 @@ MAX_VERTEX_FRAMES = 250
 # A body cannot move this far in 40 ms; beyond it the feed has skipped or
 # swapped an identity. This is where a path is CUT.
 MAX_STEP_FT = 3.0
+
+# --- Rule 7: one stroke is one body ------------------------------------------
+# The feed sometimes reports ONE detection under TWO player ids. Both paths are
+# real rows of the archive and both are perfectly continuous, so nothing that
+# looks for jumps can see it - the split above cuts discontinuities and a merged
+# track has none. Painting both draws one measurement twice while the index
+# calls them two bodies, which is the governing rule of this hand failing:
+# "every stroke stays one traceable record". Verified in the raw archives by
+# exact coordinate equality between two distinct player ids, on canvas 188 for
+# the whole second before the release.
+#
+# So a canvas holding one is REFUSED, not repaired. Canvases are cheap - there
+# are 632 games and 250 are painted - and dropping the duplicate slot would
+# leave a possession the piece describes as ten bodies with nine.
+#
+# The tolerance is not chosen for the look of it, and it is NOT a clean band.
+# `coincidence_ft.hist` in paint.json ships the measured distribution of the
+# closest SUSTAINED approach between two bodies over every span examined.
+# Measured 2026-08-08 over 277 spans: a spike of 17 at EXACTLY 0.0 ft - the feed
+# repeating a row, which is the defect itself - then a thin shoulder of 16
+# between 0.1 and 0.3 ft, then the rest from 0.4 ft upward. Unlike the run-length
+# floor, there is no empty band to sit in. So the tolerance is set ABOVE the
+# ambiguous shoulder rather than through it: refusing a canvas costs nothing,
+# there are 632 games and 250 are painted, and 0.35 ft refuses all 28. The
+# alternate refuses only the spike - the 17 spans that are unarguably one
+# detection - and the difference between the two is 11 canvases.
+COINCIDENCE_FT = 0.35
+COINCIDENCE_FT_ALT = 0.10
+COINCIDENCE_SECONDS = 0.5
+COINCIDENCE_FRAMES = int(COINCIDENCE_SECONDS * HZ)
 
 # --- what ships --------------------------------------------------------------
 # One control point. No identity, no clock.
@@ -177,6 +226,33 @@ def rdp(pts, eps):
             stack.append((a, bi))
             stack.append((bi, b))
     return [i for i, k in enumerate(keep) if k]
+
+
+def sustained_separation(a, b, frames):
+    """How close two bodies get and STAY, in feet.
+
+    The per-frame separation, then the smallest maximum over any window of
+    `frames` consecutive frames: the distance below which some run that long
+    keeps both bodies. Momentary contact in a scrum scores whatever the closest
+    instant was and then parts; ONE DETECTION REPORTED TWICE scores exactly 0.0
+    for as long as the feed repeats it. Paths are in tenths of a foot.
+    """
+    n = min(len(a), len(b))
+    if n < frames:
+        return None
+    sep = [math.hypot(a[i][0] - b[i][0], a[i][1] - b[i][1]) / 10.0 for i in range(n)]
+    return min(max(sep[i:i + frames]) for i in range(n - frames + 1))
+
+
+def closest_sustained(bodies, frames):
+    """The tightest sustained approach over every pair, or None."""
+    best = None
+    for i in range(len(bodies)):
+        for j in range(i + 1, len(bodies)):
+            s = sustained_separation(bodies[i], bodies[j], frames)
+            if s is not None and (best is None or s < best):
+                best = s
+    return best
 
 
 def runs_of(path, breaks):
@@ -271,12 +347,30 @@ def stroke_from(path, eps_tenths):
     return out, dict(zone_frames), forced, quantized_frames
 
 
+def source_digest(window_path):
+    """A fingerprint of the corroborated set this canvas can be selected from.
+
+    Stamped into the canvas and re-derived at reduce time, so a canvas produced
+    against a superseded window run cannot silently ship beside current ones.
+    """
+    wg = json.loads(Path(window_path).read_text())
+    payload = json.dumps(wg.get("corroborated") or [], sort_keys=True)
+    return hashlib.sha256(payload.encode()).hexdigest()[:16]
+
+
 def paint_game(archive_name, day_index, window_path):
-    """One CORROBORATED possession from one game: ten bodies and the ball."""
+    """One CORROBORATED possession from one game: ten bodies and the ball.
+
+    Returns (record | None, census). The census counts every span examined and
+    every one refused for holding two bodies that are one detection, so the
+    refusals are shipped rather than being invisible in a smaller canvas count.
+    """
+    census = {"spans_examined": 0, "spans_refused_coincident": 0,
+              "spans_refused_coincident_alt": 0, "closest_sustained_ft": []}
     wg = json.loads(Path(window_path).read_text())
     corroborated = wg.get("corroborated") or []
     if not corroborated:
-        return None
+        return None, census
     gap_max_ms = wg.get("gap_max_ms") or FRAME_GAP_FACTOR * (1000 // HZ)
 
     game = json.loads(read_7z_bytes(SPORTVU_DIR / archive_name))
@@ -288,7 +382,8 @@ def paint_game(archive_name, day_index, window_path):
             continue
 
     want = int(STROKE_SECONDS * HZ)
-    for c in sorted(corroborated, key=lambda c: (c["residual"], c["event_id"])):
+    ordered = sorted(corroborated, key=lambda c: (c["residual"], c["event_id"]))
+    for rank, c in enumerate(ordered):
         if c["residual"] > MAX_ANCHOR_RESIDUAL_FT:
             continue
         ev = by_event.get(c["event_id"])
@@ -331,10 +426,24 @@ def paint_game(archive_name, day_index, window_path):
         if len(full) < 10:
             continue
 
+        # RULE 7. Two of these ten may be one detection the feed reported under
+        # two ids; that pair is continuous, so only their separation gives them
+        # away. Measured over every span examined, refused where it holds.
+        bodies = list(full[:10])
+        census["spans_examined"] += 1
+        closest = closest_sustained(bodies, COINCIDENCE_FRAMES)
+        if closest is not None:
+            census["closest_sustained_ft"].append(round(closest, 3))
+            if closest <= COINCIDENCE_FT_ALT:
+                census["spans_refused_coincident_alt"] += 1
+            if closest <= COINCIDENCE_FT:
+                census["spans_refused_coincident"] += 1
+                continue
+
         strokes = []
         run_lengths = Counter()
         forced_total = quantized_total = 0
-        for slot, p in enumerate(list(full[:10]) + [ball]):
+        for slot, p in enumerate(bodies + [ball]):
             kind = 1 if slot == 10 else 0
             body = BALL_SLOT if kind else slot
             for i0, i1 in runs_of(p, breaks):
@@ -363,24 +472,35 @@ def paint_game(archive_name, day_index, window_path):
             "residual": c["residual"],
             "release_frame": release_i,
             "seconds": STROKE_SECONDS,
+            # How far down the residual ordering this canvas actually sat. Zero
+            # is the rule as it used to be published; anything above it is the
+            # feed-quality clauses doing the selecting.
+            "selection_rank": rank,
+            "corroborated_available": len(ordered),
+            "closest_sustained_ft": round(closest, 3) if closest is not None else None,
             "strokes": strokes,
             "run_lengths": {str(k): v for k, v in sorted(run_lengths.items())},
             "forced_zone_vertices": forced_total,
             "zone_quantized_frames": quantized_total,
-        }
-    return None
+            "census": census,
+        }, census
+    return None, census
 
 
 def _run_one(spec):
-    name, day, window_path, out_path = spec
+    name, day, window_path, out_path, digest = spec
     try:
-        rec = paint_game(name, day, window_path)
+        rec, census = paint_game(name, day, window_path)
         if rec is None:
-            return name, 0, "no corroborated shot with a complete span"
+            return name, 0, "no corroborated shot with a complete span", census
+        # The window run this canvas was derived from, stamped into the canvas.
+        # reduce_all re-derives it and refuses anything that does not match, so
+        # an intermediate left over from a superseded run cannot ship.
+        rec["source_digest"] = digest
         write_json(Path(out_path), rec, compact=True)
-        return name, len(rec["strokes"]), None
+        return name, len(rec["strokes"]), None, census
     except Exception as e:  # noqa: BLE001 - one bad archive costs one canvas
-        return name, 0, f"{type(e).__name__}: {e}"
+        return name, 0, f"{type(e).__name__}: {e}", None
 
 
 def pick_games(n):
@@ -402,16 +522,71 @@ def pick_games(n):
 
     # Even stride over the calendar-ordered corpus rather than a random draw:
     # the canvas should be the window, not one week of it.
-    step = max(1, len(have) // n)
-    picked = [have[i * step] for i in range(min(n, len(have)))]
+    #
+    # `have[i * step]` with an INTEGER step could not do that. At 632 games and
+    # 250 canvases the step is 2 and the last index reached is 498 of 631: the
+    # painting stopped on 3 January and the last twenty days of the window - up
+    # to and including 23 January, the closure the whole act is built toward -
+    # were unreachable, along with 131 games that never entered the selection at
+    # all. Scaling the index instead spreads the picks across the whole corpus
+    # and ends on its last game.
+    m = min(n, len(have))
+    last = len(have) - 1
+    picked = ([have[0]] if m == 1
+              else [have[(i * last) // (m - 1)] for i in range(m)])
     return [(a["name"], day_index[a["date"]], str(wp)) for a, wp in picked]
+
+
+def current_selection():
+    """The canvases the CURRENT selection chose, in order, or stop.
+
+    reduce_all used to glob PAINT_DIR and ship whatever was on disk, and the
+    paint run skipped canvases that already existed. Nothing stamped a canvas
+    with the run that produced it, so a superseded intermediate shipped beside
+    current ones and every summary derived from it - including the residual
+    maximum qa.py reads - described a canvas the selection had not chosen. Two
+    of commit 47113a6's 252 canvases were exactly that.
+
+    So the selection is written out by the paint run and read back here, each
+    canvas carries the digest of the corroborated set it was derived from, and
+    both must agree with what is on disk now.
+    """
+    if not SELECTION_PATH.exists():
+        die(f"no selection manifest at {SELECTION_PATH} - run pipeline/paint.py first")
+    sel = json.loads(SELECTION_PATH.read_text())
+
+    paths, missing, stale = [], [], []
+    for row in sel["selection"]:
+        p = PAINT_DIR / f"{Path(row['archive']).stem}.json"
+        if not p.exists():
+            missing.append(row["archive"])       # no complete possession: expected
+            continue
+        rec = json.loads(p.read_text())
+        want = source_digest(GAMES_DIR / f"{Path(row['archive']).stem}.json")
+        if rec.get("source_digest") != want or rec.get("archive") != row["archive"]:
+            stale.append(row["archive"])
+            continue
+        paths.append((p, rec))
+
+    if stale:
+        die(f"{len(stale)} canvases were derived from a superseded window run "
+            f"({', '.join(stale[:4])}...) - re-run pipeline/paint.py --force")
+    if not paths:
+        die(f"no canvases in {PAINT_DIR} - run the paint stage first")
+
+    on_disk = {p.name for p in PAINT_DIR.glob("*.json")}
+    chosen = {p.name for p, _ in paths}
+    ignored = sorted(on_disk - chosen)
+    if ignored:
+        print(f"  ignoring {len(ignored)} canvas file(s) the current selection did not "
+              f"choose: {', '.join(ignored[:4])}{'...' if len(ignored) > 4 else ''}")
+    return paths, sel, ignored, missing
 
 
 def reduce_all():
     """Fold the per-game canvases into the shipped artifacts and the manifest."""
-    paths = sorted(PAINT_DIR.glob("*.json"))
-    if not paths:
-        die(f"no canvases in {PAINT_DIR} - run the paint stage first")
+    chosen, sel, ignored, missing = current_selection()
+    paths = [p for p, _ in chosen]
 
     verts = bytearray()
     index = bytearray()
@@ -423,14 +598,20 @@ def reduce_all():
     forced = 0
     quantized = 0
     days = set()
+    dates = set()
     residuals = []
     bodies_per_canvas = []
     strokes_per_canvas = []
     manifest = []
+    ranks = Counter()
+    canvas_closest = []
 
-    for canvas, p in enumerate(paths):
-        g = json.loads(p.read_text())
+    for canvas, (p, g) in enumerate(chosen):
         days.add(g["day"])
+        dates.add(g["date"])
+        ranks[g.get("selection_rank", 0)] += 1
+        if g.get("closest_sustained_ft") is not None:
+            canvas_closest.append(g["closest_sustained_ft"])
         residuals.append(g["residual"])
         forced += g.get("forced_zone_vertices", 0)
         quantized += g.get("zone_quantized_frames", 0)
@@ -514,10 +695,28 @@ def reduce_all():
         "provenance": PROVENANCE,
         "definitions": {
             "_authored": (
-                f"Three things are chosen in this stage. A span length ({STROKE_SECONDS} s); a "
-                f"rule for WHICH corroborated shot of a game is painted ({SELECTION}); and the "
-                f"shortest run still counted as a gesture ({MIN_RUN_FRAMES} frames). Every other "
+                f"Four things are chosen in this stage. A span length ({STROKE_SECONDS} s); the "
+                f"rule for WHICH corroborated shot of a game is painted, in full: {SELECTION}; "
+                f"the shortest run still counted as a gesture ({MIN_RUN_FRAMES} frames, "
+                f"alternate {MIN_RUN_FRAMES_ALT}); and how close two bodies must stay before "
+                f"they are treated as one detection ({COINCIDENCE_FT} ft for "
+                f"{COINCIDENCE_SECONDS} s, alternate {COINCIDENCE_FT_ALT} ft). Every other "
                 "property of a stroke is read off the record."
+            ),
+            "one_body_per_stroke": (
+                "the feed sometimes reports ONE detection under TWO player ids. Both paths are "
+                "real rows and both are perfectly continuous, so no check for jumps can see it - "
+                "and painting both draws one measurement twice while the index calls them two "
+                "bodies, which is this hand's governing rule failing. A canvas in which any two "
+                f"of its ten bodies stay within {COINCIDENCE_FT} ft of each other for "
+                f"{COINCIDENCE_SECONDS} s is REFUSED rather than repaired; `coincidence_ft` "
+                "carries the measured distribution the tolerance was read off, the number of "
+                "spans refused, and the number the alternate tolerance would refuse"
+            ),
+            "selection_rank": (
+                "how far down the residual ordering each shipped canvas sat. Rank 0 is what the "
+                "published rule used to claim on its own; anything above it is the feed-quality "
+                "clauses of that rule doing the selecting, which is why they are now named in it"
             ),
             "corroboration": (
                 "every canvas is one shot the window stage checked against the record: its "
@@ -570,6 +769,42 @@ def reduce_all():
             ),
         },
         "canvases": len(paths),
+        # WHERE THE PAINT REACHES. The stride that picks the games used an
+        # integer step, which at 632 games and 250 canvases could not reach
+        # past index 498: the painting stopped on 3 January and never touched
+        # the last twenty days of the window, including the 23 January closure
+        # Act III is built toward. Gated against the corpus's own span rather
+        # than a constant, so a shortfall cannot pass by clearing a floor.
+        "date_first": min(dates) if dates else None,
+        "date_last": max(dates) if dates else None,
+        "corpus_date_first": sel.get("corpus_date_first"),
+        "corpus_date_last": sel.get("corpus_date_last"),
+        "canvases_by_month": {
+            k: v for k, v in sorted(Counter(d[:7] for d in dates).items())
+        },
+        # How far down the residual ordering each canvas sat. Rank 0 is the rule
+        # as it used to be published; everything above is the feed-quality
+        # clauses that were not published with it.
+        "selection_rank": {str(k): v for k, v in sorted(ranks.items())},
+        "selection_rank_zero": ranks.get(0, 0),
+        # RULE 7, measured. `spans_refused` is possessions dropped because two
+        # of their ten bodies were one detection the feed reported twice; the
+        # distribution below is what the tolerance was read off.
+        "coincidence_ft": {
+            "tolerance": COINCIDENCE_FT,
+            "tolerance_alt": COINCIDENCE_FT_ALT,
+            "seconds": COINCIDENCE_SECONDS,
+            "spans_examined": (sel.get("census") or {}).get("spans_examined"),
+            "spans_refused": (sel.get("census") or {}).get("spans_refused_coincident"),
+            "spans_refused_alt": (sel.get("census") or {}).get("spans_refused_coincident_alt"),
+            "shipped_min": round(min(canvas_closest), 3) if canvas_closest else None,
+            "shipped_p05": (round(sorted(canvas_closest)[len(canvas_closest) // 20], 3)
+                            if canvas_closest else None),
+            "hist": {str(b): v for b, v in sorted(Counter(
+                min(int(c * 10), 40) / 10 for c in
+                ((sel.get("census") or {}).get("closest_sustained_ft") or [])
+            ).items())},
+        },
         "strokes": n_strokes,
         "strokes_alt_min_run": strokes_alt,
         "vertices": n_vertices,
@@ -664,28 +899,86 @@ def main():
     picks = pick_games(args.games)
     print(f"painting {len(picks)} corroborated possessions, one per game, across the window")
 
+    # The selection, written down before anything runs. reduce_all ships this
+    # and nothing else, and each canvas carries the digest below, so neither a
+    # canvas the selection did not choose nor one derived from a superseded
+    # window run can reach the artifact.
+    selection = [{"archive": name, "day": day,
+                  "source_digest": source_digest(Path(window_path))}
+                 for name, day, window_path in picks]
+    corpus_dates = sorted(a["date"] for a in usable_archives(corpus_entries()))
+    prior = json.loads(SELECTION_PATH.read_text()) if SELECTION_PATH.exists() else {}
+    manifest = {
+        "generated_by": "pipeline/paint.py",
+        "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+        "note": "PRIVATE. The canvases the current selection chose, in order.",
+        "games_requested": args.games,
+        "selection_rule": SELECTION,
+        # The span the canvases are gated against: the corpus's own, not a
+        # constant that a shortfall could clear.
+        "corpus_date_first": corpus_dates[0],
+        "corpus_date_last": corpus_dates[-1],
+        "corpus_games": len(corpus_dates),
+        "selection": selection,
+    }
+
     specs = []
-    for name, day, window_path in picks:
+    fresh = 0
+    for (name, day, window_path), row in zip(picks, selection):
         out_path = PAINT_DIR / f"{Path(name).stem}.json"
         if out_path.exists() and not args.force:
-            continue
-        specs.append((name, day, window_path, str(out_path)))
-    print(f"  {len(picks) - len(specs)} already done, {len(specs)} to run")
+            # A canvas is only "already done" if it was derived from the window
+            # artifact that is on disk NOW.
+            try:
+                if json.loads(out_path.read_text()).get("source_digest") == row["source_digest"]:
+                    fresh += 1
+                    continue
+            except (OSError, ValueError):
+                pass
+        specs.append((name, day, window_path, str(out_path), row["source_digest"]))
+    print(f"  {fresh} already done against the current window run, {len(specs)} to run")
 
     errors = []
     done = 0
+    census = Counter()
+    closest = []
     if specs:
         with ProcessPoolExecutor(max_workers=args.jobs) as pool:
             futures = [pool.submit(_run_one, s) for s in specs]
             for fut in as_completed(futures):
-                name, n, err = fut.result()
+                name, n, err, cen = fut.result()
                 done += 1
+                if cen:
+                    for k in ("spans_examined", "spans_refused_coincident",
+                              "spans_refused_coincident_alt"):
+                        census[k] += cen[k]
+                    closest.extend(cen["closest_sustained_ft"])
                 if err:
                     errors.append((name, err))
                 elif done % 25 == 0 or done == len(specs):
                     print(f"  [{done}/{len(specs)}] {name}: {n} strokes")
 
+    if specs or not prior.get("census"):
+        manifest["census"] = {
+            "spans_examined": census["spans_examined"],
+            "spans_refused_coincident": census["spans_refused_coincident"],
+            "spans_refused_coincident_alt": census["spans_refused_coincident_alt"],
+            "closest_sustained_ft": sorted(closest),
+        }
+    else:
+        # Nothing was re-run, so the standing census still describes this
+        # selection; carrying it forward beats replacing it with zeroes.
+        manifest["census"] = prior["census"]
+        census.update({k: manifest["census"][k] for k in
+                       ("spans_examined", "spans_refused_coincident",
+                        "spans_refused_coincident_alt")})
+    write_json(SELECTION_PATH, manifest)
+
     print(f"\nQA: {done} games run, {len(errors)} without a corroborated, complete possession")
+    print(f"     {census['spans_refused_coincident']} of {census['spans_examined']} spans "
+          f"refused: two bodies within {COINCIDENCE_FT} ft for {COINCIDENCE_SECONDS} s are one "
+          f"detection reported twice ({census['spans_refused_coincident_alt']} at the alternate "
+          f"{COINCIDENCE_FT_ALT} ft)")
     for name, err in errors[:5]:
         print(f"  skipped {name}: {err}")
     print(f"canvases -> {PAINT_DIR}")

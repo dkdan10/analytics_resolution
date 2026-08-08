@@ -119,6 +119,11 @@ def accept(scores, min_votes):
             reason = "flat across adjacent offsets"
     return {
         "offset": 0 if reason else argmax,
+        # What the vector NAMED. A refusal names nothing and must not be
+        # compared with a genuine straight join as though it had named zero -
+        # written out here too, because this file's whole point is that the
+        # arithmetic which decides an offset cannot agree with itself.
+        "named": None if reason else argmax,
         "argmax": argmax, "argmax_n": argmax_n, "runner_up": runner_up,
         "at_zero": at_zero, "margin": round(margin, 3), "reject_reason": reason,
     }
@@ -254,6 +259,7 @@ def verify(got, shipped):
     fails = []
     dist = Counter()
     held = [0, 0]
+    refused = 0
     for r in got:
         a = accept(r["scores"], MIN_OFFSET_VOTES)
         j = shipped[r["archive"]]
@@ -274,14 +280,25 @@ def verify(got, shipped):
                 fails.append((r["archive"], "accepted on a flat score vector"))
         e = accept(r["half_even"], (MIN_OFFSET_VOTES + 1) // 2)
         o = accept(r["half_odd"], (MIN_OFFSET_VOTES + 1) // 2)
-        if e["argmax_n"] >= (MIN_OFFSET_VOTES + 1) // 2 and o["argmax_n"] >= (MIN_OFFSET_VOTES + 1) // 2:
-            held[1] += 1
-            held[0] += 1 if e["offset"] == o["offset"] else 0
+        floor = (MIN_OFFSET_VOTES + 1) // 2
+        if e["argmax_n"] >= floor and o["argmax_n"] >= floor:
+            if e["named"] is None or o["named"] is None:
+                refused += 1
+            else:
+                held[1] += 1
+                held[0] += 1 if e["named"] == o["named"] else 0
+        if j.get("held_out") and j["held_out"].get("testable"):
+            ho = j["held_out"]
+            if (ho["calibrated"], ho["validated"]) != (e["named"], o["named"]):
+                fails.append((r["archive"],
+                              f"shipped halves named {ho['calibrated']}/{ho['validated']}, "
+                              f"recomputed {e['named']}/{o['named']}"))
 
     print(f"\nVERIFIED {len(got)} games independently")
     print(f"  recomputed offset distribution: {dict(sorted(dist.items()))}")
     print(f"  held-out (recomputed): {held[0]}/{held[1]} halves agreed"
-          f"{' (' + str(round(held[0]/held[1], 4)) + ')' if held[1] else ''}")
+          f"{' (' + str(round(held[0]/held[1], 4)) + ')' if held[1] else ''}; "
+          f"{refused} games where a half refused to name an offset at all")
     if fails:
         print(f"\nFAIL: {len(fails)} problems")
         for a, why in fails[:40]:
@@ -289,7 +306,8 @@ def verify(got, shipped):
         sys.exit(1)
     print("  PASS  every shipped offset is this recomputation's accepted answer,")
     print("  PASS  none sits on the search boundary,")
-    print("  PASS  every non-zero offset clears votes, lift and margin.")
+    print("  PASS  every non-zero offset clears votes, lift and margin,")
+    print("  PASS  every testable game's two halves named what this recomputation names.")
 
 
 if __name__ == "__main__":

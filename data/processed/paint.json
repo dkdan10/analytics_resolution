@@ -1,6 +1,6 @@
 {
   "generated_by": "pipeline/paint.py",
-  "generated_at": "2026-08-07T22:53:59+00:00",
+  "generated_at": "2026-08-08T04:50:34+00:00",
   "format_version": 2,
   "provenance": {
     "shots_source": "stats.nba.com shotchartdetail, bulk archive github.com/shufinskiy/nba_data",
@@ -8,7 +8,9 @@
     "license_note": "derived data only; bulk dumps are never committed (see CLAUDE.md data rights)"
   },
   "definitions": {
-    "_authored": "Three things are chosen in this stage. A span length (5.0 s); a rule for WHICH corroborated shot of a game is painted (smallest anchor residual, ties by ascending tracking event id); and the shortest run still counted as a gesture (25 frames). Every other property of a stroke is read off the record.",
+    "_authored": "Four things are chosen in this stage. A span length (5.0 s); the rule for WHICH corroborated shot of a game is painted, in full: the game's corroborated shots in ascending anchor residual, ties by ascending tracking event id; the first that also yields a complete canvas is painted. Complete means: the release frame and hoop re-derive to the ones the window stage corroborated; the whole span fits inside the event before the release; the ball is present in every frame of it; at least ten bodies are recorded in every frame of it; no two of those bodies are one detection reported under two ids; and at least eight distinct bodies survive the run floor. A game with no such shot is not painted; the shortest run still counted as a gesture (25 frames, alternate 3); and how close two bodies must stay before they are treated as one detection (0.35 ft for 0.5 s, alternate 0.1 ft). Every other property of a stroke is read off the record.",
+    "one_body_per_stroke": "the feed sometimes reports ONE detection under TWO player ids. Both paths are real rows and both are perfectly continuous, so no check for jumps can see it - and painting both draws one measurement twice while the index calls them two bodies, which is this hand's governing rule failing. A canvas in which any two of its ten bodies stay within 0.35 ft of each other for 0.5 s is REFUSED rather than repaired; `coincidence_ft` carries the measured distribution the tolerance was read off, the number of spans refused, and the number the alternate tolerance would refuse",
+    "selection_rank": "how far down the residual ordering each shipped canvas sat. Rank 0 is what the published rule used to claim on its own; anything above it is the feed-quality clauses of that rule doing the selecting, which is why they are now named in it",
     "corroboration": "every canvas is one shot the window stage checked against the record: its release, transformed into the shot record's own frame, landed within 6.0 ft of the coordinate a courtside scorer filed independently, at that game's calibrated event numbering. A game with no such shot is not painted. The full join for every canvas - archive, tracking event, offset, anchor, residual, release frame - is retained privately under data/window/, which is gitignored, so nothing identifying ships and nothing is unverifiable",
     "stroke": "one CONTINUOUS run of one body's measured path over the 5.0 s before one corroborated release, in the shot record's own frame (tenths of a foot, hoop at origin). A path is cut wherever the feed broke or the body moved further than 3.0 ft in one frame, and each run is its own stroke of the same body, so no drawn segment ever crosses a discarded discontinuity",
     "vertex": "a control point kept by Douglas-Peucker at 0.15 ft, or forced by a change of zone, carrying `dt` (frames since the previous vertex) and `arc` (tenths of a foot the body actually covered over that span, summed at the full 25 Hz before simplification). Speed is arc/dt and is therefore the true measured mean over the span, unaffected by how few control points survive. The first vertex of a stroke carries dt = 0 and arc = 0: it opens the stroke and spans nothing, and a consumer deriving speed must skip it",
@@ -18,28 +20,91 @@
     "body": "a slot within the canvas, stable across the runs of one body; 10 is the ball. After a path is cut at its discontinuities one body can be several strokes, so this is how a consumer knows which runs are the same body",
     "identity": "none is shipped. No player, no match, no tracking event, no clock - only a day index, a canvas index and a body slot. A match, a player, or a possession's timing cannot be reconstructed from this file"
   },
-  "canvases": 250,
-  "strokes": 2751,
-  "strokes_alt_min_run": 2754,
-  "vertices": 46681,
-  "vertices_forced_by_zone": 9166,
-  "zone_quantized_frames": 4593,
-  "zone_quantized_share": 0.01336,
-  "days_covered": 67,
-  "seconds_painted": 13748.0,
+  "canvases": 249,
+  "date_first": "2015-10-27",
+  "date_last": "2016-01-23",
+  "corpus_date_first": "2015-10-27",
+  "corpus_date_last": "2016-01-23",
+  "canvases_by_month": {
+    "2015-10": 5,
+    "2015-11": 29,
+    "2015-12": 30,
+    "2016-01": 21
+  },
+  "selection_rank": {
+    "0": 164,
+    "1": 62,
+    "2": 15,
+    "3": 4,
+    "4": 2,
+    "5": 1,
+    "6": 1
+  },
+  "selection_rank_zero": 164,
+  "coincidence_ft": {
+    "tolerance": 0.35,
+    "tolerance_alt": 0.1,
+    "seconds": 0.5,
+    "spans_examined": 277,
+    "spans_refused": 28,
+    "spans_refused_alt": 17,
+    "shipped_min": 0.368,
+    "shipped_p05": 0.683,
+    "hist": {
+      "0.0": 17,
+      "0.1": 3,
+      "0.2": 4,
+      "0.3": 9,
+      "0.4": 2,
+      "0.5": 3,
+      "0.6": 4,
+      "0.7": 3,
+      "0.8": 4,
+      "0.9": 9,
+      "1.0": 6,
+      "1.1": 12,
+      "1.2": 6,
+      "1.3": 6,
+      "1.4": 18,
+      "1.5": 22,
+      "1.6": 14,
+      "1.7": 21,
+      "1.8": 17,
+      "1.9": 19,
+      "2.0": 18,
+      "2.1": 14,
+      "2.2": 12,
+      "2.3": 7,
+      "2.4": 6,
+      "2.5": 5,
+      "2.6": 5,
+      "2.7": 3,
+      "2.9": 1,
+      "3.0": 1,
+      "3.3": 2,
+      "3.5": 1,
+      "3.8": 1,
+      "4.0": 2
+    }
+  },
+  "strokes": 2739,
+  "strokes_alt_min_run": 2742,
+  "vertices": 46526,
+  "vertices_forced_by_zone": 8960,
+  "zone_quantized_frames": 4488,
+  "zone_quantized_share": 0.01311,
+  "days_covered": 85,
+  "seconds_painted": 13693.3,
   "stroke_seconds": 5.0,
   "simplify_ft": 0.15,
   "min_run_frames": 25,
   "min_run_frames_alt": 3,
   "run_length_frames": {
-    "1": 1,
-    "5": 1,
-    "22": 2,
-    "26": 1,
-    "95": 1,
-    "104": 2,
-    "125": 1,
-    "126": 2746
+    "3": 1,
+    "20": 2,
+    "106": 2,
+    "123": 1,
+    "126": 2736
   },
   "bodies_per_canvas": {
     "min": 11,
@@ -48,48 +113,48 @@
   },
   "strokes_per_canvas": {
     "min": 11,
-    "max": 12,
+    "max": 11,
     "mean": 11.0
   },
   "anchor_residual_ft": {
     "max_allowed": 6.0,
-    "median": 0.41,
-    "p90": 1.34,
-    "max": 3.95
+    "median": 0.39,
+    "p90": 1.05,
+    "max": 3.6
   },
-  "vertices_outside_plate": 1682,
+  "vertices_outside_plate": 1998,
   "speed_ft_s": {
-    "p10": 1.94,
-    "p25": 3.33,
-    "p50": 6.15,
-    "p75": 10.0,
-    "p90": 15.0,
-    "p99": 36.94
+    "p10": 1.96,
+    "p25": 3.38,
+    "p50": 6.25,
+    "p75": 10.71,
+    "p90": 16.07,
+    "p99": 37.5
   },
   "ink_by_zone": {
-    "Restricted Area": 0.0366,
-    "In The Paint (Non-RA)": 0.1944,
-    "Mid-Range": 0.4518,
-    "Left Corner 3": 0.0282,
-    "Right Corner 3": 0.0327,
-    "Above the Break 3": 0.218,
-    "Backcourt": 0.0382
+    "Restricted Area": 0.0362,
+    "In The Paint (Non-RA)": 0.1945,
+    "Mid-Range": 0.4444,
+    "Left Corner 3": 0.0276,
+    "Right Corner 3": 0.0296,
+    "Above the Break 3": 0.2194,
+    "Backcourt": 0.0483
   },
   "files": {
     "vertices": {
       "path": "paint_strokes.bin",
       "record": "<hhHH",
       "bytes_per_record": 8,
-      "records": 46681,
-      "bytes": 373448,
+      "records": 46526,
+      "bytes": 372208,
       "fields": "x, y (tenths, hoop at origin); dt frames; arc tenths"
     },
     "index": {
       "path": "paint_index.bin",
       "record": "<IHHBBB",
       "bytes_per_record": 11,
-      "records": 2751,
-      "bytes": 30261,
+      "records": 2739,
+      "bytes": 30129,
       "fields": "first vertex, count, canvas, kind, body slot, day"
     }
   }

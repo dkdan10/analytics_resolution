@@ -401,10 +401,14 @@ OFFSET_MIN_MARGIN = 0.15
 # An offset decided by a handful of votes is a guess wearing a ratio's clothes:
 # 3 against 1 clears every relative test above and means nothing. So a shift
 # must also be carried by an absolute number of shots. Chosen from the measured
-# distribution of `reconciled_at_best` over the corpus rather than rounded to
-# taste - window.json ships that distribution under `recovery.votes` and the
-# accepted-offset counts under the second value below, so the cut can be
-# argued with.
+# distribution over the population the floor can actually reach - games whose
+# argmax is non-zero - rather than rounded to taste. window.json ships that
+# distribution under `recovery.votes`, the accepted shifts themselves under
+# `recovery.accepted_offsets`, and, crucially, what the second reading COSTS:
+# `votes.games_changed_by_alt` re-decides every game from its stored score
+# vector at the alternate floor and counts the ones that come out differently.
+# If that is zero, the two values are the same rule on this corpus and the
+# artifact says so instead of implying a choice was made.
 MIN_OFFSET_VOTES = 25
 MIN_OFFSET_VOTES_ALT = 40
 
@@ -483,6 +487,14 @@ def decide_offset(scores, min_votes=MIN_OFFSET_VOTES):
         "event_offset": best,
         "offset_rejected": reason is not None,
         "reject_reason": reason,
+        # WHAT THIS VECTOR NAMED, which is not the same as the offset applied.
+        # A rejection names NOTHING: the game keeps the straight join because
+        # the evidence for a shift was refused, not because zero was chosen over
+        # the alternatives. Collapsing the two - returning `best = 0` and
+        # recording it as an answer - let a half that declined to decide be
+        # counted as a half that decided, and paired with a genuine straight
+        # join as agreement.
+        "named": None if reason else best,
         "reconciled_at_best": best_n,
         "reconciled_at_zero": at_zero,
         "argmax": ranked[0][0],
@@ -511,8 +523,12 @@ def game_event_offset(found_shots, anchors, searched="wide"):
 
     And a fit that is never checked is not a measurement. Half the releases -
     those at even tracking event ids - calibrate; the other half validates. The
-    two halves either name the same integer or they do not, and which one it was
-    ships per game and as a corpus rate.
+    two halves name the same integer, or different ones, or one of them refuses
+    to name anything at all, and which of the three it was ships per game and as
+    a corpus rate. The split is only out of sample because `found_shots` is now
+    every release in the game: when it was the anchor-selected set, both halves
+    inherited the same selection and the straight join reproduced itself 444
+    times out of 444.
     """
     scores = score_offsets(found_shots, anchors)
     best, info = decide_offset(scores)
@@ -520,10 +536,16 @@ def game_event_offset(found_shots, anchors, searched="wide"):
     even = [r for r in found_shots if r[0] % 2 == 0]
     odd = [r for r in found_shots if r[0] % 2 != 0]
     s_even, s_odd = score_offsets(even, anchors), score_offsets(odd, anchors)
-    off_even, d_even = decide_offset(s_even, HELD_OUT_MIN_VOTES)
-    off_odd, d_odd = decide_offset(s_odd, HELD_OUT_MIN_VOTES)
+    _off_even, d_even = decide_offset(s_even, HELD_OUT_MIN_VOTES)
+    _off_odd, d_odd = decide_offset(s_odd, HELD_OUT_MIN_VOTES)
+    # The halves are compared on what they NAMED. A half whose argmax was
+    # refused named nothing, and nothing cannot agree with an integer; such a
+    # game is not testable and is counted as a refusal rather than folded in.
+    named_even, named_odd = d_even["named"], d_odd["named"]
+    refused = (named_even is None) + (named_odd is None)
     testable = (d_even["reconciled_at_best"] >= HELD_OUT_MIN_VOTES
-                and d_odd["reconciled_at_best"] >= HELD_OUT_MIN_VOTES)
+                and d_odd["reconciled_at_best"] >= HELD_OUT_MIN_VOTES
+                and not refused)
 
     info.update({
         "searched": searched,
@@ -533,10 +555,12 @@ def game_event_offset(found_shots, anchors, searched="wide"):
         # independent rescoring in pipeline/checks/ is checked against.
         "scores": {str(k): v for k, v in sorted(scores.items()) if v},
         "held_out": {
-            "calibrated": off_even,
-            "validated": off_odd,
-            "agree": off_even == off_odd,
+            "calibrated": named_even,
+            "validated": named_odd,
+            "agree": named_even is not None and named_even == named_odd,
             "testable": testable,
+            # How many of the two halves declined to name an offset at all.
+            "refused": refused,
             "n_calibrate": d_even["reconciled_at_best"],
             "n_validate": d_odd["reconciled_at_best"],
         },
@@ -900,52 +924,42 @@ def derive_game(archive_path, anchors_by_game, label):
         except (KeyError, ValueError, TypeError):
             continue
 
-    seen_events = {}
-
     def releases_for(eids):
         out = []
         for eid in eids:
-            if eid in seen_events:
-                if seen_events[eid] is not None:
-                    out.append(seen_events[eid])
-                continue
             ev = by_event.get(eid)
-            rec = None
-            if ev is not None:
-                efr = event_frames(ev)
-                if len(efr) >= HZ:
-                    found = find_release(efr)
-                    if found:
-                        rec = (eid, efr, found[0], found[2])
-            seen_events[eid] = rec
-            if rec is not None:
-                out.append(rec)
+            if ev is None:
+                continue
+            efr = event_frames(ev)
+            if len(efr) < HZ:
+                continue
+            found = find_release(efr)
+            if found:
+                out.append((eid, efr, found[0], found[2]))
         return out
 
-    # Zero gets no free pass. The cheap pass scores the FULL offset range over
-    # the releases sitting at anchor event ids - a different key lookup on
-    # releases already in hand, not extra parsing - and zero is accepted here
-    # only if it wins that comparison outright. Anything else, including a
-    # non-zero winner, unpacks the whole game and rescores on every recovered
-    # release. Previously the straight join was taken as correct whenever it
-    # reconciled a quarter of the game's shots, without an alternative ever
-    # being scored against it; games with a real offset were sitting under that
-    # bar.
-    direct = releases_for(sorted(anchors))
-    offset, join_info = game_event_offset(direct, anchors, searched="direct")
-    settled = (
-        offset == 0
-        and not join_info["offset_rejected"]
-        and join_info["reconciled_at_best"] >= MIN_OFFSET_VOTES
-        and join_info["margin"] >= OFFSET_MIN_MARGIN
-    )
-    if not settled:
-        # Zero did not win outright. Unpack the rest of the game and let every
-        # recovered release vote on the offset.
-        wide = releases_for([e for e in by_event if e not in seen_events])
-        offset, join_info = game_event_offset(direct + wide, anchors, searched="wide")
-
-    found_shots = [r for r in seen_events.values() if r is not None]
+    # EVERY offset is scored on the same evidence, and that evidence is every
+    # release the game gives up.
+    #
+    # This used to be screened by a cheap pass that scored the full range over
+    # the releases sitting at ANCHOR event ids, and accepted zero if it won
+    # there. Zero cannot lose that comparison. `reconciles` looks up
+    # `anchors[eid + off]`, so on a release set BUILT from the anchor keys every
+    # member has a candidate anchor at offset 0 by construction, while a rival
+    # at +k needs `eid + k` to also be a filed shot. Measured over all 632 anchor
+    # sets, that availability is 1.000 at zero against 0.28 at +/-1, 0.45 at
+    # +/-2 and 0.29-0.32 elsewhere: the rivals were attenuated two- to fourfold
+    # before a single geometric test was applied. 445 games shipped on that
+    # vector, and at least one of them - 11.16.2015.BOS.at.HOU, direct
+    # {0:38, +1:29, +2:29} - is decided the other way the moment its rivals are
+    # allowed to compete ({+1:78, +2:62, +3:47, 0:38}).
+    #
+    # Unpacking every event of every game costs about a sixth of this stage's
+    # parse (measured: 8 games, 42.4 s screened against 49.5 s full), which is
+    # not a price worth a comparison that cannot come out any other way. So it
+    # is simply always paid, and `join.searched` reads "full" for every game.
+    found_shots = releases_for(sorted(by_event))
+    offset, join_info = game_event_offset(found_shots, anchors, searched="full")
     occupancy = measure_occupancy(frames)
 
     # PASS 2: with the join settled, measure.
@@ -1277,8 +1291,12 @@ def reduce_all():
     rejected_offsets = 0
     reject_reasons = Counter()
     votes = []
-    held_out_agree = held_out_testable = 0
+    held_out_agree = held_out_testable = held_out_refused = 0
     held_out_by = {"straight": [0, 0], "shifted": [0, 0], "rejected": [0, 0]}
+    accepted_offsets = []
+    argmax_votes = []
+    alt_changed = []
+    searched_kinds = Counter()
     frame_gap_hist = Counter()
     pass_gap_hist = Counter()
 
@@ -1318,13 +1336,44 @@ def reduce_all():
         if jn:
             offsets[jn["event_offset"]] += 1
             votes.append(jn["reconciled_at_best"])
+            searched_kinds[jn.get("searched") or "unstated"] += 1
             if jn.get("offset_rejected"):
                 rejected_offsets += 1
                 reject_reasons[jn.get("reject_reason") or "unstated"] += 1
             if jn["margin"] < WEAK_JOIN_MARGIN:
                 weak_joins.append({"archive": g.get("archive"), "offset": jn["event_offset"],
                                    "margin": jn["margin"]})
+            # EVERY accepted shift, with the four numbers its acceptance turned
+            # on. qa.py re-applies the rule to these rather than reading a
+            # summary of it, so a gate on the vote floor can actually fail.
+            if jn["event_offset"] != 0:
+                accepted_offsets.append({
+                    "archive": g.get("archive"),
+                    "offset": jn["event_offset"],
+                    "votes": jn["reconciled_at_best"],
+                    "at_zero": jn["reconciled_at_zero"],
+                    "runner_up": jn["runner_up"],
+                    "margin": jn["margin"],
+                })
+            # The vote floor only ever binds on a game whose argmax is non-zero;
+            # over all 632 games the distribution is dominated by the straight
+            # joins the rule never touches, which is what made the shipped
+            # `games_under_min` unreadable. This is the population it acts on.
+            if jn.get("argmax", 0) != 0:
+                argmax_votes.append(jn["argmax_n"])
+            # What the alternate floor would actually cost, recomputed from the
+            # stored vector rather than inferred from a count.
+            sc = jn.get("scores") or {}
+            if sc:
+                vec = {off: 0 for off in OFFSET_SEARCH}
+                for k, v in sc.items():
+                    if int(k) in vec:
+                        vec[int(k)] = v
+                alt_off, _alt = decide_offset(vec, MIN_OFFSET_VOTES_ALT)
+                if alt_off != jn["event_offset"]:
+                    alt_changed.append(g.get("archive"))
             ho = jn.get("held_out") or {}
+            held_out_refused += ho.get("refused", 0)
             if ho.get("testable"):
                 held_out_testable += 1
                 held_out_agree += 1 if ho.get("agree") else 0
@@ -1573,9 +1622,13 @@ def reduce_all():
                 "search. A non-zero winner must also be carried by at least "
                 f"{MIN_OFFSET_VOTES} reconciled shots, clear the straight join by "
                 f"{OFFSET_OVER_ZERO}x, and beat its own runner-up by {OFFSET_MIN_MARGIN}; zero "
-                "faces the same comparison and is never accepted without one. Then it is "
+                "faces the same comparison and is never accepted without one. The comparison is "
+                "made over EVERY release the game gives up, never over the releases sitting at "
+                "anchor event ids - on that set offset zero has a candidate anchor for every "
+                "member by construction and its rivals do not, so it cannot lose. Then it is "
                 "validated: even-numbered tracking events calibrate, odd ones check, and "
-                "`held_out_agreement` is how often the two halves named the same integer"
+                "`held_out_agreement` is how often the two halves named the same integer. A half "
+                "whose argmax was refused NAMED NOTHING and is not counted as an answer"
             ),
             "coverage": (
                 "632 of the 2015-16 season's 1,230 games - the first half only, and schedule-biased"
@@ -1615,22 +1668,55 @@ def reduce_all():
             "offsets_on_search_boundary": sum(
                 v for k, v in offsets.items() if abs(k) == MAX_EVENT_OFFSET
             ),
+            # Every shift that was accepted, and the four numbers it was
+            # accepted on. This is the evidence, not a summary of it.
+            "accepted_offsets": sorted(accepted_offsets, key=lambda a: a["votes"]),
+            "min_votes_accepted": min((a["votes"] for a in accepted_offsets), default=None),
+            # Which vector decided each game. One value, "full", is the whole
+            # point: a screened game was decided on a vector where the rivals
+            # could not compete.
+            "searched": dict(searched_kinds),
             # The distribution the minimum-vote cut was drawn from, so the cut
             # is arguable rather than asserted.
+            #
+            # HONESTLY SCOPED. The floor only ever binds on a game whose argmax
+            # is non-zero; there is no test it could apply to a straight join.
+            # Counting all 632 games under it - which is what `games_under_min`
+            # did - mixed 553 games the rule never reaches into the statistic
+            # that was supposed to justify the rule's value, and read as though
+            # 84 accepted offsets sat below the minimum. So the population here
+            # is the games where the floor is reached at all, and what the
+            # alternate value COSTS is recomputed from each game's stored score
+            # vector rather than inferred.
             "votes": {
                 "min_required": MIN_OFFSET_VOTES,
                 "min_required_alt": MIN_OFFSET_VOTES_ALT,
-                "p05": _pct(votes, 0.05), "p10": _pct(votes, 0.10),
-                "p25": _pct(votes, 0.25), "p50": _pct(votes, 0.50),
-                "p75": _pct(votes, 0.75), "p95": _pct(votes, 0.95),
-                "games_under_min": sum(1 for v in votes if v < MIN_OFFSET_VOTES),
-                "games_under_min_alt": sum(1 for v in votes if v < MIN_OFFSET_VOTES_ALT),
+                "population": "games whose argmax is non-zero, i.e. where the floor is reached",
+                "games_in_population": len(argmax_votes),
+                "p05": _pct(argmax_votes, 0.05), "p10": _pct(argmax_votes, 0.10),
+                "p25": _pct(argmax_votes, 0.25), "p50": _pct(argmax_votes, 0.50),
+                "p75": _pct(argmax_votes, 0.75), "p95": _pct(argmax_votes, 0.95),
+                "min_in_population": min(argmax_votes, default=None),
+                "under_min": sum(1 for v in argmax_votes if v < MIN_OFFSET_VOTES),
+                "under_min_alt": sum(1 for v in argmax_votes if v < MIN_OFFSET_VOTES_ALT),
+                # The only figure that says what the second reading is worth:
+                # how many games it decides differently. If this is zero, the
+                # two values are the same rule and the artifact says so.
+                "games_changed_by_alt": len(alt_changed),
+                "changed_by_alt": sorted(alt_changed)[:20],
+                # And over all games, for continuity with what shipped before.
+                "all_games_under_min": sum(1 for v in votes if v < MIN_OFFSET_VOTES),
+                "all_games_under_min_alt": sum(1 for v in votes if v < MIN_OFFSET_VOTES_ALT),
             },
             "held_out_agreement": (
                 round(held_out_agree / held_out_testable, 4) if held_out_testable else None
             ),
             "held_out_games": held_out_testable,
             "held_out_disagreements": held_out_testable - held_out_agree,
+            # Halves that REFUSED to name an offset. Not disagreements and not
+            # agreements: a half whose argmax failed the acceptance rule named
+            # nothing, and used to be recorded as having named zero.
+            "held_out_refused_halves": held_out_refused,
             # AND THE SPLIT, because the aggregate above is not one finding but
             # three, and the flattering part of it is the easy part. What
             # reproduces perfectly out of sample is the ABSENCE of an offset.
@@ -1645,8 +1731,10 @@ def reduce_all():
             },
             "held_out_note": (
                 "half a game's releases calibrate and half validate, split on the parity of the "
-                "tracking event id. The aggregate rate is dominated by games needing no offset; "
-                "read held_out_by_outcome instead"
+                "tracking event id, over EVERY release in the game. The aggregate rate is "
+                "dominated by games needing no offset; read held_out_by_outcome instead. A half "
+                "whose argmax was refused named nothing and is counted under "
+                "held_out_refused_halves rather than as an answer"
             ),
             "weak_joins": sorted(weak_joins, key=lambda w: w["margin"])[:20],
             "n_weak_joins": len(weak_joins),
@@ -1788,12 +1876,17 @@ def reduce_all():
     r = out["recovery"]
     print(f"     event offsets {r['event_offsets']}; {r['offsets_rejected']} rejected "
           f"{r['offsets_rejected_by_reason']}; {r['offsets_on_search_boundary']} on the boundary")
+    print(f"     every game decided on the full release set: {r['searched']}")
     print(f"     held-out validation: {r['held_out_agreement']} over {r['held_out_games']} games "
-          f"({r['held_out_disagreements']} halves disagreed)")
+          f"({r['held_out_disagreements']} halves disagreed, "
+          f"{r['held_out_refused_halves']} refused to name one)")
     for k, v in r["held_out_by_outcome"].items():
         print(f"       {k:<9} {v['agree']:4d}/{v['games']:<4d} = {v['rate']}")
-    print(f"     votes per accepted offset: p05 {r['votes']['p05']} p50 {r['votes']['p50']} "
-          f"p95 {r['votes']['p95']}; {r['votes']['games_under_min']} games under the minimum")
+    v = r["votes"]
+    print(f"     votes where the floor is reached ({v['games_in_population']} games with a "
+          f"non-zero argmax): min {v['min_in_population']} p50 {v['p50']} p95 {v['p95']}; "
+          f"{v['under_min']} under {v['min_required']}, {v['under_min_alt']} under the alternate "
+          f"{v['min_required_alt']}, which decides {v['games_changed_by_alt']} games differently")
     inv = out["inventory"]
     print(f"     {inv['drives']:,} drives ordered against {inv['drives_unordered']:,} unordered; "
           f"{inv['passes']:,} passes ({inv['passes_alt_gap']:,} at the alternate gap)")
