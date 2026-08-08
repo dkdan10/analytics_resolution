@@ -1,17 +1,41 @@
 #!/usr/bin/env python3
-"""Stage 3 - acceptance gate.
+"""Stage 3 - the acceptance gate.
 
-Regenerated aggregates must reproduce the measured table in
-docs/build-plan-v2.md section 1.6 EXACTLY. If these numbers differ, the
-pipeline is wrong, not the plan (CLAUDE.md ground truth).
+Two jobs, and the second one is newer than the first.
 
-Usage: python3 pipeline/qa.py            # exits 1 on any mismatch
-       python3 pipeline/qa.py --slow     # ... and runs the independent
-                                         #     recomputations over the raw
-                                         #     corpus (minutes, not seconds)
+ONE. Regenerated aggregates must reproduce the measured table in
+docs/build-plan-v2.md section 1.6 EXACTLY. If those numbers differ, the pipeline
+is wrong, not the plan (CLAUDE.md ground truth).
+
+TWO. Every artifact the piece ships must be PRESENT and SEMANTICALLY WHOLE. The
+gate used to certify the work with the window and paint stages deleted from
+disk, with binaries replaced by equal-length runs of zeros, with every approach
+sample set to 999 ft and every contest bound to 99-100 ft. It validated files by
+their byte length and read headline figures back out of the file that wrote
+them. It does not do any of that now: every binary is decoded, every headline
+figure is recomputed from an independent path, and `--mutations` reintroduces
+each historic defect on a copy and requires the check that owns it to go red.
+
+A note on the constants below. Several are test fixtures - numbers measured from
+a real run and pinned so a regression cannot pass quietly. Each says what
+measured it and when. None of them is a display figure; nothing here is quoted
+on screen (CLAUDE.md honesty rule).
+
+Usage: python3 pipeline/qa.py                  # the full shipping gate
+       python3 pipeline/qa.py --no-mutations   # ... without the mutation suite
+       python3 pipeline/qa.py --no-raw         # data/shots/ absent: REDUCED
+       python3 pipeline/qa.py --spine-only     # the shot stage alone
+       python3 pipeline/qa.py --only window,paint
+       python3 pipeline/qa.py --processed DIR  # point every read at DIR
+       python3 pipeline/qa.py --mutations      # the mutation suite alone
+       python3 pipeline/qa.py --slow           # + the raw-corpus recomputations
+       python3 pipeline/qa.py --write-zone-fixture   # regenerate the parity fixture
 """
 
+import argparse
 import json
+import math
+import struct
 import sys
 from pathlib import Path
 
@@ -19,13 +43,45 @@ from pathlib import Path
 # wrong python3 gets `ModuleNotFoundError: numpy` and goes looking for a missing
 # package, when the real problem is that the wrong interpreter won the PATH.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import PROCESSED_DIR, read_season_csv, require_env  # noqa: E402
+from common import (  # noqa: E402
+    CORNER_X,
+    CORNER_Y,
+    FREE_THROW_Y,
+    HALFCOURT_Y,
+    LANE_HALF_W,
+    PROCESSED_DIR,
+    REPO_ROOT,
+    RESTRICTED_R,
+    THREE_R,
+    ZONE_NAMES,
+    read_season_csv,
+    require_env,
+    zone_at,
+)
 
 require_env()
 
 import numpy as np  # noqa: E402
 
 from aggregate import POINT_DTYPE  # noqa: E402
+
+# The rules' own constants, imported rather than restated: a gate that reads its
+# threshold out of the file it is checking is not a gate. Session 1 shipped four
+# of those, and the paint's residual gate compared paint.py's reported maximum
+# against paint.py's reported threshold.
+from window import (  # noqa: E402
+    MAX_ANCHOR_RESIDUAL_FT,
+    MAX_EVENT_OFFSET,
+    MAX_STEP_FT,
+    MIN_OFFSET_VOTES,
+    OFFSET_MIN_MARGIN,
+    OFFSET_OVER_ZERO,
+)
+from paint import (  # noqa: E402
+    COINCIDENCE_FRAMES,
+    COINCIDENCE_FT,
+    COINCIDENCE_SECONDS as COINCIDENCE_SECONDS_QA,
+)
 
 # Plan section 1.6, measured 2026-08-04 (test fixture, not display copy).
 EXPECTED_TOTAL_ATTEMPTS = 5_933_691
@@ -97,10 +153,10 @@ FIXED_TAXONOMIES = {
     "SHOT_ZONE_RANGE": 5, "SHOT_ZONE_AREA": 6,
 }
 
-
-def pct(x):
-    return f"{100 * x:.1f}"
-
+# The halfcourt box every shot artifact is clipped to, in tenths of a foot.
+# Widened two tenths each way from plan section 3.2 so grid bins are whole feet
+# and sample/grid totals assert equal (CLAUDE.md decisions log).
+PLATE_X, PLATE_Y = (-250, 250), (-50, 420)
 
 # --- The window (pipeline/window.py) ----------------------------------------
 # The 2015-16 SportVU public release, measured 2026-08-06 and re-verified live.
@@ -114,18 +170,17 @@ EXPECTED_WINDOW_MISNAMED = 10
 EXPECTED_WINDOW_DATES = ("2015-10-27", "2016-01-23")
 
 # How many of the record's filed shots survive the geometric join check.
-# Measured across all 632 games on 2026-08-07: 0.489. This floor sits below
+# Measured across all 632 games on 2026-08-08: 0.4545. This floor sits below
 # that as a REGRESSION GUARD, not a target - a detector that silently halved
 # would still emit a plausible-looking artifact, and this is what catches it.
 #
 # The shortfall is mostly not detector failure. It is the archive disagreeing
 # with itself: the coordinate a scorer filed courtside and the position the
 # optical feed gives the ball at release are two different instruments, parting
-# company by a median of ~4 ft - much more for shots the record attributes to a
-# body other than the one that last touched the ball. An oracle allowed to pick
-# the best reading of the tracking still reconciles only 83%. Five independently
-# designed release detectors all failed to beat the simple one. That gap is a
-# property of the record, so window.json ships it under `disagreement`.
+# company by a median of ~4.8 ft. An oracle allowed to pick the best reading of
+# the tracking still reconciles only 83%. Five independently designed release
+# detectors all failed to beat the simple one. That gap is a property of the
+# record, so window.json ships it under `disagreement`.
 WINDOW_RECOVERY_FLOOR = 0.40
 
 # The recovered set cannot be unbiased: detection follows the ball back from the
@@ -133,13 +188,82 @@ WINDOW_RECOVERY_FLOOR = 0.40
 # Measured at +5.6 pp on FG%. The gate bounds it and the piece discloses it.
 WINDOW_MAX_FG_BIAS_PP = 9.0
 
+# A court is 94 x 50 ft, so its longest diagonal is ~106 ft and no closest
+# defender can be further away than that. Derived from the floor, not chosen:
+# it is the bound that makes "every approach sample set to 999 ft" impossible
+# to ship, which is what the audit demonstrated the gate could not see.
+MAX_ON_COURT_FT = math.hypot(94.0, 50.0)
+
+# Two independent paths to the release instant: the last sample of the approach
+# curve, and the mean of the per-shot caliper recomputed from window_measures.bin.
+# The curve is rounded to 2 dp and the endpoints to tenths, so they cannot be
+# bit-identical. Measured 2026-08-08: 4.72 against 4.724, a gap of 0.004 ft.
+# The bound is a tenth - one coordinate quantum - which is two orders of
+# magnitude below the 999 ft mutation and an order above the observed gap.
+APPROACH_RELEASE_TOL_FT = 0.10
+
+# Coordinates round to whole tenths of a foot, so a recomputed length can differ
+# from a stored one by up to the diagonal of one quantum plus the stored value's
+# own rounding. Derived, not chosen; used for both the caliper endpoints and the
+# paint's chord-against-arc.
+QUANTUM_FT = math.hypot(0.1, 0.1) + 0.05
+
+# window_measures.bin stores the caliper in ONE BYTE of tenths, so anything at or
+# beyond 25.5 ft is filed at the ceiling. That is finding F-05 and the fix to the
+# ENCODING belongs to session 3; what this gate does is make the clipping
+# impossible to ship silently. Measured 2026-08-08 from the current artifact:
+# 30 of 48,330 records sit at the ceiling, the largest recomputing to 51.85 ft.
+# A regeneration that clips a different number of records turns this red.
+MEASURES_CEILING_RECORDS = 30
+MEASURES_MAX_RECOMPUTED_FT = 51.85
+
+# window_measures.bin is NOT clipped to the plate box the renderer draws. It
+# carries the coordinate the record filed, and the record files shots taken from
+# outside the sideline - a shot is where the shooter was, not where the drawing
+# stops. Measured 2026-08-08: 12 of 48,330 shooters sit off the plate box, and
+# the furthest coordinate of any kind - shooter or defender - sits 3.4 ft
+# outside the 94 x 50 court, which is a body standing in the apron.
+MEASURES_OFF_PLATE_RECORDS = 12
+MEASURES_MAX_OFF_COURT_FT = 3.4
+
+# The tracking court in the plate's own frame, derived from the hoop positions
+# rather than restated: 94 x 50 ft, the hoop 5.25 ft in from the baseline and
+# centred between the sidelines, coordinates in tenths.
+from common import HOOP_LEFT_X, HOOP_RIGHT_X, HOOP_Y  # noqa: E402
+
+#   x: half the 50 ft width either side of the hoop's own centre line
+#   y: the near baseline 5.25 ft behind the hoop, the far one 88.75 ft in front
+COURT_BOX_X = (-10 * HOOP_Y, 10 * HOOP_Y)
+COURT_BOX_Y = (-10 * HOOP_LEFT_X, 10 * HOOP_RIGHT_X)
+
+# A hero's track ships coordinates rounded to a hundredth of a foot, so a step
+# recomputed from what shipped cannot reproduce the full-precision figure the
+# artifact reports. Derived from that storage, not chosen.
+TRACK_QUANTUM_FT = math.hypot(0.01, 0.01) + 0.005
+
 # THE HAND colours strokes by the zone they cross, so the reconstruction of the
 # league's regions has to BE the league's. Measured 2026-08-07 over all 207,893
 # of 2015-16's shots: 99.993%. The floor is set just below, as a regression
 # guard - if the geometry drifts, the colour stops being a measurement.
 ZONE_AGREEMENT_FLOOR = 0.999
+# How many checks the raw-dump group runs. Declared so `--no-raw` can say what
+# it did not do, and asserted when the group runs so it cannot drift.
+ZONE_VS_LEAGUE_CHECKS = 4
 
-# The canvas: one possession per game, spread across the window's 89 days.
+# points/*.bin files the league's OWN SHOT_ZONE_BASIC label per cell, not the
+# geometric reconstruction - the two are different claims and the piece needs
+# both (Rule 4: colour exposes the league's classification, it does not add
+# one). Where they disagree, the disagreement must be a BOUNDARY CONVENTION and
+# nothing else: the cell must sit within this distance of the region the league
+# filed it in. Measured 2026-08-08 over all 30 seasons - 340 distinct
+# coordinates disagree, every one of them within 1.5 tenths, and the bound is
+# set by the two boundaries that do not fall on the coordinate lattice
+# (CORNER_Y = 89.48 tenths, and HALFCOURT_Y = 417.5 against cells at 419).
+POINTS_ZONE_BOUNDARY_MAX_TENTHS = 1.5
+POINTS_ZONE_DISAGREEING_COORDS = 340
+
+# The canvas: one possession per game, spread across the window's 89 days. Both
+# are floors; the terminus is gated against the corpus's own dates instead.
 EXPECTED_PAINT_CANVASES = 240
 EXPECTED_PAINT_DAYS = 60
 
@@ -150,37 +274,28 @@ EXPECTED_PAINT_DAYS = 60
 MIN_BODIES_PER_CANVAS = 8
 MAX_BODIES_PER_CANVAS = 11
 
-# The offset search window window.py calibrates in. An accepted offset ON this
-# boundary means the search was too narrow to see its own peak, so both the
-# range and the boundary count are gated.
-EXPECTED_MAX_EVENT_OFFSET = 12
+# paint.py counts a vertex off the plate box from the FLOAT coordinate, before
+# it is rounded into int16; the shipped bytes carry the rounded one, and 27 of
+# them round back onto the plate. Both figures are right about different things.
+# Measured from the bytes 2026-08-08: 1,971 against paint.json's 1,998.
+PAINT_OFF_PLATE_VERTICES = 1971
 
-# The offset rule's own constants, imported rather than restated: a gate that
-# reads its threshold out of the file it is checking is not a gate. Session 1
-# shipped four of those, and the paint's residual gate compared paint.py's
-# reported maximum against paint.py's reported threshold.
-from window import (  # noqa: E402
-    MAX_ANCHOR_RESIDUAL_FT,
-    MIN_OFFSET_VOTES,
-    OFFSET_MIN_MARGIN,
-    OFFSET_OVER_ZERO,
-)
-from paint import (  # noqa: E402
-    COINCIDENCE_FRAMES,
-    COINCIDENCE_FT,
-    COINCIDENCE_SECONDS as COINCIDENCE_SECONDS_QA,
-)
-
-# What the same rule can be asked of the SHIPPED BYTES, which is not the same
-# question. paint.py refuses on the measured 25 Hz path; the bytes carry the
+# What the coincidence rule can be asked of the SHIPPED BYTES, which is not the
+# same question. paint.py refuses on the measured 25 Hz path; the bytes carry the
 # simplified line, and Douglas-Peucker can pull two genuinely separated bodies
 # closer than their measured separation - the shipped minimum is 0.368 ft on the
 # feed and 0.275 ft once drawn. So the byte-level gate is the STORAGE-level one:
 # a merged track is the feed repeating a row, which survives simplification as
 # literally the same tenths, and two distinct bodies drawn to within one
-# coordinate quantum for half a second is that signature. Derived from the
-# storage, and it has 2.75x headroom against what ships.
+# coordinate quantum for half a second is that signature.
 BYTE_COINCIDENCE_FT = 0.1
+
+# No body or ball may be drawn faster than this. Derived from the corpus rather
+# than chosen: paint.json publishes p99 speeds of 18.3 ft/s for bodies and 45
+# ft/s for the ball, and the splitter already cuts any step over MAX_STEP_FT per
+# frame. A shot ball leaves the hand at ~30 mph, so 75 ft/s is past anything a
+# basketball does and far below the 30-ft teleports F-02 was shipping.
+MAX_PAINT_SPEED_FT_S = 75.0
 
 # The held-out split is only evidence if it is drawn from most of the corpus and
 # the straight join actually reproduces on half of it. Both are regression
@@ -188,30 +303,1592 @@ BYTE_COINCIDENCE_FT = 0.1
 # that the figure EXISTED, which one testable game at 0.0001 satisfied.
 #
 # Measured 2026-08-08, over the FULL release set: 384 of 632 games testable
-# (0.608), and within them the straight join reproduces 304/307 = 0.9902. The
-# figure this replaces was 444/444 = 1.000, which was the anchor-keyed selection
-# reproducing itself rather than anything out of sample.
+# (0.608), and within them the straight join reproduces 304/307 = 0.9902.
 HELD_OUT_MIN_SHARE = 0.5
 HELD_OUT_STRAIGHT_FLOOR = 0.95
 
-# Coordinates round to whole tenths of a foot, so a drawn chord can exceed the
-# arc stored for it by up to the diagonal of one quantum plus the arc's own
-# rounding. Derived, not chosen - and the bound a decoded vertex must hold to.
-CHORD_OVER_ARC_MAX_FT = (0.1 ** 2 + 0.1 ** 2) ** 0.5 + 0.05
+# --- traces.json (pipeline/bloom.py) -----------------------------------------
+# 32 curated gestures. bloom.py hits the GitHub API live and re-derives from the
+# tracking archives, so this artifact is gated as committed rather than
+# regenerated. Measured from it 2026-08-08: 32 traces, residual median 1.22 ft,
+# max 2.70, every release point within 2.71 ft of its anchor, largest
+# frame-to-frame ball displacement 2.27 ft in three dimensions.
+EXPECTED_TRACES = 32
+# A ball travels at most ~75 ft/s (see MAX_PAINT_SPEED_FT_S) and the feed runs at
+# 25 Hz, so 3 ft between consecutive frames is already past anything physical.
+MAX_TRACE_STEP_FT = 3.0
+
+# --- the site's decoders -----------------------------------------------------
+# Nothing type-checks a byte layout. `npx tsc --noEmit` and `npm run build` both
+# pass while site/src/data.ts decodes a record width the pipeline stopped
+# writing, so this is the only automated detector that the two halves of the
+# project disagree about a format. It reads the site's own constants out of the
+# TypeScript source and the pipeline's out of the artifacts - never the format
+# from the artifact on both sides, which would defeat it.
+DECODER_SOURCES = {
+    "vertex": ("site/src/data.ts", r"VERTEX_REC"),
+    "stroke": ("site/src/data.ts", r"STROKE_REC"),
+    "measure": ("site/src/data.ts", r"MEASURE_REC"),
+    "point": ("site/src/field.ts", r"REC"),
+}
+# A WAIVER names a mismatch that is known, owned and dated. It keeps the check
+# real in BOTH directions: an un-waived mismatch fails, and a waiver whose
+# mismatch has gone also fails, so whoever fixes it has to delete the waiver
+# rather than leave a dead exemption behind.
+#
+# Session 1 re-encoded the paint binaries to fix F-02 and left site/src/data.ts
+# on the old widths deliberately - session 1 was pipeline-only. Session 4
+# rebuilds THE HAND and turns these green (audit F-04 / V-07). Recorded
+# 2026-08-08.
+DECODER_WAIVERS = {
+    "vertex": (6, 8, "session 4 (THE HAND rebuild) updates site/src/data.ts"),
+    "stroke": (8, 11, "session 4 (THE HAND rebuild) updates site/src/data.ts"),
+}
+
+# The parity fixture both zone implementations are checked against. Python
+# writes it, python re-derives it, and site/scripts/zone-gate.mjs checks the
+# TypeScript copy against the same file - so neither toolchain has to run the
+# other's.
+ZONE_FIXTURE = Path(__file__).resolve().parent / "checks" / "zone_fixture.json"
 
 
-def _decode_paint(p):
-    """paint_index.bin and paint_strokes.bin, decoded from their own record
-    strings. Nothing else in qa.py had ever opened paint_strokes.bin."""
-    import struct
+def pct(x):
+    return f"{100 * x:.1f}"
 
-    srec, vrec = p["files"]["index"]["record"], p["files"]["vertices"]["record"]
+
+def _brief(v, width=110):
+    """A value short enough to read on one line, without changing the comparison."""
+    s = repr(v)
+    if len(s) <= width:
+        return s
+    if isinstance(v, list):
+        return f"{repr(v[:3])[:-1]}, ... +{len(v) - 3} more]"
+    return s[:width] + "..."
+
+
+# --- the gate ----------------------------------------------------------------
+
+
+class Gate:
+    """Records failures rather than exiting inside a check.
+
+    The printed shape is unchanged - PASS/FAIL per line, informational lines,
+    one verdict - because that is how this project reads its own conscience, and
+    because the mutation suite asserts on the check NAMES.
+    """
+
+    def __init__(self, quiet=False):
+        self.failures = []
+        self.n_checks = 0
+        self.group = "-"
+        self.quiet = quiet
+
+    def say(self, line=""):
+        if not self.quiet:
+            print(line)
+
+    def section(self, title):
+        self.say(f"\n{title}")
+
+    def check(self, name, got, want):
+        ok = got == want
+        self.n_checks += 1
+        self.say(f"  {'PASS' if ok else 'FAIL'}  {name}: got {_brief(got)}, "
+                 f"expected {_brief(want)}")
+        if not ok:
+            self.failures.append((self.group, name, got, want))
+        return ok
+
+    def holds(self, name, cond, detail=""):
+        """A check whose interesting half is a condition, not a value."""
+        return self.check(f"{name}{f' ({detail})' if detail else ''}", bool(cond), True)
+
+    def fail(self, name, why):
+        self.n_checks += 1
+        self.say(f"  FAIL  {name}: {why}")
+        self.failures.append((self.group, name, why, "no failure"))
+        return False
+
+    def waived(self, name, why):
+        self.say(f"  WAIVED  {name}: {why}")
+
+    def info(self, msg):
+        self.say(f"  (informational) {msg}")
+
+    def names(self):
+        return [n for _g, n, _got, _want in self.failures]
+
+
+class Ctx:
+    """Everything a group reads, resolved against one processed root.
+
+    A missing required artifact is a FAILURE recorded by the `inventory` group;
+    the group that needed it returns early rather than raising, so one deletion
+    produces one clear red line instead of a traceback.
+    """
+
+    def __init__(self, root, allow_raw=True):
+        self.root = Path(root)
+        self.allow_raw = allow_raw
+        self._json = {}
+        self._bytes = {}
+
+    def json(self, g, name):
+        if name in self._json:
+            return self._json[name]
+        p = self.root / name
+        if not p.exists():
+            g.fail(f"required artifact present: {name}", f"{p} missing")
+            self._json[name] = None
+            return None
+        try:
+            self._json[name] = json.loads(p.read_text())
+        except Exception as e:  # noqa: BLE001 - a corrupt artifact is a failure, not a crash
+            g.fail(f"required artifact parses: {name}", f"{type(e).__name__}: {e}")
+            self._json[name] = None
+        return self._json[name]
+
+    def raw(self, g, name):
+        if name in self._bytes:
+            return self._bytes[name]
+        p = self.root / name
+        if not p.exists():
+            g.fail(f"required artifact present: {name}", f"{p} missing")
+            self._bytes[name] = None
+            return None
+        self._bytes[name] = p.read_bytes()
+        return self._bytes[name]
+
+    def seasons(self, g):
+        f = self.json(g, "seasons.json")
+        return {row["year"]: row for row in f["seasons"]} if f else None
+
+
+# --- the required inventory --------------------------------------------------
+# Held HERE, not in a manifest inside data/processed/: the gate must not take its
+# expectations from the thing it is checking. `public` is what session 3's deploy
+# allowlist (F-07) hangs off - flip a value, do not restructure the table.
+
+class Artifact:
+    def __init__(self, path, kind, public=True, stamp="generated_at", per_season=False):
+        self.path = path
+        self.kind = kind              # "json" | "bin"
+        self.public = public          # does the shipping build serve it? (session 3)
+        self.stamp = stamp            # the header key carrying its generation time
+        self.per_season = per_season
+
+    def paths(self, years):
+        if not self.per_season:
+            return [self.path]
+        return [self.path.format(year=y) for y in years]
+
+
+REQUIRED_ARTIFACTS = [
+    Artifact("seasons.json", "json"),
+    Artifact("acquisition_manifest.json", "json", stamp="fetched_at"),
+    Artifact("sportvu_probe.json", "json", stamp="probed_at"),
+    Artifact("window.json", "json"),
+    Artifact("window_manifest.json", "json", stamp="fetched_at"),
+    Artifact("window_measures.bin", "bin"),
+    Artifact("paint.json", "json"),
+    Artifact("paint_strokes.bin", "bin"),
+    Artifact("paint_index.bin", "bin"),
+    Artifact("traces.json", "json"),
+    Artifact("samples/season_{year}.json", "json", stamp=None, per_season=True),
+    Artifact("grids/season_{year}.json", "json", stamp=None, per_season=True),
+    Artifact("points/season_{year}.bin", "bin", per_season=True),
+]
+
+
+# --- decoders ----------------------------------------------------------------
+# Every layout is read from the artifact's OWN declaration so the gate follows a
+# re-encoding instead of contradicting it. What the gate never takes from the
+# artifact is the THRESHOLD it is judged against.
+
+
+def decode_points(buf):
+    return np.frombuffer(buf, dtype=POINT_DTYPE)
+
+
+def decode_measures(buf, spec):
+    rec, size = spec["record"], struct.calcsize(spec["record"])
+    n = len(buf) // size
+    cols = list(zip(*(struct.unpack_from(rec, buf, i * size) for i in range(n)))) if n else []
+    keys = ("x", "y", "dx", "dy", "dist", "bucket", "made", "day")
+    out = {k: np.array(c) for k, c in zip(keys, cols)}
+    out["n"] = n
+    out["ragged"] = len(buf) % size
+    return out
+
+
+def decode_paint(vbuf, ibuf, files):
+    srec, vrec = files["index"]["record"], files["vertices"]["record"]
     ssz, vsz = struct.calcsize(srec), struct.calcsize(vrec)
-    iraw = (PROCESSED_DIR / "paint_index.bin").read_bytes()
-    vraw = (PROCESSED_DIR / "paint_strokes.bin").read_bytes()
-    strokes = [struct.unpack_from(srec, iraw, i * ssz) for i in range(len(iraw) // ssz)]
-    verts = [struct.unpack_from(vrec, vraw, i * vsz) for i in range(len(vraw) // vsz)]
-    return strokes, verts
+    strokes = [struct.unpack_from(srec, ibuf, i * ssz) for i in range(len(ibuf) // ssz)]
+    verts = [struct.unpack_from(vrec, vbuf, i * vsz) for i in range(len(vbuf) // vsz)]
+    return strokes, verts, (len(ibuf) % ssz, len(vbuf) % vsz)
+
+
+def zone_at_np(x, y):
+    """The vector twin of common.zone_at, in the same precedence order.
+
+    A second implementation is a liability unless something proves it is the
+    same one, so it is checked against the shared parity fixture like the
+    TypeScript copy is - see group_zone_parity.
+    """
+    r = np.hypot(x, y)
+    z = np.full(np.shape(x), 2, np.uint8)
+    z[(np.abs(x) <= LANE_HALF_W) & (y <= FREE_THROW_Y)] = 1
+    z[r <= RESTRICTED_R] = 0
+    z[r >= THREE_R] = 5
+    corner = (np.abs(x) >= CORNER_X) & (y <= CORNER_Y)
+    z[corner & (x < 0)] = 3
+    z[corner & (x >= 0)] = 4
+    z[y > HALFCOURT_Y] = 6
+    return z
+
+
+# --- group: the shot spine ---------------------------------------------------
+
+
+def group_spine(g, ctx):
+    seasons = ctx.seasons(g)
+    if not seasons:
+        return
+    g.section("Acceptance vs build-plan section 1.6")
+    g.check("season count", len(seasons), EXPECTED_SEASONS)
+    g.check("total attempts", sum(r["attempts"] for r in seasons.values()),
+            EXPECTED_TOTAL_ATTEMPTS)
+
+    for year, (mid, three) in sorted(TABLE_1_6.items()):
+        if year not in seasons:
+            g.fail(f"season {year} present", "missing from seasons.json")
+            continue
+        label = seasons[year]["season"]
+        g.check(f"{label} mid-range share", pct(seasons[year]["mid_share"]), mid)
+        g.check(f"{label} 3PT share", pct(seasons[year]["three_share"]), three)
+
+    if 2025 in seasons:
+        g.check("2025-26 attempts", seasons[2025]["attempts"], EXPECTED_2025_ATTEMPTS)
+        g.check("2025-26 mid-range share", pct(seasons[2025]["mid_share"]), EXPECTED_2025_MID)
+    if 1997 in seasons:
+        g.check("1997-98 3PT share (line retreat)",
+                pct(seasons[1997]["three_share"]), EXPECTED_1997_THREE)
+    if 2022 in seasons:
+        g.check("2022-23 mid-range share (Act IV endpoint)",
+                pct(seasons[2022]["mid_share"]), EXPECTED_2022_MID)
+    for year, k in SHORT_SEASON_KATTEMPTS.items():
+        if year in seasons:
+            g.check(f"{seasons[year]['season']} attempts (~{k}k, short season)",
+                    round(seasons[year]["attempts"] / 1000), k)
+
+    g.check("per-season game counts vs schedule", [
+        f"{seasons[y]['season']}: {seasons[y]['n_games']} != {EXPECTED_N_GAMES[y]}"
+        for y in sorted(seasons)
+        if y in EXPECTED_N_GAMES and seasons[y]["n_games"] != EXPECTED_N_GAMES[y]
+    ], [])
+
+
+def group_resolution(g, ctx):
+    seasons = ctx.seasons(g)
+    if not seasons:
+        return
+    g.section("The record's own resolution")
+    g.check("resolution regimes (4 eras)", [
+        f"{seasons[y]['season']}: {seasons[y]['resolution']['regime']} != {EXPECTED_REGIMES[y]}"
+        for y in sorted(seasons)
+        if y in EXPECTED_REGIMES and seasons[y]["resolution"]["regime"] != EXPECTED_REGIMES[y]
+    ], [])
+
+    for year, want in sorted(EXPECTED_RA_ORIGIN.items()):
+        if year in seasons:
+            g.check(f"{seasons[year]['season']} rim shots left unplaced",
+                    pct(seasons[year]["resolution"]["ra_origin_share"]), want)
+
+    uneven = [y for y in sorted(seasons) if seasons[y]["resolution"]["regime"] == "uneven"]
+    g.check(f"{UNEVEN_CONSTANT_ARENA} full-resolution in every uneven season", [
+        seasons[y]["season"] for y in uneven
+        if UNEVEN_CONSTANT_ARENA not in seasons[y]["resolution"]["full_resolution_arenas"]
+    ], [])
+    g.check("uneven-era season count", len(uneven), 13)
+
+    # Where the regime is uniform, no arena may be singled out - claiming a subset
+    # could see would invent a distinction the measurement does not support.
+    g.check("no arenas named in uniform regimes", [
+        seasons[y]["season"] for y in sorted(seasons)
+        if seasons[y]["resolution"]["regime"] != "uneven"
+        and seasons[y]["resolution"]["full_resolution_arenas"]
+    ], [])
+
+    if 1996 in seasons:
+        c = seasons[1996]["contemporaneous"]
+        g.check("1996-97 threes misfiled as Mid-Range",
+                c["misfiled_threes"], EXPECTED_MISFILED_THREES)
+        g.check("1996-97 mid-range under the 22-ft line then in force",
+                pct(c["contemporaneous_mid_share"]), EXPECTED_CONTEMPORANEOUS_MID)
+    g.check("contemporaneous correction confined to 1996-97", [
+        seasons[y]["season"] for y in sorted(seasons)
+        if y != 1996 and seasons[y].get("contemporaneous") is not None
+    ], [])
+
+
+def group_vocabulary(g, ctx):
+    seasons = ctx.seasons(g)
+    if not seasons:
+        return
+    g.section("The record's vocabulary")
+    for year, want in sorted(EXPECTED_WORDS.items()):
+        if year in seasons:
+            g.check(f"{seasons[year]['season']} words for a shot",
+                    seasons[year]["vocabulary"]["words"], want)
+    if {1996, 2024} <= set(seasons):
+        g.check("vocabulary more than quadruples 1996-97 to 2024-25",
+                seasons[2024]["vocabulary"]["words"]
+                > seasons[1996]["vocabulary"]["words"] * 4, True)
+        g.check("description per shot grows by half again",
+                seasons[2024]["vocabulary"]["mean_chars_per_shot"]
+                > seasons[1996]["vocabulary"]["mean_chars_per_shot"] * 1.5, True)
+
+    # The piece's own name, and the season the record learned it.
+    g.check("first season the record says 'Fadeaway'", next(
+        (y for y in sorted(seasons)
+         if any("Fadeaway" in w for w in seasons[y]["vocabulary"]["words_list"])), None,
+    ), FADEAWAY_FIRST_YEAR)
+
+    for year, want in sorted(EXPECTED_CATEGORIES.items()):
+        if year in seasons:
+            g.check(f"{seasons[year]['season']} categories across six taxonomies",
+                    seasons[year]["vocabulary"]["categories_total"], want)
+    g.check("only the description grows; the other five are fixed", [
+        f"{seasons[y]['season']}:{k}={seasons[y]['vocabulary']['taxonomies'][k]}"
+        for y in sorted(seasons) for k, v in FIXED_TAXONOMIES.items()
+        if seasons[y]["vocabulary"]["taxonomies"].get(k) != v
+    ], [])
+
+
+# --- group: the per-season artifacts -----------------------------------------
+
+
+def group_shot_artifacts(g, ctx):
+    seasons = ctx.seasons(g)
+    if not seasons:
+        return
+    g.section("The per-season artifacts, decoded")
+
+    man = ctx.json(g, "acquisition_manifest.json")
+    g.check("acquisition manifest entries",
+            len(man.get("files", {})) if man else "missing", EXPECTED_SEASONS)
+
+    issues = []
+    cells_total = shots_total = 0
+    disagreeing_shots = 0
+    off_x, off_y, off_filed, off_geom, off_season = [], [], [], [], []
+
+    for year, row in sorted(seasons.items()):
+        sj = ctx.json(g, f"samples/season_{year}.json")
+        gj = ctx.json(g, f"grids/season_{year}.json")
+        pb = ctx.raw(g, f"points/season_{year}.bin")
+        if sj is None or gj is None or pb is None:
+            continue
+
+        if gj["total"] != sj["of_halfcourt_attempts"]:
+            issues.append(f"{row['season']}: grid {gj['total']} != sample halfcourt "
+                          f"{sj['of_halfcourt_attempts']}")
+        if sj["of_halfcourt_attempts"] + sj["backcourt_or_oob_dropped"] != row["attempts"]:
+            issues.append(f"{row['season']}: halfcourt + dropped != attempts")
+
+        if len(pb) % POINT_DTYPE.itemsize:
+            issues.append(f"{row['season']}: points file is not a whole number of records")
+            continue
+        rec = decode_points(pb)
+        cells_total += len(rec)
+
+        # Every shot present in the count map, exactly once, at the coordinate
+        # the record filed it. This is what makes "every shot" checkable.
+        total = int(rec["n_hires"].sum()) + int(rec["n_rest"].sum())
+        shots_total += total
+        if total != gj["total"]:
+            issues.append(f"{row['season']}: points total {total} != grid {gj['total']}")
+        if len(rec) != row["points"]["cells"]:
+            issues.append(f"{row['season']}: points cells {len(rec)} != recorded "
+                          f"{row['points']['cells']}")
+
+        x, y = rec["x"].astype(np.int32), rec["y"].astype(np.int32)
+        if x.size:
+            if x.min() < PLATE_X[0] or x.max() > PLATE_X[1] \
+                    or y.min() < PLATE_Y[0] or y.max() > PLATE_Y[1]:
+                issues.append(f"{row['season']}: a cell sits outside the plate box")
+            # A zero-filled file collapses to one repeated cell and dies here.
+            if len(np.unique(x.astype(np.int64) * 100000 + y)) != len(rec):
+                issues.append(f"{row['season']}: the same coordinate is filed twice")
+            if (rec["n_hires"].astype(np.int64) + rec["n_rest"]).min() == 0:
+                issues.append(f"{row['season']}: a cell is occupied by no shots")
+        if int(rec["pad"].max(initial=0)) != 0:
+            issues.append(f"{row['season']}: padding byte is not zero")
+        if int(rec["zone"].max(initial=0)) >= len(ZONE_NAMES):
+            issues.append(f"{row['season']}: a zone byte is outside the taxonomy")
+            continue
+
+        # The zone byte is the LEAGUE's own SHOT_ZONE_BASIC, not the geometric
+        # reconstruction; they are different claims and the piece needs both.
+        # So the check is not equality - it is that every disagreement is a
+        # boundary convention and nothing else.
+        geom = zone_at_np(x.astype(float), y.astype(float))
+        off = np.nonzero(geom != rec["zone"])[0]
+        if off.size:
+            disagreeing_shots += int(
+                (rec["n_hires"].astype(np.int64) + rec["n_rest"])[off].sum())
+            off_x.append(x[off])
+            off_y.append(y[off])
+            off_filed.append(rec["zone"][off])
+            off_geom.append(geom[off])
+            off_season += [row["season"]] * off.size
+
+    g.check("samples/grids/points consistent with seasons.json", issues, [])
+
+    # THE ZONE BYTE. points/*.bin files the LEAGUE's own SHOT_ZONE_BASIC label
+    # per cell, not the geometric reconstruction - two different claims, and the
+    # piece needs both. So the check is not equality (3,061 cells would fail it)
+    # but that every disagreement is a BOUNDARY CONVENTION and nothing else: the
+    # cell sits within a tenth and a half of the region the league filed it in.
+    # A flipped byte is nowhere near the region it then claims, and dies here.
+    if off_x:
+        ax, ay = np.concatenate(off_x).astype(float), np.concatenate(off_y).astype(float)
+        af, ag = np.concatenate(off_filed), np.concatenate(off_geom)
+        far, worst_boundary = _zone_boundary_probe(ax, ay, af)
+        coords = {(int(a), int(b), int(c)) for a, b, c in zip(ax, ay, af)}
+        g.check("every points cell's league label is its own region or a boundary of it", [
+            f"{off_season[i]}: ({int(ax[i])},{int(ay[i])}) filed {ZONE_NAMES[af[i]]!r}, "
+            f"geometry says {ZONE_NAMES[ag[i]]!r}, and it is not a boundary"
+            for i in np.nonzero(far)[0]
+        ], [])
+        g.check("the set of coordinates where the two zone readings differ",
+                len(coords), POINTS_ZONE_DISAGREEING_COORDS)
+        g.holds("no disagreement sits further from its boundary than measured",
+                worst_boundary <= POINTS_ZONE_BOUNDARY_MAX_TENTHS,
+                f"{worst_boundary:.2f} <= {POINTS_ZONE_BOUNDARY_MAX_TENTHS} tenths")
+        g.info(f"{cells_total:,} occupied coordinates over {shots_total:,} shots; "
+               f"{len(coords)} coordinates ({disagreeing_shots:,} shots, "
+               f"{100 * disagreeing_shots / max(1, shots_total):.4f}%) carry a league label "
+               f"the geometry would draw differently, all of them within "
+               f"{worst_boundary:.2f} tenths of that region's edge")
+    else:
+        g.check("the set of coordinates where the two zone readings differ",
+                0, POINTS_ZONE_DISAGREEING_COORDS)
+
+    # The contradiction that prompted THE CENSUS: the tallies must equal the
+    # figures the plate strikes into the floor, for every season.
+    drift = []
+    for year, row in sorted(seasons.items()):
+        cls = row.get("classification")
+        if not cls:
+            drift.append(f"{row['season']}: no classification block")
+            continue
+        mid = cls["ZONE"].get("Mid-Range", 0)
+        if abs(mid / row["attempts"] - row["mid_share"]) > 1e-9:
+            drift.append(f"{row['season']}: census {mid / row['attempts']:.4f} "
+                         f"!= {row['mid_share']:.4f}")
+        if sum(cls["TYPE"].values()) != row["attempts"] - row["shot_type_nulls"]:
+            drift.append(f"{row['season']}: TYPE counts do not sum to attempts")
+    g.check("census figures equal the struck figures", drift, [])
+
+
+def _zone_boundary_probe(xs, ys, filed):
+    """How far each disagreeing cell is from the region the league filed it in.
+
+    Returns (per-cell "not a boundary" flags, the worst distance found). A
+    genuine misclassification - a flipped byte, say - is nowhere near the region
+    it claims, so it never resolves and comes back flagged.
+    """
+    step = 0.05
+    n = len(xs)
+    found = np.zeros(n, bool)
+    dist = np.full(n, np.inf)
+    r = step
+    while r <= POINTS_ZONE_BOUNDARY_MAX_TENTHS + 1e-9 and not found.all():
+        steps = max(8, int(2 * math.pi * r / step))
+        for k in range(steps):
+            a = 2 * math.pi * k / steps
+            hit = (zone_at_np(xs + r * math.cos(a), ys + r * math.sin(a)) == filed) & ~found
+            if hit.any():
+                dist[hit] = r
+                found |= hit
+        # Rounded, or thirty additions of 0.05 drift past the bound they are
+        # being compared with and the last ring is never walked.
+        r = round(r + step, 4)
+    return ~found, float(dist[np.isfinite(dist)].max(initial=0.0))
+
+
+# --- group: the league's own map of the floor --------------------------------
+
+
+def group_zone_vs_league(g, ctx):
+    """THE HAND colours a stroke by the zone it is PASSING THROUGH, which is only
+    legitimate if SHOT_ZONE_BASIC really is a partition of the floor rather than
+    a judgement about a shot. This is the gate that licenses that colour: the
+    geometry the plate draws reclassifies every 2015-16 shot from its
+    coordinates alone, and is scored against the league's own label."""
+    g.section("The league's own map of the floor")
+    if not ctx.allow_raw:
+        g.info(f"--no-raw: data/shots/ not consulted, {ZONE_VS_LEAGUE_CHECKS} checks not run")
+        return
+    before = g.n_checks
+    try:
+        zdf = read_season_csv(2015, usecols=["LOC_X", "LOC_Y", "SHOT_ZONE_BASIC"])
+    except Exception as e:  # noqa: BLE001
+        g.fail("the 2015-16 shot dump is readable",
+               f"{type(e).__name__}: {e} - pass --no-raw for a public clone without dumps")
+        return
+
+    names = np.array(ZONE_NAMES)
+    got = names[zone_at_np(zdf.LOC_X.to_numpy(float), zdf.LOC_Y.to_numpy(float))]
+    match = got == zdf.SHOT_ZONE_BASIC.to_numpy()
+    rate = float(match.mean())
+    g.holds("zone reconstructed from geometry matches the league's own label",
+            rate >= ZONE_AGREEMENT_FLOOR, f"{100 * rate:.3f}%")
+
+    # The misses are not "duplicate rows the record labels inconsistently",
+    # which is what this file used to say. They are a small set of boundary
+    # coordinates the record labels CONSISTENTLY, under a convention that
+    # rounds differently from the polygons - a convention mismatch, not noise.
+    miss = np.nonzero(~match)[0]
+    labels = zdf.SHOT_ZONE_BASIC.to_numpy()
+    filed = {}
+    for i in miss:
+        filed.setdefault((int(zdf.LOC_X.values[i]), int(zdf.LOC_Y.values[i])),
+                         set()).add(labels[i])
+    coords = sorted(filed)
+    g.holds("every miss is one of a handful of boundary coordinates",
+            len(coords) <= 8, f"{len(coords)} distinct")
+    g.check("the record labels each of them consistently",
+            [c for c in coords if len(filed[c]) != 1], [])
+    far, worst = _zone_boundary_probe(
+        np.array([c[0] for c in coords], float),
+        np.array([c[1] for c in coords], float),
+        np.array([ZONE_NAMES.index(next(iter(filed[c]))) for c in coords]),
+    ) if coords else (np.zeros(0, bool), 0.0)
+    g.check("no miss is anything but a boundary convention", int(far.sum()), 0)
+    g.info(f"{int(match.sum()):,}/{len(match):,} = {100 * rate:.3f}% - the "
+           f"{len(miss)} misses are {len(coords)} boundary coordinates "
+           f"{coords}, each within {worst:.2f} tenths of the region the league "
+           f"files it in; the record labels them consistently and the polygons "
+           f"round the other way")
+    g.check("the raw-dump group ran the number of checks it declares",
+            g.n_checks - before, ZONE_VS_LEAGUE_CHECKS)
+
+
+# --- group: python <-> typescript zone parity --------------------------------
+
+
+def zone_fixture_cases():
+    """A coarse grid over the plate box, plus every boundary the geometry has.
+
+    Boundaries are where two implementations of the same rule drift apart, so
+    they are enumerated rather than sampled: the arc, the corner line, the
+    corner cut, halfcourt, the restricted circle, the lane, the free-throw line,
+    and the coordinates where the league's own label and these polygons are
+    known to disagree.
+    """
+    xs = list(range(PLATE_X[0], PLATE_X[1] + 1, 10))
+    ys = list(range(PLATE_Y[0], PLATE_Y[1] + 1, 10))
+    grid = "".join(str(zone_at(float(x), float(y))) for y in ys for x in xs)
+
+    edge = []
+
+    def add(x, y):
+        for dx in (-0.1, 0.0, 0.1):
+            for dy in (-0.1, 0.0, 0.1):
+                edge.append((round(x + dx, 6), round(y + dy, 6)))
+
+    for k in range(73):                                   # the arc, every 2.5 degrees
+        a = math.pi * k / 72
+        add(THREE_R * math.cos(a), THREE_R * math.sin(a))
+    for y in (0.0, 40.0, CORNER_Y, 88.0, 89.0, 120.0):    # the corner line
+        add(CORNER_X, y)
+        add(-CORNER_X, y)
+    for x in (-240.0, -220.0, -100.0, 0.0, 100.0, 220.0, 240.0):
+        add(x, CORNER_Y)                                  # the corner cut
+        add(x, HALFCOURT_Y)                               # halfcourt
+        add(x, FREE_THROW_Y)                              # the free-throw line
+    for k in range(37):                                   # the restricted circle
+        a = math.pi * k / 36
+        add(RESTRICTED_R * math.cos(a), RESTRICTED_R * math.sin(a))
+    for y in (-50.0, 0.0, 40.0, 137.5, 200.0):            # the lane
+        add(LANE_HALF_W, y)
+        add(-LANE_HALF_W, y)
+    # The five coordinates where the league's own label and these polygons
+    # disagree, identified in the 2026-08-08 audit. A convention mismatch, and
+    # both implementations must make it identically.
+    for x, y in ((-32, 24), (40, 0), (-40, 138), (-1, 138), (61, 138)):
+        add(float(x), float(y))
+    # ... and the two lattice rows the 30-season points corpus disagrees on.
+    for x in (-248.0, -230.0, -222.0, 222.0, 236.0, 248.0):
+        add(x, 88.0)
+        add(x, 89.0)
+    for x in (-18.0, -2.0, 1.0, 62.0, 92.0):
+        add(x, 418.0)
+        add(x, 419.0)
+
+    seen, cases = set(), []
+    for x, y in edge:
+        if (x, y) in seen:
+            continue
+        seen.add((x, y))
+        cases.append([x, y, zone_at(x, y)])
+    return xs, ys, grid, cases
+
+
+def write_zone_fixture():
+    import datetime  # noqa: PLC0415
+
+    xs, ys, grid, cases = zone_fixture_cases()
+    ZONE_FIXTURE.parent.mkdir(parents=True, exist_ok=True)
+    ZONE_FIXTURE.write_text(json.dumps({
+        "generated_by": "pipeline/qa.py --write-zone-fixture",
+        "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+        "what": ("the league's seven SHOT_ZONE_BASIC regions read as a partition of the "
+                 "FLOOR. Both implementations of that partition - pipeline/common.py:zone_at "
+                 "and site/src/zone.ts:zoneAt - are checked against this file, so neither "
+                 "toolchain has to run the other's. Required agreement is 100%: this is "
+                 "parity between two copies of one rule, which is a different claim from "
+                 "the reconstruction's agreement with the league's own labels."),
+        "units": "tenths of a foot, hoop at origin",
+        "zone_names": ZONE_NAMES,
+        "constants": {
+            "RESTRICTED_R": RESTRICTED_R, "LANE_HALF_W": LANE_HALF_W,
+            "FREE_THROW_Y": FREE_THROW_Y, "THREE_R": THREE_R,
+            "CORNER_X": CORNER_X, "CORNER_Y": CORNER_Y, "HALFCOURT_Y": HALFCOURT_Y,
+        },
+        "grid": {"x": xs, "y": ys, "zones": grid,
+                 "order": "row-major over y, x fastest"},
+        "boundary_cases": cases,
+    }, indent=1) + "\n")
+    print(f"wrote {ZONE_FIXTURE} - {len(xs) * len(ys)} grid cells, "
+          f"{len(cases)} boundary cases")
+
+
+def group_zone_parity(g, ctx):
+    g.section("One rule, three implementations")
+    if not ZONE_FIXTURE.exists():
+        g.fail("the zone parity fixture is committed",
+               f"{ZONE_FIXTURE} missing - run qa.py --write-zone-fixture")
+        return
+    fx = json.loads(ZONE_FIXTURE.read_text())
+
+    # The constants the fixture was cut against must still be the ones in force.
+    g.check("the fixture's geometry is the geometry in force", fx["constants"], {
+        "RESTRICTED_R": RESTRICTED_R, "LANE_HALF_W": LANE_HALF_W,
+        "FREE_THROW_Y": FREE_THROW_Y, "THREE_R": THREE_R,
+        "CORNER_X": CORNER_X, "CORNER_Y": CORNER_Y, "HALFCOURT_Y": HALFCOURT_Y,
+    })
+    g.check("the fixture names the league's seven regions", fx["zone_names"], ZONE_NAMES)
+
+    xs, ys, grid, cases = zone_fixture_cases()
+    g.check("the committed grid is what common.zone_at produces today",
+            [fx["grid"]["x"], fx["grid"]["y"], fx["grid"]["zones"]] == [xs, ys, grid], True)
+    g.check("the committed boundary cases are what common.zone_at produces today",
+            sum(1 for a, b in zip(fx["boundary_cases"], cases) if a != b)
+            + abs(len(fx["boundary_cases"]) - len(cases)), 0)
+
+    # The vector twin used by the artifact groups, against the same fixture -
+    # so a second implementation cannot quietly diverge from the first.
+    gx = np.array([x for _y in ys for x in xs], float)
+    gy = np.array([y for y in ys for _x in xs], float)
+    g.check("the vectorised zone_at agrees with the fixture over the grid",
+            int((zone_at_np(gx, gy) != np.array([int(c) for c in grid])).sum()), 0)
+    bx = np.array([c[0] for c in cases], float)
+    by = np.array([c[1] for c in cases], float)
+    g.check("the vectorised zone_at agrees with the fixture on every boundary",
+            int((zone_at_np(bx, by) != np.array([c[2] for c in cases])).sum()), 0)
+    g.info(f"{len(xs) * len(ys):,} grid cells and {len(cases):,} boundary cases; the "
+           f"TypeScript copy is checked against this same file by `npm run gate`, "
+           f"which `npm run build` calls")
+
+
+# --- group: the window -------------------------------------------------------
+
+
+def group_window(g, ctx):
+    w = ctx.json(g, "window.json")
+    if w is None:
+        return
+    seasons = ctx.seasons(g) or {}
+    g.section("The window: eleven weeks of raw record")
+
+    # SCHEMA FIRST. Every key the site's WindowFile interface reads must be
+    # here, with its type: a missing key is a gate failure, not a runtime
+    # `undefined` in the gallery.
+    g.check("window.json carries every field the site's WindowFile declares",
+            _schema_gaps(w, WINDOW_SCHEMA), [])
+
+    corp = w["corpus"]
+    # 622 is the trap: bloom.py's filename parser drops the ten misnamed
+    # Dec 5 2015 archives, and nothing downstream would have noticed.
+    g.check("games parsed (622 is the misnaming bug)",
+            corp["games_parsed"], EXPECTED_WINDOW_GAMES)
+    g.check("archives listed", corp["archives_listed"], EXPECTED_WINDOW_ARCHIVES)
+    g.check("empty 32-byte shells", len(corp["empty_shells"]), EXPECTED_WINDOW_SHELLS)
+    g.check("misnamed archives, named not filtered",
+            len(corp["misnamed_archives"]), EXPECTED_WINDOW_MISNAMED)
+    g.check("window opens", corp["date_first"], EXPECTED_WINDOW_DATES[0])
+    g.check("window closes", corp["date_last"], EXPECTED_WINDOW_DATES[1])
+    g.check("window is half of 2015-16", corp["games_parsed"] < corp["season_games"], True)
+
+    _window_recovery(g, w, corp)
+    m = _window_measures(g, ctx, w)
+    _window_bias(g, w, seasons, m)
+    _window_contest(g, w, m)
+    _window_occupancy(g, w)
+
+    # The window's figures must not leak into the other twenty-nine seasons.
+    g.check("window fields confined to 2015-16",
+            [y for y, r in seasons.items() if y != 2015 and r.get("window") is not None], [])
+
+    dis = w["disagreement"]
+    # by_action ships only actions with 50 or more shots, so it is a subset by
+    # construction; what must hold is that it cannot exceed the whole.
+    named = sum(v["n"] for v in dis["by_action"].values())
+    g.holds("the per-action census is a subset of the shots it is drawn from",
+            0 < named <= dis["n"], f"{named:,} of {dis['n']:,}")
+    g.check("every per-action rate is its own two counts", [
+        k for k, v in dis["by_action"].items()
+        if v["n"] <= 0 or abs(v["rate"] - v["agree"] / v["n"]) > 5e-5 or v["agree"] > v["n"]
+    ], [])
+    g.holds("the disagreement percentiles are ordered",
+            dis["p25_ft"] <= dis["median_ft"] <= dis["p75_ft"] <= dis["p90_ft"],
+            f"{dis['p25_ft']} <= {dis['median_ft']} <= {dis['p75_ft']} <= {dis['p90_ft']}")
+    g.holds("the disagreement shares are ordered and bounded",
+            0 <= dis["within_3ft"] <= dis["within_6ft"] <= 1 and 0 <= dis["beyond_15ft"] <= 1)
+    g.info(f"the archive against itself: median {dis['median_ft']} ft between the "
+           f"coordinate a scorer filed and where the optical feed says the ball left "
+           f"the hand; {100 * dis['within_6ft']:.1f}% agree within 6 ft, "
+           f"{100 * dis['beyond_15ft']:.1f}% differ by more than 15 ft")
+
+    inv = w["inventory"]
+    g.check("the per-game inventory is the totals over the games parsed", [
+        k for k in ("touches", "passes", "drives")
+        if inv["per_game"][k] != round(inv[k] / corp["games_parsed"], 1)
+    ], [])
+    g.holds("a drive is directed, so fewer are counted than read either way",
+            inv["drives"] < inv["drives_unordered"],
+            f"{inv['drives']:,} of {inv['drives_unordered']:,}")
+    g.info(f"{inv['moments']:,} moments, {inv['body_positions']:,} body positions, "
+           f"{inv['miles_run']:,} miles run, {inv['hours_tracked']:,} hours")
+    g.info(f"{inv['touches']:,} touches, {inv['passes']:,} passes "
+           f"({inv['passes_alt_gap']:,} at the alternate gap), {inv['drives']:,} drives - "
+           f"against {inv['drives_unordered']:,} read without requiring the outside sample "
+           f"to come first; {inv['feed_breaks']:,} feed breaks segmented on")
+
+
+def _window_recovery(g, w, corp):
+    rec = w["recovery"]
+    # Recovery is published, not assumed. The floor is set from measurement and
+    # exists to catch a regression, not to flatter the number.
+    g.holds("recovery above the measured floor", rec["rate"] >= WINDOW_RECOVERY_FLOOR,
+            f"{rec['rate']} >= {WINDOW_RECOVERY_FLOOR}")
+    g.check("failure reasons account for every unmeasured shot",
+            sum(rec["failures"].values()), rec["joined_shots"] - rec["measured"])
+    g.check("the published rate is the two counts it summarises",
+            rec["rate"], round(rec["measured"] / rec["joined_shots"], 4))
+
+    # The per-game event-offset calibration, gated in the open.
+    g.check("the offset search is the declared width", rec["search_range"], MAX_EVENT_OFFSET)
+    g.check("event offsets stay inside the searched range",
+            [k for k in rec["event_offsets"] if abs(int(k)) > MAX_EVENT_OFFSET], [])
+    g.check("every game parsed is accounted for in the offset distribution",
+            sum(rec["event_offsets"].values()), corp["games_parsed"])
+    g.check("games_offset is the count of games carrying a shift",
+            rec["games_offset"],
+            sum(v for k, v in rec["event_offsets"].items() if int(k) != 0))
+    # An argmax on the edge is a peak the search could not see, so it is refused
+    # rather than shipped - and the count that would actually reveal a search too
+    # narrow to see its own peak is how many were refused for it, not how many
+    # were accepted on it (which decide_offset makes zero by construction).
+    g.check("no accepted offset sits on the search boundary",
+            rec["offsets_on_search_boundary"], 0)
+    g.check("no game's argmax was refused for landing on the search boundary",
+            rec["offsets_rejected_by_reason"].get("argmax on the search boundary", 0), 0)
+
+    # EVERY ACCEPTED SHIFT, re-tested against the rule's own constants.
+    acc = rec.get("accepted_offsets")
+    g.check("every accepted shift is listed with the evidence for it",
+            acc is not None and len(acc) == rec["games_offset"], True)
+    if acc is not None:
+        g.check("no accepted shift falls below the minimum vote count",
+                [a["archive"] for a in acc if a["votes"] < MIN_OFFSET_VOTES], [])
+        g.check("every accepted shift clears the straight join by the declared factor",
+                [a["archive"] for a in acc
+                 if a["votes"] < OFFSET_OVER_ZERO * max(1, a["at_zero"])], [])
+        g.check("every accepted shift beats its own runner-up by the declared margin",
+                [a["archive"] for a in acc if a["margin"] < OFFSET_MIN_MARGIN], [])
+        g.check("no accepted shift sits on the search boundary",
+                [a["archive"] for a in acc if abs(a["offset"]) >= MAX_EVENT_OFFSET], [])
+        g.check("the smallest accepted vote count is the one reported",
+                rec["min_votes_accepted"], min(a["votes"] for a in acc) if acc else None)
+    # No game may be decided on a vector where the rivals are structurally
+    # attenuated: on a release set built from the anchor keys, offset zero has a
+    # candidate anchor for every member by construction and no rival does.
+    g.check("every game's offset was decided on the full release set",
+            rec.get("searched"), {"full": corp["games_parsed"]})
+
+    ho = rec["held_out_by_outcome"]
+    g.holds("the held-out split is drawn from most of the corpus",
+            rec["held_out_games"] >= HELD_OUT_MIN_SHARE * corp["games_parsed"],
+            f"{rec['held_out_games']} of {corp['games_parsed']}")
+    g.holds("the straight join reproduces on half the evidence",
+            ho["straight"]["rate"] is not None
+            and ho["straight"]["rate"] >= HELD_OUT_STRAIGHT_FLOOR,
+            f"{ho['straight']['rate']}")
+    agg_games = sum(v["games"] for v in ho.values())
+    agg_agree = sum(v["agree"] for v in ho.values())
+    g.check("the held-out aggregate is the split it summarises",
+            [rec["held_out_games"], rec["held_out_agreement"]],
+            [agg_games, round(agg_agree / agg_games, 4) if agg_games else None])
+    g.check("the held-out split is reported, not just its aggregate",
+            sorted(ho), ["rejected", "shifted", "straight"])
+    g.holds("most games need no offset", rec["games_offset"] / corp["games_parsed"] < 0.5)
+
+    g.info(f"{rec['games_offset']} of {corp['games_parsed']} games "
+           f"({100 * rec['games_offset'] / corp['games_parsed']:.0f}%) needed their event "
+           f"numbering shifted: {rec['event_offsets']}")
+    g.info(f"{rec['n_weak_joins']} games where the record barely settled the offset "
+           f"(margin < 0.10); {rec['offsets_rejected']} shifted joins rejected "
+           f"{rec['offsets_rejected_by_reason']}")
+    g.info(f"{rec['held_out_refused_halves']} halves refused to name an offset at all and "
+           f"are counted as neither agreement nor disagreement")
+    g.info(f"held-out validation over {rec['held_out_games']} testable games: the straight "
+           f"join reproduces on half the evidence {100 * ho['straight']['rate']:.1f}% of the "
+           f"time ({ho['straight']['games']} games), an accepted shift "
+           f"{100 * ho['shifted']['rate']:.1f}% ({ho['shifted']['games']}), a rejected one "
+           f"{100 * ho['rejected']['rate']:.1f}% ({ho['rejected']['games']}); aggregate "
+           f"{100 * rec['held_out_agreement']:.1f}%")
+
+    vt = rec["votes"]
+    g.holds("no game where the vote floor is reached went unrecorded",
+            vt["games_in_population"] >= len(acc or []))
+    g.check("the alternate vote floor's cost is recomputed, not asserted",
+            "games_changed_by_alt" in vt, True)
+    g.info(f"the vote floor is reached in {vt['games_in_population']} games (those with a "
+           f"non-zero argmax), never in the {rec['event_offsets'].get('0', 0)} straight "
+           f"joins: min {vt['min_in_population']}, p50 {vt['p50']}, p95 {vt['p95']}; "
+           f"{vt['under_min']} fall under the minimum of {vt['min_required']} and are "
+           f"refused, {vt['under_min_alt']} under the alternate {vt['min_required_alt']}")
+    g.info(f"the smallest vote count carrying an ACCEPTED shift is "
+           f"{rec['min_votes_accepted']}; the alternate floor of {vt['min_required_alt']} "
+           f"decides {vt['games_changed_by_alt']} games differently"
+           + (" - on this corpus the two values are the same rule"
+              if not vt["games_changed_by_alt"] else ""))
+
+
+def _window_measures(g, ctx, w):
+    """window_measures.bin, decoded and asked what it means.
+
+    The old gate compared the file's LENGTH against a record count it read out
+    of the same file, which an equal-length run of zeros satisfies exactly.
+    """
+    mb = w["measures_bin"]
+    buf = ctx.raw(g, "window_measures.bin")
+    if buf is None:
+        return None
+    m = decode_measures(buf, mb)
+    g.check("measures.bin is a whole number of records", m["ragged"], 0)
+    g.check("measures.bin holds every measured shot", m["n"], w["recovery"]["measured"])
+    g.check("measures.bin holds the record count it declares", m["n"], mb["records"])
+    if not m["n"]:
+        return m
+
+    buckets = w["contest"]["buckets"]
+    g.check("every filed bucket is one of the published categories",
+            int((m["bucket"] >= len(buckets)).sum()), 0)
+    g.check("made is a flag", sorted(set(map(int, np.unique(m["made"])))), [0, 1])
+    span = _span_days(w["corpus"]["date_first"], w["corpus"]["date_last"])
+    g.check("no shot is filed outside the window's own span",
+            int(((m["day"] < 0) | (m["day"] >= span)).sum()), 0)
+    # NOT clipped to the plate box: the record files a shot where the shooter
+    # was, and the plate box is where the drawing stops. So the count off the
+    # plate is pinned as a measurement, and the physical bound is the court.
+    off_plate = ((m["x"] < PLATE_X[0]) | (m["x"] > PLATE_X[1])
+                 | (m["y"] < PLATE_Y[0]) | (m["y"] > PLATE_Y[1]))
+    g.check("shots the record files from outside the plate box",
+            int(off_plate.sum()), MEASURES_OFF_PLATE_RECORDS)
+    off_court = 0.0
+    for cx, cy in ((m["x"], m["y"]), (m["dx"], m["dy"])):
+        off_court = max(off_court, float(np.maximum(
+            np.maximum(COURT_BOX_X[0] - cx, cx - COURT_BOX_X[1]),
+            np.maximum(COURT_BOX_Y[0] - cy, cy - COURT_BOX_Y[1])).max()) / 10.0)
+    g.holds("no body stands further off the court than the apron it is filed in",
+            off_court <= MEASURES_MAX_OFF_COURT_FT,
+            f"{off_court:.2f} <= {MEASURES_MAX_OFF_COURT_FT} ft")
+
+    # THE BUCKET RECOMPUTATION. Each record's category is re-derived from its
+    # own encoded distance and the bounds the artifact publishes, and the
+    # per-bucket tallies are rebuilt from the bytes. This is what kills "every
+    # contest bound replaced with 99-100 ft": those bounds no longer classify
+    # the distances the file actually holds.
+    # The stored distance is rounded to a tenth while the category was decided
+    # on the full-precision one, so a shot at 1.96 ft is filed under 0-2 and
+    # ships as 2.0. The category must therefore be one whose interval reaches
+    # the stored distance to within half a quantum - which 1,091 records need
+    # and which 99-100 ft satisfies for nothing at all.
+    lo = np.array([b["lo_ft"] for b in buckets], float)
+    hi = np.array([1e9 if b["hi_ft"] is None else b["hi_ft"] for b in buckets], float)
+    d = m["dist"] / 10.0
+    reach = np.zeros(m["n"], bool)
+    exact = np.full(m["n"], -1, int)
+    for i in range(len(buckets)):
+        exact[(d >= lo[i]) & (d < hi[i])] = i
+        here = m["bucket"] == i
+        reach |= here & (d + 0.05 >= lo[i]) & (d - 0.05 < hi[i])
+    g.check("every record's category follows from its own distance and the published bounds",
+            int((~reach).sum()), 0)
+    g.info(f"{int((exact != m['bucket']).sum()):,} of {m['n']:,} records sit on a category "
+           f"bound once their distance is rounded into a byte, and are read as reaching it")
+    g.check("the published attempt counts are the ones in the file",
+            [int((m["bucket"] == i).sum()) for i in range(len(buckets))],
+            [b["attempts"] for b in buckets])
+    g.check("the published made counts are the ones in the file",
+            [int(m["made"][m["bucket"] == i].sum()) for i in range(len(buckets))],
+            [b["made"] for b in buckets])
+
+    # ENDPOINT GEOMETRY. The caliper is stored twice - as two endpoints and as a
+    # length - so the two must agree. One byte of tenths cannot hold more than
+    # 25.5 ft, and what that costs is counted rather than hidden: F-05's fix to
+    # the encoding is session 3's, but a regeneration that clips a different
+    # number of records turns this red today.
+    geom = np.hypot(m["x"].astype(float) - m["dx"], m["y"].astype(float) - m["dy"]) / 10.0
+    ceiling = m["dist"] == 255
+    off = np.abs(geom - d) > QUANTUM_FT
+    g.check("every unclipped caliper is the distance between its own endpoints",
+            int((off & ~ceiling).sum()), 0)
+    g.check("every clipped caliper really does reach the encoding ceiling",
+            int((geom[ceiling] < 25.5).sum()), 0)
+    g.check("the number of calipers the one-byte encoding clips",
+            int(ceiling.sum()), MEASURES_CEILING_RECORDS)
+    g.check("the longest caliper the endpoints describe",
+            round(float(geom.max()), 2), MEASURES_MAX_RECOMPUTED_FT)
+    g.holds("no caliper is longer than the floor it was measured on",
+            float(geom.max()) <= MAX_ON_COURT_FT,
+            f"{geom.max():.2f} <= {MAX_ON_COURT_FT:.2f} ft")
+    g.info(f"{int(ceiling.sum())} of {m['n']:,} calipers sit at the 25.5 ft byte ceiling, "
+           f"the longest recomputing to {geom.max():.2f} ft; widening the encoding is "
+           f"F-05 and belongs to session 3, and this gate reddens the moment the count "
+           f"moves without the fixture moving with it")
+    m["geom"] = geom
+    return m
+
+
+def _window_bias(g, w, seasons, m):
+    """What the instrument prefers, stated rather than carried.
+
+    A release is only found by following the ball back from the rim, so the
+    recovered set shoots better than the league did. The gate is that the bias
+    is MEASURED and bounded, not that it is absent; it cannot be absent given
+    how detection works - which is exactly why "gap set to zero" had to fail.
+    """
+    bias = w["bias"]
+    g.check("the bias counts the shots the binary holds",
+            bias["measured_attempts"], w["recovery"]["measured"])
+    if 2015 in seasons:
+        s = seasons[2015]
+        g.check("the season it is compared against is the one on the plate",
+                bias["season_attempts"], s["attempts"])
+        g.check("the coverage share is the ratio it summarises",
+                bias["share_of_season"],
+                round(bias["measured_attempts"] / s["attempts"], 4))
+        g.check("the season's FG% is recomputed from seasons.json",
+                bias["fg_pct_season"], round(100 * s["made"] / s["attempts"], 1))
+    if m is not None and m["n"]:
+        g.check("the recovered set's FG% is recomputed from the binary",
+                bias["fg_pct_measured"], round(100 * float(m["made"].mean()), 1))
+    # Three figures each rounded to a tenth independently, so the difference of
+    # two of them can sit a tenth from the third. Derived slack, not a fudge -
+    # and two orders of magnitude below "the gap replaced with zero".
+    g.holds("the gap is the difference between the two figures beside it",
+            abs(bias["fg_pct_gap"]
+                - (bias["fg_pct_measured"] - bias["fg_pct_season"])) <= 0.1 + 1e-9,
+            f"{bias['fg_pct_gap']} against "
+            f"{bias['fg_pct_measured'] - bias['fg_pct_season']:.1f}")
+    g.holds("make-bias stays inside the disclosed bound",
+            abs(bias["fg_pct_gap"]) <= WINDOW_MAX_FG_BIAS_PP,
+            f"{bias['fg_pct_gap']:+.1f} pp")
+    g.info(f"the recovered set shoots {bias['fg_pct_measured']}% against the season's "
+           f"{bias['fg_pct_season']}% ({bias['fg_pct_gap']:+.1f} pp) and covers "
+           f"{100 * bias['share_of_season']:.1f}% of 2015-16's attempts")
+
+
+def _window_contest(g, w, m):
+    con = w["contest"]
+    buckets = con["buckets"]
+    g.check("four published categories", len(buckets), 4)
+    g.check("the categories start at the rim and end open",
+            [buckets[0]["lo_ft"], buckets[-1]["hi_ft"]], [0.0, None])
+    g.check("the category bounds are contiguous and ordered", [
+        i for i in range(len(buckets))
+        if (buckets[i]["hi_ft"] is not None
+            and (buckets[i]["hi_ft"] <= buckets[i]["lo_ft"]
+                 or buckets[i]["hi_ft"] != buckets[i + 1]["lo_ft"]))
+    ], [])
+    g.check("every measure lands in exactly one category",
+            sum(b["attempts"] for b in buckets), w["recovery"]["measured"])
+    g.check("every category share is its own two counts", [
+        b["name"] for b in buckets
+        if abs(b["share"] - b["attempts"] / w["recovery"]["measured"]) > 5e-5
+    ], [])
+    g.check("every category FG% is its own two counts", [
+        b["name"] for b in buckets
+        if b["attempts"] and abs(b["fg_pct"] - 100 * b["made"] / b["attempts"]) > 0.05
+    ], [])
+    g.check("made counts never exceed attempts",
+            [b["name"] for b in buckets if b["made"] > b["attempts"]], [])
+
+    # THE APPROACH CURVE. The old check asked whether the curve was long enough,
+    # which every value being 999 ft satisfies. Three questions instead: is it
+    # exactly as long as the sampling it declares, is every sample a distance a
+    # basketball court can hold, and does its LAST sample - the release instant -
+    # equal the release-instant mean recomputed from the per-shot records.
+    curve = con["approach_curve_ft"]
+    want_len = int(round(con["approach_seconds_before_release"] * con["approach_hz"])) + 1
+    g.check("the approach curve is sampled exactly to the release", len(curve), want_len)
+    g.check("no approach sample is missing", [i for i, v in enumerate(curve) if v is None], [])
+    vals = [v for v in curve if v is not None]
+    g.holds("every approach sample is a distance this floor can hold",
+            vals and 0 < min(vals) and max(vals) <= MAX_ON_COURT_FT,
+            f"{min(vals)}..{max(vals)} ft within {MAX_ON_COURT_FT:.1f}")
+    if m is not None and m["n"]:
+        mean_release = float(m["geom"].mean())
+        g.holds("the curve's release sample is the mean the binary gives independently",
+                abs(curve[-1] - mean_release) <= APPROACH_RELEASE_TOL_FT,
+                f"{curve[-1]} against {mean_release:.3f} ft, "
+                f"tolerance {APPROACH_RELEASE_TOL_FT}")
+        g.info(f"the approach closes from {curve[0]} ft to {curve[-1]} ft; the same instant "
+               f"recomputed from {m['n']:,} per-shot endpoint pairs is "
+               f"{mean_release:.3f} ft")
+
+    # HEROES. F-09's criterion: no unmarked frame jump past the documented
+    # physical-continuity threshold. Two of the four shipped 40 ms teleports of
+    # 16 and 22 ft before the shooter was bound at the release and followed.
+    g.check("one hero per category", len(con["heroes"]), 4)
+    g.check("the heroes cover the four categories",
+            sorted(h["bucket"] for h in con["heroes"]), [0, 1, 2, 3])
+    g.check("heroes carry complete geometry",
+            [h["bucket_name"] for h in con["heroes"] if any(f is None for f in h["track"])], [])
+    g.check("the artifact discloses the per-frame step limit it was built to",
+            _stated_step_limits(w), [MAX_STEP_FT])
+    bad_shooter, bad_defender, switches, worst_s, worst_d = [], [], [], 0.0, 0.0
+    for h in con["heroes"]:
+        tr = [f for f in h["track"] if f is not None]
+        if len(tr) != len(h["track"]):
+            continue
+        for i in range(1, len(tr)):
+            step = math.hypot(tr[i][0] - tr[i - 1][0], tr[i][1] - tr[i - 1][1]) / 10.0
+            worst_s = max(worst_s, step)
+            if step > MAX_STEP_FT:
+                bad_shooter.append(h["bucket_name"])
+                break
+        # The defender is deliberately NOT bound - a switch is a real event in a
+        # closing distance - so continuity is asked WITHIN a slot, and a change
+        # of slot is allowed to be discontinuous because it is a different body.
+        for i in range(1, len(tr)):
+            if len(tr[i]) > 4 and tr[i][4] != tr[i - 1][4]:
+                continue
+            step = math.hypot(tr[i][2] - tr[i - 1][2], tr[i][3] - tr[i - 1][3]) / 10.0
+            worst_d = max(worst_d, step)
+            if step > MAX_STEP_FT:
+                bad_defender.append(h["bucket_name"])
+                break
+        switches.append(len({f[4] for f in tr if len(f) > 4}) - 1 if tr else 0)
+    g.check("no hero's bound shooter makes a step no body could make", bad_shooter, [])
+    g.check("no hero's defender jumps inside one slot", bad_defender, [])
+    g.check("every hero's reported switch count is the one in its track",
+            [h["defender_switches"] for h in con["heroes"]], switches)
+    # The reported figures were measured at full precision; the track ships
+    # hundredths, so recomputing from what shipped agrees only to that quantum.
+    g.holds("every hero's reported worst step is the one in its track",
+            abs(worst_s - max(h["max_shooter_step_ft"] for h in con["heroes"]))
+            <= TRACK_QUANTUM_FT
+            and abs(worst_d - max(h["max_defender_step_ft"] for h in con["heroes"]))
+            <= TRACK_QUANTUM_FT,
+            f"{worst_s:.4f}/{worst_d:.4f} recomputed against "
+            f"{max(h['max_shooter_step_ft'] for h in con['heroes'])}/"
+            f"{max(h['max_defender_step_ft'] for h in con['heroes'])} reported")
+    g.info(f"hero continuity against the rule's own {MAX_STEP_FT} ft/frame limit: worst "
+           f"shooter step {worst_s:.2f} ft, worst within-slot defender step "
+           f"{worst_d:.2f} ft, switches {[h['defender_switches'] for h in con['heroes']]}")
+
+    # F-09's third criterion: the artifact must SAY whose body the gather follows.
+    d = w["definitions"].get("closest_defender", "")
+    g.holds("the artifact states whose body the gather variant follows",
+            bool(d) and "SHOOTER" in d.upper(), f"{len(d)} chars")
+    gr = con["gather_rule"]
+    g.holds("the gather reading is measured against the release, not asserted",
+            gr["shots"] > 0 and gr["changed_share"] is not None
+            and abs(gr["changed_share"] - gr["changed_bucket"] / gr["shots"]) < 5e-4)
+    g.info(f"reading 'the shot' as the gather instead of the release moves "
+           f"{100 * gr['changed_share']:.1f}% of shots into a different published category")
+
+
+def _window_occupancy(g, w):
+    occ = w["occupancy"]
+    g.holds("occupancy bands sum to 1", abs(sum(b["share"] for b in occ["bands"]) - 1.0) < 1e-3)
+    g.check("occupancy frames sum to the total",
+            sum(b["frames"] for b in occ["bands"]), occ["frames_total"])
+    g.check("every band's share is its own count", [
+        b["lo_ft"] for b in occ["bands"]
+        if abs(b["share"] - b["frames"] / occ["frames_total"]) > 5e-5
+    ], [])
+    # The grid is the ball's position per frame in whole feet, folded onto one
+    # halfcourt. Its keys must parse and land on the plate; its total is BELOW
+    # frames_total because a frame with no ball row contributes nothing, so the
+    # relation gated is containment, not identity.
+    bad, total = [], 0
+    for k, v in occ["grid"].items():
+        try:
+            gx, gy = (int(p) for p in k.split(","))
+        except ValueError:
+            bad.append(k)
+            continue
+        if not (PLATE_X[0] // 10 <= gx <= PLATE_X[1] // 10
+                and PLATE_Y[0] // 10 <= gy <= PLATE_Y[1] // 10) or v <= 0:
+            bad.append(k)
+        total += v
+    g.check("every occupancy cell is a whole-foot square on the plate", bad, [])
+    g.holds("the grid holds no more frames than the feed gave",
+            0 < total <= occ["frames_total"], f"{total:,} of {occ['frames_total']:,}")
+    g.info(f"the ball is placed in {len(occ['grid']):,} whole-foot squares over "
+           f"{total:,} of {occ['frames_total']:,} frames "
+           f"({100 * total / occ['frames_total']:.1f}%); the rest are frames the feed "
+           f"gave no ball row for, or the ball past the halfcourt fold")
+
+
+def _stated_step_limits(w):
+    """Every per-frame step limit the artifact discloses, in feet.
+
+    The continuity check itself runs against MAX_STEP_FT imported from
+    window.py - the rule's own constant, because a gate that reads its
+    threshold out of the file it is checking is not a gate. This is the other
+    half: the artifact must SAY, in public, what limit it was built to, and it
+    must be the same number. Today that disclosure lives inside the
+    `distance_run` definition rather than in one of its own; a dedicated hero
+    definition would read better and is noted in the session handoff.
+    """
+    import re  # noqa: PLC0415
+
+    found = set()
+    for text in w["definitions"].values():
+        for m in re.finditer(r"[Ss]teps?\s+over\s+(\d+(?:\.\d+)?)\s*ft", text):
+            found.add(float(m.group(1)))
+        for m in re.finditer(r"(\d+(?:\.\d+)?)\s*ft\s*(?:/|per\s+)frame", text):
+            found.add(float(m.group(1)))
+    return sorted(found)
+
+
+def _span_days(first, last):
+    import datetime  # noqa: PLC0415
+
+    a = datetime.date(*(int(p) for p in first.split("-")))
+    b = datetime.date(*(int(p) for p in last.split("-")))
+    return (b - a).days + 1
+
+
+# Every key site/src/data.ts's WindowFile interface reads, with its type. A
+# missing key here is a gate failure rather than a runtime `undefined` in the
+# gallery. Nested dicts describe nested objects; a list means "a list, and this
+# is the shape of its members".
+WINDOW_SCHEMA = {
+    "definitions": dict,
+    "corpus": {"archives_listed": int, "empty_shells": list, "misnamed_archives": list,
+               "games_parsed": int, "date_first": str, "date_last": str, "season_games": int},
+    "recovery": {"joined_shots": int, "measured": int, "rate": float, "failures": dict,
+                 "anchor_residual_median_ft": float, "anchor_residual_p95_ft": float,
+                 "anchor_residual_over_max": int, "attribution_agreement": float,
+                 "attribution_disagreements": int, "event_offsets": dict,
+                 "games_offset": int, "weak_joins": list, "n_weak_joins": int},
+    "contest": {"buckets": [{"name": str, "lo_ft": float, "hi_ft": (float, type(None)),
+                             "attempts": int, "made": int, "share": float, "fg_pct": float}],
+                "approach_curve_ft": list, "approach_hz": int,
+                "approach_seconds_before_release": float,
+                "heroes": [{"bucket": int, "bucket_name": str, "date": str, "action": str,
+                            "zone": str, "made": int, "dist": float,
+                            "dist_gather": (float, type(None)), "residual": float,
+                            "hz": int, "track": list}],
+                "gather_rule": {"shots": int, "changed_bucket": int,
+                                "changed_share": float, "mean_delta_ft": float}},
+    "disagreement": {"n": int, "median_ft": float, "p25_ft": float, "p75_ft": float,
+                     "p90_ft": float, "within_3ft": float, "within_6ft": float,
+                     "beyond_15ft": float, "by_action": dict},
+    "occupancy": {"bands": [{"lo_ft": (int, float), "hi_ft": (int, float, type(None)),
+                             "frames": int, "share": float}],
+                  "frames_total": int, "grid": dict},
+    "inventory": {"moments": int, "body_positions": int, "miles_run": float,
+                  "hours_tracked": float, "shots_measured": int, "touches": int,
+                  "touches_alt_radius": int, "passes": int, "drives": int,
+                  "mean_seconds_per_touch": float,
+                  "per_game": {"touches": float, "passes": float, "drives": float}},
+    "measures_bin": {"records": int, "bytes": int, "bytes_per_record": int, "day0": str,
+                     "record": str, "path": str},
+}
+
+PAINT_SCHEMA = {
+    "definitions": dict, "canvases": int, "strokes": int, "vertices": int,
+    "days_covered": int, "seconds_painted": float, "stroke_seconds": float,
+    "simplify_ft": float, "vertices_outside_plate": int,
+    "speed_ft_s": {"p10": float, "p25": float, "p50": float, "p75": float,
+                   "p90": float, "p99": float},
+    "ink_by_zone": dict,
+    "files": {"vertices": {"records": int, "bytes": int, "bytes_per_record": int,
+                           "record": str, "path": str},
+              "index": {"records": int, "bytes": int, "bytes_per_record": int,
+                        "record": str, "path": str}},
+}
+
+
+def _schema_gaps(obj, schema, prefix=""):
+    """Which declared keys are missing or the wrong type. Extra keys are fine -
+    the artifact may say more than the site reads."""
+    gaps = []
+    for key, want in schema.items():
+        here = f"{prefix}{key}"
+        if not isinstance(obj, dict) or key not in obj:
+            gaps.append(f"{here}: missing")
+            continue
+        val = obj[key]
+        if isinstance(want, dict):
+            gaps += _schema_gaps(val, want, f"{here}.")
+        elif isinstance(want, list):
+            if not isinstance(val, list):
+                gaps.append(f"{here}: not a list")
+            elif val:
+                gaps += _schema_gaps(val[0], want[0], f"{here}[0].")
+        else:
+            types = want if isinstance(want, tuple) else (want,)
+            if float in types and int not in types:
+                types = types + (int,)
+            if not isinstance(val, types) or isinstance(val, bool) and bool not in types:
+                gaps.append(f"{here}: {type(val).__name__} not {want}")
+    return gaps
+
+
+# --- group: the paint --------------------------------------------------------
+
+
+def group_paint(g, ctx):
+    p = ctx.json(g, "paint.json")
+    if p is None:
+        return
+    g.section("The paint: strokes from the bodies the record could not keep")
+
+    g.check("paint.json carries every field the site's PaintFile declares",
+            _schema_gaps(p, PAINT_SCHEMA), [])
+    g.check("the shipped binaries declare the format the piece decodes",
+            p.get("format_version"), 2)
+    g.holds("one possession per game", p["canvases"] >= EXPECTED_PAINT_CANVASES,
+            f"{p['canvases']} >= {EXPECTED_PAINT_CANVASES}")
+    g.holds("the canvas spans the window rather than one week of it",
+            p["days_covered"] >= EXPECTED_PAINT_DAYS,
+            f"{p['days_covered']} >= {EXPECTED_PAINT_DAYS}")
+    # ... against the CORPUS's own span, not a constant. The old gate cleared
+    # 67 >= 60 while the painting stopped on 3 January and never reached the
+    # 23 January closure Act III is built toward.
+    g.check("the paint reaches the window's opening and its closure",
+            [p["date_first"], p["date_last"]],
+            [p["corpus_date_first"], p["corpus_date_last"]])
+    # `canvases_by_month` counts the DAYS the paint reaches in each month, not
+    # the canvases - paint.py builds it from the set of distinct dates. The key
+    # is a misnomer; it is flagged for session 3's honesty sweep and gated here
+    # against what it actually holds rather than against what it is called.
+    g.check("every painted day is counted in exactly one month",
+            sum(p["canvases_by_month"].values()), p["days_covered"])
+    g.info(f"painted days by month {p['canvases_by_month']} - {p['days_covered']} distinct "
+           f"days carrying {p['canvases']} canvases (the key name says canvases and the "
+           f"value counts days; noted for session 3)")
+
+    vbuf = ctx.raw(g, "paint_strokes.bin")
+    ibuf = ctx.raw(g, "paint_index.bin")
+    if vbuf is None or ibuf is None:
+        return
+    strokes, verts, (iragged, vragged) = decode_paint(vbuf, ibuf, p["files"])
+    g.check("paint_index.bin is a whole number of records", iragged, 0)
+    g.check("paint_strokes.bin is a whole number of records", vragged, 0)
+    g.check("index covers every stroke", len(strokes), p["strokes"])
+    g.check("the vertex file holds every control point", len(verts), p["vertices"])
+    g.check("paint.json's own record counts are the ones on disk",
+            [p["files"]["index"]["records"], p["files"]["vertices"]["records"]],
+            [len(strokes), len(verts)])
+    if not strokes or not verts:
+        return
+
+    # Structure first, and the expensive semantic passes only if it holds. Not
+    # an optimisation: a randomised index describes strokes of sixty thousand
+    # frames, and walking one back out to full rate is unbounded work. A gate
+    # that hangs on a corrupt file has not failed, which is worse than failing.
+    _paint_join(g, p)
+    if _paint_index(g, p, strokes, verts):
+        _paint_geometry(g, p, strokes, verts)
+        _paint_coincidence(g, p, strokes, verts)
+    else:
+        g.info("the index does not describe this vertex array, so the geometry and "
+               "coincidence passes are not run - there is nothing coherent to ask them of")
+
+    # Nothing identifying may ever be in here: the corpus stays private and what
+    # ships must not be substitutable for it. (traces.json ships identity on
+    # purpose and is deliberately not subject to this.)
+    blob = json.dumps(p).lower()
+    g.check("no identity fields ship with the paint", [
+        k for k in ("player", "game_id", "event_id", "playerid", "gameid")
+        if k in blob and f'"{k}"' in blob
+    ], [])
+
+    rk = p["selection_rank"]
+    g.check("every canvas's place in the residual ordering is reported",
+            sum(rk.values()), p["canvases"])
+    g.info(f"canvases at each rank in their game's residual ordering: "
+           f"{dict(list(rk.items())[:8])}; {p['canvases'] - p['selection_rank_zero']} of "
+           f"{p['canvases']} are NOT their game's smallest-residual corroborated shot, "
+           f"which is the feed-quality half of the selection rule doing the choosing")
+    g.info(f"{p['strokes']:,} strokes over {p['canvases']} possessions, "
+           f"{p['vertices']:,} control points, {p['seconds_painted']:,.0f} painted seconds")
+    g.info(f"{p['strokes_alt_min_run']:,} strokes under the alternate run floor of "
+           f"{p['min_run_frames_alt']} frames against {p['strokes']:,} at "
+           f"{p['min_run_frames']}; {p['vertices_forced_by_zone']:,} vertices forced by a "
+           f"zone change")
+
+
+def _paint_index(g, p, strokes, verts):
+    """The index must PARTITION the vertex array - no overlaps, no orphans.
+
+    The old composition check was `round(strokes / canvases) in (10, 11)`, an
+    average, which passes with one canvas at three strokes and another at
+    nineteen.
+    """
+    order = sorted(strokes, key=lambda s: s[0])
+    cursor, gaps, shorts = 0, [], 0
+    for first, count, canvas, _kind, _body, _day in order:
+        if first != cursor:
+            gaps.append((cursor, first))
+        if count < 2:
+            shorts += 1
+        cursor = first + count
+    partitions = not gaps and cursor == len(verts)
+    g.check("the stroke index partitions the vertex array", gaps, [])
+    g.check("the vertex array ends exactly where the last stroke does",
+            cursor, len(verts))
+    g.check("no stroke is shorter than a line", shorts, 0)
+    g.check("the index starts at the first vertex", order[0][0], 0)
+
+    # A stroke is one continuous run inside the span the paint was cut from, so
+    # its frames cannot add up to more than that span holds. This is also what
+    # bounds every pass below: a stroke cannot be walked back out to full rate
+    # until its own clock is known to be finite.
+    budget = int(round(p["stroke_seconds"] * 25))
+    overrun = sum(1 for first, count, *_ in order
+                  if sum(verts[first + i][2] for i in range(1, count)) > budget)
+    g.check("no stroke spans more frames than the possession it was cut from", overrun, 0)
+
+    kinds = {s[3] for s in strokes}
+    g.check("a stroke is a body or the ball", sorted(kinds), [0, 1])
+    span = p["days_covered"]
+    days = {s[5] for s in strokes}
+    g.holds("every stroke's day is inside the window", max(days) < 256 and min(days) >= 0,
+            f"{min(days)}..{max(days)}")
+    g.check("the painted days are the ones counted", len(days), span)
+
+    # PER CANVAS, not as a rounded average. The old check was
+    # `round(strokes / canvases) in (10, 11)`, which one canvas at three strokes
+    # and another at nineteen satisfies exactly.
+    slots, bodies, balls, per_canvas = {}, {}, {}, {}
+    for _first, _count, canvas, kind, body, _day in strokes:
+        per_canvas[canvas] = per_canvas.get(canvas, 0) + 1
+        slots.setdefault(canvas, set()).add(body)
+        (bodies if kind == 0 else balls).setdefault(canvas, set()).add(body)
+    g.check("every canvas appears in the index", len(per_canvas), p["canvases"])
+    g.check("the canvas ids are a dense range",
+            [min(per_canvas), max(per_canvas)], [0, p["canvases"] - 1])
+    g.check("no canvas fields fewer bodies than the rule requires",
+            [c for c, v in bodies.items() if len(v) + 1 < MIN_BODIES_PER_CANVAS], [])
+    g.check("no canvas fields more slots than a team, its opponent and the ball",
+            [c for c, v in slots.items() if len(v) > MAX_BODIES_PER_CANVAS], [])
+    g.check("every canvas carries exactly one ball",
+            [c for c in per_canvas if len(balls.get(c, ())) != 1], [])
+    g.check("no body slot is drawn as both a body and the ball",
+            [c for c in per_canvas if bodies.get(c, set()) & balls.get(c, set())], [])
+    g.check("paint.json's slot count agrees with the index",
+            [p["bodies_per_canvas"]["min"], p["bodies_per_canvas"]["max"]],
+            [min(len(v) for v in slots.values()), max(len(v) for v in slots.values())])
+    g.check("paint.json's stroke count per canvas agrees with the index",
+            [p["strokes_per_canvas"]["min"], p["strokes_per_canvas"]["max"]],
+            [min(per_canvas.values()), max(per_canvas.values())])
+    return partitions and not overrun
+
+
+def _paint_geometry(g, p, strokes, verts):
+    """F-02's invariants, asked of the bytes.
+
+    A drawn segment may not exceed the arc measured for it; no arc may sit at
+    the storage ceiling; the speeds the renderer's three regimes are bounded by
+    must be reproducible from the file; and the ink map must be recomputable
+    from the vertices rather than merely summing to one.
+    """
+    vfmt = p["files"]["vertices"]["record"]
+    arc_bits = {"B": 8, "H": 16, "I": 32}[vfmt[-1]]
+    arc_ceiling = (1 << arc_bits) - 1
+
+    worst, n_over, at_ceiling, first_dt, fastest = 0.0, 0, 0, 0, 0.0
+    speeds, zone_time = [], {}
+    frames, off_plate = 0, 0
+    for first, count, _canvas, _kind, _body, _day in strokes:
+        vs = verts[first:first + count]
+        if vs[0][2] != 0 or vs[0][3] != 0:
+            first_dt += 1
+        for vx, vy, _d, _a in vs:
+            if not (PLATE_X[0] <= vx <= PLATE_X[1] and PLATE_Y[0] <= vy <= PLATE_Y[1]):
+                off_plate += 1
+        for i in range(1, len(vs)):
+            dt, arc = vs[i][2], vs[i][3]
+            frames += dt
+            if arc >= arc_ceiling:
+                at_ceiling += 1
+            chord = math.hypot(vs[i][0] - vs[i - 1][0], vs[i][1] - vs[i - 1][1]) / 10.0
+            excess = chord - arc / 10.0
+            worst = max(worst, excess)
+            if excess > QUANTUM_FT:
+                n_over += 1
+            if dt > 0:
+                v = (arc / 10.0) / (dt / 25.0)
+                speeds.append(v)
+                fastest = max(fastest, v)
+                # Ink is deposited per unit TIME, so the map is weighted by
+                # frames, in the region the paint is landing in.
+                z = zone_at(float(vs[i][0]), float(vs[i][1]))
+                zone_time[z] = zone_time.get(z, 0) + dt
+
+    g.check("no drawn segment exceeds the arc measured for it", n_over, 0)
+    g.check("no arc value sits at the storage ceiling", at_ceiling, 0)
+    g.check("every stroke opens with a vertex that measures nothing", first_dt, 0)
+    g.holds("no body or ball is painted faster than physics allows",
+            fastest <= MAX_PAINT_SPEED_FT_S,
+            f"{fastest:.1f} <= {MAX_PAINT_SPEED_FT_S} ft/s")
+    # The painted duration, recomputed: every span's frames at the feed's own
+    # rate. A file of zeros has no duration and dies here.
+    g.check("the painted seconds are the frames the file actually carries",
+            round(frames / 25.0, 1), p["seconds_painted"])
+    # paint.py counts this BEFORE rounding the coordinates into int16; the bytes
+    # carry them after, and 27 vertices round back onto the plate. Both figures
+    # are right about different things, so the byte-side one is pinned too.
+    # Measured 2026-08-08 from the current artifact.
+    g.check("the vertices the bytes place off the plate", off_plate, PAINT_OFF_PLATE_VERTICES)
+    g.holds("rounding only ever pulls a vertex back onto the plate",
+            off_plate <= p["vertices_outside_plate"],
+            f"{off_plate} drawn against {p['vertices_outside_plate']} measured")
+
+    if not speeds:
+        g.fail("the paint carries a measurable speed anywhere",
+               "no span in the file advances a single frame")
+        return
+    g.info(f"worst chord-minus-arc excess {worst:.4f} ft against a {QUANTUM_FT:.4f} ft "
+           f"quantization bound, over {len(verts):,} vertices; fastest painted span "
+           f"{fastest:.1f} ft/s")
+
+    # The percentiles the three fluid regimes are bounded by, RECOMPUTED from
+    # the decoded records rather than believed from the JSON beside them.
+    speeds.sort()
+    def q(f):
+        return round(speeds[min(len(speeds) - 1, int(f * len(speeds)))], 2)
+    sp = p["speed_ft_s"]
+    g.holds("the speed percentiles are ordered and physical",
+            sp["p10"] < sp["p50"] < sp["p90"] and 0 < sp["p10"] and sp["p90"] < 30)
+    # `arc` is summed at the full 25 Hz BEFORE Douglas-Peucker, so the shipped
+    # bytes carry the measurement and not the drawn line: the percentiles come
+    # back to the storage quantum. Measured 2026-08-08: identical to 2 dp.
+    g.check("the speed percentiles are reproducible from the binary", [
+        k for k in ("p10", "p25", "p50", "p75", "p90", "p99")
+        if abs(sp[k] - q(float(k[1:]) / 100)) > 0.05
+    ], [])
+    g.info(f"speeds recomputed from the bytes: p10 {q(0.10)}, p50 {q(0.50)}, "
+           f"p90 {q(0.90)}, p99 {q(0.99)} against the artifact's {sp['p10']}, "
+           f"{sp['p50']}, {sp['p90']}, {sp['p99']}")
+
+    # ink_by_zone, recomputed. paint.py measures it over every full-rate frame;
+    # the bytes carry the simplified line, so the two agree to within what
+    # storage costs, which the artifact itself publishes as zone_quantized_share.
+    total = max(1, sum(zone_time.values()))
+    got = {ZONE_NAMES[z]: t / total for z, t in zone_time.items()}
+    ink = p["ink_by_zone"]
+    tol = max(0.005, 2 * p["zone_quantized_share"])
+    g.holds("ink shares sum to 1", abs(sum(ink.values()) - 1.0) < 1e-3)
+    g.check("the ink map is reproducible from the vertices", [
+        z for z in ink if abs(ink[z] - got.get(z, 0.0)) > tol
+    ], [])
+    g.info("where the paint goes, against where the record files shots:")
+    for z, share in ink.items():
+        g.say(f"      {z:<22} {100 * share:5.1f}% of painted time "
+              f"({100 * got.get(z, 0.0):5.1f}% recomputed from the bytes)")
+
+
+def _paint_join(g, p):
+    """Every canvas is one shot the window stage corroborated.
+
+    AGAINST THE RULE'S OWN CONSTANT, not against the number the file being
+    checked reports as its threshold: `res["max"] <= res["max_allowed"]` took
+    both sides from paint.json, so 480 ft against a declared 500 ft passed.
+    """
+    res = p["anchor_residual_ft"]
+    g.holds("no canvas ships an anchor residual over the corroboration threshold",
+            res["max"] <= MAX_ANCHOR_RESIDUAL_FT,
+            f"{res['max']} <= {MAX_ANCHOR_RESIDUAL_FT} ft")
+    g.check("the paint declares the same threshold the window stage joins at",
+            res["max_allowed"], MAX_ANCHOR_RESIDUAL_FT)
+    g.holds("the residual quantiles are ordered",
+            res["median"] <= res["p90"] <= res["max"])
+
+    prov = _paint_join_reconstruction()
+    if prov is None:
+        g.info("private intermediates absent - the paint join is gated against the "
+               "threshold only; run pipeline/checks/check_paint_join.py where "
+               "data/window/ exists")
+        return
+    n_rows, mismatched, orphaned, worst = prov
+    g.check("the private join carries one row per shipped canvas", n_rows, p["canvases"])
+    g.check("every canvas is a shot the window stage corroborated", orphaned, [])
+    g.check("every canvas's residual is the one the window stage measured", mismatched, [])
+    g.holds("the reconstructed worst residual clears the threshold too",
+            worst <= MAX_ANCHOR_RESIDUAL_FT, f"{worst} ft")
+    g.info(f"the join reconstructed from data/window/: {n_rows} canvases, worst residual "
+           f"{worst} ft against {MAX_ANCHOR_RESIDUAL_FT}")
+
+
+def _paint_coincidence(g, p, strokes, verts):
+    """RULE 7, gated from the bytes.
+
+    The split cuts jumps; a merged track - the feed reporting one detection
+    under two player ids - has none, so it passes every continuity check and
+    paints one measurement twice. 20 such pairs shipped across 19 of 250
+    canvases before this existed.
+    """
+    co = p["coincidence_ft"]
+    g.check("the refusal rule and its tolerance ship with the paint",
+            [co["tolerance"], co["seconds"]], [COINCIDENCE_FT, COINCIDENCE_SECONDS_QA])
+    g.holds("no shipped canvas holds two bodies closer than the rule allows",
+            co["shipped_min"] is not None and co["shipped_min"] > COINCIDENCE_FT,
+            f"{co['shipped_min']} > {COINCIDENCE_FT} ft")
+    g.check("the census of separations counts every span examined",
+            sum(co["hist"].values()), co["spans_examined"])
+    g.holds("the stricter tolerance refuses at least as much as the looser one",
+            co["spans_refused"] >= co["spans_refused_alt"]
+            and co["tolerance"] > co["tolerance_alt"],
+            f"{co['spans_refused']} at {co['tolerance']} ft, "
+            f"{co['spans_refused_alt']} at {co['tolerance_alt']} ft")
+
+    coincident, dupes, closest = _coincident_bodies(strokes, verts)
+    g.check("no canvas draws two bodies inside one coordinate quantum", coincident, [])
+    g.check("no two body slots ship an identical path", dupes, [])
+    g.info(f"closest sustained approach between two painted bodies: {co['shipped_min']} ft "
+           f"measured on the feed, {closest} ft once drawn (simplification pulls them "
+           f"closer), against a {COINCIDENCE_FT} ft refusal over {COINCIDENCE_FRAMES} "
+           f"frames and a {BYTE_COINCIDENCE_FT} ft byte gate")
+    g.info(f"paint.py refused {co['spans_refused']} of {co['spans_examined']} spans for "
+           f"holding one detection twice ({co['spans_refused_alt']} at the alternate "
+           f"{co['tolerance_alt']} ft); {co['hist'].get('0.0', 0)} of those sat at exactly "
+           f"0.0 ft, which is the feed repeating a row")
 
 
 def _full_rate(vs):
@@ -227,6 +1904,20 @@ def _full_rate(vs):
         for k in range(1, dt + 1):
             out.append((x0 + (x1 - x0) * k / dt, y0 + (y1 - y0) * k / dt))
     return out
+
+
+def _sustained_min(pi, pj, window):
+    """The closest two full-rate paths get AND STAY, over any run of `window`
+    frames. Momentary contact in a scrum parts again; one detection reported
+    twice does not."""
+    n = min(len(pi), len(pj))
+    if n < window:
+        return None
+    a = np.asarray(pi[:n], float)
+    b = np.asarray(pj[:n], float)
+    sep = np.hypot(a[:, 0] - b[:, 0], a[:, 1] - b[:, 1]) / 10.0
+    rolling = np.lib.stride_tricks.sliding_window_view(sep, window).max(axis=1)
+    return float(rolling.min())
 
 
 def _coincident_bodies(strokes, verts):
@@ -256,16 +1947,9 @@ def _coincident_bodies(strokes, verts):
                 (bi, pi, ti), (bj, pj, tj) = paths[i], paths[j]
                 if ti == tj:
                     dupes.append([canvas, bi, bj])
-                n = min(len(pi), len(pj))
-                if n < COINCIDENCE_FRAMES:
+                sustained = _sustained_min(pi, pj, COINCIDENCE_FRAMES)
+                if sustained is None:
                     continue
-                sep = [((pi[k][0] - pj[k][0]) ** 2
-                        + (pi[k][1] - pj[k][1]) ** 2) ** 0.5 / 10.0 for k in range(n)]
-                # The closest the pair gets and STAYS: the smallest maximum over
-                # any window of COINCIDENCE_FRAMES. Momentary contact in a scrum
-                # parts again; one detection reported twice does not.
-                sustained = min(max(sep[k:k + COINCIDENCE_FRAMES])
-                                for k in range(n - COINCIDENCE_FRAMES + 1))
                 if closest is None or sustained < closest:
                     closest = sustained
                 if sustained <= BYTE_COINCIDENCE_FT:
@@ -273,32 +1957,13 @@ def _coincident_bodies(strokes, verts):
     return bad, dupes, round(closest, 3) if closest is not None else None
 
 
-def _chord_over_arc(strokes, verts):
-    """Every drawn segment against the arc stored for it.
-
-    The measurement must cover the line: a body that travelled `arc` cannot be
-    drawn across a longer chord. Coordinates round to tenths and arc rounds
-    once, which is the only slack allowed.
-    """
-    worst, n_over = 0.0, 0
-    for first, count, _canvas, _kind, _body, _day in strokes:
-        vs = verts[first:first + count]
-        for i in range(1, len(vs)):
-            chord = ((vs[i][0] - vs[i - 1][0]) ** 2 + (vs[i][1] - vs[i - 1][1]) ** 2) ** 0.5 / 10.0
-            excess = chord - vs[i][3] / 10.0
-            worst = max(worst, excess)
-            if excess > CHORD_OVER_ARC_MAX_FT:
-                n_over += 1
-    return worst, n_over
-
-
 def _paint_join_reconstruction():
     """Rebuild every canvas's join from the private per-game window artifacts.
 
     Returns (rows, residual mismatches, canvases with no corroborated shot,
-    worst residual), or None where data/window/ is not on this machine. This is
-    the reconstruction the paint's residual gate was missing: the numbers come
-    from the window stage's own corroborated sets, never from paint.json.
+    worst residual), or None where data/window/ is not on this machine. The
+    numbers come from the window stage's own corroborated sets, never from
+    paint.json's summary of itself.
     """
     from window import GAMES_DIR  # noqa: PLC0415
 
@@ -326,601 +1991,250 @@ def _paint_join_reconstruction():
     return len(rows), mismatched, orphaned, round(worst, 2)
 
 
-def main():
-    path = PROCESSED_DIR / "seasons.json"
-    if not path.exists():
-        print(f"FAIL: {path} missing - run aggregate.py first", file=sys.stderr)
-        sys.exit(1)
-    data = json.loads(path.read_text())
-    seasons = {row["year"]: row for row in data["seasons"]}
-    failures = []
+# --- group: traces -----------------------------------------------------------
 
-    def check(name, got, want):
-        ok = got == want
-        print(f"  {'PASS' if ok else 'FAIL'}  {name}: got {got}, expected {want}")
-        if not ok:
-            failures.append(name)
 
-    print("Acceptance vs build-plan section 1.6")
-    check("season count", len(seasons), EXPECTED_SEASONS)
-    check("total attempts", sum(r["attempts"] for r in seasons.values()), EXPECTED_TOTAL_ATTEMPTS)
+def group_traces(g, ctx):
+    """Act III's thirty-two curated gestures, which nothing gated at all.
 
-    for year, (mid, three) in sorted(TABLE_1_6.items()):
-        label = seasons[year]["season"] if year in seasons else year
-        if year not in seasons:
-            failures.append(f"missing season {year}")
-            print(f"  FAIL  season {year} missing")
+    traces.json deliberately ships identity - the game, the player, the event -
+    and that is an accepted artist decision, so the paint's no-identity rule is
+    NOT extended here. bloom.py hits the GitHub API live and re-derives from the
+    tracking archives, so this gates the committed artifact as it stands.
+    """
+    t = ctx.json(g, "traces.json")
+    w = ctx.json(g, "window.json")
+    if t is None:
+        return
+    g.section("Act III's traces")
+
+    tr = t.get("traces")
+    g.check("traces.json carries the gestures it declares",
+            isinstance(tr, list) and len(tr), EXPECTED_TRACES)
+    if not tr:
+        return
+
+    required = {"game": str, "game_id": str, "date": str, "event_id": int, "player": str,
+                "action": str, "made": int, "zone": str, "anchor": list,
+                "anchor_residual_ft": float, "release_index": int, "hz": int, "points": list}
+    g.check("every trace carries the fields the piece reads",
+            sorted({gap for x in tr for gap in _schema_gaps(x, required)}), [])
+
+    first, last = (w["corpus"]["date_first"], w["corpus"]["date_last"]) if w \
+        else EXPECTED_WINDOW_DATES
+    g.check("every trace falls inside the window",
+            [x["game"] for x in tr if not first <= x["date"] <= last], [])
+    g.check("every trace is sampled at the corpus rate",
+            sorted({x["hz"] for x in tr}), [25])
+    g.check("every trace's zone is what the geometry says of its own anchor",
+            [x["game"] for x in tr
+             if ZONE_NAMES[zone_at(float(x["anchor"][0]), float(x["anchor"][1]))] != x["zone"]],
+            [])
+
+    res = sorted(x["anchor_residual_ft"] for x in tr)
+    g.check("the declared median residual is the traces' own",
+            t["median_anchor_residual_ft"],
+            round((res[len(res) // 2] if len(res) % 2 else
+                   (res[len(res) // 2 - 1] + res[len(res) // 2]) / 2), 2))
+    g.holds("no trace is anchored further out than the window stage joins at",
+            max(res) <= MAX_ANCHOR_RESIDUAL_FT, f"{max(res)} <= {MAX_ANCHOR_RESIDUAL_FT} ft")
+
+    bad_idx, bad_z, bad_step, bad_anchor, worst_step, worst_anchor = [], 0, [], [], 0.0, 0.0
+    for x in tr:
+        pts, ri = x["points"], x["release_index"]
+        if not (0 <= ri < len(pts)):
+            bad_idx.append(x["game"])
             continue
-        check(f"{label} mid-range share", pct(seasons[year]["mid_share"]), mid)
-        check(f"{label} 3PT share", pct(seasons[year]["three_share"]), three)
+        bad_z += sum(1 for pt in pts if pt[2] < 0)
+        for i in range(1, len(pts)):
+            step = math.hypot(math.hypot(pts[i][0] - pts[i - 1][0],
+                                         pts[i][1] - pts[i - 1][1]) / 10.0,
+                              pts[i][2] - pts[i - 1][2])
+            worst_step = max(worst_step, step)
+            if step > MAX_TRACE_STEP_FT:
+                bad_step.append(x["game"])
+                break
+        gap = math.hypot(pts[ri][0] - x["anchor"][0], pts[ri][1] - x["anchor"][1]) / 10.0
+        worst_anchor = max(worst_anchor, gap)
+        # The residual IS this distance: the trace is anchored at its own dot,
+        # so the release point and the coordinate the record filed must be the
+        # same measurement read twice.
+        if abs(gap - x["anchor_residual_ft"]) > 0.05:
+            bad_anchor.append(x["game"])
+    g.check("every release index points inside its own trace", bad_idx, [])
+    g.check("no ball goes through the floor", bad_z, 0)
+    g.check("no ball jumps further between frames than a ball can", bad_step, [])
+    g.check("every trace's release point is the residual it reports", bad_anchor, [])
+    g.info(f"{len(tr)} gestures from {t['candidates']:,} candidates: residual median "
+           f"{t['median_anchor_residual_ft']} ft, max {max(res)} ft; largest "
+           f"frame-to-frame ball displacement {worst_step:.2f} ft in three dimensions, "
+           f"largest release-to-anchor gap {worst_anchor:.2f} ft")
 
-    if 2025 in seasons:
-        check("2025-26 attempts", seasons[2025]["attempts"], EXPECTED_2025_ATTEMPTS)
-        check("2025-26 mid-range share", pct(seasons[2025]["mid_share"]), EXPECTED_2025_MID)
-    if 1997 in seasons:
-        check("1997-98 3PT share (line retreat)", pct(seasons[1997]["three_share"]), EXPECTED_1997_THREE)
-    if 2022 in seasons:
-        check("2022-23 mid-range share (Act IV endpoint)", pct(seasons[2022]["mid_share"]), EXPECTED_2022_MID)
-    for year, k in SHORT_SEASON_KATTEMPTS.items():
-        if year in seasons:
-            check(f"{seasons[year]['season']} attempts (~{k}k, short season)",
-                  round(seasons[year]["attempts"] / 1000), k)
 
-    game_mismatches = [
-        f"{seasons[y]['season']}: {seasons[y]['n_games']} != {EXPECTED_N_GAMES[y]}"
-        for y in sorted(seasons) if y in EXPECTED_N_GAMES and seasons[y]["n_games"] != EXPECTED_N_GAMES[y]
-    ]
-    check("per-season game counts vs schedule", game_mismatches, [])
+# --- group: the inventory ----------------------------------------------------
 
-    print("\nThe record's own resolution")
-    regime_mismatches = [
-        f"{seasons[y]['season']}: {seasons[y]['resolution']['regime']} != {EXPECTED_REGIMES[y]}"
-        for y in sorted(seasons)
-        if y in EXPECTED_REGIMES and seasons[y]["resolution"]["regime"] != EXPECTED_REGIMES[y]
-    ]
-    check("resolution regimes (4 eras)", regime_mismatches, [])
 
-    for year, want in sorted(EXPECTED_RA_ORIGIN.items()):
-        if year in seasons:
-            check(f"{seasons[year]['season']} rim shots left unplaced",
-                  pct(seasons[year]["resolution"]["ra_origin_share"]), want)
+def group_inventory(g, ctx):
+    """Every shipping artifact is mandatory, and nothing unexpected has appeared.
 
-    uneven = [y for y in sorted(seasons) if seasons[y]["resolution"]["regime"] == "uneven"]
-    missing_constant = [
-        seasons[y]["season"] for y in uneven
-        if UNEVEN_CONSTANT_ARENA not in seasons[y]["resolution"]["full_resolution_arenas"]
-    ]
-    check(f"{UNEVEN_CONSTANT_ARENA} full-resolution in every uneven season", missing_constant, [])
-    check("uneven-era season count", len(uneven), 13)
+    The required list lives HERE rather than in a manifest inside
+    data/processed/, because a gate that takes its expectations from the thing
+    it is checking is not a gate. Session 3's deploy allowlist (F-07) hangs off
+    Artifact.public.
+    """
+    g.section("The processed inventory")
+    seasons = ctx.seasons(g)
+    years = sorted(seasons) if seasons else []
+    g.check("the per-season artifact count comes from seasons.json, not a second 30",
+            len(years), EXPECTED_SEASONS)
 
-    # Where the regime is uniform, no arena may be singled out - claiming a subset
-    # could see would invent a distinction the measurement does not support.
-    leaked = [
-        seasons[y]["season"] for y in sorted(seasons)
-        if seasons[y]["resolution"]["regime"] != "uneven"
-        and seasons[y]["resolution"]["full_resolution_arenas"]
-    ]
-    check("no arenas named in uniform regimes", leaked, [])
+    missing, empty, headerless, expected = [], [], [], set()
+    for art in REQUIRED_ARTIFACTS:
+        for rel in art.paths(years):
+            expected.add(rel)
+            p = ctx.root / rel
+            if not p.exists():
+                missing.append(rel)
+                continue
+            if p.stat().st_size == 0:
+                empty.append(rel)
+                continue
+            if art.kind == "json":
+                try:
+                    d = json.loads(p.read_text())
+                except Exception as e:  # noqa: BLE001
+                    headerless.append(f"{rel}: unparseable ({type(e).__name__})")
+                    continue
+                if art.stamp and not (d.get("generated_by") and d.get(art.stamp)):
+                    headerless.append(f"{rel}: no generated_by/{art.stamp}")
+    g.check("every required artifact is present", missing, [])
+    g.check("no required artifact is empty", empty, [])
+    g.check("every top-level artifact says what wrote it and when", headerless, [])
 
-    if 1996 in seasons:
-        c = seasons[1996]["contemporaneous"]
-        check("1996-97 threes misfiled as Mid-Range", c["misfiled_threes"], EXPECTED_MISFILED_THREES)
-        check("1996-97 mid-range under the 22-ft line then in force",
-              pct(c["contemporaneous_mid_share"]), EXPECTED_CONTEMPORANEOUS_MID)
-    stray = [
-        seasons[y]["season"] for y in sorted(seasons)
-        if y != 1996 and seasons[y].get("contemporaneous") is not None
-    ]
-    check("contemporaneous correction confined to 1996-97", stray, [])
+    # A new artifact must be added DELIBERATELY - which is precisely the hook
+    # session 3's deploy allowlist needs. Dotfiles are ignored and said so.
+    found = {str(p.relative_to(ctx.root)) for p in ctx.root.rglob("*")
+             if p.is_file() and not any(part.startswith(".") for part in p.parts)}
+    g.check("no unknown file has appeared under data/processed/",
+            sorted(found - expected), [])
+    g.info(f"{len(expected)} required artifacts, {sum(1 for a in REQUIRED_ARTIFACTS if a.public)} "
+           f"of {len(REQUIRED_ARTIFACTS)} kinds marked public; session 3 hangs the deploy "
+           f"allowlist and the dist/data test off this table")
 
-    print("\nThe record's vocabulary")
-    for year, want in sorted(EXPECTED_WORDS.items()):
-        if year in seasons:
-            check(f"{seasons[year]['season']} words for a shot",
-                  seasons[year]["vocabulary"]["words"], want)
-    if {1996, 2024} <= set(seasons):
-        grew = seasons[2024]["vocabulary"]["words"] > seasons[1996]["vocabulary"]["words"] * 4
-        check("vocabulary more than quadruples 1996-97 to 2024-25", grew, True)
-        longer = (seasons[2024]["vocabulary"]["mean_chars_per_shot"]
-                  > seasons[1996]["vocabulary"]["mean_chars_per_shot"] * 1.5)
-        check("description per shot grows by half again", longer, True)
+    _decoder_parity(g, ctx)
 
-    # The piece's own name, and the season the record learned it.
-    first_fade = next(
-        (y for y in sorted(seasons)
-         if any("Fadeaway" in w for w in seasons[y]["vocabulary"]["words_list"])),
-        None,
-    )
-    check("first season the record says 'Fadeaway'", first_fade, FADEAWAY_FIRST_YEAR)
 
-    for year, want in sorted(EXPECTED_CATEGORIES.items()):
-        if year in seasons:
-            check(f"{seasons[year]['season']} categories across six taxonomies",
-                  seasons[year]["vocabulary"]["categories_total"], want)
-    drifted = [
-        f"{seasons[y]['season']}:{k}={seasons[y]['vocabulary']['taxonomies'][k]}"
-        for y in sorted(seasons) for k, v in FIXED_TAXONOMIES.items()
-        if seasons[y]["vocabulary"]["taxonomies"].get(k) != v
-    ]
-    check("only the description grows; the other five are fixed", drifted, [])
+def _decoder_parity(g, ctx):
+    """The site's decoders against the layouts the pipeline actually writes.
 
-    print()
-    # Cross-artifact gates: the manifest, samples, and grids must belong to the
-    # same generation as seasons.json (subset or interrupted runs turn RED here).
-    manifest_path = PROCESSED_DIR / "acquisition_manifest.json"
-    n_manifest = (len(json.loads(manifest_path.read_text()).get("files", {}))
-                  if manifest_path.exists() else "missing")
-    check("acquisition manifest entries", n_manifest, EXPECTED_SEASONS)
+    Nothing type-checks a byte layout, so this is the only automated detector
+    that the two halves of the project disagree about a format. A mismatch fails
+    unless a dated WAIVER names it; a waiver whose mismatch has gone also fails,
+    so the session that fixes one has to remove it.
+    """
+    p = ctx.json(g, "paint.json")
+    w = ctx.json(g, "window.json")
+    if p is None or w is None:
+        return
+    want = {
+        "vertex": p["files"]["vertices"]["bytes_per_record"],
+        "stroke": p["files"]["index"]["bytes_per_record"],
+        "measure": w["measures_bin"]["bytes_per_record"],
+        "point": POINT_DTYPE.itemsize,
+    }
+    import re  # noqa: PLC0415
 
-    artifact_issues = []
-    for year, row in sorted(seasons.items()):
-        sp = PROCESSED_DIR / "samples" / f"season_{year}.json"
-        gp = PROCESSED_DIR / "grids" / f"season_{year}.json"
-        pp = PROCESSED_DIR / "points" / f"season_{year}.bin"
-        if not sp.exists() or not gp.exists() or not pp.exists():
-            artifact_issues.append(f"{row['season']}: missing sample, grid or points")
+    unread, mismatched, stale = [], [], []
+    for key, (rel, ident) in DECODER_SOURCES.items():
+        src = REPO_ROOT / rel
+        if not src.exists():
+            unread.append(rel)
             continue
-        s = json.loads(sp.read_text())
-        g = json.loads(gp.read_text())
-        if g["total"] != s["of_halfcourt_attempts"]:
-            artifact_issues.append(f"{row['season']}: grid total {g['total']} != sample halfcourt {s['of_halfcourt_attempts']}")
-        if s["of_halfcourt_attempts"] + s["backcourt_or_oob_dropped"] != row["attempts"]:
-            artifact_issues.append(f"{row['season']}: halfcourt + dropped != attempts")
-        # The third leg: every shot must be present in the count map, exactly
-        # once, at the coordinate the record filed it. This is what makes
-        # "every shot" a checkable claim rather than a description.
-        rec = np.frombuffer(pp.read_bytes(), dtype=POINT_DTYPE)
-        total = int(rec["n_hires"].sum()) + int(rec["n_rest"].sum())
-        if total != g["total"]:
-            artifact_issues.append(f"{row['season']}: points total {total} != grid total {g['total']}")
-        if len(rec) != row["points"]["cells"]:
-            artifact_issues.append(f"{row['season']}: points cells {len(rec)} != recorded {row['points']['cells']}")
-    check("samples/grids/points consistent with seasons.json", artifact_issues, [])
-
-    # The contradiction that prompted the change: the census tallies must equal
-    # the figures the plate strikes into the floor, for every season.
-    census_drift = []
-    for year, row in sorted(seasons.items()):
-        cls = row.get("classification")
-        if not cls:
-            census_drift.append(f"{row['season']}: no classification block")
+        m = re.search(rf"^const {ident} = (\d+);", src.read_text(), re.M)
+        if not m:
+            unread.append(f"{rel}:{ident}")
             continue
-        mid = cls["ZONE"].get("Mid-Range", 0)
-        if abs(mid / row["attempts"] - row["mid_share"]) > 1e-9:
-            census_drift.append(f"{row['season']}: census {mid / row['attempts']:.4f} != {row['mid_share']:.4f}")
-        if sum(cls["TYPE"].values()) != row["attempts"] - row["shot_type_nulls"]:
-            census_drift.append(f"{row['season']}: TYPE counts do not sum to attempts")
-    check("census figures equal the struck figures", census_drift, [])
-
-    # --- The league's own map of the floor -----------------------------------
-    # THE HAND colours a stroke by the zone it is PASSING THROUGH, which is only
-    # legitimate if SHOT_ZONE_BASIC really is a partition of the floor rather
-    # than a judgement about a shot. This gate is what licenses that colour: the
-    # geometry the plate draws is used to reclassify every 2015-16 shot from its
-    # coordinates alone, and scored against the league's own label.
-    print("\nThe league's own map of the floor")
-    try:
-        from common import ZONE_NAMES, zone_at  # noqa: PLC0415
-
-        zdf = read_season_csv(2015, usecols=["LOC_X", "LOC_Y", "SHOT_ZONE_BASIC"])
-        agree = 0
-        for zx, zy, zz in zip(zdf.LOC_X.values, zdf.LOC_Y.values, zdf.SHOT_ZONE_BASIC.values):
-            if ZONE_NAMES[zone_at(float(zx), float(zy))] == zz:
-                agree += 1
-        rate = agree / len(zdf)
-        check("zone reconstructed from geometry matches the league's own label",
-              rate >= ZONE_AGREEMENT_FLOOR, True)
-        print(f"  (informational) {agree:,}/{len(zdf):,} = {100 * rate:.3f}% - the misses are "
-              f"boundary coordinates the record itself labels inconsistently")
-    except Exception as e:  # noqa: BLE001 - the shot dump may not be present
-        print(f"  SKIP  zone reconstruction ({type(e).__name__}: {e})")
-
-    # --- The window (pipeline/window.py) -------------------------------------
-    # Optional: the piece runs without it, and the shot spine above must stay
-    # green whether or not the window stage has been run.
-    window_path = PROCESSED_DIR / "window.json"
-    if window_path.exists():
-        w = json.loads(window_path.read_text())
-        print("\nThe window: eleven weeks of raw record")
-
-        corp = w["corpus"]
-        # 622 is the trap: bloom.py's filename parser drops the ten misnamed
-        # Dec 5 2015 archives, and nothing downstream would have noticed.
-        check("games parsed (622 is the misnaming bug)", corp["games_parsed"], EXPECTED_WINDOW_GAMES)
-        check("archives listed", corp["archives_listed"], EXPECTED_WINDOW_ARCHIVES)
-        check("empty 32-byte shells", len(corp["empty_shells"]), EXPECTED_WINDOW_SHELLS)
-        check("misnamed archives, named not filtered",
-              len(corp["misnamed_archives"]), EXPECTED_WINDOW_MISNAMED)
-        check("window opens", corp["date_first"], EXPECTED_WINDOW_DATES[0])
-        check("window closes", corp["date_last"], EXPECTED_WINDOW_DATES[1])
-        # A half-season, and the piece says so on the plate.
-        check("window is half of 2015-16", corp["games_parsed"] < corp["season_games"], True)
-
-        rec = w["recovery"]
-        # Recovery is published, not assumed. The floor is set from measurement
-        # and exists to catch a regression, not to flatter the number: a
-        # detector that silently halved would still print a plausible artifact.
-        check("recovery above the measured floor", rec["rate"] >= WINDOW_RECOVERY_FLOOR, True)
-        check("failure reasons account for every unmeasured shot",
-              sum(rec["failures"].values()), rec["joined_shots"] - rec["measured"])
-
-        # The per-game event-offset calibration, gated in the open. The join
-        # `tracking eventId == GAME_EVENT_ID` fails silently in a minority of
-        # games, and the correction is one integer per game decided by ~150
-        # shots - so how many games needed it, and how many of those the record
-        # barely settled, are both numbers this pipeline must state out loud.
-        check("the offset search is the declared width",
-              rec["search_range"], EXPECTED_MAX_EVENT_OFFSET)
-        check("event offsets stay inside the searched range",
-              [k for k in rec["event_offsets"] if abs(int(k)) > EXPECTED_MAX_EVENT_OFFSET], [])
-        # An argmax on the edge is a peak the search could not see, so it is
-        # refused rather than shipped - and the count of them is gated at zero
-        # instead of being reported.
-        check("no accepted offset sits on the search boundary",
-              rec["offsets_on_search_boundary"], 0)
-        # ... and the number that would actually reveal a search too narrow to
-        # see its own peak is how many games had to be REFUSED for landing on
-        # the edge. That one was printed and never gated, while the gate above
-        # - which is zero by construction, because decide_offset converts a
-        # boundary argmax to zero before it is ever counted - carried the claim.
-        check("no game's argmax was refused for landing on the search boundary",
-              rec["offsets_rejected_by_reason"].get("argmax on the search boundary", 0), 0)
-
-        # EVERY ACCEPTED SHIFT, re-tested here against the rule's own constants.
-        # This replaces a gate whose first term was a count >= 0 and whose
-        # second filtered the offset distribution to |k| == 12, a value
-        # decide_offset converts to zero before counting - so `all()` ran over
-        # an empty sequence and the whole check was vacuously true. Setting
-        # games_under_min to 631 left it green.
-        acc = rec.get("accepted_offsets")
-        check("every accepted shift is listed with the evidence for it",
-              acc is not None and len(acc) == rec["games_offset"], True)
-        if acc is not None:
-            check("no accepted shift falls below the minimum vote count",
-                  [a["archive"] for a in acc if a["votes"] < MIN_OFFSET_VOTES], [])
-            check("every accepted shift clears the straight join by the declared factor",
-                  [a["archive"] for a in acc
-                   if a["votes"] < OFFSET_OVER_ZERO * max(1, a["at_zero"])], [])
-            check("every accepted shift beats its own runner-up by the declared margin",
-                  [a["archive"] for a in acc if a["margin"] < OFFSET_MIN_MARGIN], [])
-            check("no accepted shift sits on the search boundary",
-                  [a["archive"] for a in acc
-                   if abs(a["offset"]) >= EXPECTED_MAX_EVENT_OFFSET], [])
-        # A1: no game may be decided on a vector where the rivals are
-        # structurally attenuated. 445 games shipped on the anchor-keyed release
-        # set, where offset zero has a candidate anchor for every member by
-        # construction and no rival does.
-        check("every game's offset was decided on the full release set",
-              rec.get("searched"), {"full": corp["games_parsed"]})
-
-        # The calibration is validated, not merely computed: even-numbered
-        # tracking events decide, odd ones check. Session 1 gated only that the
-        # figure EXISTED, which one testable game agreeing 0.0001 of the time
-        # satisfied. These three ask what it says.
-        ho = rec["held_out_by_outcome"]
-        check("the held-out split is drawn from most of the corpus",
-              rec["held_out_games"] >= HELD_OUT_MIN_SHARE * corp["games_parsed"], True)
-        check("the straight join reproduces on half the evidence",
-              ho["straight"]["rate"] is not None
-              and ho["straight"]["rate"] >= HELD_OUT_STRAIGHT_FLOOR, True)
-        # ... and the aggregate must BE the split it summarises, recomputed
-        # here, so the headline figure cannot move without the evidence moving.
-        agg_games = sum(v["games"] for v in ho.values())
-        agg_agree = sum(v["agree"] for v in ho.values())
-        check("the held-out aggregate is the split it summarises",
-              [rec["held_out_games"], rec["held_out_agreement"]],
-              [agg_games, round(agg_agree / agg_games, 4) if agg_games else None])
-        offset_share = rec["games_offset"] / corp["games_parsed"]
-        check("most games need no offset", offset_share < 0.5, True)
-        print(f"  (informational) {rec['games_offset']} of {corp['games_parsed']} games "
-              f"({100 * offset_share:.0f}%) needed their event numbering shifted: "
-              f"{rec['event_offsets']}")
-        print(f"  (informational) {rec['n_weak_joins']} games where the record barely settled "
-              f"the offset (margin < 0.10); {rec['offsets_rejected']} shifted joins rejected "
-              f"{rec['offsets_rejected_by_reason']}")
-        # Read the split, not the aggregate: what validates perfectly out of
-        # sample is the absence of an offset, and the piece should not be able
-        # to quote one flattering number for three different findings.
-        check("the held-out split is reported, not just its aggregate",
-              sorted(rec["held_out_by_outcome"]), ["rejected", "shifted", "straight"])
-        print(f"  (informational) {rec['held_out_refused_halves']} halves refused to name an "
-              f"offset at all and are counted as neither agreement nor disagreement")
-        print(f"  (informational) held-out validation over {rec['held_out_games']} testable "
-              f"games: the straight join reproduces on half the evidence "
-              f"{100 * ho['straight']['rate']:.1f}% of the time ({ho['straight']['games']} "
-              f"games), an accepted shift {100 * ho['shifted']['rate']:.1f}% "
-              f"({ho['shifted']['games']}), a rejected one {100 * ho['rejected']['rate']:.1f}% "
-              f"({ho['rejected']['games']}); aggregate "
-              f"{100 * rec['held_out_agreement']:.1f}%")
-        # HONESTLY SCOPED. This used to read "the minimum is 25 and 84 games
-        # fall under it", which sounds like 84 accepted offsets below the
-        # minimum - the opposite of what the rule guarantees. Those 84 were
-        # counted over all 632 games including the 553 straight joins the floor
-        # never touches. The population below is the games where the floor is
-        # reached at all, and the only figure that says what the second reading
-        # is worth is how many games it decides differently.
-        vt = rec["votes"]
-        check("no game where the vote floor is reached went unrecorded",
-              vt["games_in_population"] >= len(acc or []), True)
-        check("the alternate vote floor's cost is recomputed, not asserted",
-              "games_changed_by_alt" in vt, True)
-        print(f"  (informational) the vote floor is reached in {vt['games_in_population']} games "
-              f"(those with a non-zero argmax), never in the {rec['event_offsets'].get('0', 0)} "
-              f"straight joins: min {vt['min_in_population']}, p50 {vt['p50']}, p95 {vt['p95']}; "
-              f"{vt['under_min']} fall under the minimum of {vt['min_required']} and are "
-              f"refused, {vt['under_min_alt']} under the alternate {vt['min_required_alt']}")
-        print(f"  (informational) the smallest vote count carrying an ACCEPTED shift is "
-              f"{rec['min_votes_accepted']}; the alternate floor of {vt['min_required_alt']} "
-              f"decides {vt['games_changed_by_alt']} games differently"
-              + (" - on this corpus the two values are the same rule"
-                 if not vt["games_changed_by_alt"] else ""))
-
-        # What the instrument prefers, stated rather than carried. A release is
-        # only found by following the ball back from the rim, so the recovered
-        # set shoots better than the league did - and every figure taken from
-        # it inherits that. The gate is that the bias is MEASURED and bounded,
-        # not that it is absent; it cannot be absent given how detection works.
-        bias = w["bias"]
-        check("the recovered set's make-bias is measured", bias["fg_pct_gap"] is not None, True)
-        check("make-bias stays inside the disclosed bound",
-              abs(bias["fg_pct_gap"]) <= WINDOW_MAX_FG_BIAS_PP, True)
-        print(f"  (informational) the recovered set shoots {bias['fg_pct_measured']}% against the "
-              f"season's {bias['fg_pct_season']}% ({bias['fg_pct_gap']:+.1f} pp) and covers "
-              f"{100 * bias['share_of_season']:.1f}% of 2015-16's attempts")
-
-        con = w["contest"]
-        buckets = con["buckets"]
-        check("four published categories", len(buckets), 4)
-        check("every measure lands in exactly one category",
-              sum(b["attempts"] for b in buckets), rec["measured"])
-        check("category shares sum to 1",
-              abs(sum(b["share"] for b in buckets) - 1.0) < 1e-3, True)
-        check("made counts never exceed attempts",
-              [b["name"] for b in buckets if b["made"] > b["attempts"]], [])
-        check("one hero per category", len(con["heroes"]), 4)
-        check("heroes carry complete geometry",
-              [h["bucket_name"] for h in con["heroes"]
-               if any(f is None for f in h["track"])], [])
-
-        # Two independent paths to one number: the last sample of the approach
-        # curve is the release instant, so it must equal the release-instant
-        # mean computed separately from the per-shot records.
-        curve = [v for v in con["approach_curve_ft"] if v is not None]
-        check("approach curve is sampled to the release",
-              len(curve) >= int(con["approach_seconds_before_release"] * con["approach_hz"]), True)
-
-        occ = w["occupancy"]
-        check("occupancy bands sum to 1",
-              abs(sum(b["share"] for b in occ["bands"]) - 1.0) < 1e-3, True)
-        check("occupancy frames sum to the total",
-              sum(b["frames"] for b in occ["bands"]), occ["frames_total"])
-
-        # window_measures.bin must agree with the JSON it was reduced beside;
-        # the site reads the binary and prints the JSON's figures next to it.
-        mb = w["measures_bin"]
-        bin_path = PROCESSED_DIR / "window_measures.bin"
-        check("measures.bin present", bin_path.exists(), True)
-        if bin_path.exists():
-            check("measures.bin size matches its record count",
-                  bin_path.stat().st_size, mb["records"] * mb["bytes_per_record"])
-            check("measures.bin holds every measured shot", mb["records"], rec["measured"])
-
-        # The window's figures must not leak into the other twenty-nine seasons.
-        check("window fields confined to 2015-16",
-              [y for y, r in seasons.items() if y != 2015 and r.get("window") is not None], [])
-
-        dis = w["disagreement"]
-        print(f"  (informational) the archive against itself: median "
-              f"{dis['median_ft']} ft between the coordinate a scorer filed and where "
-              f"the optical feed says the ball left the hand; "
-              f"{100 * dis['within_6ft']:.1f}% agree within 6 ft, "
-              f"{100 * dis['beyond_15ft']:.1f}% differ by more than 15 ft")
-        inv = w["inventory"]
-        print(f"  (informational) {inv['moments']:,} moments, {inv['body_positions']:,} body "
-              f"positions, {inv['miles_run']:,} miles run, {inv['hours_tracked']:,} hours")
-        print(f"  (informational) {inv['touches']:,} touches, {inv['passes']:,} passes "
-              f"({inv['passes_alt_gap']:,} at the alternate gap), {inv['drives']:,} drives - "
-              f"against {inv['drives_unordered']:,} read without requiring the outside sample "
-              f"to come first; {inv['feed_breaks']:,} feed breaks segmented on")
-        print(f"  (informational) reading 'the shot' as the gather instead of the release moves "
-              f"{100 * (con['gather_rule']['changed_share'] or 0):.1f}% of shots "
-              f"into a different published category")
-    else:
-        print("\nThe window: window.json absent (pipeline/window.py not run) - skipped")
-
-    # --- The paint (pipeline/paint.py) ---------------------------------------
-    paint_path = PROCESSED_DIR / "paint.json"
-    if paint_path.exists():
-        p = json.loads(paint_path.read_text())
-        print("\nThe paint: strokes from the bodies the record could not keep")
-        check("one possession per game", p["canvases"] >= EXPECTED_PAINT_CANVASES, True)
-        check("the canvas spans the window rather than one week of it",
-              p["days_covered"] >= EXPECTED_PAINT_DAYS, True)
-        # ... against the CORPUS's own span, not a constant. The old gate cleared
-        # 67 >= 60 while the painting stopped on 3 January and never reached the
-        # 23 January closure Act III is built toward: an integer stride could not
-        # index past game 498 of 632.
-        check("the paint reaches the window's opening and its closure",
-              [p["date_first"], p["date_last"]],
-              [p["corpus_date_first"], p["corpus_date_last"]])
-        print(f"  (informational) canvases by month {p['canvases_by_month']}; "
-              f"{p['days_covered']} distinct days")
-
-        f = p["files"]
-        vb = PROCESSED_DIR / "paint_strokes.bin"
-        ib = PROCESSED_DIR / "paint_index.bin"
-        check("paint_strokes.bin size matches its record count",
-              vb.stat().st_size, f["vertices"]["records"] * f["vertices"]["bytes_per_record"])
-        check("paint_index.bin size matches its record count",
-              ib.stat().st_size, f["index"]["records"] * f["index"]["bytes_per_record"])
-        check("index covers every stroke", f["index"]["records"], p["strokes"])
-
-        # A canvas is ten bodies and the ball. Once a path is cut at its
-        # discontinuities, one body can be several strokes, so counting strokes
-        # per canvas no longer says anything - the invariant that survives
-        # splitting is the number of distinct bodies, which the index's own
-        # canvas and body fields make computable straight from the bytes.
-        import struct as _struct
-        srec = f["index"]["record"]
-        ssz = _struct.calcsize(srec)
-        raw = ib.read_bytes()
-        groups = {}
-        for i in range(len(raw) // ssz):
-            _first, _count, canvas, _kind, body, _day = _struct.unpack_from(srec, raw, i * ssz)
-            groups.setdefault(canvas, set()).add(body)
-        per = [len(v) for v in groups.values()]
-        check("the index's record string matches the bytes it describes",
-              len(raw) % ssz, 0)
-        check("every canvas appears in the index", len(groups), p["canvases"])
-        check("ten bodies and the ball per canvas, however many runs they took",
-              min(per) >= MIN_BODIES_PER_CANVAS and max(per) <= MAX_BODIES_PER_CANVAS, True)
-        check("paint.json's body count agrees with the index",
-              [p["bodies_per_canvas"]["min"], p["bodies_per_canvas"]["max"]],
-              [min(per), max(per)])
-
-        # Every canvas is one shot the window stage corroborated, and the join
-        # is retained privately rather than asserted.
-        #
-        # AGAINST THE RULE'S OWN CONSTANT, not against the number the file being
-        # checked reports as its threshold. `res["max"] <= res["max_allowed"]`
-        # took both sides from paint.json, so a canvas at 480 ft against a
-        # declared 500 ft threshold passed - and the informational line beneath
-        # it printed "residual median 260.0 ft" without a single gate reddening.
-        res = p["anchor_residual_ft"]
-        check("no canvas ships an anchor residual over the corroboration threshold",
-              res["max"] <= MAX_ANCHOR_RESIDUAL_FT, True)
-        check("the paint declares the same threshold the window stage joins at",
-              res["max_allowed"], MAX_ANCHOR_RESIDUAL_FT)
-        check("the shipped binaries declare the format the piece decodes",
-              p.get("format_version"), 2)
-
-        # And where the private intermediates are on this machine, the join is
-        # RECONSTRUCTED rather than believed: every shipped canvas must be a
-        # shot the window stage's own corroborated set holds, at the residual
-        # the paint reports for it. This is what makes the gate independent of
-        # paint.json's summary of itself.
-        prov = _paint_join_reconstruction()
-        if prov is None:
-            print("  (informational) private intermediates absent - the paint join is gated "
-                  "against the threshold only; run pipeline/checks/check_paint_join.py "
-                  "where data/window/ exists")
+        got = int(m.group(1))
+        waiver = DECODER_WAIVERS.get(key)
+        if got == want[key]:
+            if waiver:
+                stale.append(f"{key}: {rel} now agrees at {got} - delete the waiver")
+        elif waiver and (got, want[key]) == waiver[:2]:
+            g.waived(f"the site decodes the {key} record the pipeline writes",
+                     f"{rel} reads {got} B, the pipeline writes {want[key]} B - {waiver[2]}")
         else:
-            n_rows, mismatched, orphaned, worst = prov
-            check("the private join carries one row per shipped canvas", n_rows, p["canvases"])
-            check("every canvas is a shot the window stage corroborated", orphaned, [])
-            check("every canvas's residual is the one the window stage measured",
-                  mismatched, [])
-            print(f"  (informational) the join reconstructed from data/window/: {n_rows} canvases, "
-                  f"worst residual {worst} ft against {MAX_ANCHOR_RESIDUAL_FT}")
-
-        # RULE 7, gated from the bytes. The split cuts jumps; a merged track -
-        # the feed reporting one detection under two player ids - has none, so
-        # it passes every continuity check and paints one measurement twice.
-        # 20 such pairs shipped across 19 of 250 canvases before this existed.
-        co = p["coincidence_ft"]
-        # The rule at full precision, from the 25 Hz path paint.py measured.
-        check("the refusal rule and its tolerance ship with the paint",
-              [co["tolerance"], co["seconds"]], [COINCIDENCE_FT, COINCIDENCE_SECONDS_QA])
-        check("no shipped canvas holds two bodies closer than the rule allows",
-              co["shipped_min"] is not None and co["shipped_min"] > COINCIDENCE_FT, True)
-        # ... and independently, from the bytes, at the storage level.
-        strokes, verts = _decode_paint(p)
-        coincident, exact_dupes, closest = _coincident_bodies(strokes, verts)
-        check("no canvas draws two bodies inside one coordinate quantum", coincident, [])
-        check("no two body slots ship an identical path", exact_dupes, [])
-        print(f"  (informational) closest sustained approach between two painted bodies: "
-              f"{co['shipped_min']} ft measured on the feed, {closest} ft once drawn "
-              f"(simplification pulls them closer), against a {COINCIDENCE_FT} ft refusal "
-              f"over {COINCIDENCE_FRAMES} frames and a {BYTE_COINCIDENCE_FT} ft byte gate")
-        print(f"  (informational) paint.py refused {co['spans_refused']} of "
-              f"{co['spans_examined']} spans for holding one detection twice "
-              f"({co['spans_refused_alt']} at the alternate {co['tolerance_alt']} ft); "
-              f"{co['hist'].get('0.0', 0)} of those sat at exactly 0.0 ft, which is the "
-              f"feed repeating a row")
-
-        # F-02's criterion, which nothing was checking: paint_strokes.bin was
-        # never decoded, so 60 vertices drawing 40-ft chords against 0.1 ft of
-        # stored arc left the gate green. A drawn segment may not exceed the arc
-        # measured for it by more than the coordinate quantum allows.
-        worst_excess, n_over = _chord_over_arc(strokes, verts)
-        check("no drawn segment exceeds the arc measured for it",
-              n_over, 0)
-        print(f"  (informational) worst chord-minus-arc excess {worst_excess:.4f} ft against a "
-              f"{CHORD_OVER_ARC_MAX_FT:.4f} ft quantization bound, over {len(verts):,} vertices")
-
-        # The selection rule, as implemented. 76 of 250 canvases are not their
-        # game's smallest-residual corroborated shot, so a rule naming only the
-        # ordering was describing something the code does not do.
-        rk = p["selection_rank"]
-        check("every canvas's place in the residual ordering is reported",
-              sum(rk.values()), p["canvases"])
-        print(f"  (informational) canvases at each rank in their game's residual ordering: "
-              f"{dict(list(rk.items())[:8])}; {p['canvases'] - p['selection_rank_zero']} of "
-              f"{p['canvases']} are NOT their game's smallest-residual corroborated shot, "
-              f"which is the feed-quality half of the selection rule doing the choosing")
-
-        # The measured speeds THE HAND's three fluid regimes are bounded by. If
-        # these move, the paint's physics is describing a different record.
-        sp = p["speed_ft_s"]
-        check("speed percentiles are ordered and physical",
-              sp["p10"] < sp["p50"] < sp["p90"] and 0 < sp["p10"] and sp["p90"] < 30, True)
-
-        # Nothing identifying may ever be in here: the corpus stays private and
-        # what ships must not be substitutable for it.
-        blob = json.dumps(p).lower()
-        leaked = [w for w in ("player", "game_id", "event_id", "playerid", "gameid")
-                  if w in blob and f'"{w}"' in blob]
-        check("no identity fields ship with the paint", leaked, [])
-
-        ink = p["ink_by_zone"]
-        check("ink shares sum to 1", abs(sum(ink.values()) - 1.0) < 1e-3, True)
-        print(f"  (informational) {p['strokes']:,} strokes over {p['canvases']} possessions, "
-              f"{p['vertices']:,} control points, {p['seconds_painted']:,.0f} painted seconds")
-        print(f"  (informational) every canvas joined to the shot record: residual median "
-              f"{res['median']} ft, p90 {res['p90']} ft, max {res['max']} ft against a "
-              f"{res['max_allowed']} ft threshold")
-        print(f"  (informational) {p['strokes_alt_min_run']:,} strokes under the alternate "
-              f"run floor of {p['min_run_frames_alt']} frames against {p['strokes']:,} at "
-              f"{p['min_run_frames']}; {p['vertices_forced_by_zone']:,} vertices forced by a "
-              f"zone change")
-        print(f"  (informational) where the paint goes, against where the record files shots:")
-        for z, share in ink.items():
-            print(f"      {z:<22} {100 * share:5.1f}% of painted time")
-    else:
-        print("\nThe paint: paint.json absent (pipeline/paint.py not run) - skipped")
-
-    # Context lines the piece quotes; printed for the record, not gated.
-    if {1996, 2012, 2019, 2024, 2015} <= set(seasons):
-        m96 = 100 * seasons[1996]["mid_share"]
-        m12 = 100 * seasons[2012]["mid_share"]
-        m19 = 100 * seasons[2019]["mid_share"]
-        m24 = 100 * seasons[2024]["mid_share"]
-        m15 = 100 * seasons[2015]["mid_share"]
-        print("\nMeasured narrative beats (informational):")
-        print(f"  pre-camera slope 1996-97..2012-13: {(m96 - m12) / 16:.2f} pp/season (plan: ~0.7)")
-        print(f"  camera-era slope 2012-13..2019-20: {(m12 - m19) / 7:.2f} pp/season (plan: ~2.1)")
-        print(f"  collapse midpoint (39.9+9.7)/2 = {(m96 + m24) / 2:.1f}; the window season sits at {m15:.1f}")
-    if 1996 in seasons:
-        c = seasons[1996]["contemporaneous"]
-        print(f"  1996-97 opens at {100 * c['taxonomy_mid_share']:.1f}% by the NBA's zone taxonomy, "
-              f"{100 * c['contemporaneous_mid_share']:.1f}% under the line then in force "
-              f"({c['misfiled_threes']:,} threes filed as Mid-Range)")
-
-    if "--slow" in sys.argv:
-        failures += run_slow_checks()
-
-    if failures:
-        print(f"\nQA RED: {len(failures)} mismatch(es). The pipeline is wrong, not the plan.")
-        sys.exit(1)
-    print("\nQA GREEN: section 1.6 reproduced exactly.")
+            mismatched.append(f"{key}: {rel} reads {got} B, the pipeline writes {want[key]} B")
+    g.check("every decoder constant is readable from the site's source", unread, [])
+    g.check("the site decodes the records the pipeline writes", mismatched, [])
+    g.check("no decoder waiver outlives the mismatch it names", stale, [])
 
 
-# The independent recomputations that need the raw corpus, reachable from the
-# gate rather than orphaned beside it. check_paint_join.py in particular does
-# the reconstruction the paint's residual gate could not do from data/processed/
-# alone - it reopens every painted archive and rebuilds the join from the
-# physics - and until now nothing ran it. Off by default because it parses
-# gigabytes; session 2 owns making the DEFAULT gate semantic.
+# --- the groups, in the order they print -------------------------------------
+
+GROUPS = {
+    "spine": group_spine,
+    "resolution": group_resolution,
+    "vocabulary": group_vocabulary,
+    "shot_artifacts": group_shot_artifacts,
+    "zone_vs_league": group_zone_vs_league,
+    "zone_parity": group_zone_parity,
+    "window": group_window,
+    "paint": group_paint,
+    "traces": group_traces,
+    "inventory": group_inventory,
+}
+SPINE_ONLY = ["spine", "resolution", "vocabulary", "shot_artifacts", "inventory"]
+# Everything except the one group that reads the raw season dumps. This is also
+# what the mutation suite runs, so it never pays for the CSVs.
+FAST_GROUPS = [k for k in GROUPS if k != "zone_vs_league"]
+
+
+def run_groups(names, root, allow_raw=True, quiet=False):
+    g = Gate(quiet=quiet)
+    ctx = Ctx(root, allow_raw=allow_raw)
+    for name in names:
+        g.group = name
+        try:
+            GROUPS[name](g, ctx)
+        except Exception as e:  # noqa: BLE001 - a crashing group is a failed group
+            import traceback  # noqa: PLC0415
+
+            g.fail(f"the {name} group completes", f"{type(e).__name__}: {e}")
+            if not quiet:
+                traceback.print_exc()
+    return g
+
+
+# --- the narrative beats the piece quotes ------------------------------------
+
+
+def narrative(root):
+    """Context lines the piece quotes. Printed for the record, never gated."""
+    path = Path(root) / "seasons.json"
+    if not path.exists():
+        return
+    seasons = {r["year"]: r for r in json.loads(path.read_text())["seasons"]}
+    if not {1996, 2012, 2019, 2024, 2015} <= set(seasons):
+        return
+    m96 = 100 * seasons[1996]["mid_share"]
+    m12 = 100 * seasons[2012]["mid_share"]
+    m19 = 100 * seasons[2019]["mid_share"]
+    m24 = 100 * seasons[2024]["mid_share"]
+    m15 = 100 * seasons[2015]["mid_share"]
+    print("\nMeasured narrative beats (informational):")
+    print(f"  pre-camera slope 1996-97..2012-13: {(m96 - m12) / 16:.2f} pp/season (plan: ~0.7)")
+    print(f"  camera-era slope 2012-13..2019-20: {(m12 - m19) / 7:.2f} pp/season (plan: ~2.1)")
+    print(f"  collapse midpoint (39.9+9.7)/2 = {(m96 + m24) / 2:.1f}; "
+          f"the window season sits at {m15:.1f}")
+    c = seasons[1996]["contemporaneous"]
+    print(f"  1996-97 opens at {100 * c['taxonomy_mid_share']:.1f}% by the NBA's zone taxonomy, "
+          f"{100 * c['contemporaneous_mid_share']:.1f}% under the line then in force "
+          f"({c['misfiled_threes']:,} threes filed as Mid-Range)")
+
+
+# --- the slow, raw-corpus recomputations -------------------------------------
+# Independent recomputations that reopen the archives. Off by default because
+# they parse gigabytes; the DEFAULT gate is semantic without them.
 SLOW_CHECKS = [
     ["checks/check_paint_join.py"],
     ["checks/check_offsets.py"],
@@ -954,6 +2268,90 @@ def run_slow_checks():
     print(f"\n  {len(SLOW_CHECKS) - len(failed)}/{len(SLOW_CHECKS)} independent "
           f"recomputations agree with what shipped")
     return failed
+
+
+# --- main --------------------------------------------------------------------
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--processed", default=str(PROCESSED_DIR),
+                    help="the artifact root every read goes through")
+    ap.add_argument("--only", help="comma-separated group names")
+    ap.add_argument("--spine-only", action="store_true",
+                    help="the shot stage alone; NOT the shipping gate")
+    ap.add_argument("--no-raw", action="store_true",
+                    help="data/shots/ is absent (a fresh public clone); NOT the shipping gate")
+    ap.add_argument("--mutations", action="store_true",
+                    help="the mutation suite alone")
+    ap.add_argument("--no-mutations", action="store_true",
+                    help="skip the mutation suite; NOT the shipping gate")
+    ap.add_argument("--slow", action="store_true",
+                    help="also run the recomputations that reopen the raw corpus")
+    ap.add_argument("--write-zone-fixture", action="store_true",
+                    help="regenerate pipeline/checks/zone_fixture.json from common.zone_at")
+    args = ap.parse_args()
+
+    if args.write_zone_fixture:
+        write_zone_fixture()
+        return
+
+    from checks.mutations import run_mutations  # noqa: PLC0415
+
+    if args.mutations:
+        sys.exit(0 if run_mutations(Path(args.processed)) else 1)
+
+    if args.only:
+        unknown = [n for n in args.only.split(",") if n not in GROUPS]
+        if unknown:
+            sys.exit(f"unknown group(s): {', '.join(unknown)}; "
+                     f"known: {', '.join(GROUPS)}")
+        names = [n for n in GROUPS if n in args.only.split(",")]
+    elif args.spine_only:
+        names = SPINE_ONLY
+    elif args.no_raw:
+        names = list(GROUPS)
+    else:
+        names = list(GROUPS)
+
+    reduced = []
+    if args.no_raw:
+        reduced.append(f"raw dumps absent, {ZONE_VS_LEAGUE_CHECKS} checks not run")
+    if args.spine_only:
+        reduced.append(f"--spine-only, {len(GROUPS) - len(SPINE_ONLY)} groups not run")
+    if args.only:
+        reduced.append(f"--only {args.only}")
+    if args.processed != str(PROCESSED_DIR):
+        reduced.append(f"--processed {args.processed}")
+
+    print(f"FADEAWAY acceptance gate - {len(names)} of {len(GROUPS)} groups"
+          + (f"\n  REDUCED: {'; '.join(reduced)}" if reduced else ""))
+
+    g = run_groups(names, Path(args.processed), allow_raw=not args.no_raw)
+    narrative(Path(args.processed))
+
+    failures = list(g.failures)
+    if args.slow:
+        failures += [(("--slow"), f, None, None) for f in run_slow_checks()]
+
+    run_muts = not (args.no_mutations or args.spine_only or args.only)
+    if run_muts:
+        if not run_mutations(Path(args.processed)):
+            failures.append(("mutations", "the mutation suite catches every defect",
+                             "a mutation survived", "all red"))
+    elif not args.only:
+        reduced.append("--no-mutations")
+
+    if failures:
+        print(f"\nQA RED: {len(failures)} mismatch(es). The pipeline is wrong, not the plan.")
+        for grp, name, _got, _want in failures:
+            print(f"  [{grp}] {name}")
+        sys.exit(1)
+    if reduced:
+        print(f"\nQA GREEN (REDUCED - {'; '.join(reduced)}): "
+              f"{g.n_checks} checks, section 1.6 reproduced exactly.")
+    else:
+        print(f"\nQA GREEN: {g.n_checks} checks, section 1.6 reproduced exactly.")
 
 
 if __name__ == "__main__":

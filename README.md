@@ -47,11 +47,82 @@ python3 pipeline/bloom.py       # Act III: ball traces, anchored at their own sh
 python3 pipeline/window.py --probe-gate   # must reproduce the committed corpus fixture first
 python3 pipeline/window.py      # all 632 tracking games -> the caliper, occupancy, the inventory
 python3 pipeline/window.py --reduce       # fold the per-game artifacts into what the piece reads
-python3 pipeline/paint.py       # THE HAND: 2,772 strokes from 252 possessions
+python3 pipeline/paint.py       # THE HAND: the strokes, from one possession per game
 python3 pipeline/paint.py --reduce
 
 cd site && npm install && npm run dev     # the piece
 ```
+
+## The gate
+
+`pipeline/qa.py` is the project's conscience, and it is an acceptance gate rather than a
+file-presence check. Every shipping artifact is mandatory; every binary is decoded and asked what
+it means rather than measured; every headline figure in `window.json` and `paint.json` is
+reproduced from an independent path instead of read back from itself. A bare run is the full
+shipping gate — all ten check groups, plus the mutation suite.
+
+```bash
+python3 pipeline/qa.py                 # the full shipping gate (~10 s)
+python3 pipeline/qa.py --mutations     # the defect catalogue alone (~8 s)
+python3 pipeline/qa.py --no-mutations  # the checks without it
+python3 pipeline/qa.py --no-raw        # a public clone with no data/shots/: says REDUCED
+python3 pipeline/qa.py --spine-only    # the shot stage alone, while working on it
+python3 pipeline/qa.py --only window,paint
+python3 pipeline/qa.py --processed DIR # point every read at another artifact root
+python3 pipeline/qa.py --slow          # + the recomputations that reopen the raw corpus
+```
+
+Anything but a bare run prints `QA GREEN (REDUCED — …)` and says what it did not do. Only the
+bare run is the gate.
+
+**The defect catalogue** lives in `pipeline/checks/mutations.py`: forty-two defects, each
+reintroduced on a copy of `data/processed/` and each required to be caught **by the named check
+that owns it** — a mutation caught only by some unrelated check is a failure of the suite, not a
+pass. It runs two ways, from one list:
+
+```bash
+python3 pipeline/qa.py --mutations           # in-process, seconds; part of every gate run
+python3 pipeline/checks/mutations.py --list  # what each case is and which check owns it
+python3 pipeline/checks/break_gates.py       # the same list, each through a real qa.py
+                                             # subprocess on a mutated repo root (~80 s)
+```
+
+Add a gate, add its defect. A gate you cannot demonstrate going red is not evidence.
+
+**Zone parity.** The league's seven-region map of the floor exists twice — `pipeline/common.py:zone_at`
+and `site/src/zone.ts:zoneAt` — and THE HAND colours a stroke by the region it is crossing, so a
+drift between them turns a measurement into a decoration. Both are checked against one committed
+fixture, and neither toolchain runs the other's:
+
+```bash
+python3 pipeline/qa.py --write-zone-fixture   # regenerate it from common.zone_at
+python3 pipeline/qa.py                        # the Python side
+cd site && npm run gate                       # the TypeScript side (npm run build calls it)
+```
+
+## Probing the piece
+
+Two diagnostics of the renderer, behind `?probe=`. Neither is reachable from the exhibit path:
+`main.ts` imports the probe module dynamically and only when the parameter is present, so the
+gallery build never fetches the chunk and a probe run never starts the loop. Both write a
+machine-readable verdict into the page, the console and `window.probePurity` / `window.probePerf`.
+
+```bash
+cd site && npm run dev
+```
+
+- `http://localhost:5173/?probe=purity` — the same instant reached four ways (continuous playback,
+  a forward seek, a backward seek, and a cold direct load) and compared by exact pixel hash, for
+  every hand at twelve schedule-derived beats. **THE HAND differs at exactly the four window
+  beats** — audit finding F-04, session 4's to fix; the harness measures it rather than hiding it.
+  Read every verdict against the probe's own **noise floor**, which it measures at startup: Canvas2D
+  rasterisation is not stable across memory pressure, and an uncalibrated run blames the piece for
+  the browser. `&exact=1` pins software rasterisation instead — the floor drops to zero and the run
+  takes hours. `&playback=<seconds>` lengthens the continuous history.
+- `http://localhost:5173/?probe=perf` — mean / p50 / p95 / max and over-budget frames per hand per
+  beat, plus the draw calls each frame issues, timed on a fixed 1280×720 surface at DPR 2. The full
+  sweep is ~2,600 renders and runs for minutes; `&mode=<id>`, `&t=<seconds>` and `&frames=<n>`
+  narrow it to one answer.
 
 `bloom.py` and `window.py` need one of `py7zr`, `p7zip`, or `bsdtar` to read the corpus archives;
 GNU tar cannot. The shot-record stages need none of them.

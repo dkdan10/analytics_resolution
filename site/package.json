@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "sync-data": "node scripts/sync-data.mjs",
+    "gate": "node scripts/zone-gate.mjs",
     "dev": "npm run sync-data && vite",
-    "build": "npm run sync-data && tsc --noEmit && vite build",
+    "build": "npm run sync-data && npm run gate && tsc --noEmit && vite build",
     "preview": "vite preview"
   },
   "devDependencies": {

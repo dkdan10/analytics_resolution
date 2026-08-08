@@ -21,3 +21,8 @@ docs/audits/
 
 # Session prompts for the audit remediation (working documents).
 docs/prompts/
+
+# Local tool state. .claude/launch.json IS committed - it is how the dev server
+# is started for the browser probes, and it belongs with them.
+.claude/*
+!.claude/launch.json

@@ -6,12 +6,12 @@
  */
 
 import { exhibitClock, TalkClock, type Clock } from "./clock";
-import { load, type Loaded } from "./data";
-import { buildInscriptions, drawSlug, type Inscription } from "./inscription";
-import { drawHand, isModeId, modeAt, MODE_IDS, MODE_TITLES, type ModeId } from "./modes";
+import { load } from "./data";
+import { buildInscriptions } from "./inscription";
+import { isModeId, modeAt, MODE_IDS, MODE_TITLES, type ModeId } from "./modes";
 import { Navigator } from "./navigator";
-import { GROUND } from "./palette";
-import { drawPlate, makeView, SHORTENED_THREE_R, type View } from "./plate";
+import { makeView } from "./plate";
+import { renderTo, type Target } from "./render";
 import { clearAtlas } from "./textatlas";
 import {
   ACT0_SECONDS,
@@ -19,94 +19,27 @@ import {
   secondsFor,
   seekAct,
   seekTo,
-  stateAt,
   type Act,
   type Schedule,
 } from "./timeline";
 
-/** External history: the league's founding year. Nothing in the shot record
- *  reaches back this far - that is the point of Act 0 - so it cannot be
- *  derived, and it is the only date in the piece that is not a measurement. */
-const LEAGUE_FOUNDED = 1946;
-
 const canvas = document.getElementById("plate") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d", { alpha: false })!;
 
-let view: View = makeView(1, 1);
-let dpr = 1;
+const target: Target = { ctx, view: makeView(1, 1), dpr: 1 };
 
 function resize(): void {
-  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  target.dpr = Math.min(window.devicePixelRatio || 1, 2);
   // Measure the canvas's own box, not the window's: with the navigator open the
   // plate has the rail beside it and would otherwise be drawn off-centre.
   const w = canvas.clientWidth || window.innerWidth;
   const h = canvas.clientHeight || window.innerHeight;
-  canvas.width = Math.round(w * dpr);
-  canvas.height = Math.round(h * dpr);
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  view = makeView(w, h);
+  canvas.width = Math.round(w * target.dpr);
+  canvas.height = Math.round(h * target.dpr);
+  ctx.setTransform(target.dpr, 0, 0, target.dpr, 0, 0);
+  target.view = makeView(w, h);
   // Every atlas key carries its size, so a resize invalidates all of them.
   clearAtlas();
-}
-
-function render(
-  t: number,
-  data: Loaded,
-  schedule: Schedule,
-  inscriptions: Inscription[],
-  modeOverride: ModeId | null,
-): void {
-  const st = stateAt(t, schedule);
-
-  ctx.fillStyle = GROUND;
-  ctx.fillRect(0, 0, view.width, view.height);
-
-  // Act 0 holds no coordinates, so the plate holds no marks. The engraving
-  // itself arrives over the prelude - the court before anything is recorded on it.
-  if (st.act === 0) {
-    ctx.save();
-    ctx.globalAlpha = Math.min(1, st.preludePhase * 1.6);
-    drawPlate(ctx, view);
-    ctx.restore();
-    // Fifty years of basketball and not one coordinate. The plate is bare
-    // because the record is - this is the absence, not a stylised version of it.
-    // The closing year is the first season the record holds, read from the data;
-    // 1946 is the league's founding, external history the dumps cannot supply.
-    const p = st.preludePhase;
-    const firstCharted = data.seasons[0]?.year;
-    drawSlug(
-      ctx,
-      view,
-      [`${LEAGUE_FOUNDED} — ${firstCharted ?? ""}`, "NO SHOT WAS GIVEN A PLACE"],
-      { x: 0, y: 200 },
-      Math.min(1, p * 4) * Math.min(1, (1 - p) * 5),
-    );
-    return;
-  }
-
-  const year = st.year!;
-
-  // The arc carries the geometry in force: 1996-97 played to a 22-ft line that
-  // the modern taxonomy has since drawn over.
-  const threeR = year === 1996 ? SHORTENED_THREE_R : undefined;
-  // The engraving recedes through the coda too, so the wrap arrives on near-bare
-  // stone rather than on a fully drawn court.
-  ctx.save();
-  ctx.globalAlpha = 1 - 0.85 * st.coda;
-  drawPlate(ctx, view, threeR);
-  ctx.restore();
-
-  // The coda empties the plate back to bare stone so the loop turns over
-  // without a seam - everything the piece drew recedes, the engraving stays.
-  const remains = 1 - st.coda;
-
-  // The hand for this moment. Everything above is shared by all of them: the
-  // ground, the prelude, the era's arc.
-  if (remains > 0.001) {
-    drawHand(modeAt(t, schedule, modeOverride), {
-      ctx, view, dpr, st, data, schedule, inscriptions, remains,
-    });
-  }
 }
 
 function bindTalkKeys(clock: TalkClock, schedule: Schedule): void {
@@ -166,6 +99,23 @@ async function main(): Promise<void> {
   const schedule = buildSchedule(data.seasons);
 
   const q = new URLSearchParams(location.search);
+
+  // The probes, and the only place they are reachable from.
+  //
+  // Dynamically imported, so the gallery build never fetches the chunk and the
+  // exhibit path cannot arrive here by accident. They return instead of
+  // starting the loop: a probe run is not the piece running, it is the piece
+  // being measured, and it must not also be animating while it is measured.
+  const probe = q.get("probe");
+  if (probe) {
+    const { runProbe } = await import("./probe");
+    await runProbe(probe, q, {
+      data,
+      schedule,
+      inscriptions: buildInscriptions(data.seasons, schedule),
+    });
+    return;
+  }
   // The rail belongs to the working and lectern modes. Exhibit shows nothing
   // that looks like it wants to be touched, so it never gets one.
   const wantsNav = (q.has("talk") || q.has("nav")) && q.get("nav") !== "0";
@@ -233,7 +183,7 @@ async function main(): Promise<void> {
   const inscriptions = buildInscriptions(data.seasons, schedule);
   const frame = (now: number) => {
     const t = clock.at(now);
-    render(t, data, schedule, inscriptions, modeOverride);
+    renderTo(target, t, data, schedule, inscriptions, modeOverride);
     nav?.update(t);
     requestAnimationFrame(frame);
   };

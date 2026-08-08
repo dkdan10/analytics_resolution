@@ -6,6 +6,17 @@
  */
 
 import { LINE, LINE_FAINT } from "./palette";
+// The lines this file engraves ARE the lines that classify a shot, so it draws
+// them from the same module the classifier reads. Three copies of the geometry
+// lived in the site before zone.ts; one drifting from another would put the
+// plate's own arc somewhere other than where the colour changes.
+import {
+  CORNER_X,
+  FREE_THROW_Y,
+  LANE_HALF_W,
+  RESTRICTED_R,
+  THREE_R,
+} from "./zone";
 
 /** The halfcourt box the pipeline clips to (tenths of feet, hoop origin). */
 export const COURT = { x0: -250, x1: 250, y0: -50, y1: 420 } as const;
@@ -13,17 +24,11 @@ export const COURT = { x0: -250, x1: 250, y0: -50, y1: 420 } as const;
 // Geometry in tenths of feet from the hoop. The hoop sits 5.25 ft from the
 // baseline, which is why the baseline is at -52.5 and the plate clips at -50.
 const BASELINE_Y = -52.5;
-const LANE_HALF_W = 80;
-const FREE_THROW_Y = 137.5;
 const FREE_THROW_R = 60;
 const RIM_R = 7.5;
 const BACKBOARD_Y = -12.5;
 const BACKBOARD_HALF_W = 30;
-const RESTRICTED_R = 40;
 
-/** Modern three-point geometry: 23'9" arc, corners cut at 22 ft. */
-const THREE_R = 237.5;
-const CORNER_X = 220;
 /** The line in force in 1994-97: a uniform 22 ft. Drawn only for the
  *  1996-97 disagreement, where the taxonomy and the era part company. */
 export const SHORTENED_THREE_R = 220;

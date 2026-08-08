@@ -53,26 +53,10 @@ import type { PaintFile, Strokes } from "../data";
 import { drawSlug } from "../inscription";
 import { BONE_RGB, ZONE_RGB } from "../palette";
 import { COURT, type View } from "../plate";
+// One implementation of the league's map, checked against the Python one
+// through a committed fixture. See site/src/zone.ts.
+import { zoneAt } from "../zone";
 import type { Frame } from "./types";
-
-/** Where the piece's own zone geometry lives, in the plate's frame. Mirrors
- *  `common.zone_at` exactly; qa.py gates that function against the record. */
-const RESTRICTED_R = 40;
-const LANE_HALF_W = 80;
-const FREE_THROW_Y = 137.5;
-const THREE_R = 237.5;
-const CORNER_X = 220;
-const CORNER_Y = Math.sqrt(THREE_R * THREE_R - CORNER_X * CORNER_X);
-
-function zoneAt(x: number, y: number): number {
-  if (y > 417.5) return 6;
-  if (Math.abs(x) >= CORNER_X && y <= CORNER_Y) return x < 0 ? 3 : 4;
-  const r = Math.hypot(x, y);
-  if (r >= THREE_R) return 5;
-  if (r <= RESTRICTED_R) return 0;
-  if (Math.abs(x) <= LANE_HALF_W && y <= FREE_THROW_Y) return 1;
-  return 2;
-}
 
 const ZONE = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
 

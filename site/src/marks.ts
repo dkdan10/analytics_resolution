@@ -23,6 +23,7 @@
  */
 
 import type { Sample, Season } from "./data";
+import { RESTRICTED_R } from "./zone";
 import { BONE_RGB } from "./palette";
 import type { View } from "./plate";
 
@@ -65,8 +66,9 @@ const SHARP: Hand = hand(1.7, 0.3);
 /** A shot the record of this era placed only loosely: the same ink, spread wide. */
 const COARSE: Hand = hand(3.3, 0.95);
 
-/** Where the regime was measured: the restricted area, 4 ft from the hoop. */
-const RESTRICTED_R_TENTHS = 40;
+/** Where the regime was measured: the restricted area, 4 ft from the hoop -
+ *  the league's own circle, taken from the one module that defines it. */
+const RESTRICTED_R_TENTHS = RESTRICTED_R;
 
 /** The pin is the densest thing on the plate - it has to be, it is a pile. */
 const PIN_CORE_ALPHA = 0.62;
@@ -85,6 +87,14 @@ const stampCache = new Map<string, Stamp>();
  *  this, seven zones times two hands would mean fourteen synchronous
  *  getImageData readbacks on every resize. */
 const gainCache = new Map<string, number>();
+
+/** Empty both caches. Nothing in the piece calls this: they are keyed by every
+ *  input they depend on, so a hit and a miss must produce the same pixels. That
+ *  claim is what the purity probe checks, and it can only check it from cold. */
+export function clearStamps(): void {
+  stampCache.clear();
+  gainCache.clear();
+}
 
 /** Pre-render a mark so soft edges cost nothing per dot, and measure the light
  *  it deposits so every hand can be normalised to the same total. */
