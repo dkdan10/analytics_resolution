@@ -1197,6 +1197,49 @@ def group_filing(g, ctx):
         g.info(f"{ex['season']} Restricted Area: {ra.get('n_placed'):,} of {ra['n']:,} shots "
                f"carry a place, mean {ra.get('dist_ft')} ft")
 
+    # --- the pin is followed (session 7, S2) ---------------------------------
+    # `samples/*.json:pin` and `classification_place` both derive from the one
+    # `resolution.rim_sentinel.coord` — the consequence 5c shipped so THE
+    # CENSUS cannot draw six seasons' refusals twice, once under the pin and
+    # once inside a category's mean position. It was true by construction the
+    # day it landed and protected by nothing; gated here so a regenerated
+    # artifact cannot quietly stop deriving both from one coordinate.
+    pin_rows, unplaced = [], []
+    for year, row in sorted(seasons.items()):
+        label = row["season"]
+        sent = row["resolution"].get("rim_sentinel") or {}
+        coord = sent.get("coord") if sent.get("is_refusal") else None
+        refused = sent.get("n", 0) if sent.get("is_refusal") else 0
+
+        sj = ctx.json(g, f"samples/season_{year}.json")
+        if sj:
+            pin, xs, ys = sj.get("pin") or [], sj.get("x") or [], sj.get("y") or []
+            for i, flag in enumerate(pin):
+                at = coord is not None and [xs[i], ys[i]] == list(coord)
+                if bool(flag) != at:
+                    pin_rows.append(f"{label}: sample row {i} pin={flag} at "
+                                    f"({xs[i]},{ys[i]}) vs sentinel {coord}")
+                    break
+
+        attempts = row.get("attempts") or 0
+        for title, cats in row.get("classification_place", {}).items():
+            tn = sum(c.get("n", 0) for c in cats.values())
+            tp = sum(c.get("n_placed", 0) for c in cats.values())
+            # A shot the record filed without this taxonomy's column cannot be
+            # counted unplaced by it, so the deficit may fall short of the pile
+            # by at most the taxonomy's own incompleteness — exact everywhere
+            # else. One 1996-97 shot with no TYPE filing is the only slack the
+            # whole corpus uses.
+            short = max(0, attempts - tn)
+            if not (refused - short <= tn - tp <= refused):
+                unplaced.append(f"{label}:{title} unplaced {tn - tp} vs pile {refused} "
+                                f"(taxonomy holds {tn} of {attempts})")
+
+    g.check("every sample pin row is the sentinel's cell, and every cell row is pinned",
+            pin_rows, [])
+    g.check("every taxonomy's unplaced count is the pile the pin carries",
+            unplaced, [])
+
 
 # --- group: the per-season artifacts -----------------------------------------
 

@@ -469,6 +469,30 @@ def m_schedule_description(d):
     _save(d, "seasons.json", s)
 
 
+def m_pin_unfollow(d):
+    """A pinned sample row is released back into the scatter.
+
+    The exact double-count 5c closed, reintroduced: a shot the pin already
+    carries is drawn again as an ordinary mark, and labelled by THE LEDGER
+    as if the record had placed it.
+    """
+    sj = _load(d, "samples/season_2015.json")
+    sj["pin"][sj["pin"].index(1)] = 0
+    _save(d, "samples/season_2015.json", sj)
+
+
+def m_unplaced_drift(d):
+    """A category quietly places a slice of the pile.
+
+    `n_placed` grows without the pile shrinking, so the same shots are inside
+    a category's mean position and under the pin at once.
+    """
+    s = _load(d, "seasons.json")
+    _season_row(s, 2015)["classification_place"]["ZONE"]["Restricted Area"][
+        "n_placed"] += 100
+    _save(d, "seasons.json", s)
+
+
 def m_sentinel_move(d):
     """A refusal is moved back onto the origin without its count changing.
 
@@ -1162,6 +1186,17 @@ CASES = [
          "DESCRIPTION is filed in exactly the seasons the vocabulary moved",
          m_schedule_description,
          "a vocabulary change claimed for a season that held still"),
+
+    # --- the pin is followed (session 7, S2) ----------------------------------
+    Case("pin-unfollow", ["filing"],
+         "every sample pin row is the sentinel's cell, and every cell row is pinned",
+         m_pin_unfollow,
+         "a pile shot released into the scatter is drawn twice - once by the "
+         "pin, once as a mark"),
+    Case("unplaced-drift", ["filing"],
+         "every taxonomy's unplaced count is the pile the pin carries",
+         m_unplaced_drift,
+         "a category quietly places a slice of the pile the pin already carries"),
 
     # --- where the record's refusal actually is (5b) --------------------------
     Case("sentinel-move", ["filing"],
