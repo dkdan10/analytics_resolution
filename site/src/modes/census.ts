@@ -166,15 +166,26 @@ export function filing(
   const a = Math.min(1, Math.max(0, arrived));
   const counts = season.classification[taxonomy] ?? {};
   const places = season.classification_place?.[taxonomy] ?? {};
-  const classified = Math.round(season.attempts * a);
+  // ONE population: the shots the record both named AND placed. Until
+  // 2026-08-09 a word was SIZED from `classification` — the whole population,
+  // the pin's pile included — and PLACED from `classification_place`, whose
+  // mean excludes the pile. So in the dunk-convention seasons a DUNK SHOT
+  // word sized by the season's whole dunk population claimed a mean position
+  // computed from the few dunks the record actually placed. Both halves now
+  // read the placed population: area ∝ share stays literally true of the
+  // shots the word claims, and the refused rest is the pin's — drawn once,
+  // named by the caption, receipted by PLACEMENT.
+  let placedTotal = 0;
+  for (const name of Object.keys(counts)) placedTotal += places[name]?.n_placed ?? 0;
+  const classified = Math.round(placedTotal * a);
   const out: Filed[] = [];
-  for (const [name, whole] of Object.entries(counts)) {
-    const n = Math.round(whole * a);
-    if (n < 1) continue;
+  for (const name of Object.keys(counts)) {
     const p: Place | undefined = places[name];
     // A category the record named and placed none of has nowhere to be struck.
     // That is a fact about the record, not a gap: it is the blind era's rim.
     if (!p || p.dist_ft === undefined || p.bearing_rad === undefined) continue;
+    const n = Math.round(p.n_placed * a);
+    if (n < 1) continue;
     const share = classified ? n / classified : 0;
     const size = STRIKE_MAX_TENTHS * Math.sqrt(share);
     const dist = p.dist_ft * 10;
