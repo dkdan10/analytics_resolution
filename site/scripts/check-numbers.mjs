@@ -56,12 +56,15 @@ const SKIP_DISPLAY = [/^scalars\.ts$/, /^probe\//];
  * THE MARK LAYERS. Pass 3 runs here and nowhere else, and the limit is
  * deliberate rather than incidental.
  *
- * These five modules deposit the marks that stand for measurements: the baked
- * field, Act III's traces, the dot-and-pin ladder, the paint, and the caliper.
- * "Grain is a measurement, not a mood" is a claim about exactly these, and this
- * is the audit's own F-06 location list plus marks.ts (whose INK reaches the
- * live pin through INK_TOTAL) and modes/measure.ts (whose caliper is the most
- * literal mark-as-measurement in the piece).
+ * These modules deposit the marks that stand for measurements, and "grain is a
+ * measurement, not a mood" is a claim about exactly them. The list began as the
+ * audit's own F-06 locations plus marks.ts (whose INK reaches the live pin
+ * through INK_TOTAL) and modes/measure.ts (whose caliper is the most literal
+ * mark-as-measurement in the piece), and every session since has widened it.
+ *
+ * THE COUNT IS NOT WRITTEN HERE. This sentence said "these five modules" for
+ * four sessions after the array below had twelve entries — a stale count inside
+ * the file that IS the source of truth for the list. Read the array.
  *
  * OUT OF SCOPE, and recorded in CLAUDE.md as a limit rather than an oversight:
  * typography (inscription.ts, textatlas.ts), the engraving (plate.ts), the

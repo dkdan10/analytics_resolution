@@ -6,7 +6,7 @@ Grain is a measurement, not a mood. Every material property of a mark in FADEAWA
 
 **133 scalars**, 91 of them material: 2 measured, 3 geometry, 128 authored.
 
-A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
+A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts`, `prefix.ts`, `inscription.ts`, `modes/ledger.ts`, `modes/census.ts`, `palette.ts`, `modes/stack.ts`, `modes/operations.ts`, `modes/fieldlayer.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
 ## measured
 
@@ -38,8 +38,8 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   the brightest any cell may reach, held below 1 so nothing clips before the per-frame dim is applied — clipping first would darken exactly the dense rim the piece's argument lives on.
 - **SPLAT_MIN_PX** — **1.5**  
   the smallest splat radius in device pixels, so a coordinate still deposits something at small window sizes.
-- **SPLAT_SPACING_K** — **1.45**  
-  splat radius as a multiple of the lattice spacing — how far neighbouring coordinates bleed together. Below about 1 the field reads as a mechanical dot-screen of the record's grid rather than as a photographic density.
+- **SPLAT_SPACING_K** — **1.8494**  
+  splat radius as a multiple of the lattice spacing — how far neighbouring coordinates bleed together. THE OLD DISCLOSURE MISDESCRIBED ITS OWN FAILURE: it said the artefact appears 'below about 1', and the failure is not smallness. The falloff is a peak-1 paraboloid on a disc of radius K*spacing, so its response at the lattice's own fundamental is J2(2*pi*K) — a function of K ALONE, independent of viewport and device ratio. That response has zeros at 0.8174, 1.3396, 1.8494 and 2.3548 (j2,n / 2*pi), and SIDELOBES BETWEEN THEM. The old 1.45 sat on a sidelobe, which is why sessions 5a and 5b both reported the record's own grid beating through the field at every window size and neither could say why. This is the third zero: the lowest that also INCREASES neighbour bleed, which is the other half of what this scalar is for. Measured in the baked layer's own spectrum the lattice fundamental drops about sevenfold. Ink is untouched — total deposited light varies 0.004% across the whole range, because FALLOFF_DISC_INTEGRAL normalises it — so this is smoothness and nothing else. Still `authored`: WHERE the zeros are follows from the falloff and the lattice, but WHICH one to sit on is a judgement.
 - **TRACE_LIT_FLOOR** — **0.1**  
   how lit a trace is at floor level, before the ball's height adds any.
 - **TRACE_LIT_RANGE** — **0.62**  

@@ -4,9 +4,15 @@
 piece (**FADEAWAY**) for "Theories, Methods, and Experiments in Art and AI," Columbia.
 
 FADEAWAY is one monumental halfcourt that never moves while thirty seasons migrate out of its
-middle. Each era's marks are drawn at the resolution the public record could actually manage, and
-every material property of a mark comes from a measurement of that era's archive — grain is a
-measurement, not a mood.
+middle. Every material property of a mark comes from a measurement of that era's archive — grain is
+a measurement, not a mood.
+
+What that resolution *was* is the piece's own finding, and it is not constant. The record refuses to
+place some shots at all, and where it files that refusal moves: the whole rim in the earliest era,
+then nothing for four seasons, then dunks, then tip-ins and putbacks. Every one of those refusals is
+struck on the plate as **the pin**, at the coordinate the record actually used. The 2015-16 pile is
+corroborated against a second instrument — the optical tracking feed puts those shots in as many
+places as there are shots, so the coordinate is a filing convention and not a location.
 
 Six hands draw the same record in turn, one per pass of the loop: **the plate** (evidence), **the
 field** (the league's own colours), **the ledger** (its words), **the census** (its counts), **the
@@ -60,6 +66,8 @@ python3 pipeline/window.py      # all 632 tracking games -> the caliper, occupan
 python3 pipeline/window.py --reduce       # fold the per-game artifacts into what the piece reads
 python3 pipeline/paint.py       # THE HAND: the strokes, from one possession per game
 python3 pipeline/paint.py --reduce
+python3 pipeline/facts.py       # the residue no dump supplies: cited history + derived schedule
+python3 pipeline/palette.py     # measures THE FIELD's seven hues; the gate FAILS if it never ran
 
 cd site && npm install && npm run dev     # the piece
 ```
@@ -70,10 +78,11 @@ cd site && npm install && npm run dev     # the piece
 file-presence check. Every shipping artifact is mandatory; every binary is decoded and asked what
 it means rather than measured; every headline figure in `window.json` and `paint.json` is
 reproduced from an independent path instead of read back from itself. A bare run is the full
-shipping gate — all ten check groups, plus the mutation suite.
+shipping gate — every check group, plus the mutation suite. The group list is `GROUPS` in
+`qa.py` and the run prints how many there are; it has grown every session and is not restated here.
 
 ```bash
-python3 pipeline/qa.py                 # the full shipping gate (~10 s)
+python3 pipeline/qa.py                 # the full shipping gate (~15 s)
 python3 pipeline/qa.py --mutations     # the defect catalogue alone (~8 s)
 python3 pipeline/qa.py --no-mutations  # the checks without it
 python3 pipeline/qa.py --no-raw        # a public clone with no data/shots/: says REDUCED
@@ -87,8 +96,8 @@ python3 pipeline/qa.py --write-deploy-allowlist   # regenerate pipeline/deploy_a
 Anything but a bare run prints `QA GREEN (REDUCED — …)` and says what it did not do. Only the
 bare run is the gate.
 
-**The defect catalogue** lives in `pipeline/checks/mutations.py`: forty-two defects, each
-reintroduced on a copy of `data/processed/` and each required to be caught **by the named check
+**The defect catalogue** lives in `pipeline/checks/mutations.py`. Every defect is reintroduced on
+a copy of `data/processed/` and each is required to be caught **by the named check
 that owns it** — a mutation caught only by some unrelated check is a failure of the suite, not a
 pass. It runs two ways, from one list:
 
@@ -101,10 +110,11 @@ python3 pipeline/checks/break_gates.py       # the same list, each through a rea
 
 Add a gate, add its defect. A gate you cannot demonstrate going red is not evidence.
 
-**Zone parity.** The league's seven-region map of the floor exists twice — `pipeline/common.py:zone_at`
-and `site/src/zone.ts:zoneAt` — and THE HAND colours a stroke by the region it is crossing, so a
-drift between them turns a measurement into a decoration. Both are checked against one committed
-fixture, and neither toolchain runs the other's:
+**Zone parity.** The league's seven-region map of the floor exists three times —
+`pipeline/common.py:zone_at`, its vectorised twin `zone_at_np`, and `site/src/zone.ts:zoneAt` — and
+THE HAND colours a stroke by the region it is crossing, so a drift between them turns a measurement
+into a decoration. All three are checked against one committed fixture, and neither toolchain runs
+the other's:
 
 ```bash
 python3 pipeline/qa.py --write-zone-fixture   # regenerate it from common.zone_at
@@ -114,22 +124,27 @@ cd site && npm run gate                       # the TypeScript side (npm run bui
 
 ## Probing the piece
 
-Two diagnostics of the renderer, behind `?probe=`. Neither is reachable from the exhibit path:
-`main.ts` imports the probe module dynamically and only when the parameter is present, so the
-gallery build never fetches the chunk and a probe run never starts the loop. Both write a
+Three diagnostics of the renderer, behind `?probe=` — `purity`, `perf` and `shots`. None is
+reachable from the exhibit path: `main.ts` imports the probe module dynamically and only when the
+parameter is present, so the gallery build never fetches the chunk and a probe run never starts the
+loop. The first two write a
 machine-readable verdict into the page, the console and the window globals — which are HYPHENATED,
 `window["probe-purity"]` and `window["probe-perf"]`, and are not reachable as dotted identifiers.
 This line named them `window.probePurity` / `window.probePerf` for two sessions; those read
 `undefined`.
 
-Both are driven headlessly by a committed runner, which is how a sweep gets run repeatably and its
-verdict committed. Neither is wired into `npm run build`: a purity sweep is a minute and performance
-numbers are a property of the machine that took them.
+They are driven headlessly by a committed runner, which is how a sweep gets run repeatably and its
+verdict committed. None is wired into `npm run build`: a purity sweep is minutes and performance
+numbers are a property of the machine that took them. `npm run shots` is the third — it renders
+exact frames through `renderTo` for a person to look at, and it is **not a gate and must not become
+one**; its output is gitignored, because `docs/probe/` is where a verdict goes.
 
 ```bash
 cd site && npm run dev                    # in one shell - the probes need the data synced
-cd site && npm run probe:purity           # seven hands x twelve beats, two arms
-cd site && npm run probe:perf             # one row per hand per beat
+cd site && npm run probe:purity           # six hands + THE STACK's configurations, x twelve
+                                          #   schedule-derived beats, two arms
+cd site && npm run probe:perf             # one row per view per beat
+cd site && npm run shots -- --list hands  # exact frames, for looking at
 ```
 
 Verdicts land in `docs/probe/`. `--mode`, `--beat`, `--ops` and `--out` narrow a run and name its
@@ -142,18 +157,18 @@ off at a held instant and requires the exact same bytes back, compared by hash r
 the noise predicate.
 
 - `http://localhost:5173/?probe=purity` — the same instant reached four ways (continuous playback,
-  a forward seek, a backward seek, and a cold direct load) and compared by exact pixel hash, for
-  every hand at twelve schedule-derived beats. Read every verdict against the run's own measured
-  noise floor: Canvas2D rasterisation is not bit-stable under memory pressure, and the floor is a
-  property of the FRAME, so it is measured on the heaviest one in the sweep.
-  Read every verdict against the probe's own **noise floor**, which it measures at startup: Canvas2D
-  rasterisation is not stable across memory pressure, and an uncalibrated run blames the piece for
-  the browser. `&exact=1` pins software rasterisation instead — the floor drops to zero and the run
-  takes hours. `&playback=<seconds>` lengthens the continuous history.
+  a forward seek, a backward seek, and a cold direct load) and compared by exact pixel hash, at
+  twelve schedule-derived beats. Read every verdict against the run's own measured **noise floor**:
+  Canvas2D rasterisation is not bit-stable under memory pressure, an uncalibrated run blames the
+  piece for the browser, and the floor is a property of the FRAME, so it is measured on the densest
+  one in the sweep rather than at startup on a bare plate. Note the floor is not the tolerance:
+  `aboveNoise` keeps a hard 1000-channel / delta-2 floor whatever it measures. `&exact=1` pins
+  software rasterisation instead — the floor drops to zero and the run takes hours.
+  `&playback=<seconds>` lengthens the continuous history.
 - `http://localhost:5173/?probe=perf` — mean / p50 / p95 / max and over-budget frames per hand per
-  beat, plus the draw calls each frame issues, timed on a fixed 1280×720 surface at DPR 2. The full
-  sweep is ~2,600 renders and runs for minutes; `&mode=<id>`, `&t=<seconds>` and `&frames=<n>`
-  narrow it to one answer.
+  beat, plus the draw calls each frame issues, timed on a fixed 1280×720 surface at DPR 2. It is
+  thousands of renders and takes seconds — far quicker than the purity sweep, which is the one that
+  costs minutes. `&mode=<id>`, `&t=<seconds>` and `&frames=<n>` narrow it to one answer.
 
 `bloom.py` and `window.py` need one of `py7zr`, `p7zip`, or `bsdtar` to read the corpus archives;
 GNU tar cannot. The shot-record stages need none of them.
@@ -165,16 +180,18 @@ alone: the stage is bound by memory rather than cores, and more workers make it 
 **Two modes, one codebase** — the whole piece is a pure function of one float, so both modes are
 the same work sampled differently:
 
-- **exhibit** (default) — autoplaying 500-second (8:20) loop, no chrome, no cursor, no loop seam.
-  The schedule is declared once, in `site/src/timeline.ts`, and `pipeline/facts.py` derives the
-  runtime from it into `facts.json:derived.loop.seconds`; `qa.py` gates every prose statement of
-  it against that. Nothing here restates it.
+- **exhibit** (default) — one autoplaying loop, no chrome, no cursor, no loop seam. The schedule is
+  declared once, in `site/src/timeline.ts`, and `pipeline/facts.py` derives the runtime from it into
+  `facts.json:derived.loop.seconds`; `qa.py` gates every prose statement of it against that key.
+  This file deliberately does not restate the number — unlike CLAUDE.md it is gated on the claims
+  below rather than on all of them, so a figure written here could go stale unseen.
 - **talk** (`?talk`) — a rail beside the plate listing every segment (Act 0, all thirty seasons
   under their act headings, the coda) with each season's measured mid-range share; click any of
   them to jump. Transport for start / previous / pause / next, plus a draggable scrub. Keys still
-  work: `space` pause · `f` fermata · `1`–`5` acts · `w` the window · `,` `.` step a season. The
-  window is 150 seconds and is the only segment with an inside, so the rail lists its four beats
-  and the step buttons stop at each.
+  work: `space` pause · `f` fermata · `0` start · `1`–`5` acts · `6`–`9` the window's four beats ·
+  `w` the window · `,` `.` step a season · `h` cycle the hand. The window is 150 seconds and is the
+  only segment with an inside, so the rail lists its four beats and the step buttons stop at each,
+  and the rail prints the keys — a shortcut nobody is told about is not one.
   `?t=<seconds>` and `?year=<YYYY>` open on any beat; `?nav` adds the rail, `?nav=0` removes it.
   `?mode=<id>` pins one hand; the rail's hand row and `h` cycle through them and back to rotating.
 
@@ -191,9 +208,13 @@ it wants to be touched.
 ## Structure
 
 ```
-CLAUDE.md          ground rules, findings, decisions log
-docs/              the build plan (reference) + the thesis
-pipeline/          acquisition, aggregation, QA gate, corpus probe, traces, the window, the paint
+CLAUDE.md          ground rules, findings, decisions log — and the seven rules, in full
+DEPLOY.md          what has to be true on the day this repo goes public
+docs/              the build plan (reference), the thesis, one handoff per session,
+                   the typography inventory, the generated scalar disclosure, and
+                   docs/probe/ — every committed purity and performance verdict
+pipeline/          acquisition, aggregation, the QA gate, the corpus probe, traces,
+                   the window, the paint, the cited facts, the palette measurement
 site/              FADEAWAY — Vite + TS, Canvas 2D, one rAF loop
 data/processed/    committed derived JSON  (raw data is gitignored, never committed)
 ```

@@ -507,6 +507,23 @@ def m_corroboration_scope(d):
     _save(d, "window.json", w)
 
 
+def m_readme_figure(d):
+    """A figure in README.md drifting from its own artifact.
+
+    THE FILE THE PUBLIC REPO OPENS ON, and until 2026-08-09 it was gated by
+    nothing whatever while CLAUDE.md's figures were gated by thirty claims. That
+    asymmetry was not luck: a sweep of the README found fourteen stale or
+    self-contradicting claims - a defect count seven sessions old, a check-group
+    count four short, a sweep described as taking minutes that takes ten seconds,
+    and one paragraph duplicated with its two copies disagreeing. Most were
+    deleted rather than pinned, because a number a document does not need is
+    better removed than gated; the few it genuinely has to state are claims now,
+    and this is what one of them going stale looks like.
+    """
+    p = d / "README.md"
+    p.write_text(p.read_text().replace("out of all 632 games", "out of all 640 games"))
+
+
 def m_palette_collide(d):
     """Two of the seven hues become the same colour.
 
@@ -994,6 +1011,12 @@ CASES = [
          "the corroboration says how little of the season it reaches",
          m_corroboration_scope, "one of six seasons reported as the whole finding"),
 
+    Case("readme-figure", ["memory"],
+         "every gated memory claim is what the artifact says",
+         m_readme_figure,
+         "the file the public repo opens on, gated by nothing until 5c",
+         scope="repo"),
+
     # --- the palette (V-03): the claim, and the values it is about ------------
     Case("palette-collide", ["palette"], "every condition clears the declared floor",
          m_palette_collide, "two of the league's categories drawn in one colour"),
@@ -1147,7 +1170,7 @@ def run_mutations(processed=PROCESSED_DIR, only=None, quiet=False):
             (root / "data").mkdir(parents=True)
             shutil.copytree(pristine, root / "data" / "processed")
             (root / "pipeline").mkdir(exist_ok=True)
-            for rel in ("CLAUDE.md", "pipeline/deploy_allowlist.json",
+            for rel in ("CLAUDE.md", "README.md", "pipeline/deploy_allowlist.json",
                         "site/src/inscription.ts", "site/src/palette.ts"):
                 src = REPO_ROOT / rel
                 if src.exists():

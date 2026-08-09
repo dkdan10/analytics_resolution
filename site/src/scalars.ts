@@ -43,12 +43,19 @@
  *
  * ONE BLIND SPOT IN THE ENFORCEMENT, STATED SO NOBODY MISTAKES COVERAGE FOR
  * PROOF. Pass 3 judges CODE spans, so a material value written inside a STRING
- * is invisible to it: `palette.ts` held its hues as comma-separated channel
+ * is invisible to it: `palette.ts` holds its hues as comma-separated channel
  * strings and its hairlines as interpolated `rgba(...)` templates, and adding
- * that file to the list flagged neither. The hues are answered by V-03 — they
- * come out of an artifact now and are not written in source at all — and the two
- * engraving alphas are declared below. The blind spot itself remains: a scalar
- * smuggled into a string literal is not caught by anything.
+ * that file to the list flagged neither.
+ *
+ * WHAT V-03 ACTUALLY DID, because this comment claimed the opposite for two
+ * sessions: the seven hues ARE still written in source, in `palette.ts:ZONE_RGB`,
+ * and that is deliberate — an authored scalar's home is source (rule 3), and
+ * `pipeline/palette.py` READS them out of there and measures them, with `qa.py`
+ * binding the two in both directions. What moved into an artifact is the CLAIM
+ * about them, not the values. Pass 1 sees them as strings and each is waived in
+ * `numbers-allowlist.json` with a reason. The two engraving alphas are declared
+ * below. The blind spot itself remains: a scalar smuggled into a string literal
+ * is caught by nothing.
  */
 
 type Entry =
@@ -86,12 +93,26 @@ export const SCALARS = {
   },
   SPLAT_SPACING_K: {
     class: "authored",
-    value: 1.45,
+    value: 1.8494,
     material: true,
     controls:
       "splat radius as a multiple of the lattice spacing — how far neighbouring " +
-      "coordinates bleed together. Below about 1 the field reads as a mechanical " +
-      "dot-screen of the record's grid rather than as a photographic density.",
+      "coordinates bleed together. THE OLD DISCLOSURE MISDESCRIBED ITS OWN " +
+      "FAILURE: it said the artefact appears 'below about 1', and the failure is " +
+      "not smallness. The falloff is a peak-1 paraboloid on a disc of radius " +
+      "K*spacing, so its response at the lattice's own fundamental is J2(2*pi*K) " +
+      "— a function of K ALONE, independent of viewport and device ratio. That " +
+      "response has zeros at 0.8174, 1.3396, 1.8494 and 2.3548 (j2,n / 2*pi), and " +
+      "SIDELOBES BETWEEN THEM. The old 1.45 sat on a sidelobe, which is why " +
+      "sessions 5a and 5b both reported the record's own grid beating through the " +
+      "field at every window size and neither could say why. This is the third " +
+      "zero: the lowest that also INCREASES neighbour bleed, which is the other " +
+      "half of what this scalar is for. Measured in the baked layer's own " +
+      "spectrum the lattice fundamental drops about sevenfold. Ink is untouched — " +
+      "total deposited light varies 0.004% across the whole range, because " +
+      "FALLOFF_DISC_INTEGRAL normalises it — so this is smoothness and nothing " +
+      "else. Still `authored`: WHERE the zeros are follows from the falloff and " +
+      "the lattice, but WHICH one to sit on is a judgement.",
   },
   FALLOFF_DISC_INTEGRAL: {
     class: "geometry",

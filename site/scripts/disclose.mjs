@@ -23,6 +23,23 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const SRC = resolve(here, "../src/scalars.ts");
 const OUT = resolve(here, "../../docs/material-scalars.md");
+const CHECKER = resolve(here, "check-numbers.mjs");
+
+/**
+ * Which files pass 3 actually reaches, read out of the checker itself.
+ *
+ * Never restated. The line this feeds hardcoded five module names and was seven
+ * entries stale by session 6 — in the one script whose entire purpose is to stop
+ * a disclosure drifting from the thing it discloses. Parsed rather than imported
+ * because check-numbers.mjs runs its whole check on import.
+ */
+async function markLayers() {
+  const src = await readFile(CHECKER, "utf8");
+  const block = src.match(/const MARK_LAYERS = \[([\s\S]*?)\n\];/);
+  if (!block) throw new Error("disclose: cannot find MARK_LAYERS in check-numbers.mjs");
+  return [...block[1].matchAll(/^\s*\/\^(.+?)\$\/,\s*$/gm)]
+    .map((m) => m[1].replace(/\\/g, ""));
+}
 
 /** Load the register. Same two-step the zone gate uses: Node strips types on
  *  its own from 23 on, and vite already brings esbuild for anything older, so
@@ -53,7 +70,7 @@ const CLASS_NOTE = {
     "in the piece one may be written down.",
 };
 
-function render(scalars) {
+function render(scalars, layers) {
   const rows = Object.entries(scalars);
   const byClass = { measured: [], geometry: [], authored: [] };
   for (const [name, e] of rows) byClass[e.class].push([name, e]);
@@ -81,10 +98,13 @@ function render(scalars) {
       `${byClass.authored.length} authored.`,
   );
   out.push("");
+  // DERIVED FROM THE LIST ITSELF, never restated. This sentence hardcoded five
+  // module names and went stale seven entries ago — in a file whose whole job is
+  // to keep a disclosure from drifting from what it describes.
   out.push(
-    "A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, " +
-      "`modes/hand.ts`, `modes/measure.ts` — may not write a material number " +
-      "inline; `npm run check:numbers` fails the build if one appears.",
+    `A renderer in the mark layers — ${layers.map((f) => `\`${f}\``).join(", ")}` +
+      " — may not write a material number inline; `npm run check:numbers` fails " +
+      "the build if one appears.",
   );
 
   for (const cls of ["measured", "geometry", "authored"]) {
@@ -106,7 +126,7 @@ function render(scalars) {
 }
 
 const { SCALARS } = await loadScalars();
-const page = render(SCALARS);
+const page = render(SCALARS, await markLayers());
 const check = process.argv.includes("--check");
 
 let current = null;

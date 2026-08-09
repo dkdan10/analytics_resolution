@@ -34,6 +34,7 @@ Usage: python3 pipeline/qa.py                  # the full shipping gate
 """
 
 import argparse
+import collections
 import json
 import math
 import struct
@@ -2915,13 +2916,20 @@ def _decoder_parity(g, ctx):
 
 
 class Claim:
-    """One quantitative sentence in CLAUDE.md, and where its number lives."""
+    """One quantitative sentence in a tracked document, and where its number lives."""
 
-    def __init__(self, template, source, path, fmt="raw"):
+    def __init__(self, template, source, path, fmt="raw", doc="CLAUDE.md"):
         self.template = template   # exact text, with a single {} for the value
         self.source = source       # "window" | "paint" | "facts" | "season:YYYY" | "code"
         self.path = path
         self.fmt = fmt
+        # WHICH DOCUMENT HAS TO SAY IT. Defaults to CLAUDE.md because that is
+        # where this mechanism started; README.md was added 2026-08-09 after a
+        # sweep found FOURTEEN stale or self-contradicting claims in it against
+        # roughly none in CLAUDE.md. That asymmetry was not luck: CLAUDE.md was
+        # gated and the README was gated by nothing at all, and the README is
+        # the file the public repo opens on.
+        self.doc = doc
 
     def render(self, value):
         return self.template.format(self._format(value))
@@ -2994,6 +3002,14 @@ MEMORY_CLAIMS = [
           "sentinel_corroboration.sentinel.distinct_cells", "comma"),
     Claim("**{} of 9,727**", "window", "sentinel_corroboration.sentinel.filed", "comma"),
 
+    # --- README.md, which was gated by NOTHING until 2026-08-09 -------------
+    # It is the file the public repo opens on, and a sweep found fourteen stale
+    # or self-contradicting claims in it. Most were removed rather than gated -
+    # a number a document does not need is better deleted than pinned - and
+    # these are the ones it genuinely has to state.
+    Claim("out of all {} games", "window", "corpus.games_parsed", "comma", doc="README.md"),
+    Claim("For {} days in 2015-16", "facts", "window.days_inclusive", doc="README.md"),
+
     # --- the schedule, and the ring the numerals settle on ------------------
     Claim("for **{} seconds**", "facts", "loop.seconds"),
     Claim("(**{}**)", "facts", "loop.clock"),
@@ -3056,20 +3072,23 @@ def _offsets_text(d):
 
 
 def group_memory(g, ctx):
-    """The machine-verifiable subset of CLAUDE.md, against the artifacts.
+    """The machine-verifiable subset of the tracked prose, against the artifacts.
 
-    Not every sentence - most of the file is reasoning and belongs to a reader.
-    These are the ones that carry a number an artifact can settle.
+    Not every sentence - most of it is reasoning and belongs to a reader. These
+    are the ones that carry a number an artifact can settle.
     """
     g.section("Project memory")
-    path = ctx.repo / "CLAUDE.md"
-    if not path.exists():
-        g.fail("project memory is present", f"{path} missing")
-        return
-    # Whitespace-normalised on both sides. CLAUDE.md is hard-wrapped prose and
-    # gets re-wrapped constantly; a gate that broke every time a sentence moved
-    # across a line boundary would be re-worded around rather than fixed.
-    text = " ".join(path.read_text().split())
+    docs = {}
+    for name in sorted({c.doc for c in MEMORY_CLAIMS}):
+        path = ctx.repo / name
+        if not path.exists():
+            g.fail(f"{name} is present", f"{path} missing")
+            return
+        # Whitespace-normalised on both sides. These are hard-wrapped prose and
+        # get re-wrapped constantly; a gate that broke every time a sentence
+        # moved across a line boundary would be re-worded around rather than
+        # fixed.
+        docs[name] = " ".join(path.read_text().split())
 
     unresolved, wrong = [], []
     for claim in MEMORY_CLAIMS:
@@ -3081,13 +3100,15 @@ def group_memory(g, ctx):
             want = claim.template.format(_offsets_text(value))
         else:
             want = claim.render(value)
-        if " ".join(want.split()) not in text:
-            wrong.append(f"{claim.source}:{claim.path} -> {want!r}")
+        if " ".join(want.split()) not in docs[claim.doc]:
+            wrong.append(f"{claim.doc}:{claim.source}:{claim.path} -> {want!r}")
     g.check("every gated memory claim resolves to an artifact", unresolved, [])
     g.check("every gated memory claim is what the artifact says", wrong, [])
-    g.info(f"{len(MEMORY_CLAIMS)} quantitative claims in CLAUDE.md are gated against "
-           f"window.json, paint.json, seasons.json, facts.json and the code; the rest "
-           f"of the file is reasoning and carries its artifact key inline")
+    by_doc = collections.Counter(c.doc for c in MEMORY_CLAIMS)
+    g.info(f"{len(MEMORY_CLAIMS)} quantitative claims are gated against window.json, "
+           f"paint.json, seasons.json, facts.json and the code "
+           f"({', '.join(f'{n} in {d}' for d, n in sorted(by_doc.items()))}); the rest "
+           f"of each file is reasoning and carries its artifact key inline")
 
 
 # --- group: the palette ------------------------------------------------------
