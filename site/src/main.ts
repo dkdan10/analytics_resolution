@@ -190,4 +190,59 @@ async function main(): Promise<void> {
   requestAnimationFrame(frame);
 }
 
-void main();
+/**
+ * The one thing a viewer should ever see go wrong (audit F-15).
+ *
+ * `main()` was launched with a bare `void main();`, so an initialisation failure
+ * left a black canvas and a console nobody in a gallery is reading. That is the
+ * worst of both: it looks like the piece, and it says nothing.
+ *
+ * A gallery piece may not put a crash report on the wall, so the wall gets one
+ * composed line in the piece's own register and nothing else. The REASON goes
+ * where somebody can act on it: the console always, and on screen only in the
+ * working and lectern modes, which is the same rule the rail already follows.
+ *
+ * This is for initialisation only. A merely-slow asset never reaches here —
+ * `data.ts` fetches the lazy binaries on demand and latches a failed one, so a
+ * gallery that is still loading is a plate with fewer marks on it, which is what
+ * the piece looks like at the start of every season anyway.
+ */
+function fault(err: unknown): void {
+  const reason = err instanceof Error ? err.message : String(err);
+  // eslint-disable-next-line no-console
+  console.error("FADEAWAY did not start:", err);
+
+  const q = new URLSearchParams(location.search);
+  if (q.get("probe")) {
+    // A probe driver waits on this flag. Without it a failure before the probe
+    // module is even reached is indistinguishable from a slow run, and
+    // `probe-run.mjs` would sit out its whole timeout waiting for a verdict
+    // that is never coming.
+    (window as unknown as Record<string, unknown>).__probeDone = false;
+    const pre = document.createElement("pre");
+    pre.id = "probe-error";
+    pre.textContent = `startup failed: ${reason}`;
+    document.body.replaceChildren(pre);
+    return;
+  }
+
+  const el = document.createElement("div");
+  el.id = "fault";
+  const title = document.createElement("p");
+  title.className = "fault-title";
+  title.textContent = "FADEAWAY";
+  const line = document.createElement("p");
+  line.textContent = "THE RECORD DID NOT LOAD";
+  el.append(title, line);
+  if (q.has("talk") || q.has("nav")) {
+    const why = document.createElement("p");
+    why.className = "fault-why";
+    why.textContent = reason;
+    el.append(why);
+  }
+  document.body.replaceChildren(el);
+  // Keep the cursor hidden if this is the wall; show it if somebody is working.
+  document.body.classList.toggle("exhibit", !(q.has("talk") || q.has("nav")));
+}
+
+void main().catch(fault);

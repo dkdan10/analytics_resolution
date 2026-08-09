@@ -133,6 +133,34 @@
         color: rgba(232, 226, 214, 0.42);
       }
       .seg.beat .share { color: rgba(232, 226, 214, 0.22); }
+
+      /* The only thing a viewer should ever see go wrong. Composed, on the
+         plate's own ground, in the plate's own type - a gallery wall may not
+         carry a crash report. The reason is appended only in the working and
+         lectern modes; see `fault` in main.ts. */
+      #fault {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        margin: 0;
+        background: var(--ground);
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.22em;
+        color: rgba(232, 226, 214, 0.42);
+        text-align: center;
+      }
+      #fault p { margin: 0; }
+      #fault .fault-title { color: rgba(232, 226, 214, 0.7); }
+      #fault .fault-why {
+        max-width: 60ch;
+        letter-spacing: 0.04em;
+        color: rgba(232, 226, 214, 0.3);
+      }
     </style>
   </head>
   <!-- Chrome-free from the first paint: the rail removes this class if it is
