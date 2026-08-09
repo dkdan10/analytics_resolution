@@ -16,7 +16,7 @@ import { drawSlug, type Inscription } from "./inscription";
 import { drawHand, modeAt, type ModeId } from "./modes";
 import { GROUND } from "./palette";
 import { drawPlate, shortenedThreeR, type View } from "./plate";
-import { stateAt, type Schedule } from "./timeline";
+import { CUT_YEAR, stateAt, type Schedule } from "./timeline";
 
 /** Where a frame is drawn. `main()` keeps one and `resize()` updates it in
  *  place; the probes make their own at a fixed size and DPR. */
@@ -24,6 +24,71 @@ export interface Target {
   ctx: CanvasRenderingContext2D;
   view: View;
   dpr: number;
+}
+
+function smoothstep(x: number): number {
+  const c = Math.min(1, Math.max(0, x));
+  return c * c * (3 - 2 * c);
+}
+
+/** In over [a,b], held, out over [c,d]. Composition, not grain: these are the
+ *  prelude's and the cut's own pacing and they are declared here rather than in
+ *  the material register, whose scope is marks. */
+function ramp(p: number, a: number, b: number, c: number, d: number): number {
+  return smoothstep((p - a) / (b - a)) * (1 - smoothstep((p - c) / (d - c)));
+}
+
+/** How much of the prelude the court takes to arrive. */
+const PRELUDE_ENGRAVING = 0.62;
+
+/**
+ * The one cut this piece is allowed, given the beat that says what it IS.
+ *
+ * THE DEFECT (audit V-01): "the discontinuity is visually strong, but it
+ * currently reads as obliteration or reset before it reads as the end of
+ * league-wide rim blindness." Measured with `?probe=shots`'s frame statistics
+ * and recorded in CLAUDE.md: the lit-pixel count either side of the boundary is
+ * held EXACTLY unchanged for seconds, collapses to bare stone, and stays there
+ * for about a second before the new season begins to arrive. A frozen frame, a
+ * blackout, an empty plate. That is the shape of an asset reload, and a viewer
+ * has no way to read it as anything else, because nothing on screen says what
+ * happened.
+ *
+ * So the cut now carries its own cause, in the record's own figures and the
+ * pipeline's own classification of them: the share of rim shots the record
+ * declined to place, either side, and the regime each season was measured into.
+ * Not a caption on a transition — the two numbers ARE the event.
+ *
+ * Drawn here rather than in a hand, because it is a property of the RECORD and
+ * every hand is looking at the same record.
+ */
+const CUT_BEAT_SECONDS = 3.2;
+
+function regimeText(regime: string): string {
+  return regime.replace(/_/g, " ").toUpperCase();
+}
+
+function drawCutBeat(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  data: Loaded,
+  schedule: Schedule,
+  time: number,
+): void {
+  const seg = schedule.byYear.get(CUT_YEAR);
+  const after = data.byYear.get(CUT_YEAR);
+  const before = data.byYear.get(CUT_YEAR - 1);
+  if (!seg || !after || !before) return;
+  // Centred on the boundary itself, so the beat is at its strongest across the
+  // one empty frame rather than either side of it.
+  const k = 1 - Math.min(1, Math.abs(time - seg.start) / CUT_BEAT_SECONDS);
+  if (k <= 0.01) return;
+  const pct = (s: { resolution: { ra_origin_share: number } }): string =>
+    (100 * s.resolution.ra_origin_share).toFixed(1);
+  drawSlug(ctx, view, [
+    `${before.season}   ${pct(before)}% OF RIM SHOTS UNPLACED   ${regimeText(before.resolution.regime)}`,
+    `${after.season}   ${pct(after)}%   ${regimeText(after.resolution.regime)}`,
+  ], { x: 0, y: 200 }, smoothstep(k));
 }
 
 export function renderTo(
@@ -47,8 +112,23 @@ export function renderTo(
   // Act 0 holds no coordinates, so the plate holds no marks. The engraving
   // itself arrives over the prelude - the court before anything is recorded on it.
   if (st.act === 0) {
+    const p = st.preludePhase;
+    // THE ENGRAVING IS THE PRELUDE'S FIRST EVENT AND IT NOW TAKES ITS TIME.
+    //
+    // It used to reach full strength about a quarter of the way in, after which
+    // NOTHING CHANGED AT ALL for well over half the prelude — the same lit-pixel
+    // count and the same mean, frame after identical frame (audit V-01, "too
+    // dark for too long... can be mistaken for inactive hardware"; the figures
+    // are in CLAUDE.md, from `?probe=shots`). The absence is the content and
+    // stays; a still image is not the same thing as an absence, and that
+    // difference is the whole finding.
+    //
+    // EASE OUT, NOT SMOOTHSTEP, and the difference is measured rather than
+    // tasteful: a smoothstep is slow at BOTH ends, which put three seconds of
+    // literal bare ground at the top of a loop that has just wrapped out of an
+    // equally bare coda. The court starts being cut immediately and decelerates.
     ctx.save();
-    ctx.globalAlpha = Math.min(1, st.preludePhase * 1.6);
+    ctx.globalAlpha = 1 - (1 - Math.min(1, p / PRELUDE_ENGRAVING)) ** 2;
     drawPlate(ctx, view);
     ctx.restore();
     // Half a century of basketball and not one coordinate. The plate is bare
@@ -56,19 +136,19 @@ export function renderTo(
     // The closing year is the first season the record holds; the opening one is
     // the league's founding, external history no dump can supply, so it is
     // cited in facts.json rather than written here.
-    const p = st.preludePhase;
+    //
+    // THE TWO LINES ARRIVE SEPARATELY. One slug carrying both was a single
+    // event across the whole passage; the span answers the sentence rather than
+    // being read with it, which is also how it reads aloud.
     const firstCharted = data.seasons[0]?.year;
     const founded = factExternal<number>(data.facts, "league_founded");
-    // `voice`: the piece opens on this, alone, over bare stone. Nothing else is
-    // on the plate and nothing else is competing with it (audit V-08).
-    drawSlug(
-      ctx,
-      view,
-      [`${founded} — ${firstCharted ?? ""}`, "NO SHOT WAS GIVEN A PLACE"],
-      { x: 0, y: 200 },
-      Math.min(1, p * 4) * Math.min(1, (1 - p) * 5),
-      "voice",
-    );
+    // `voice`, both of them: the piece opens on this, alone, over bare stone,
+    // with nothing else competing (audit V-08). Splitting the timing changes no
+    // rank — docs/typography-inventory.md row 1 covers both lines.
+    drawSlug(ctx, view, [`${founded} — ${firstCharted ?? ""}`],
+      { x: 0, y: 232 }, ramp(p, 0.14, 0.30, 0.80, 0.97), "voice");
+    drawSlug(ctx, view, ["NO SHOT WAS GIVEN A PLACE"],
+      { x: 0, y: 176 }, ramp(p, 0.44, 0.62, 0.84, 0.99), "voice");
     return;
   }
 
@@ -105,4 +185,9 @@ export function renderTo(
       ctx, view, dpr, st, data, schedule, inscriptions, remains, talk,
     });
   }
+
+  // Last, and over whichever hand is drawing: the cut is the record's event,
+  // not any one hand's reading of it, and it is the only moment in the piece
+  // where the plate is briefly empty of everything.
+  drawCutBeat(ctx, view, data, schedule, st.t);
 }
