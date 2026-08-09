@@ -21,7 +21,7 @@ docs/audits/
 
 # Frames rendered by site/scripts/shots.mjs for LOOKING at. Regenerable from any
 # commit at an exact t, a couple of megabytes each, and not evidence of
-# anything - docs/probe/ is where a verdict goes.
+# anything - docs/build/probe/ is where a verdict goes.
 docs/shots/
 
 # Session prompts for the audit remediation (working documents).

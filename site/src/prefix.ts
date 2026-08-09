@@ -96,7 +96,7 @@ export function prefixSurface(
     // two calls - came back byte-identical. In the running piece it did NOT: the
     // purity probe found `forward` and `backward` differing from a cold render
     // at a mean delta of about one, reproducing to the channel across two runs
-    // with a stable control (the counts are in docs/probe/, not here). A
+    // with a stable control (the counts are in docs/build/probe/, not here). A
     // canvas that has been drawn on, cleared and drawn on again through a long
     // render sequence is not bit-identical to a virgin one of the same size -
     // the browser moves its backing between paths as pressure changes, and

@@ -1462,7 +1462,22 @@ def measure_sentinel_corroboration(anchors):
         "games": games,
         "filed_season": filed_season,
         "instrument": "SportVU optical tracking, 2015-16 public release",
-        "evidence": "the shooter's feet at release, which the join does not constrain",
+        # CORRECTED 2026-08-09 by this session's own adversarial pass. This field
+        # used to read "the shooter's feet at release, which the join does not
+        # constrain", and that was false: the join bounds the BALL to 6 ft of the
+        # filed coordinate and the ball sits above the shooter, so the feet are
+        # bounded too - measured, residuals run to exactly the 6.0 ft ceiling,
+        # median 2.73. The finding survives; that argument does not.
+        "evidence": (
+            "the shooter's feet at release. The join BOUNDS this dispersion and "
+            "cannot PRODUCE it - it holds the ball within 6 ft of the filed "
+            "coordinate, and the ball sits above the shooter - so the bound runs "
+            "AGAINST the finding rather than for it. The work is done by the "
+            "like-for-like control: if the coordinate were a real location the pile "
+            "would be TIGHTER than shots the record placed one by one, because those "
+            "have genuinely different true positions and the pile would share one. "
+            "It is not tighter. Size-matched, it is indistinguishable"
+        ),
         "record_cells_per_shot": record_cells_per_shot,
         "sentinel": s,
         "control": c,

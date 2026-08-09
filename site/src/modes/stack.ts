@@ -386,7 +386,7 @@ function drawDisclosures(f: Frame, ops: StackOps): void {
   const scope = has(ops, "measure") && inWindow(f) ? f.data.window?.bias.scope : null;
   if (scope) lines.push(scope);
   if (!lines.length) return;
-  // `aside`: subordinate to the marks it describes. docs/typography-inventory.md.
+  // `aside`: subordinate to the marks it describes. docs/build/typography-inventory.md.
   drawSlug(ctx, view, lines, { x: 0, y: COURT.y1 - STACK_DISCLOSURE_INSET },
     remains, "aside");
 }

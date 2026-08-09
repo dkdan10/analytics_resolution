@@ -489,7 +489,7 @@ function strikeMachineSaw(f: Frame, k: number): void {
   // between ranks without asking). It earns it: the figure struck above is how
   // many body positions the machine held, and the record kept one point per
   // shot, which is the enclosure this whole piece is about, in one line.
-  // docs/typography-inventory.md carries the classification.
+  // docs/build/typography-inventory.md carries the classification.
   drawSlug(ctx, view, [
     "THE RECORD KEPT",
     `${positions} POSITION PER SHOT`,

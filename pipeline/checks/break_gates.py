@@ -62,8 +62,10 @@ def build_root(tmp):
         src = REPO_ROOT / "data" / name
         if src.exists():
             (root / "data" / name).symlink_to(src)
-    for name in (".python-version", "requirements.txt", "CLAUDE.md", "README.md"):
+    for name in (".python-version", "requirements.txt", "CLAUDE.md", "README.md",
+                 "DEPLOY.md", "docs/build/findings.md"):
         if (REPO_ROOT / name).exists():
+            (root / name).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(REPO_ROOT / name, root / name)
     return root
 
@@ -106,7 +108,9 @@ def main():
         results = []
         pristine_repo = {
             rel: (Path(tmp) / "pristine-repo" / rel.replace("/", "_"))
-            for rel in ("CLAUDE.md", "README.md", "pipeline/deploy_allowlist.json")
+            for rel in ("CLAUDE.md", "README.md", "DEPLOY.md",
+                        "docs/build/findings.md",
+                        "pipeline/deploy_allowlist.json")
         }
         (Path(tmp) / "pristine-repo").mkdir(exist_ok=True)
         for rel, keep in pristine_repo.items():

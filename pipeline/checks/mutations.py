@@ -880,23 +880,40 @@ def m_c1_terminus(d):
     _save(d, "paint.json", p)
 
 
+# Project memory is TWO files since 2026-08-09 - CLAUDE.md for standing
+# instruction, docs/build/findings.md for the record - and a gated claim may sit
+# in either. A mutation that only ever edits CLAUDE.md therefore stopped biting
+# the moment the sentence it targets moved: both of these survived the split
+# until they were taught to follow the claim rather than the filename.
+_MEMORY_FILES = ("CLAUDE.md", "docs/build/findings.md")
+
+
+def _mutate_memory(d, old, new):
+    """Corrupt a gated sentence wherever in project memory it actually lives."""
+    for rel in _MEMORY_FILES:
+        p = d / rel
+        if not p.exists():
+            continue
+        text = p.read_text()
+        if old in text:
+            p.write_text(text.replace(old, new, 1))
+            return
+    raise AssertionError(f"the sentence to mutate is in neither memory file: {old!r}")
+
+
 def m_memory_figure(d):
-    """A quantitative claim in CLAUDE.md drifting from its own artifact.
+    """A quantitative claim in project memory drifting from its own artifact.
 
     Exactly what happened to `recovery.attribution_agreement`, which was written
     into the file as 0.8536 while window.json said 0.8573 - inside one session,
     with nothing able to see it.
     """
-    p = d / "CLAUDE.md"
-    p.write_text(p.read_text().replace("`recovery.rate` **0.4545**",
-                                       "`recovery.rate` **0.5545**", 1))
+    _mutate_memory(d, "`recovery.rate` **0.4545**", "`recovery.rate` **0.5545**")
 
 
 def m_memory_missing(d):
-    """A gated sentence reworded out of the file rather than corrected."""
-    p = d / "CLAUDE.md"
-    p.write_text(p.read_text().replace("Median **4.82 ft** apart",
-                                       "Median a few feet apart", 1))
+    """A gated sentence reworded out of memory rather than corrected."""
+    _mutate_memory(d, "Median **4.82 ft** apart", "Median a few feet apart")
 
 
 def m_allowlist_extra(d):
@@ -1170,7 +1187,9 @@ def run_mutations(processed=PROCESSED_DIR, only=None, quiet=False):
             (root / "data").mkdir(parents=True)
             shutil.copytree(pristine, root / "data" / "processed")
             (root / "pipeline").mkdir(exist_ok=True)
-            for rel in ("CLAUDE.md", "README.md", "pipeline/deploy_allowlist.json",
+            for rel in ("CLAUDE.md", "README.md", "DEPLOY.md",
+                        "docs/build/findings.md",
+                        "pipeline/deploy_allowlist.json",
                         "site/src/inscription.ts", "site/src/palette.ts"):
                 src = REPO_ROOT / rel
                 if src.exists():

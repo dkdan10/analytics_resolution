@@ -2929,10 +2929,15 @@ def _decoder_parity(g, ctx):
 # The same idiom TABLE_1_6 uses: a fixture in the gate, not display copy.
 
 
+# The two files that together are the project's memory. A gated sentence may
+# live in either; see Claim.doc.
+MEMORY_DOCS = ("CLAUDE.md", "docs/build/findings.md")
+
+
 class Claim:
     """One quantitative sentence in a tracked document, and where its number lives."""
 
-    def __init__(self, template, source, path, fmt="raw", doc="CLAUDE.md"):
+    def __init__(self, template, source, path, fmt="raw", doc=MEMORY_DOCS):
         self.template = template   # exact text, with a single {} for the value
         self.source = source       # "window" | "paint" | "facts" | "season:YYYY" | "code"
         self.path = path
@@ -2943,6 +2948,17 @@ class Claim:
         # roughly none in CLAUDE.md. That asymmetry was not luck: CLAUDE.md was
         # gated and the README was gated by nothing at all, and the README is
         # the file the public repo opens on.
+        # A claim may name ONE document, or a tuple of documents any of which may
+        # carry it. Project memory became two files on 2026-08-09 - CLAUDE.md for
+        # standing instruction, docs/build/findings.md for the record of how it
+        # was established - and a sentence moving between them is an editorial
+        # act, not a claim changing. Pinning each claim to a file made every such
+        # move a gate failure to be chased down by hand; naming the SET keeps the
+        # assertion that matters (the sentence exists in memory and matches its
+        # artifact) and drops the one that does not (which file it sits in).
+        # README.md and DEPLOY.md stay pinned: they are not memory, they are the
+        # public front door and the release procedure, and a figure belongs to
+        # one of them specifically.
         self.doc = doc
 
     def render(self, value):
@@ -2978,6 +2994,11 @@ MEMORY_CLAIMS = [
     Claim("`recovery.event_offsets` is `{}`", "window", "recovery.event_offsets", "offsets"),
     Claim("`WINDOW_RECOVERY_FLOOR` in qa.py (**{}**)", "code", "WINDOW_RECOVERY_FLOOR", "f2"),
     Claim("`pipeline/checks/mutations.py` holds **{} defects**", "code", "MUTATION_CASES"),
+    # DEPLOY.md states the same count as evidence its checklist was run. It is the
+    # one number in that file worth pinning: the CHECK count moves whenever a gate
+    # is added and was deliberately deleted instead, per the note below - a number a
+    # document does not need is better deleted than pinned.
+    Claim("(**{} defects**", "code", "MUTATION_CASES", doc="DEPLOY.md"),
 
     # --- the paint ----------------------------------------------------------
     Claim("lifts **{} strokes**", "paint", "strokes", "comma"),
@@ -3093,7 +3114,9 @@ def group_memory(g, ctx):
     """
     g.section("Project memory")
     docs = {}
-    for name in sorted({c.doc for c in MEMORY_CLAIMS}):
+    wanted = sorted({n for c in MEMORY_CLAIMS
+                     for n in ((c.doc,) if isinstance(c.doc, str) else c.doc)})
+    for name in wanted:
         path = ctx.repo / name
         if not path.exists():
             g.fail(f"{name} is present", f"{path} missing")
@@ -3114,11 +3137,13 @@ def group_memory(g, ctx):
             want = claim.template.format(_offsets_text(value))
         else:
             want = claim.render(value)
-        if " ".join(want.split()) not in docs[claim.doc]:
-            wrong.append(f"{claim.doc}:{claim.source}:{claim.path} -> {want!r}")
+        where = (claim.doc,) if isinstance(claim.doc, str) else claim.doc
+        if not any(" ".join(want.split()) in docs[d] for d in where):
+            wrong.append(f"{'|'.join(where)}:{claim.source}:{claim.path} -> {want!r}")
     g.check("every gated memory claim resolves to an artifact", unresolved, [])
     g.check("every gated memory claim is what the artifact says", wrong, [])
-    by_doc = collections.Counter(c.doc for c in MEMORY_CLAIMS)
+    by_doc = collections.Counter(
+        c.doc if isinstance(c.doc, str) else "project memory" for c in MEMORY_CLAIMS)
     g.info(f"{len(MEMORY_CLAIMS)} quantitative claims are gated against window.json, "
            f"paint.json, seasons.json, facts.json and the code "
            f"({', '.join(f'{n} in {d}' for d, n in sorted(by_doc.items()))}); the rest "

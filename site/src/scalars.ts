@@ -1061,7 +1061,7 @@ export const SCALARS = {
   //
   // Sizes are in COURT TENTHS, like every other grain in the piece, so type does
   // not change with the window. The inventory that assigns every drawn string in
-  // the piece to a rank is docs/typography-inventory.md.
+  // the piece to a rank is docs/build/typography-inventory.md.
   SLUG_VOICE_TENTHS: {
     class: "authored",
     value: 9,

@@ -213,7 +213,7 @@ export function strike(
  *              they were while the sentences around them grow.
  *
  * Sizes are in court tenths, so type does not change with the window. Which
- * string is which rank is docs/typography-inventory.md, approved by the artist;
+ * string is which rank is docs/build/typography-inventory.md, approved by the artist;
  * this function does not decide it and no string's CONTENT changes with rank.
  */
 export type SlugRank = "voice" | "statement" | "aside";

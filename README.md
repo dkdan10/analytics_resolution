@@ -137,7 +137,7 @@ They are driven headlessly by a committed runner, which is how a sweep gets run 
 verdict committed. None is wired into `npm run build`: a purity sweep is minutes and performance
 numbers are a property of the machine that took them. `npm run shots` is the third — it renders
 exact frames through `renderTo` for a person to look at, and it is **not a gate and must not become
-one**; its output is gitignored, because `docs/probe/` is where a verdict goes.
+one**; its output is gitignored, because `docs/build/probe/` is where a verdict goes.
 
 ```bash
 cd site && npm run dev                    # in one shell - the probes need the data synced
@@ -147,7 +147,7 @@ cd site && npm run probe:perf             # one row per view per beat
 cd site && npm run shots -- --list hands  # exact frames, for looking at
 ```
 
-Verdicts land in `docs/probe/`. `--mode`, `--beat`, `--ops` and `--out` narrow a run and name its
+Verdicts land in `docs/build/probe/`. `--mode`, `--beat`, `--ops` and `--out` narrow a run and name its
 output; an unmatched name is an error rather than an empty table. Read the RENDERER arm — the
 history warms the caches on a scratch surface and the tested frame is drawn on a virgin one, so a
 difference there is renderer state; `row.surfaceArm` is a kept second reading and carries no
@@ -212,7 +212,7 @@ CLAUDE.md          ground rules, findings, decisions log — and the seven rules
 DEPLOY.md          what has to be true on the day this repo goes public
 docs/              the build plan (reference), the thesis, one handoff per session,
                    the typography inventory, the generated scalar disclosure, and
-                   docs/probe/ — every committed purity and performance verdict
+                   docs/build/probe/ — every committed purity and performance verdict
 pipeline/          acquisition, aggregation, the QA gate, the corpus probe, traces,
                    the window, the paint, the cited facts, the palette measurement
 site/              FADEAWAY — Vite + TS, Canvas 2D, one rAF loop

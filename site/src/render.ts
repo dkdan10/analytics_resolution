@@ -153,7 +153,7 @@ export function renderTo(
     const founded = factExternal<number>(data.facts, "league_founded");
     // `voice`, both of them: the piece opens on this, alone, over bare stone,
     // with nothing else competing (audit V-08). Splitting the timing changes no
-    // rank — docs/typography-inventory.md row 1 covers both lines.
+    // rank — docs/build/typography-inventory.md row 1 covers both lines.
     drawSlug(ctx, view, [`${founded} — ${firstCharted ?? ""}`],
       { x: 0, y: 232 }, ramp(p, 0.14, 0.30, 0.80, 0.97), "voice");
     drawSlug(ctx, view, ["NO SHOT WAS GIVEN A PLACE"],
