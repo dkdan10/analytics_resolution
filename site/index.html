@@ -94,13 +94,38 @@
       }
       #clock { margin: 0 16px 3px; font-size: 10px; color: rgba(232, 226, 214, 0.32); }
       #hand {
-        margin: 0 16px 14px;
+        display: block;
+        width: calc(100% - 32px);
+        margin: 0 16px 12px;
+        padding: 0;
+        text-align: left;
+        background: transparent;
+        border: 0;
+        font-family: var(--mono);
         font-size: 10px;
         letter-spacing: 0.12em;
         color: rgba(232, 226, 214, 0.5);
         cursor: pointer;
       }
       #hand:hover { color: var(--bone); }
+
+      /* The keys, said where the presenter is already looking. */
+      #keys {
+        margin: 0 16px 14px;
+        font-size: 9px;
+        line-height: 1.7;
+        letter-spacing: 0.06em;
+        color: rgba(232, 226, 214, 0.26);
+      }
+      #keys p { margin: 0; }
+
+      /* Every control in the rail is reachable from the keyboard, so every
+         control has to SHOW that it has focus. Bone, not the browser's blue. */
+      #nav :focus-visible {
+        outline: 1px solid rgba(232, 226, 214, 0.65);
+        outline-offset: 1px;
+      }
+      #nav :focus:not(:focus-visible) { outline: none; }
 
       .act {
         margin: 14px 16px 4px;
@@ -110,11 +135,20 @@
         border-top: 1px solid rgba(232, 226, 214, 0.07);
         padding-top: 8px;
       }
+      /* A real button, so it is in the tab order and answers Enter and Space.
+         The reset is what keeps it looking like a row in a list. */
       .seg {
         display: flex;
         justify-content: space-between;
         gap: 8px;
+        width: 100%;
+        box-sizing: border-box;
         padding: 2px 16px;
+        background: transparent;
+        border: 0;
+        text-align: left;
+        font: inherit;
+        color: inherit;
         cursor: pointer;
         white-space: nowrap;
       }

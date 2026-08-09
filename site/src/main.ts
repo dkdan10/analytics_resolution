@@ -19,6 +19,7 @@ import {
   secondsFor,
   seekAct,
   seekTo,
+  WINDOW_YEAR,
   type Act,
   type Schedule,
 } from "./timeline";
@@ -42,10 +43,45 @@ function resize(): void {
   clearAtlas();
 }
 
-function bindTalkKeys(clock: TalkClock, schedule: Schedule): void {
+/**
+ * The presenter's keyboard.
+ *
+ * Two gaps V-09 names, both closed here: the window's four beats had no key at
+ * all — the one segment long enough to have an inside, and the only way in was
+ * to find it with a mouse — and neither did the hand. Beats take the digits
+ * straight after the acts, so the number row reads as the piece's own order:
+ * 0 the start, 1-5 the acts, then the inside of act 3.
+ *
+ * `cycleMode` is passed in rather than reached for, because the rail owns the
+ * mode override and there is exactly one of it.
+ */
+function bindTalkKeys(clock: TalkClock, schedule: Schedule, cycleMode: () => void): void {
+  const beats = Navigator.starts(schedule).filter((s) => {
+    const w = schedule.byYear.get(WINDOW_YEAR);
+    return w ? s >= w.start && s < w.start + w.duration : false;
+  });
   window.addEventListener("keydown", (e) => {
     if (e.repeat) return;
+    // A key pressed while a rail control has focus belongs to that control:
+    // Space on a focused button is that button, and the arrows are the scrub's.
+    const el = document.activeElement;
+    if (el instanceof HTMLElement && el.closest("#nav")
+      && (e.key === " " || e.key === "Enter" || e.key.startsWith("Arrow")
+        || e.key === "Home" || e.key === "End")) {
+      return;
+    }
     switch (e.key) {
+      case "h":
+        cycleMode();
+        break;
+      case "6":
+      case "7":
+      case "8":
+      case "9": {
+        const beat = beats[Number(e.key) - 6];
+        if (beat !== undefined) clock.seek(beat);
+        break;
+      }
       case " ":
         e.preventDefault();
         clock.togglePause();
@@ -131,7 +167,13 @@ async function main(): Promise<void> {
   let nav: Navigator | null = null;
   if (q.has("talk") || wantsNav) {
     const tc = new TalkClock(offset);
-    bindTalkKeys(tc, schedule);
+    // The hand key and the rail's hand row are the same action, so they share
+    // one implementation rather than two that can drift.
+    const cycleMode = () => {
+      const i = modeOverride === null ? 0 : MODE_IDS.indexOf(modeOverride) + 1;
+      modeOverride = i >= MODE_IDS.length ? null : MODE_IDS[i]!;
+    };
+    bindTalkKeys(tc, schedule, cycleMode);
     clock = tc;
     if (wantsNav) {
       document.body.classList.remove("exhibit");
@@ -148,12 +190,10 @@ async function main(): Promise<void> {
           modeOverride
             ? MODE_TITLES[modeOverride]
             : `${MODE_TITLES[modeAt(tc.seconds, schedule, null)]} (rotating)`,
-        cycleMode: () => {
-          // Steps through the hands and then back to letting the loop rotate,
-          // so the gallery behaviour is always one click away.
-          const i = modeOverride === null ? 0 : MODE_IDS.indexOf(modeOverride) + 1;
-          modeOverride = i >= MODE_IDS.length ? null : MODE_IDS[i]!;
-        },
+        // Steps through the hands and then back to letting the loop rotate,
+        // so the gallery behaviour is always one click away. Same function the
+        // H key calls.
+        cycleMode,
         nudgeSegment: (dir) => {
           const now = ((tc.seconds % schedule.duration) + schedule.duration) % schedule.duration;
           // Step by segment INDEX, never by elapsed seconds. A seek leaves the

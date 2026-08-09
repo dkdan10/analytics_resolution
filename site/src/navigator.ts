@@ -37,6 +37,18 @@ function fmt(seconds: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
+/** Arrow keys on the scrub, and Shift for the coarse step. Presenter comfort,
+ *  not material: nothing here reaches a mark. */
+const SCRUB_STEP_S = 2;
+const SCRUB_COARSE_S = 15;
+
+/** The keys, said in the rail. A shortcut nobody is told about is not one. */
+const KEY_HINTS = [
+  "SPACE PAUSE · F FERMATA · H HAND",
+  "0 START · 1-5 ACTS · 6-9 WINDOW BEATS",
+  "W WINDOW · , . SEASON · ←→ SCRUB",
+];
+
 export class Navigator {
   private rows: Row[] = [];
   private current: Row | null = null;
@@ -44,6 +56,8 @@ export class Navigator {
   private clockEl: HTMLElement;
   private handEl!: HTMLElement;
   private playBtn: HTMLButtonElement;
+  private scrubEl!: HTMLElement;
+  private shownSecond = -1;
 
   /** The scrolling list. The transport lives outside it, because a rail that
    *  scrolls its own controls off the top leaves the presenter with no mouse
@@ -73,30 +87,61 @@ export class Navigator {
     meta.textContent = `${seasons.length} seasons · ${fmt(schedule.duration)} loop`;
     head.append(meta);
 
+    // Glyph-only controls with a `title` are a mouse affordance and nothing
+    // else: no name for a screen reader, no focus ring, nothing a presenter can
+    // reach without leaving the keyboard (audit V-09). Every control in the rail
+    // is now a real button with a spoken name, and the stylesheet gives all of
+    // them a visible `:focus-visible` ring.
     const bar = document.createElement("div");
     bar.className = "transport";
-    const mk = (label: string, hint: string, fn: () => void) => {
+    const mk = (glyph: string, name: string, key: string, fn: () => void) => {
       const b = document.createElement("button");
-      b.textContent = label;
-      b.title = hint;
+      b.type = "button";
+      b.textContent = glyph;
+      b.title = key ? `${name} (${key})` : name;
+      b.setAttribute("aria-label", name);
+      if (key) b.setAttribute("aria-keyshortcuts", key);
       b.addEventListener("click", fn);
       bar.append(b);
       return b;
     };
-    mk("|◀", "back to the start", () => this.transport.seek(0));
-    mk("◀◀", "previous segment", () => this.transport.nudgeSegment(-1));
-    this.playBtn = mk("❚❚", "pause / resume", () => {
+    mk("|◀", "back to the start", "0", () => this.transport.seek(0));
+    mk("◀◀", "previous segment", "", () => this.transport.nudgeSegment(-1));
+    this.playBtn = mk("❚❚", "pause or resume", "Space", () => {
       this.transport.togglePause();
       this.syncPlay();
     });
-    mk("▶▶", "next segment", () => this.transport.nudgeSegment(1));
+    mk("▶▶", "next segment", "", () => this.transport.nudgeSegment(1));
     head.append(bar);
 
+    // A slider a presenter can actually reach: focusable, named, and arrow-key
+    // driven. It was a bare div with pointer handlers, so the only way to scrub
+    // was to find it with a mouse.
     const scrub = document.createElement("div");
     scrub.id = "scrub";
+    scrub.tabIndex = 0;
+    scrub.setAttribute("role", "slider");
+    scrub.setAttribute("aria-label", "position in the loop");
+    scrub.setAttribute("aria-valuemin", "0");
+    scrub.setAttribute("aria-valuemax", String(Math.round(schedule.duration)));
+    this.scrubEl = scrub;
     this.fill = document.createElement("div");
     this.fill.className = "fill";
     scrub.append(this.fill);
+    scrub.addEventListener("keydown", (e) => {
+      const now = this.wrapped(this.transport.position());
+      const step = e.shiftKey ? SCRUB_COARSE_S : SCRUB_STEP_S;
+      let to: number | null = null;
+      if (e.key === "ArrowRight" || e.key === "ArrowUp") to = now + step;
+      else if (e.key === "ArrowLeft" || e.key === "ArrowDown") to = now - step;
+      else if (e.key === "Home") to = 0;
+      else if (e.key === "End") to = this.schedule.duration - 0.01;
+      if (to === null) return;
+      e.preventDefault();
+      // Never land on exactly `duration`: it wraps to zero and throws the
+      // presenter back to the start when they meant to reach the end.
+      this.transport.seek(Math.min(Math.max(0, to), this.schedule.duration - 0.01));
+    });
     const scrubTo = (e: PointerEvent) => {
       const r = scrub.getBoundingClientRect();
       const p = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
@@ -121,13 +166,28 @@ export class Navigator {
     this.clockEl.id = "clock";
     head.append(this.clockEl);
 
-    // Which hand is drawing. Click to pin one, click through to hand it back to
-    // the loop - the same record, rendered several ways, is the argument.
-    this.handEl = document.createElement("div");
-    this.handEl.id = "hand";
-    this.handEl.title = "the hand now drawing — click to change";
-    this.handEl.addEventListener("click", () => this.transport.cycleMode());
-    head.append(this.handEl);
+    // Which hand is drawing. Click or press to pin one, through to hand it back
+    // to the loop - the same record, rendered several ways, is the argument.
+    const handBtn = document.createElement("button");
+    handBtn.type = "button";
+    handBtn.id = "hand";
+    handBtn.title = "the hand now drawing — change it (H)";
+    handBtn.setAttribute("aria-label", "the hand now drawing; change it");
+    handBtn.setAttribute("aria-keyshortcuts", "H");
+    handBtn.addEventListener("click", () => this.transport.cycleMode());
+    this.handEl = handBtn;
+    head.append(handBtn);
+
+    // The keys exist and nothing said so. A presenter who has to be told the
+    // shortcuts out of band does not have them.
+    const keys = document.createElement("div");
+    keys.id = "keys";
+    for (const line of KEY_HINTS) {
+      const p = document.createElement("p");
+      p.textContent = line;
+      keys.append(p);
+    }
+    head.append(keys);
 
     this.list = document.createElement("div");
     this.list.id = "nav-list";
@@ -196,6 +256,15 @@ export class Navigator {
     this.list.append(el);
   }
 
+  /**
+   * A segment row: a real button, not a clickable div.
+   *
+   * Every stop in the piece is in this list, and until V-09 not one of them
+   * could be reached without a mouse - no tab order, no Enter, no name. The
+   * markup is also built from nodes rather than from `innerHTML`: the label is
+   * a season string out of an artifact, and a renderer that interpolates data
+   * into markup is a habit worth not having even when today's data is safe.
+   */
   private addSeg(
     label: string,
     share: string,
@@ -203,21 +272,35 @@ export class Navigator {
     start: number,
     cls: string,
   ): HTMLElement {
-    const el = document.createElement("div");
+    const el = document.createElement("button");
+    el.type = "button";
     el.className = `seg ${cls}`.trim();
     const left = document.createElement("span");
-    left.innerHTML = `<span class="mark">${mark ?? ""}</span>${label}`;
+    const glyph = document.createElement("span");
+    glyph.className = "mark";
+    glyph.setAttribute("aria-hidden", "true");
+    glyph.textContent = mark ?? "";
+    left.append(glyph, document.createTextNode(label));
     const right = document.createElement("span");
     right.className = "share";
     right.textContent = share;
     el.append(left, right);
+    el.setAttribute("aria-label", `${label}${share ? `, ${share}` : ""}, at ${fmt(start)}`);
     el.addEventListener("click", () => this.transport.seek(start));
     this.list.append(el);
     return el;
   }
 
   private syncPlay(): void {
-    this.playBtn.textContent = this.transport.isPaused() ? "▶" : "❚❚";
+    const paused = this.transport.isPaused();
+    this.playBtn.textContent = paused ? "▶" : "❚❚";
+    this.playBtn.setAttribute("aria-pressed", String(paused));
+  }
+
+  /** Where the playhead is inside one turn of the loop. */
+  private wrapped(t: number): number {
+    const d = this.schedule.duration;
+    return ((t % d) + d) % d;
   }
 
   /** Called every frame; only touches the DOM when something actually moved. */
@@ -231,6 +314,16 @@ export class Navigator {
     const label = st.coda > 0 ? "coda" : st.year === null ? "counts" : String(st.year);
     const next = `${fmt(time)} / ${fmt(this.schedule.duration)}  ·  ${label}`;
     if (this.clockEl.textContent !== next) this.clockEl.textContent = next;
+
+    // The slider's spoken value, at the resolution the clock beside it shows.
+    // Written only when the second turns over: this runs every frame, and an
+    // attribute write per frame is a DOM mutation per frame for nothing.
+    const second = Math.floor(time);
+    if (second !== this.shownSecond) {
+      this.shownSecond = second;
+      this.scrubEl.setAttribute("aria-valuenow", String(second));
+      this.scrubEl.setAttribute("aria-valuetext", `${fmt(time)}, ${label}`);
+    }
 
     const hand = `▣ ${this.transport.mode()}`;
     if (this.handEl.textContent !== hand) this.handEl.textContent = hand;
