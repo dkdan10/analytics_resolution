@@ -123,6 +123,7 @@ import {
   SPLOTCH_VISIBLE,
 } from "../scalars";
 import { WINDOW_BEATS, WINDOW_YEAR } from "../timeline";
+import { pinCoordOf } from "./fieldlayer";
 import type { Frame } from "./types";
 
 const ZONE = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
@@ -478,14 +479,18 @@ function bakeWindowDrops(
  * Normalising each season to its own maximum would falsely equalise them, and
  * the lockout years and the bubble are SHORT, not sparse.
  *
- * The origin is skipped: those are the shots the record declined to place, and
- * they are the pin's subject, not paint's.
+ * The pin's cell is skipped: those are the shots the record declined to place,
+ * and they are the pin's subject, not paint's. It was hardcoded to the origin
+ * until 2026-08-09, which in six seasons skipped an empty cell and drew the
+ * refusal as one clamped max-radius blot. THE HAND draws no pin of its own, so
+ * in those seasons the record's refusal was simply an ordinary drop.
  */
 function bakeSeasonDrops(
   ctx: CanvasRenderingContext2D,
   view: View,
   pts: { x: Int16Array; y: Int16Array; hires: Uint32Array; rest: Uint32Array;
          zone: Uint8Array; n: number; total: number },
+  pin: [number, number] | null,
   from: number,
   to: number,
 ): void {
@@ -493,11 +498,12 @@ function bakeSeasonDrops(
   const total = Math.max(1, pts.total);
   const k = DROP_AREA / (total * Math.PI);
   const order = scatterOrder(pts, pts.n);
+  const [pinX, pinY] = pin ?? [NaN, NaN];
   for (let j = from; j < end; j++) {
     const i = order[j]!;
     const cx = pts.x[i]!;
     const cy = pts.y[i]!;
-    if (cx === 0 && cy === 0) continue;
+    if (cx === pinX && cy === pinY) continue;
     const count = pts.hires[i]! + pts.rest[i]!;
     if (count === 0) continue;
     const want = Math.sqrt(k * count);
@@ -575,15 +581,19 @@ export function drawHandHand(f: Frame): void {
     const pts = data.points(year);
     if (pts) {
       const upto = Math.round(pts.n * Math.min(1, Math.max(0, st.arrived)));
+      // In the key for the same reason `field.ts:layerKey` carries it: a
+      // function of the year, and named anyway, because rule 5 asks that a key
+      // carry everything affecting its pixels.
+      const pin = pinCoordOf(data.byYear.get(year)!);
       dropSurface = prefixSurface(
-        `hand.season|${year}|${assetId(pts)}|${geom}`,
+        `hand.season|${year}|${assetId(pts)}|${pin ? pin.join(",") : "none"}|${geom}`,
         Math.floor(upto / DROP_STEP), dw, dh, dpr, DROP_STEP,
-        (c, a, b) => bakeSeasonDrops(c, view, pts, a, b),
+        (c, a, b) => bakeSeasonDrops(c, view, pts, pin, a, b),
       );
       if (dropSurface) blit(ctx, dropSurface, view, remains);
       ctx.save();
       ctx.globalAlpha = remains;
-      bakeSeasonDrops(ctx, view, pts, Math.floor(upto / DROP_STEP) * DROP_STEP, upto);
+      bakeSeasonDrops(ctx, view, pts, pin, Math.floor(upto / DROP_STEP) * DROP_STEP, upto);
       ctx.restore();
     }
   }

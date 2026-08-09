@@ -94,17 +94,34 @@ export interface Layer {
 
 const layers = new Map<string, Layer>();
 
-function layerKey(year: number, coloured: boolean, view: View, dpr: number): string {
-  return `${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}`;
+function layerKey(
+  year: number,
+  coloured: boolean,
+  view: View,
+  dpr: number,
+  pin: [number, number] | null,
+): string {
+  // The pin's coordinate is a pure function of the year, so it could be left
+  // out — and it is in the key anyway, because rule 5 asks that a key carry
+  // everything affecting its pixels rather than everything that happens to
+  // vary. It adds no cache entries.
+  return `${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${pin ? pin.join(",") : "none"}`;
 }
 
 /**
  * Resolve a season's cells into an image.
  *
- * The origin is skipped: those are the shots the record declined to place, and
- * they are drawn as the pin — a solid mark that occludes, not an additive one.
- * Baking them here would both blow the plate out and quietly turn the piece's
- * clearest statement of absence into a bright smear.
+ * The pin's cell is skipped: those are the shots the record declined to place,
+ * and they are drawn as the pin — a solid mark that occludes, not an additive
+ * one. Baking them here would both blow the plate out and quietly turn the
+ * piece's clearest statement of absence into a bright smear.
+ *
+ * THE SKIP WAS HARDCODED TO (0,0) UNTIL 2026-08-09, and that is exactly what it
+ * looked like: in the six seasons whose `resolution.rim_sentinel` is not at the
+ * origin, the largest cell in `points/*.bin` IS the sentinel — it leads the
+ * runner-up by `rim_sentinel.lead_ratio`, far enough to saturate the tone curve
+ * — while the origin holds no record at all. So the skip skipped nothing, and
+ * the refusal baked as one blown-out dot beside a pin standing for nothing.
  */
 export function bakeLayer(
   year: number,
@@ -112,8 +129,9 @@ export function bakeLayer(
   coloured: boolean,
   view: View,
   dpr: number,
+  pin: [number, number] | null,
 ): Layer {
-  const key = layerKey(year, coloured, view, dpr);
+  const key = layerKey(year, coloured, view, dpr, pin);
   const hit = layers.get(key);
   if (hit) return hit;
 
@@ -154,10 +172,11 @@ export function bakeLayer(
     (Math.PI * radius * radius * FALLOFF_DISC_INTEGRAL) / (spacing * spacing),
   );
 
+  const [pinX, pinY] = pin ?? [NaN, NaN];
   for (let i = 0; i < pts.n; i++) {
     const cx = pts.x[i]!;
     const cy = pts.y[i]!;
-    if (cx === 0 && cy === 0) continue;
+    if (cx === pinX && cy === pinY) continue;
     const count = pts.hires[i]! + pts.rest[i]!;
     if (count === 0) continue;
 

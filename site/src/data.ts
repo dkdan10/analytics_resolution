@@ -15,19 +15,61 @@ export type Regime =
   | "uniformly_sighted"
   | "categorical_refusal";
 
+/**
+ * WHERE the record refuses to place a rim shot — which is not always (0,0).
+ *
+ * The busiest restricted-area coordinate of the season, and how far it leads
+ * the runner-up. Every rim-blindness claim this project made was once read off
+ * `origin_snapped` beside it, which counts EXACTLY the origin and is therefore
+ * blind to a refusal filed anywhere else — which is what six seasons do. The
+ * pin follows THIS.
+ */
+export interface RimSentinel {
+  /** Tenths of a foot, hoop at origin — the plate's own frame. */
+  coord: [number, number];
+  n: number;
+  share_of_season: number;
+  share_of_rim: number;
+  runner_up_coord: [number, number] | null;
+  runner_up_n: number;
+  lead_ratio: number | null;
+  /** Read from `lead_ratio` against a threshold in the middle of an empty band.
+   *  False in 2010-11..2013-14, the only seasons that place every rim shot. */
+  is_refusal: boolean;
+  at_origin: boolean | null;
+  pile_n: number;
+  /** The record's own names for what sits on the pile. `share_of_type` is how
+   *  much of the season's WHOLE population of that name the pile holds. */
+  composition: Record<
+    string,
+    { n: number; share_of_pile: number; share_of_type: number }
+  >;
+  fg_pct: number;
+  fg_pct_off_sentinel: number | null;
+  /** Which refusal this is, from two measured bands: the rim swallowed whole,
+   *  a dunk convention, or a tip-and-putback one. null when not a refusal. */
+  kind: "wholesale" | "dunk" | "tip_putback" | null;
+}
+
 export interface Resolution {
   origin_snapped: number;
   origin_snapped_share: number;
   ra_attempts: number;
   ra_origin_snapped: number;
   ra_origin_share: number;
+  /** The head of `rim_sentinel.composition`, and empty when the season refuses
+   *  nothing. Derived at the sentinel, not at the origin — an origin-derived
+   *  answer beside a sentinel-drawn pin put two populations in one caption. */
   refused_action_types: Record<string, number>;
   regime: Regime;
   arena_spread_pp: number;
+  origin_arena_spread_pp: number;
   full_resolution_arenas: string[];
   n_full_resolution_arenas: number;
   full_resolution_games: number;
   n_games_with_ra: number;
+  /** Null only if a season's restricted area is empty, which no season's is. */
+  rim_sentinel: RimSentinel | null;
 }
 
 /** How much the record has to say about what a shot WAS - the second curve,

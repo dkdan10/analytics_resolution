@@ -602,21 +602,37 @@ function drawLabels(f: Frame, sample: Sample, season: Season, live: Box[]): void
   ctx.restore();
 }
 
+/**
+ * The pile, named once.
+ *
+ * BOTH HALVES OF THIS SENTENCE MUST COME FROM THE SAME POPULATION, and until
+ * 2026-08-09 they did not. The count read `origin_snapped` and the name read
+ * `refused_action_types`, which was also derived at the exact origin — so in
+ * 2017-18 through 2019-20 the plate named the handful of stragglers still filed
+ * at (0,0) and gave their action type, for a season whose real refusal was
+ * `rim_sentinel.n` shots a few tenths away; and in 2014-15 through 2016-17 it
+ * said nothing at all. Now the count is the sentinel's own `n` and the name is
+ * the head of that same pile.
+ */
 function drawPinLabel(f: Frame, season: Season): void {
   const { ctx, view, st, remains } = f;
-  // The season's own measured count of unplaced shots, grown with arrival -
-  // `resolution.origin_snapped`, not a number scaled off a sample.
-  const count = Math.round(
-    season.resolution.origin_snapped * Math.min(1, Math.max(0, st.arrived)),
-  );
+  const sentinel = season.resolution.rim_sentinel;
+  if (!sentinel || !sentinel.is_refusal) return;
+
+  // The season's own measured count of refused shots, grown with arrival - not
+  // a number scaled off a sample.
+  const count = Math.round(sentinel.n * Math.min(1, Math.max(0, st.arrived)));
   if (count === 0) return;
 
   // What the record refused to place, and what it called those shots. Both come
-  // from the season's own measurement.
+  // from the season's own measurement, of the same cell.
   const refused = Object.keys(season.resolution.refused_action_types)[0];
   const lines = [`${count.toLocaleString()} SHOTS · NO PLACE GIVEN`];
   if (refused) lines.push(refused.toUpperCase());
-  drawSlug(ctx, view, lines, { x: 0, y: -30 }, remains * 0.85);
+  // Under the pile it names, wherever the record filed it - a caption anchored
+  // three feet below the origin would sit under nothing in six seasons.
+  drawSlug(ctx, view, lines,
+    { x: sentinel.coord[0], y: sentinel.coord[1] - 30 }, remains * 0.85);
 }
 
 /**

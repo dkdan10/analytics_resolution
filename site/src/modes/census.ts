@@ -598,7 +598,16 @@ function census(season: Season, arrived: number): { groups: Group[]; classified:
       .filter((r) => r.n > 0)
       .sort((x, y) => y.n - x.n);
 
-  const unplaced = Math.round(season.resolution.origin_snapped * a);
+  // The pin's own count, not the exact origin's. This receipt describes the pin
+  // - "it IS the pin" is the reason PLACEMENT leaves the gallery at all - so the
+  // two have to come from one key. Reading `origin_snapped` made this table
+  // print "No place given 0" for 2015-16 - the window season, the one the piece
+  // spends the whole of Act III inside - while `rim_sentinel.n` shots of it sat
+  // on a single cell beside the rim.
+  const sentinel = season.resolution.rim_sentinel;
+  const unplaced = Math.round(
+    (sentinel && sentinel.is_refusal ? sentinel.n : 0) * a,
+  );
   const groups: Group[] = [
     { title: "TYPE", of: classified, rows: rows("TYPE") },
     { title: "RESULT", of: classified, rows: rows("RESULT") },

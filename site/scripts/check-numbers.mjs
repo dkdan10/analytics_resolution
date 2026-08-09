@@ -118,6 +118,14 @@ const MARK_LAYERS = [
   //   list that only covers files that already failed is not a check.
   /^modes\/stack\.ts$/,
   /^modes\/operations\.ts$/,
+  // Session 5c's one, added in the commit BEFORE the coordinate it exists to
+  // catch — same discipline, third session running, and this time the file was
+  // already one edit away from holding a hardcoded (0,0).
+  //
+  // modes/fieldlayer.ts — where the pin's fraction and now its COORDINATE are
+  //   derived. It feeds six of the seven views through one `drawSeasonField`
+  //   call, so a literal written here is a literal in every hand at once.
+  /^modes\/fieldlayer\.ts$/,
 ];
 
 /** Sinks. A literal on a line that reaches one of these changes a mark. */

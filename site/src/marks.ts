@@ -267,16 +267,24 @@ export function drawMarks(
  * Its area is the summed area of the marks it stands for, so the pile is
  * exactly as heavy on the plate as the shots inside it - the most-shot place on
  * the court rendered as the one place the record could not see.
+ *
+ * "WHERE IT FILED THEM" IS NOT ALWAYS THE ORIGIN, and until 2026-08-09 this
+ * function assumed it was. Six seasons file their refusal a tenth (then six
+ * tenths) of a foot off centre, so the centre is passed in - from
+ * `fieldlayer.ts:pinCoordOf`, which is the one derivation of it in the piece.
+ * `null` means the season refused nothing, and nothing is drawn.
  */
 export function drawPin(
   ctx: CanvasRenderingContext2D,
   view: View,
   pinFraction: number,
+  coord: [number, number] | null,
   opts: MarkOpts,
 ): void {
   const { opacity, arrived = 1 } = opts;
   if (opacity <= 0.001) return;
   if (pinFraction <= 0) return;
+  if (coord === null) return;
 
   // The pile grows with the season, like every other mark.
   const grown = Math.min(1, Math.max(0, arrived)) * pinFraction;
@@ -288,8 +296,8 @@ export function drawPin(
   // and the two O(n) scans this used to need are gone.
   const meanAlpha = PIN_CORE_ALPHA * PIN_MEAN_ALPHA_K;
   const r = Math.sqrt((grown * INK_TOTAL) / (meanAlpha * Math.PI));
-  const cx = view.sx(0);
-  const cy = view.sy(0);
+  const cx = view.sx(coord[0]);
+  const cy = view.sy(coord[1]);
 
   ctx.save();
   ctx.globalAlpha = opacity;

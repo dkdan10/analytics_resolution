@@ -34,8 +34,14 @@ export const OPERATIONS = [
     title: "LOCATE THE ATTEMPT",
     /** What the operation does to the record, in the rail, under its title. */
     does: "puts every shot where the record says it happened, and piles the ones it would not place",
-    reads: ["points/season_YYYY.bin", "seasons[].resolution.origin_snapped"],
-    definition: ["seasons", "resolution.ra_origin_share"],
+    // The rail's LOCATE row quoted `ra_origin_share` while session 6 shipped,
+    // because that key is about the exact origin and was corroborated while the
+    // sentinel was not — the artist's rule was that no STACK string may assert
+    // `rim_sentinel` until a second instrument had seen it. Session 5c earned
+    // it: window.json:sentinel_corroboration. The definition this now quotes
+    // carries the verdict AND the scope limit, which is why the swap is safe.
+    reads: ["points/season_YYYY.bin", "seasons[].resolution.rim_sentinel"],
+    definition: ["seasons", "resolution.rim_sentinel"],
   },
   {
     id: "classify",
