@@ -1345,12 +1345,25 @@ def measure_sentinel_corroboration(anchors):
     2015-16 is both the window season and one of the six seasons that file a
     displaced pile, so the archive can be asked the question twice.
 
-    THE METHOD, AND ITS ONE LOAD-BEARING SEPARATION. The join between the two
-    instruments constrains THE BALL: `reconciles` above tests where the ball was
-    at release against the coordinate the record filed, within
-    MAX_ANCHOR_RESIDUAL_FT. The evidence here is THE SHOOTER'S FEET - the `x, y`
-    of `measures[]`, which the join never looks at. So a dispersed distribution
-    of feet cannot be an artefact of the tolerance that admitted the shot.
+    THE METHOD, AND WHAT AN EARLIER VERSION OF THIS DOCSTRING GOT WRONG. The
+    join constrains THE BALL: `reconciles` above admits a shot when the ball at
+    release is within MAX_ANCHOR_RESIDUAL_FT of the filed coordinate. The
+    evidence here is a different variable - the SHOOTER'S FEET, the `x, y` of
+    `measures[]`, which `reconciles` never reads.
+
+    That is NOT the same as the feet being unconstrained, and this file said it
+    was. The ball is above the shooter, so bounding the ball bounds the feet
+    too: measured, the admitted shots' ball-to-record residual runs to exactly
+    the 6.0 ft ceiling, median 2.73. The join therefore BOUNDS the dispersion
+    from above; what it cannot do is PRODUCE it.
+
+    So the argument rests on the control, which is why the control is
+    like-for-like. If the record's coordinate were a real location, the pile's
+    feet would be TIGHTER than the control's - the control's shots have
+    genuinely different true positions, the pile's would all share one. Same
+    join, same tolerance, same action family, same detector. They are not
+    tighter; they are indistinguishable. That comparison survives the bound; a
+    claim that the feet were free of it would not.
 
     THE CONTROL IS LIKE-FOR-LIKE, and it has to be, because the pile is ~99%
     dunks and the dunk family is exactly where this project's own release
@@ -1391,7 +1404,13 @@ def measure_sentinel_corroboration(anchors):
             a = ga.get(c["anchor_event_id"])
             if a is None:
                 continue
-            feet = (round(m["x"], 1), round(m["y"], 1))
+            # AT THE RECORD'S OWN QUANTUM. `measures[].x,y` are tenths of a
+            # foot carried to one decimal, so rounding them as they come counts
+            # positions on a lattice TEN TIMES finer per axis than the record
+            # can express - which would inflate the distinct-cell count against
+            # the very thing it is being compared to. Whole tenths is the
+            # record's own resolution and the only fair grid for this.
+            feet = (round(m["x"]), round(m["y"]))
             if (a["loc_x"], a["loc_y"]) == (sx, sy):
                 sent.append(feet)
             elif "Dunk" in a["action"] and a["zone"] == "Restricted Area":
@@ -1400,9 +1419,25 @@ def measure_sentinel_corroboration(anchors):
     s = _dispersion(sent, f"the record filed these at ({sx},{sy})", filed_sent)
     c = _dispersion(ctrl, "restricted-area dunks the record placed individually", filed_ctrl)
 
+    # SIZE-MATCHED, because `cells_per_shot` falls as n rises - more shots means
+    # more collisions on a fixed lattice - and the pile has twenty-six times the
+    # control's shots. Comparing 0.887 against 1.000 across that gap would be
+    # reading an artefact of sample size as a difference in dispersion. So the
+    # pile is also measured on an evenly-strided subsample of exactly the
+    # control's size. Strided rather than random: this stage may not use a
+    # generator, and a deterministic stride over an already-arbitrary order is
+    # the same evidence without the seed.
+    if s["n"] and c["n"] and c["n"] <= s["n"]:
+        step = s["n"] / c["n"]
+        sub = [sent[int(i * step)] for i in range(c["n"])]
+        s["cells_per_shot_at_control_n"] = round(len(Counter(sub)) / len(sub), 4)
+        s["subsample_n"] = len(sub)
+
     # The record's own answer to the same question, over the same shots: one
-    # coordinate, however many shots. This is the null the feed is measured
-    # against, and it is a measurement rather than an assumption.
+    # coordinate, however many shots. DEFINITIONALLY 1/n - the population IS
+    # "the shots filed at that coordinate" - so this is the null's exact value
+    # rather than a measurement of it, and it is shipped as the scale the feed's
+    # figure is read against, not as evidence in its own right.
     record_cells_per_shot = round(1 / filed_sent, 6) if filed_sent else None
 
     dispersed = bool(s["n"] and s["cells_per_shot"] >= DISPERSION_MIN_CELLS_PER_SHOT)
@@ -1412,6 +1447,13 @@ def measure_sentinel_corroboration(anchors):
     # and a different mark on the plate. Asked like-for-like rather than against
     # an absolute radius: the pile must sit inside the spread of the dunks the
     # record placed one by one.
+    #
+    # ITS LIMIT, STATED: the join already excludes any shot whose ball was more
+    # than MAX_ANCHOR_RESIDUAL_FT from the filed coordinate, so a recovered shot
+    # is near the rim by construction and this cannot go red on the corpus it is
+    # given. It is a consistency check on the corroborated set, not independent
+    # evidence, and the fork it guards against would have shown up as a collapse
+    # in RECOVERY - almost nothing reconciling at all - rather than here.
     at_the_rim = bool(s["n"] and c["n"] and s["median_dist_ft"] <= c["p90_dist_ft"])
 
     return {
@@ -1778,8 +1820,12 @@ def reduce_all():
                 "another read of the SAME database. This asks a DIFFERENT INSTRUMENT. The join "
                 "between the two constrains the BALL (reconciles tests the ball at release "
                 f"against the filed coordinate within {MAX_ANCHOR_RESIDUAL_FT:g} ft); the "
-                "evidence here is the SHOOTER'S FEET, which the join never looks at, so a "
-                "dispersed result cannot be an artefact of the tolerance that admitted the shot. "
+                "evidence here is a different variable, the SHOOTER'S FEET, which the join never "
+                "reads. That BOUNDS the dispersion from above rather than leaving it free - the "
+                "ball is above the shooter - so it cannot PRODUCE the dispersion, and the argument "
+                "rests on the control instead: if the coordinate were a real location the pile "
+                "would be TIGHTER than shots the record placed one by one, because those have "
+                "genuinely different true positions and the pile would share one. It is not. "
                 "The control is like-for-like because it has to be - the pile is almost entirely "
                 "dunks and the dunk family is where this project's own release detector is "
                 "weakest (see disagreement.by_action) - so it is restricted-area dunks the "

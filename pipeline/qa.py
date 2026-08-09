@@ -132,8 +132,12 @@ EXPECTED_N_GAMES.update({1998: 725, 2011: 990, 2012: 1229, 2019: 1059, 2020: 108
 # FOUR seasons refuse no rim shot at all. Two green checks asserting opposite
 # things about six seasons. aggregate.py now classifies on `rim_sentinel`, the
 # coordinate the record actually piles on, and the two agree: the sighted era is
-# 2010-11 through 2013-14, and the categorical refusal begins in 2014-15 rather
-# than 2020-21 - at a different address, and on a different category of shot.
+# 2010-11 through 2013-14, and the categorical-refusal ERA begins in 2014-15.
+# Which category it refuses changes once inside that era - dunks through 2016-17,
+# tip-ins and putbacks from 2017-18 - so the refusal this project dated to
+# 2020-21 began in 2017-18 at a different address, three seasons into an era that
+# had already started on something else. EXPECTED_SENTINEL_KINDS is that second
+# axis; keep the two statements apart, they are about different fields.
 EXPECTED_REGIMES = {}
 for _y in range(1996, 2026):
     if _y == 1996:
@@ -1710,12 +1714,22 @@ def _window_sentinel_corroboration(g, ctx, w):
     g.holds("the corroboration says how little of the season it reaches",
             0 < s["filed"] < sc["filed_season"],
             f"{s['filed']:,} of {sc['filed_season']:,} filed shots")
+    # THE COMPARISON THE HEADLINE ACTUALLY RESTS ON. `cells_per_shot` falls as n
+    # rises, and the pile has far more shots than the control, so the two are
+    # only comparable at one size. This is the figure that answers "the control
+    # only looks tighter because it is small".
+    if "cells_per_shot_at_control_n" in s:
+        g.holds("the pile is as dispersed as the control at the control's own sample size",
+                s["cells_per_shot_at_control_n"] >= c["cells_per_shot"] - 0.05,
+                f"{s['cells_per_shot_at_control_n']} against {c['cells_per_shot']} "
+                f"over {s['subsample_n']} each")
     g.info(f"the sentinel is corroborated: the record files {sc['filed_season']:,} shots of "
            f"{sc['season']} on {tuple(sc['coord'])}, and the optical feed puts the "
            f"{s['n']:,} it can see in {s['distinct_cells']:,} different places "
-           f"({s['cells_per_shot']} per shot, against {c['cells_per_shot']} for dunks the "
-           f"record placed one by one) - scope: {s['filed']:,} of {sc['filed_season']:,} "
-           f"shots, in one of the six seasons that file a displaced pile")
+           f"({s['cells_per_shot']} per shot, and {s.get('cells_per_shot_at_control_n')} at the "
+           f"control's own sample size against its {c['cells_per_shot']}) - scope: the record "
+           f"filed {s['filed']:,} of {sc['filed_season']:,} in the parsed games and the feed saw "
+           f"{s['n']:,} of those, in one of the six seasons that file a displaced pile")
 
 
 def _window_recovery(g, w, corp):

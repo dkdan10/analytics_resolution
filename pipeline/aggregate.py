@@ -356,9 +356,17 @@ classifies every season identically; 0.775 is the middle of the band.
 """
 SENTINEL_DUNK_FG = 0.775
 
-# How many of the record's own names for what sits on the pile to ship. The
-# populations are so concentrated that eight covers 99.9% of every refusal.
-SENTINEL_COMPOSITION_N = 8
+"""How much of the pile the shipped composition has to account for.
+
+NOT A FIXED COUNT, and it was one until this was checked. A flat top-eight
+covered as little as 89.5% of a pile (2008-09), so a reader of the public
+artifact could not reproduce a statement about what the pile IS - the shipped
+rows left several per cent unaccounted and any share computed from them was a
+lower bound. The rule is now stated as coverage: ship names in descending order
+until this much of the pile is named, and ship `composition_covers` beside it so
+the shortfall is visible rather than assumed away.
+"""
+SENTINEL_COMPOSITION_COVERS = 0.99
 
 
 def measure_rim_sentinel(df):
@@ -407,9 +415,14 @@ def measure_rim_sentinel(df):
                                      four names in the same order either side of
                                      the 2020-21 move.
 
-    So `categorical_refusal`, which this project described as beginning in
-    2020-21, began in 2017-18 at a different address; and the three seasons
-    before it are a different category again. `composition` ships the record's
+    Two different statements live here and conflating them is easy, so both are
+    said plainly. The REGIME `categorical_refusal` - a named category of shot
+    the taxonomy declines to place - begins in 2014-15, and `regime` says so.
+    The particular category it declines changes once inside that era: dunks
+    through 2016-17, tip-ins and putbacks from 2017-18 on. So the TIP-AND-PUTBACK
+    refusal this project dated to 2020-21 actually began in 2017-18 at a
+    different address, and the era containing it began three seasons earlier
+    still on a different category. `rim_sentinel.kind` is that second axis. `composition` ships the record's
     own names and `share_of_type` beside each, which is the measurement the
     reading rests on: a name whose whole season sits on one cell is a name the
     record never placed at all.
@@ -430,17 +443,19 @@ def measure_rim_sentinel(df):
     pile = df[(df.LOC_X == x1) & (df.LOC_Y == y1)]
     by_type = pile.ACTION_TYPE.value_counts()
     season_by_type = df.ACTION_TYPE.value_counts()
-    composition = {
-        str(name): {
+    composition, covered = {}, 0
+    for name, k in by_type.items():
+        composition[str(name)] = {
             "n": int(k),
             "share_of_pile": round(float(k) / len(pile), 5),
             # WHAT SHARE OF THE LEAGUE'S WHOLE POPULATION OF THIS NAME SITS
-            # HERE. The finding: in 2015-16, 96.8% of every shot the record
+            # HERE. The finding: in 2015-16, 97.7% of every shot the record
             # calls a Dunk Shot is on this one cell.
             "share_of_type": round(float(k) / int(season_by_type[name]), 5),
         }
-        for name, k in by_type.head(SENTINEL_COMPOSITION_N).items()
-    }
+        covered += int(k)
+        if covered / len(pile) >= SENTINEL_COMPOSITION_COVERS:
+            break
 
     off = ra[(ra.LOC_X != x1) | (ra.LOC_Y != y1)]
     fg = float(pile.SHOT_MADE_FLAG.mean())
@@ -461,6 +476,10 @@ def measure_rim_sentinel(df):
         "at_origin": bool(x1 == 0 and y1 == 0) if is_refusal else None,
         "pile_n": int(len(pile)),
         "composition": composition,
+        # How much of the pile the names above account for. Shipped so a share
+        # computed from `composition` declares its own completeness instead of
+        # silently being a lower bound.
+        "composition_covers": round(covered / len(pile), 5),
         "fg_pct": round(fg, 5),
         # The same season's other rim shots. .91 means nothing without it.
         "fg_pct_off_sentinel": (
@@ -1066,8 +1085,8 @@ def main():
             "classification_place": (
                 "where each of the record's own categories sits on the floor: the mean of "
                 "SHOT_DISTANCE and the CIRCULAR mean of atan2(LOC_Y, LOC_X), over that "
-                "category's PLACED shots only - origin-filed shots are the pin's and are "
-                "excluded. Polar rather than Cartesian because the centroid of an annular "
+                "category's PLACED shots only - shots filed on `rim_sentinel` are the pin's "
+                "and are excluded, which for six seasons is NOT the origin. Polar rather than Cartesian because the centroid of an annular "
                 "category lands outside the band it is named for. `n` is the category's "
                 "whole count and `n_placed` how many of them the record gave a place, so a "
                 "summary resting on a minority of its own shots declares it. NOT clipped to "
