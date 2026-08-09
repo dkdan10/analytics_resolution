@@ -21,6 +21,7 @@ import { BONE_RGB, ZONE_RGB } from "./palette";
 import { COURT, type View } from "./plate";
 import {
   FALLOFF_DISC_INTEGRAL,
+  RESIDENCE_TONE_K,
   SPLAT_MIN_PX,
   SPLAT_SPACING_K,
   TONE_CEILING,
@@ -236,6 +237,108 @@ export function bakeLayer(
 
 export function clearLayers(): void {
   layers.clear();
+  residence = null;
+}
+
+/**
+ * THE RESIDENCE — where the ball LIVED, under where the shots ENDED.
+ *
+ * `window.json:occupancy.grid` holds every parsed ball frame of the window's
+ * corpus on one-foot cells; `frames_total` is the population a cell's share is
+ * read against. The shot record is an account of endings, and for the one act
+ * whose feed survives, this layer carries the between: the mid-range, emptying
+ * of endings, is seen to be a place the game never left. Both independent
+ * display audits named this artifact the most deserving unshown material and
+ * proposed this placement.
+ *
+ * Same discipline as `bakeLayer`: float accumulation, one `putImageData`,
+ * cached under a key carrying everything that affects its pixels, cleared by
+ * `clearLayers` (which `probe/shared.ts:cold()` already calls — an
+ * unregistered cache would read as a false PURE, not a false failure). Bone,
+ * always: the ball belongs to no zone. The grid's cells splat with the same
+ * `SPLAT_SPACING_K` as the shot lattice — the J2 null is a function of K
+ * alone, so it suppresses this lattice's beat exactly as it does the record's.
+ * Nothing here reads `t`; the beat envelope lives at the draw call.
+ */
+
+/** Court tenths per occupancy cell: pipeline/window.py grids ball frames on
+ *  tenths floor-divided into one-foot bins, so a cell's centre sits half a
+ *  cell past its index. The artifact's own grain, like `REC` above. */
+const CELL_TENTHS = 10;
+
+let residence: Layer | null = null;
+
+export interface Occupancy {
+  grid: Record<string, number>;
+  frames_total: number;
+}
+
+export function bakeResidence(occ: Occupancy, view: View, dpr: number): Layer {
+  const key = `residence|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}`;
+  if (residence && residence.key === key) return residence;
+
+  const w = Math.max(1, Math.round(view.width * dpr));
+  const h = Math.max(1, Math.round(view.height * dpr));
+  const acc = new Float32Array(w * h * 3);
+  const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
+
+  const spacing = view.s(CELL_TENTHS) * dpr;
+  const radius = Math.max(SPLAT_MIN_PX, spacing * SPLAT_SPACING_K);
+  const span = Math.ceil(radius);
+  const inv = 1 / (radius * radius);
+  const overlap = Math.max(
+    1,
+    (Math.PI * radius * radius * FALLOFF_DISC_INTEGRAL) / (spacing * spacing),
+  );
+
+  for (const [cell, frames] of Object.entries(occ.grid)) {
+    const comma = cell.indexOf(",");
+    const cx = Number(cell.slice(0, comma)) * CELL_TENTHS + CELL_TENTHS / 2;
+    const cy = Number(cell.slice(comma + 1)) * CELL_TENTHS + CELL_TENTHS / 2;
+    // A cell's share of the ball's measured time, through its own compressive
+    // curve — the field's idiom, at the residence's own grain.
+    const a = (1 - Math.exp(-RESIDENCE_TONE_K * (frames / occ.frames_total))) / overlap;
+    const fx = view.sx(cx) * dpr;
+    const fy = view.sy(cy) * dpr;
+    const bx = Math.round(fx);
+    const by = Math.round(fy);
+
+    for (let dy = -span; dy <= span; dy++) {
+      const yy = by + dy;
+      if (yy < 0 || yy >= h) continue;
+      const ey = yy - fy;
+      for (let dx = -span; dx <= span; dx++) {
+        const xx = bx + dx;
+        if (xx < 0 || xx >= w) continue;
+        const ex = xx - fx;
+        const wgt = 1 - (ex * ex + ey * ey) * inv;
+        if (wgt <= 0) continue;
+        const v = a * wgt;
+        const o = (yy * w + xx) * 3;
+        acc[o] = acc[o]! + bone[0]! * v;
+        acc[o + 1] = acc[o + 1]! + bone[1]! * v;
+        acc[o + 2] = acc[o + 2]! + bone[2]! * v;
+      }
+    }
+  }
+
+  const img = new ImageData(w, h);
+  const data = img.data;
+  const px = w * h;
+  for (let p = 0, o = 0, q = 0; p < px; p++, o += 4, q += 3) {
+    data[o] = acc[q] as number;
+    data[o + 1] = acc[q + 1] as number;
+    data[o + 2] = acc[q + 2] as number;
+    data[o + 3] = 255;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  canvas.getContext("2d")!.putImageData(img, 0, 0);
+
+  residence = { canvas, key };
+  return residence;
 }
 
 /**

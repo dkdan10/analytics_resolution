@@ -4,7 +4,7 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**133 scalars**, 91 of them material: 2 measured, 3 geometry, 128 authored.
+**135 scalars**, 93 of them material: 2 measured, 3 geometry, 130 authored.
 
 A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts`, `prefix.ts`, `inscription.ts`, `modes/ledger.ts`, `modes/census.ts`, `palette.ts`, `modes/stack.ts`, `modes/operations.ts`, `modes/fieldlayer.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
@@ -40,6 +40,10 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   the smallest splat radius in device pixels, so a coordinate still deposits something at small window sizes.
 - **SPLAT_SPACING_K** — **1.8494**  
   splat radius as a multiple of the lattice spacing — how far neighbouring coordinates bleed together. THE OLD DISCLOSURE MISDESCRIBED ITS OWN FAILURE: it said the artefact appears 'below about 1', and the failure is not smallness. The falloff is a peak-1 paraboloid on a disc of radius K*spacing, so its response at the lattice's own fundamental is PROPORTIONAL TO J2(2*pi*K), whose argument is K and nothing else — the spacing cancels because the radius is a multiple of it. That response has ZEROS at 0.8174, 1.3396, 1.8494 and 2.3548 (j2,n / 2*pi) and SIDELOBES BETWEEN THEM. The old 1.45 sat on a sidelobe, which is why sessions 5a and 5b both reported the record's own grid beating through the field at every window size and neither could say why. This is the third zero: the lowest that also INCREASES neighbour bleed, which is the other half of what this scalar is for. Two limits, stated because an earlier version of this line overclaimed both. The K-only result is a CONTINUOUS one and the kernel is pixel-sampled, so at low device ratios — where the radius is only two or three device pixels — the null is shallower than the algebra promises. And ink is CONSERVED, not identical: replaying the bake over the shipped season_2015.bin, total deposited light varies under one per cent across K in [1.0, 3.0], because FALLOFF_DISC_INTEGRAL normalises the splat's own overlap. So this is smoothness, to within that. Still `authored`: WHERE the zeros are follows from the falloff and the lattice, but WHICH one to sit on is a judgement.
+- **RESIDENCE_TONE_K** — **400**  
+  how fast a cell's share of the ball's measured time saturates toward full glow. Lower and only the densest corridors of the ball's traffic survive the tone curve while the mid-floor sinks to nothing; higher and the whole window ground flattens toward one undifferentiated sheet, which is atmosphere — rule 3's exact failure for this layer.
+- **RESIDENCE_ALPHA** — **0.35**  
+  how much of the stone's light is the ball's time, under the shots' endings — the whole-layer weight the beat envelope multiplies. The residence may never outshine the record it contextualises: raise it and the dwelling starts to compete with the endings for the plate; lower it and the window's ground goes back to bare stone.
 - **TRACE_LIT_FLOOR** — **0.1**  
   how lit a trace is at floor level, before the ball's height adds any.
 - **TRACE_LIT_RANGE** — **0.62**  

@@ -3033,6 +3033,8 @@ MEMORY_CLAIMS = [
           "resolution.rim_sentinel.composition.Dunk Shot.share_of_type", "pct1"),
     Claim("**{}** of them it can see", "window",
           "sentinel_corroboration.sentinel.n", "comma"),
+    # THE RESIDENCE (session 7): the ball-occupancy under-layer's population.
+    Claim("**{}** measured ball-frames", "window", "occupancy.frames_total", "comma"),
     Claim("in **{}** different places", "window",
           "sentinel_corroboration.sentinel.distinct_cells", "comma"),
     Claim("**{} of 9,727**", "window", "sentinel_corroboration.sentinel.filed", "comma"),

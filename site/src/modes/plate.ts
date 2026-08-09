@@ -29,7 +29,9 @@ export function drawPlateHand(f: Frame): void {
 
   // Every shot in the season, developing, with the one it replaces receding
   // beneath it so the plate is never empty and the drift stays continuous.
-  drawSeasonField(f, { dim: fieldDim });
+  // In the window, THE RESIDENCE goes down beneath it all: where the ball
+  // lived, under where the shots ended.
+  drawSeasonField(f, { dim: fieldDim, residence: true });
 
   if (inWindow && data.traces) {
     drawBloom(ctx, view, data.traces.traces, { phase: st.phase, duration: secondsFor(year) });

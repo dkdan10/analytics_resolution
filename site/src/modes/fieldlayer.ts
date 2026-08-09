@@ -8,8 +8,10 @@
  */
 
 import type { Season } from "../data";
-import { bakeLayer, developed, drawLayer } from "../field";
+import { bakeLayer, bakeResidence, developed, drawLayer } from "../field";
 import { drawPin } from "../marks";
+import { RESIDENCE_ALPHA } from "../scalars";
+import { WINDOW_BEATS } from "../timeline";
 import type { Frame } from "./types";
 
 export interface FieldOpts {
@@ -20,12 +22,48 @@ export interface FieldOpts {
   /** THE CENSUS draws no outgoing season: a field still holding the previous
    *  season's shots would contradict a tally counting only this one. */
   withPrevious?: boolean;
+  /** THE RESIDENCE — the window's ball-occupancy under-layer, Act III only.
+   *  Carried by THE PLATE and THE FIELD alone: the text hands dim the field to
+   *  ground their registers, and a glow under their type would be one more
+   *  thing to read around rather than the ground disagreeing with the marks. */
+  residence?: boolean;
+}
+
+/**
+ * The residence's whole-layer envelope — THE ONLY THING `t` DRIVES.
+ *
+ * Rise through "many", hold through "the instant", washed by "the close", with
+ * the beat edges read from `WINDOW_BEATS` so the rail and this layer cannot
+ * disagree about where a beat begins. Never cell-by-cell: the grid is an
+ * aggregate with no chronology, and animating cells would author an order the
+ * source never measured. A pure function of phase — scrubbing backwards
+ * rebuilds it, nothing is remembered.
+ */
+function residenceEnvelope(phase: number): number {
+  const riseTo = WINDOW_BEATS.find((b) => b.id === "many")!.to;
+  const washFrom = WINDOW_BEATS.find((b) => b.id === "close")!.from;
+  if (phase < riseTo) return developed(phase / riseTo);
+  if (phase < washFrom) return 1;
+  return 1 - developed((phase - washFrom) / (1 - washFrom));
 }
 
 export function drawSeasonField(f: Frame, opts: FieldOpts): void {
   const { ctx, view, dpr, st, data } = f;
-  const { coloured = false, dim, withPrevious = true } = opts;
+  const { coloured = false, dim, withPrevious = true, residence = false } = opts;
   const year = st.year!;
+
+  // The residence goes down FIRST: it is the ground the endings sit over, and
+  // it is drawn only where the feed existed — Act III, the one stretch whose
+  // motion between the record's endpoints survives. Bone, under everything,
+  // inheriting the hand's own dim so it can never outshine the record above it.
+  if (residence && st.act === 3 && data.window) {
+    drawLayer(
+      ctx,
+      bakeResidence(data.window.occupancy, view, dpr),
+      view,
+      dim * residenceEnvelope(st.phase) * RESIDENCE_ALPHA,
+    );
+  }
 
   if (withPrevious && st.prev !== null) {
     const prevSeason = data.byYear.get(st.prev);

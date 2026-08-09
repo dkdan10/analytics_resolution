@@ -131,6 +131,38 @@ export const SCALARS = {
       "with it.",
   },
 
+  // --- the residence — the window's ball-occupancy under-layer -------------
+  //
+  // THE RESIDENCE: where the ball LIVED, under where the shots ENDED, drawn
+  // only for the one act whose feed survives (window.json:occupancy — one-foot
+  // cells over every parsed ball frame). Both independent display audits named
+  // this artifact the most deserving unshown material and proposed the same
+  // placement. The layer is bone, always — the ball belongs to no zone — and
+  // the only thing t drives is a whole-layer envelope; per-cell animation
+  // would author a chronology the aggregate never measured.
+  RESIDENCE_TONE_K: {
+    class: "authored",
+    value: 400,
+    material: true,
+    controls:
+      "how fast a cell's share of the ball's measured time saturates toward " +
+      "full glow. Lower and only the densest corridors of the ball's traffic " +
+      "survive the tone curve while the mid-floor sinks to nothing; higher and " +
+      "the whole window ground flattens toward one undifferentiated sheet, " +
+      "which is atmosphere — rule 3's exact failure for this layer.",
+  },
+  RESIDENCE_ALPHA: {
+    class: "authored",
+    value: 0.35,
+    material: true,
+    controls:
+      "how much of the stone's light is the ball's time, under the shots' " +
+      "endings — the whole-layer weight the beat envelope multiplies. The " +
+      "residence may never outshine the record it contextualises: raise it " +
+      "and the dwelling starts to compete with the endings for the plate; " +
+      "lower it and the window's ground goes back to bare stone.",
+  },
+
   // --- bloom.ts — Act III's traces -----------------------------------------
   RIM_FT: {
     class: "geometry",
@@ -1276,6 +1308,8 @@ export const TONE_CEILING: number = SCALARS.TONE_CEILING.value;
 export const SPLAT_MIN_PX: number = SCALARS.SPLAT_MIN_PX.value;
 export const SPLAT_SPACING_K: number = SCALARS.SPLAT_SPACING_K.value;
 export const FALLOFF_DISC_INTEGRAL: number = SCALARS.FALLOFF_DISC_INTEGRAL.value;
+export const RESIDENCE_TONE_K: number = SCALARS.RESIDENCE_TONE_K.value;
+export const RESIDENCE_ALPHA: number = SCALARS.RESIDENCE_ALPHA.value;
 
 export const RIM_FT: number = SCALARS.RIM_FT.value;
 export const TRACE_LIT_FLOOR: number = SCALARS.TRACE_LIT_FLOOR.value;
