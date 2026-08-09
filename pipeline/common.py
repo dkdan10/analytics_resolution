@@ -138,6 +138,19 @@ CORNER_X = 220.0
 CORNER_Y = (THREE_R ** 2 - CORNER_X ** 2) ** 0.5
 HALFCOURT_Y = 417.5
 
+# THE PLATE'S REACH - the halfcourt box every artifact is clipped to and the box
+# `site/src/plate.ts:COURT` draws. The plan's section 3.2 clips LOC_Y to
+# [-52, 418]; this widens it two tenths each way so the grid's bins are whole
+# feet and the sample and grid totals assert equal (CLAUDE.md, 2026-08-06).
+#
+# It lived only in aggregate.py, which was fine while aggregate.py was the only
+# thing that clipped. THE CENSUS's filing made it a question the GATE has to ask
+# too - which of the record's own categories land somewhere this plate can hold
+# - so it is one definition here rather than two that can drift.
+HALF_X_MAX = 250
+HALF_Y_MIN = -50
+HALF_Y_MAX = 420
+
 
 def zone_at(x, y):
     """Which of the league's seven regions a point on the floor falls in.

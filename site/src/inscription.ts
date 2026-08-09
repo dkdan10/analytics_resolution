@@ -69,7 +69,8 @@ export interface Inscription {
 /** The NBA's own category, named as theirs. Disclosed in wall text. */
 const TRACKED_ZONE = "Mid-Range";
 
-/** A measured length, as the plate says it: "22", not "22.0". */
+/** A measured length, as the plate says it: a whole number of feet loses its
+ *  trailing zero, anything else keeps one decimal. */
 function fmtFt(ft: number): string {
   return Number.isInteger(ft) ? String(ft) : ft.toFixed(1);
 }

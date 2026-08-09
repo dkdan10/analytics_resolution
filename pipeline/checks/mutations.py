@@ -232,6 +232,99 @@ def m_season_share(d):
     _save(d, "seasons.json", s)
 
 
+def m_filing_drop(d):
+    """One category loses its place.
+
+    THE CENSUS strikes a word for every category it names, so a missing place is
+    a word with nowhere to go - and the renderer would simply not draw it, which
+    on a floor of fifty-three ticks nobody would notice.
+    """
+    s = _load(d, "seasons.json")
+    for row in s["seasons"]:
+        if row["year"] == 2015:
+            row["classification_place"]["ZONE"].pop("Mid-Range")
+    _save(d, "seasons.json", s)
+
+
+def m_filing_zero(d):
+    """Every place collapses to the origin.
+
+    The shape a zero-fill takes here: distances to zero, bearings to zero. Every
+    word in the filing would then be struck on top of the hoop, in a pile, which
+    is exactly the composition the polar mean exists to avoid.
+    """
+    s = _load(d, "seasons.json")
+    for row in s["seasons"]:
+        for cats in row["classification_place"].values():
+            for e in cats.values():
+                if "dist_ft" in e:
+                    e["dist_ft"] = 0.0
+                    e["bearing_rad"] = 0.0
+    _save(d, "seasons.json", s)
+
+
+def m_filing_mirror(d):
+    """The bearings are mirrored: every left category becomes a right one.
+
+    THE defect the cross-field side check exists for. A sign error in the
+    circular mean - or a season's places shuffled against their categories -
+    puts LEFT CORNER 3 in the right corner, and nothing about the resulting
+    picture looks wrong: it is still seven words at seven plausible places.
+    """
+    s = _load(d, "seasons.json")
+    for row in s["seasons"]:
+        for cats in row["classification_place"].values():
+            for e in cats.values():
+                if "bearing_rad" in e:
+                    e["bearing_rad"] = -e["bearing_rad"]
+    _save(d, "seasons.json", s)
+
+
+def m_filing_count(d):
+    """A place's `n` drifts from the tally it is supposed to be counting.
+
+    The two keys are read by the same hand for the same word - `classification`
+    sizes it and `classification_place` puts it somewhere - so a disagreement
+    draws one category at another's size.
+    """
+    s = _load(d, "seasons.json")
+    for row in s["seasons"]:
+        if row["year"] == 2015:
+            row["classification_place"]["TYPE"]["3PT Field Goal"]["n"] += 1
+    _save(d, "seasons.json", s)
+
+
+def m_filing_backcourt(d):
+    """The backcourt categories are dragged onto the plate.
+
+    Their landing beyond the halfcourt is measured and is the census's footer
+    line. Pulled inside, the plate would silently claim to hold a region the
+    record puts off it.
+    """
+    s = _load(d, "seasons.json")
+    for row in s["seasons"]:
+        for title, cat in (("ZONE", "Backcourt"), ("RANGE", "Back Court Shot"),
+                           ("AREA", "Back Court(BC)")):
+            e = row["classification_place"].get(title, {}).get(cat)
+            if e and "dist_ft" in e:
+                e["dist_ft"] = 20.0
+    _save(d, "seasons.json", s)
+
+
+def m_covering_90_split(d):
+    """THE LEDGER's label budget stops being THE CENSUS's DESCRIPTION budget.
+
+    Two hands reading one measurement is the whole reason `covering_90pct`
+    generalises `words_covering_90pct` instead of sitting beside it. Split them
+    and both hands still draw - at densities that no longer agree.
+    """
+    s = _load(d, "seasons.json")
+    for row in s["seasons"]:
+        if row["year"] == 2015:
+            row["vocabulary"]["covering_90pct"]["DESCRIPTION"] += 3
+    _save(d, "seasons.json", s)
+
+
 def m_zone_byte(d):
     """One zone byte flipped in a points/*.bin.
 
@@ -605,6 +698,27 @@ CASES = [
          m_zero_index, "(audit) the index was validated by byte length"),
     Case("zero-points", ["shot_artifacts"], "samples/grids/points consistent with seasons.json",
          m_zero_points, "already caught before this session; kept as a regression"),
+
+    # --- the filing (V-05): places are load-bearing geometry now --------------
+    Case("filing-drop", ["filing"],
+         "every category the tally counts has a place, and no place has no category",
+         m_filing_drop, "a category with no place is a word the census silently does not strike"),
+    Case("filing-zero", ["filing"], "every zone's mean distance sits inside its own zone",
+         m_filing_zero, "a zero-filled artifact strikes every word on the hoop"),
+    Case("filing-mirror", ["filing"],
+         "every category naming a side of the floor has its mean on that side",
+         m_filing_mirror,
+         "a sign error in the circular mean puts LEFT CORNER 3 in the right corner, "
+         "and the picture still looks plausible"),
+    Case("filing-count", ["filing"], "the filing and the tally count the same shots",
+         m_filing_count, "the two keys one word is drawn from drift apart"),
+    Case("filing-backcourt", ["filing"],
+         "the three backcourt categories land beyond the plate in every season",
+         m_filing_backcourt,
+         "the plate would claim to hold ground the record puts beyond it"),
+    Case("covering-90-split", ["filing"],
+         "the ledger's label budget is the census's DESCRIPTION budget",
+         m_covering_90_split, "two hands stop reading one measurement"),
     Case("random-measures", ["window"], "every filed bucket is one of the published categories",
          m_random_measures, "structure destroyed, length preserved"),
     Case("random-strokes", ["paint"], "no stroke spans more frames than the possession it was cut from",

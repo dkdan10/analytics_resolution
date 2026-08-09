@@ -36,6 +36,9 @@ from pathlib import Path
 # rather than raising a bare ModuleNotFoundError.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (  # noqa: E402
+    HALF_X_MAX,
+    HALF_Y_MAX,
+    HALF_Y_MIN,
     PROCESSED_DIR,
     PROVENANCE,
     SAMPLE_SEED,
@@ -82,6 +85,18 @@ DTYPES = {
     "SHOT_MADE_FLAG": np.int8,
 }
 
+# The six ways the record files a shot, and the column each one is. ONE map,
+# read by the vocabulary count, the tally and the filing's places, so a taxonomy
+# cannot exist in one of the three and not the others.
+TAXONOMIES = {
+    "TYPE": "SHOT_TYPE",
+    "RESULT": "EVENT_TYPE",
+    "ZONE": "SHOT_ZONE_BASIC",
+    "RANGE": "SHOT_ZONE_RANGE",
+    "AREA": "SHOT_ZONE_AREA",
+    "DESCRIPTION": "ACTION_TYPE",
+}
+
 ZONES = [
     "Restricted Area",
     "In The Paint (Non-RA)",
@@ -94,13 +109,11 @@ ZONES = [
 
 SAMPLE_N = 2000
 
-# Halfcourt frame in tenths of feet, hoop origin (plan section 3.2 clips
-# LOC_Y to [-52, 418]; we use the same box for samples and grids so their
-# totals agree: x in [-250, 250], y in [-50, 420]).
-HALF_Y_MIN = -50
-HALF_Y_MAX = 420
-GRID_X_EDGES = np.arange(-250, 251, 10)  # 50 one-foot bins
-GRID_Y_EDGES = np.arange(-50, 421, 10)   # 47 one-foot bins
+# The halfcourt box, in tenths of feet from the hoop. Defined in common.py since
+# the gate has to ask the same question of THE CENSUS's filing; imported rather
+# than restated so the two cannot drift.
+GRID_X_EDGES = np.arange(-HALF_X_MAX, HALF_X_MAX + 1, 10)  # 50 one-foot bins
+GRID_Y_EDGES = np.arange(HALF_Y_MIN, HALF_Y_MAX + 1, 10)   # 47 one-foot bins
 
 # Season notes ship as data so the piece never hand-types a caveat (Appendix D).
 # {games} is derived from the dump (games per team, asserted exact); {window}
@@ -319,17 +332,33 @@ def measure_vocabulary(df):
     # 70 by 2024-25.
     taxonomies = {
         col: int(df[col].dropna().nunique())
-        for col in ("SHOT_TYPE", "EVENT_TYPE", "SHOT_ZONE_BASIC",
-                    "SHOT_ZONE_RANGE", "SHOT_ZONE_AREA", "ACTION_TYPE")
+        for col in TAXONOMIES.values()
     }
     # How many words are needed to account for 90% of the season's shots - the
     # honest measure of how varied the description actually is, since a long
     # tail of rare words would otherwise overstate it.
     share = counts / counts.sum()
     covering_90 = int((share.cumsum() < 0.9).sum()) + 1
+
+    # The same question asked of all six taxonomies, which is what decides how
+    # many words THE CENSUS strikes into the floor for whichever one it is
+    # filing. Generalising it means both hands' text density comes from ONE
+    # measurement rather than from two that could disagree: `covering_90pct`
+    # for DESCRIPTION must equal `words_covering_90pct` above, and qa.py gates
+    # that it does.
+    covering = {}
+    for title, col in TAXONOMIES.items():
+        c = df[col].dropna().value_counts()
+        if c.empty:
+            covering[title] = 0
+            continue
+        s = c / c.sum()
+        covering[title] = int((s.cumsum() < 0.9).sum()) + 1
+
     return {
         "words": int(counts.size),
         "words_covering_90pct": covering_90,
+        "covering_90pct": covering,
         "mean_words_per_shot": float(a.str.split().str.len().mean()),
         "mean_chars_per_shot": float(a.str.len().mean()),
         "longest": max(counts.index, key=len),
@@ -351,18 +380,75 @@ def measure_classification(df):
     it - two numbers on screen contradicting each other. These are the season's
     real counts, and they are what the census now reads.
     """
-    fields = {
-        "TYPE": "SHOT_TYPE",
-        "RESULT": "EVENT_TYPE",
-        "ZONE": "SHOT_ZONE_BASIC",
-        "RANGE": "SHOT_ZONE_RANGE",
-        "AREA": "SHOT_ZONE_AREA",
-        "DESCRIPTION": "ACTION_TYPE",
-    }
     out = {}
-    for title, col in fields.items():
+    for title, col in TAXONOMIES.items():
         counts = df[col].value_counts()
         out[title] = {str(k): int(v) for k, v in counts.items()}
+    return out
+
+
+def measure_classification_place(df):
+    """Where on the floor each of the record's own categories actually sits.
+
+    THE MEASUREMENT THE FILING RESTS ON (V-05). THE CENSUS used to be two
+    statistical tables flanking the court; it is now struck INTO the court, one
+    word per category at the place the record itself put that category's shots.
+    Nothing here is a layout: every position on the plate is this measurement,
+    and there is no authored coordinate anywhere in the hand.
+
+    POLAR, NOT CARTESIAN, and that is not a stylistic choice. The Cartesian
+    centroid of an annular category is pulled toward the hoop by its own
+    curvature - `16-24 ft.` lands around 13 ft, outside the band it is named
+    for - so the summary would sit somewhere the category is not. Mean radius
+    with a circular-mean bearing lands inside the band, and it is also the
+    piece's native geometry: hoop origin, distance bands, the numeral annulus.
+
+    PLACED SHOTS ONLY. Shots the record filed at exactly the origin are
+    excluded, exactly as `marks.ts` excludes them and for the same reason - the
+    record gave them no place and the pin already carries them. This is the
+    standing "grain applies only where it was measured" decision. `n_placed`
+    ships beside `n` so a category whose place rests on a small minority of its
+    own shots says so: 1996-97's Restricted Area has ~70,000 shots and about
+    three thousand places, which is the piece's four-regime finding appearing
+    inside the census.
+
+    DISTANCE IS THE RECORD'S OWN `SHOT_DISTANCE`, not a radius re-derived from
+    the coordinates - one fewer thing this pipeline invents, and it makes the
+    category-meaning checks in qa.py genuine cross-field tests rather than
+    restatements of their own definitions.
+
+    NOT CLIPPED TO THE PLATE. The three backcourt categories land beyond the
+    halfcourt the piece draws, in every season, and that is measured rather than
+    hidden: the record names regions this plate cannot hold. The renderer
+    refuses to strike them and counts them, which is the honest division - the
+    measurement is the record's, the plate's edge is the plate's.
+    """
+    placed = df[(df.LOC_X != 0) | (df.LOC_Y != 0)]
+    # One angle per placed shot, reused across all six taxonomies.
+    ang = np.arctan2(placed.LOC_Y.to_numpy(np.float64), placed.LOC_X.to_numpy(np.float64))
+    sin_a, cos_a = np.sin(ang), np.cos(ang)
+    dist = placed.SHOT_DISTANCE.to_numpy(np.float64)
+
+    out = {}
+    for title, col in TAXONOMIES.items():
+        full = df[col].value_counts()
+        col_placed = placed[col].to_numpy()
+        entries = {}
+        for cat in full.index:
+            m = col_placed == cat
+            n_placed = int(m.sum())
+            entry = {"n": int(full[cat]), "n_placed": n_placed}
+            if n_placed:
+                s, c = float(sin_a[m].mean()), float(cos_a[m].mean())
+                entry["dist_ft"] = round(float(dist[m].mean()), 3)
+                entry["bearing_rad"] = round(float(np.arctan2(s, c)), 5)
+                # The resultant length: 1 is a ray, 0 is a category with no
+                # direction at all. Shipped because a category symmetric about
+                # the centreline has a MEANINGLESS bearing sitting at ~pi/2, and
+                # a reader of this artifact is entitled to know which is which.
+                entry["bearing_concentration"] = round(float(np.hypot(s, c)), 4)
+            entries[str(cat)] = entry
+        out[title] = entries
     return out
 
 
@@ -419,13 +505,15 @@ def aggregate_season(year):
         "schema": measure_schema(year),
         "vocabulary": measure_vocabulary(df),
         "classification": measure_classification(df),
+        "classification_place": measure_classification_place(df),
         "contemporaneous": measure_contemporaneous(year, df),
         "note": None,
     }
     if year in SEASON_NOTES:
         row["note"] = render_note(year, SEASON_NOTES[year], row["n_games"], row["n_teams"])
 
-    half = df[(df.LOC_Y >= HALF_Y_MIN) & (df.LOC_Y <= HALF_Y_MAX) & (df.LOC_X.abs() <= 250)]
+    half = df[(df.LOC_Y >= HALF_Y_MIN) & (df.LOC_Y <= HALF_Y_MAX)
+              & (df.LOC_X.abs() <= HALF_X_MAX)]
     dropped = n - len(half)
 
     rng = np.random.default_rng(SAMPLE_SEED + year)
@@ -628,6 +716,23 @@ def main():
                 "the dump's own header, counted: how many fields the record keeps per shot "
                 "and how many positions among them. Asserted constant across all thirty "
                 "seasons - the vocabulary grows, the schema does not"
+            ),
+            "classification_place": (
+                "where each of the record's own categories sits on the floor: the mean of "
+                "SHOT_DISTANCE and the CIRCULAR mean of atan2(LOC_Y, LOC_X), over that "
+                "category's PLACED shots only - origin-filed shots are the pin's and are "
+                "excluded. Polar rather than Cartesian because the centroid of an annular "
+                "category lands outside the band it is named for. `n` is the category's "
+                "whole count and `n_placed` how many of them the record gave a place, so a "
+                "summary resting on a minority of its own shots declares it. NOT clipped to "
+                "the halfcourt: the three backcourt categories land beyond the plate in "
+                "every season, and that is the record naming ground this plate cannot hold"
+            ),
+            "vocabulary.covering_90pct": (
+                "how many categories of each taxonomy account for 90% of the season's "
+                "shots. THE CENSUS strikes exactly these into the floor and THE LEDGER's "
+                "label budget is the DESCRIPTION entry, so the two hands' text density is "
+                "one measurement rather than two"
             ),
         },
         "seasons": rows,

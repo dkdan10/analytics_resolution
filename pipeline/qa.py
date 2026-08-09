@@ -49,6 +49,7 @@ from common import (  # noqa: E402
     CORNER_X,
     CORNER_Y,
     FREE_THROW_Y,
+    HALF_Y_MAX,
     HALFCOURT_Y,
     LANE_HALF_W,
     PROCESSED_DIR,
@@ -728,6 +729,196 @@ def group_vocabulary(g, ctx):
         for y in sorted(seasons) for k, v in FIXED_TAXONOMIES.items()
         if seasons[y]["vocabulary"]["taxonomies"].get(k) != v
     ], [])
+
+
+# --- group: the filing -------------------------------------------------------
+#
+# THE CENSUS strikes one word per category into the floor at the place the
+# record put that category's shots, so `classification_place` is now LOAD-BEARING
+# GEOMETRY: a wrong entry does not print a wrong number, it puts a word somewhere
+# the category is not, and nothing on screen would look broken.
+#
+# WHICH OF THESE CHECKS ARE EVIDENCE AND WHICH ARE STRUCTURE, said out loud
+# because "a gate you cannot break is not evidence" is this project's rule.
+# `dist_ft` for a RANGE band is the mean of SHOT_DISTANCE over shots the record
+# assigned to that band BY SHOT_DISTANCE, so `Less Than 8 ft. < 8` is true by
+# construction of the artifact and can only fail if the artifact is corrupt or
+# stale - which is exactly what the mutation catalogue stages. The checks that
+# carry real content are the CROSS-FIELD ones: they take the category from one
+# column of the record and the position from another, so they can genuinely
+# disagree. Those are marked below.
+
+# Bands whose own name states a distance. Structural (see above), kept because
+# corruption is a real failure mode and this is what catches it.
+RANGE_BOUNDS_FT = {
+    "Less Than 8 ft.": (0.0, 8.0),
+    "8-16 ft.": (8.0, 16.0),
+    "16-24 ft.": (16.0, 24.0),
+    "24+ ft.": (24.0, None),
+}
+
+# CROSS-FIELD. The category comes from SHOT_ZONE_BASIC / SHOT_ZONE_AREA and the
+# distance from SHOT_DISTANCE, so these two columns of the record have to agree
+# about the same shots for the check to pass at all.
+ZONE_BOUNDS_FT = {
+    "Restricted Area": (0.0, RESTRICTED_R / 10.0),
+    "Left Corner 3": (CORNER_X / 10.0, None),
+    "Right Corner 3": (CORNER_X / 10.0, None),
+    "Above the Break 3": (CORNER_X / 10.0, None),
+    "Backcourt": (HALFCOURT_Y / 10.0, None),
+}
+
+# CROSS-FIELD, and the sharpest of the lot: the SIDE of the floor a category
+# names, against the circular mean of atan2(LOC_Y, LOC_X). A bearing above pi/2
+# is the left half of the plate and below it the right. This is what would break
+# first if the polar mean were wrong, if the sign convention were flipped, or if
+# a season's categories were shuffled against their places.
+LEFT_OF_CENTRE = ("Left Corner 3", "Left Side(L)", "Left Side Center(LC)")
+RIGHT_OF_CENTRE = ("Right Corner 3", "Right Side(R)", "Right Side Center(RC)")
+# CROSS-FIELD. A category that names the CENTRE of the floor must have its mean
+# on the centre of the floor.
+#
+# THIS WAS FIRST WRITTEN AS A SYMMETRY CLAIM IN RADIANS AND THE DATA REFUSED IT.
+# `Center(C)` leans right in twenty-six of the thirty seasons - worst 8.1 deg,
+# in 2012-13 - and that is not an error in the polar mean, it is right-handed
+# basketball: the centre column's layups favour one side. The record never
+# promised symmetry and the gate should not have asked for it.
+#
+# So the claim is made in FEET, where it is the one that actually matters: the
+# mean's distance FROM the centreline, which is what decides whether a word
+# struck there reads as centred. The worst season measures 0.79 ft. Two feet is
+# a regression guard with headroom, not a target - the same footing
+# WINDOW_RECOVERY_FLOOR stands on.
+ON_THE_CENTRELINE = ("Center(C)",)
+CENTRELINE_MAX_FT = 2.0
+
+# The three categories the record names and this plate cannot hold. Measured,
+# not assumed: every season files backcourt shots beyond the halfcourt line, so
+# their mean lands off the plate and THE CENSUS refuses to strike them.
+BEYOND_THE_PLATE = {"ZONE": "Backcourt", "RANGE": "Back Court Shot", "AREA": "Back Court(BC)"}
+
+
+def group_filing(g, ctx):
+    seasons = ctx.seasons(g)
+    if not seasons:
+        return
+    g.section("The filing: where the record's own categories sit on the floor")
+
+    missing, extra, counts, bounds, sides, centre, ranges, degenerate = [], [], [], [], [], [], [], []
+    beyond, on_plate, lean = [], [], []
+    for year, row in sorted(seasons.items()):
+        label = row["season"]
+        cls = row.get("classification", {})
+        place = row.get("classification_place")
+        if not isinstance(place, dict):
+            g.fail(f"{label} carries a filing", f"classification_place is {type(place).__name__}")
+            continue
+
+        for title, cats in cls.items():
+            got = place.get(title)
+            if not isinstance(got, dict):
+                missing.append(f"{label}:{title}")
+                continue
+            missing += [f"{label}:{title}:{c}" for c in cats if c not in got]
+            extra += [f"{label}:{title}:{c}" for c in got if c not in cats]
+            for cat, e in got.items():
+                if cat not in cats:
+                    continue
+                # The two artifacts must be counting the same shots. THE CENSUS
+                # sizes a word by its share out of `classification` and places it
+                # from here, so a disagreement would draw a word at one
+                # category's size in another's position.
+                if e.get("n") != cats[cat]:
+                    counts.append(f"{label}:{title}:{cat} {e.get('n')} != {cats[cat]}")
+                n_placed = e.get("n_placed")
+                if not isinstance(n_placed, int) or not 0 <= n_placed <= cats[cat]:
+                    counts.append(f"{label}:{title}:{cat} n_placed={n_placed} of {cats[cat]}")
+                if not n_placed:
+                    # Nothing to place. Allowed, and it must then carry no
+                    # position at all rather than a default one.
+                    if "dist_ft" in e or "bearing_rad" in e:
+                        degenerate.append(f"{label}:{title}:{cat} has a place with no placed shots")
+                    continue
+                d, b = e.get("dist_ft"), e.get("bearing_rad")
+                r = e.get("bearing_concentration")
+                if not isinstance(d, (int, float)) or d < 0:
+                    degenerate.append(f"{label}:{title}:{cat} dist_ft={d}")
+                    continue
+                if not isinstance(b, (int, float)) or not -math.pi <= b <= math.pi:
+                    degenerate.append(f"{label}:{title}:{cat} bearing_rad={b}")
+                    continue
+                if not isinstance(r, (int, float)) or not 0 <= r <= 1:
+                    degenerate.append(f"{label}:{title}:{cat} concentration={r}")
+                    continue
+
+                if title == "RANGE" and cat in RANGE_BOUNDS_FT:
+                    lo, hi = RANGE_BOUNDS_FT[cat]
+                    if d < lo or (hi is not None and d >= hi):
+                        ranges.append(f"{label}:{cat} {d} outside [{lo},{hi})")
+                if title == "ZONE" and cat in ZONE_BOUNDS_FT:
+                    lo, hi = ZONE_BOUNDS_FT[cat]
+                    if d < lo or (hi is not None and d > hi):
+                        bounds.append(f"{label}:{cat} {d} outside [{lo},{hi}]")
+                if cat in LEFT_OF_CENTRE and b <= math.pi / 2:
+                    sides.append(f"{label}:{title}:{cat} bearing {b} is not left of centre")
+                if cat in RIGHT_OF_CENTRE and b >= math.pi / 2:
+                    sides.append(f"{label}:{title}:{cat} bearing {b} is not right of centre")
+                if cat in ON_THE_CENTRELINE:
+                    off = abs(d * math.cos(b))
+                    lean.append(off)
+                    if off > CENTRELINE_MAX_FT:
+                        centre.append(f"{label}:{title}:{cat} sits {off:.2f} ft off the centreline")
+
+                # Does the plate hold it? The three backcourt categories must
+                # not, in any season, and everything else must.
+                fits = d * 10 <= HALF_Y_MAX
+                if BEYOND_THE_PLATE.get(title) == cat:
+                    if fits:
+                        beyond.append(f"{label}:{title}:{cat} at {d} ft is ON the plate")
+                elif not fits:
+                    on_plate.append(f"{label}:{title}:{cat} at {d} ft is off the plate")
+
+    g.check("every category the tally counts has a place, and no place has no category",
+            missing + extra, [])
+    g.check("the filing and the tally count the same shots", counts, [])
+    g.check("no category carries a degenerate place", degenerate, [])
+    g.check("every distance band's mean sits inside its own band", ranges, [])
+    g.check("every zone's mean distance sits inside its own zone", bounds, [])
+    # THE cross-field check. See the note above.
+    g.check("every category naming a side of the floor has its mean on that side", sides, [])
+    g.check(f"every category naming the centre sits within {CENTRELINE_MAX_FT:g} ft of it",
+            centre, [])
+    if lean:
+        g.info(f"the centre column leans {max(lean):.2f} ft off the centreline at worst "
+               f"({sum(lean) / len(lean):.2f} ft mean) - right-handed basketball, not an error")
+    g.check("the three backcourt categories land beyond the plate in every season", beyond, [])
+    g.check("every other category lands on the plate", on_plate, [])
+
+    # The measured driver both THE CENSUS and THE LEDGER read. One number, so
+    # the two hands' text density cannot disagree.
+    identity, sums = [], []
+    for year, row in sorted(seasons.items()):
+        v = row.get("vocabulary", {})
+        cov = v.get("covering_90pct")
+        if not isinstance(cov, dict):
+            identity.append(f"{row['season']}: covering_90pct is {type(cov).__name__}")
+            continue
+        if cov.get("DESCRIPTION") != v.get("words_covering_90pct"):
+            identity.append(f"{row['season']}: DESCRIPTION {cov.get('DESCRIPTION')} "
+                            f"!= words_covering_90pct {v.get('words_covering_90pct')}")
+        for title, cats in row.get("classification", {}).items():
+            k = cov.get(title)
+            if not isinstance(k, int) or not 1 <= k <= len(cats):
+                sums.append(f"{row['season']}:{title} covering_90pct={k} of {len(cats)}")
+    g.check("the ledger's label budget is the census's DESCRIPTION budget", identity, [])
+    g.check("every taxonomy's ninety-per-cent set fits inside that taxonomy", sums, [])
+
+    ex = seasons.get(1996) or next(iter(seasons.values()))
+    zone = ex.get("classification_place", {}).get("ZONE", {})
+    ra = zone.get("Restricted Area", {})
+    if ra.get("n"):
+        g.info(f"{ex['season']} Restricted Area: {ra.get('n_placed'):,} of {ra['n']:,} shots "
+               f"carry a place, mean {ra.get('dist_ft')} ft")
 
 
 # --- group: the per-season artifacts -----------------------------------------
@@ -2596,6 +2787,7 @@ GROUPS = {
     "spine": group_spine,
     "resolution": group_resolution,
     "vocabulary": group_vocabulary,
+    "filing": group_filing,
     "shot_artifacts": group_shot_artifacts,
     "zone_vs_league": group_zone_vs_league,
     "zone_parity": group_zone_parity,
