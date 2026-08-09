@@ -370,6 +370,143 @@ def m_sentinel_sighted(d):
     _save(d, "seasons.json", s)
 
 
+def m_regime_vs_sentinel(d):
+    """A season filing a displaced refusal, labelled as one that sees.
+
+    THE CONTRADICTION THIS SESSION CLOSED, PUT BACK. `resolution.regime` said
+    `uniformly_sighted` for all ten of 2010-11..2019-20 while `rim_sentinel` in
+    the same dict said six of them pile several per cent of the season on a
+    coordinate beside the rim - two keys of one artifact disagreeing about one
+    fact, in the same green run, because only one of them was gated.
+    """
+    s = _load(d, "seasons.json")
+    for row in s["seasons"]:
+        if row["year"] == 2015:
+            row["resolution"]["regime"] = "uniformly_sighted"
+    _save(d, "seasons.json", s)
+
+
+def m_regime_refusing(d):
+    """The same contradiction the other way round.
+
+    A season whose busiest rim coordinate is an ordinary one, labelled as a
+    refusal. Without this the reverse direction of the cross-field check could
+    not be staged by anything.
+    """
+    s = _load(d, "seasons.json")
+    for row in s["seasons"]:
+        if row["year"] == 2012:
+            row["resolution"]["regime"] = "categorical_refusal"
+    _save(d, "seasons.json", s)
+
+
+def m_sentinel_kind(d):
+    """The dunk convention relabelled as the tip-and-putback one.
+
+    2014-15..2016-17 pile 96.5-98.8% dunks converting at .91; 2017-18 onward pile
+    tip-ins and putbacks converting at .62. They are different acts by the
+    record, and the label is derived from two measurements that ship beside it,
+    so a label that stops agreeing with them has to be a red gate.
+    """
+    s = _load(d, "seasons.json")
+    for row in s["seasons"]:
+        if row["year"] == 2015:
+            row["resolution"]["rim_sentinel"]["kind"] = "tip_putback"
+    _save(d, "seasons.json", s)
+
+
+def m_sentinel_fg_band(d):
+    """The empty band the two refusals are told apart by, filled in.
+
+    The pile converts at either .552-.642 or .9085-.9124 across thirty seasons,
+    with nothing between. The moment a season lands in that gap the labels have
+    stopped being a reading of a hole in the data - same footing the lead-ratio
+    band gate stands on.
+    """
+    s = _load(d, "seasons.json")
+    for row in s["seasons"]:
+        if row["year"] == 2015:
+            row["resolution"]["rim_sentinel"]["fg_pct"] = 0.78
+            row["resolution"]["rim_sentinel"]["kind"] = "tip_putback"
+    _save(d, "seasons.json", s)
+
+
+def m_pile_vocabulary(d):
+    """A name claiming more of its own season than the season holds.
+
+    `share_of_type` is the measurement the whole composition finding rests on -
+    that 97.7% of every shot the record calls a Dunk Shot in 2015-16 sits on one
+    cell. A share above 1 is arithmetically impossible and would go straight into
+    CLAUDE.md as a finding if nothing asked.
+    """
+    s = _load(d, "seasons.json")
+    for row in s["seasons"]:
+        if row["year"] == 2015:
+            comp = row["resolution"]["rim_sentinel"]["composition"]
+            first = next(iter(comp))
+            comp[first]["share_of_type"] = 1.4
+    _save(d, "seasons.json", s)
+
+
+def m_caption_population(d):
+    """The pin's caption composed out of two different populations.
+
+    WHAT THIS SESSION'S P0 ACTUALLY WAS. `refused_action_types` was derived at
+    the exact origin while the pin stands on the sentinel, so in 2017-18 it named
+    the ten Driving Layups still filed at (0,0) against the 3,649 Tip Layups
+    piled six tenths of a foot away. THE LEDGER composes the pin's label from the
+    first key of this dict, so the plate would have printed a hand-composed
+    falsehood - the count from one population and the name from another.
+    """
+    s = _load(d, "seasons.json")
+    for row in s["seasons"]:
+        if row["year"] == 2017:
+            row["resolution"]["refused_action_types"] = {
+                "Driving Layup Shot": 10, "Cutting Dunk Shot": 9,
+            }
+    _save(d, "seasons.json", s)
+
+
+def m_corroboration_stale(d):
+    """The corroboration left describing a coordinate the record has moved off.
+
+    window.py reads the sentinel out of seasons.json rather than holding its own
+    copy, exactly so this cannot happen silently; this is what it looks like if
+    it ever does, and it is the difference between evidence and a leftover.
+    """
+    w = _load(d, "window.json")
+    w["sentinel_corroboration"]["coord"] = [0, 0]
+    _save(d, "window.json", w)
+
+
+def m_corroboration_verdict(d):
+    """The numbers stay right and only the claim about them is wrong.
+
+    The one shape of defect a read-back gate cannot see. `dispersed` is derived
+    from `cells_per_shot`; here it is asserted against it. The piece is only
+    allowed to say these shots were refused a place because this block says so,
+    so the block has to be answerable to its own figures.
+    """
+    w = _load(d, "window.json")
+    w["sentinel_corroboration"]["dispersed"] = False
+    w["sentinel_corroboration"]["corroborated"] = False
+    _save(d, "window.json", w)
+
+
+def m_corroboration_scope(d):
+    """The scope limit hidden, and nothing else touched.
+
+    SportVU covers one of the six seasons that file a displaced pile, and less
+    than half of that season's own pile. A corroboration reporting that it saw
+    the whole thing would be claiming six times the evidence it has - and would
+    look identical in every other field.
+    """
+    w = _load(d, "window.json")
+    sc = w["sentinel_corroboration"]
+    sc["sentinel"]["filed"] = sc["filed_season"]
+    _save(d, "window.json", w)
+
+
 def m_palette_collide(d):
     """Two of the seven hues become the same colour.
 
@@ -823,6 +960,39 @@ CASES = [
     Case("sentinel-sighted", ["filing"],
          "the seasons in which the record refuses no rim shot at all",
          m_sentinel_sighted, "a refusing season relabelled as a sighted one"),
+
+    # --- the pile is not one thing, and the regime says so (5c) ---------------
+    Case("regime-vs-sentinel", ["resolution"],
+         "no season is labelled as placing every rim shot while its sentinel refuses",
+         m_regime_vs_sentinel,
+         "two keys of one artifact disagreeing about one fact, with only one gated"),
+    Case("regime-refusing", ["resolution"],
+         "no season is labelled as refusing while its sentinel places every rim shot",
+         m_regime_refusing, "the same contradiction the other way round"),
+    Case("sentinel-kind", ["filing"],
+         "the sentinel's kind is what its own two measurements say",
+         m_sentinel_kind, "a dunk convention relabelled as the tip-and-putback one"),
+    Case("sentinel-fg-band", ["filing"],
+         "no season's pile falls inside either empty band the kinds are read from",
+         m_sentinel_fg_band, "the gap the two refusals are told apart by, filled in"),
+    Case("pile-vocabulary", ["filing"],
+         "the pile is described in the record's own vocabulary",
+         m_pile_vocabulary, "a name claiming more of its own season than the season holds"),
+    Case("caption-population", ["filing"],
+         "what the plate calls the refusal is the head of the pile it draws",
+         m_caption_population,
+         "the pin's count from one population and its name from another"),
+
+    # --- the second instrument on the record's own refusal (5c) ---------------
+    Case("corroboration-stale", ["window"],
+         "the corroborated coordinate is the one the record was measured to pile on",
+         m_corroboration_stale, "evidence left describing a coordinate that has moved"),
+    Case("corroboration-verdict", ["window"],
+         "`dispersed` is what the feed's own spread says",
+         m_corroboration_verdict, "the numbers stay right and only the claim is wrong"),
+    Case("corroboration-scope", ["window"],
+         "the corroboration says how little of the season it reaches",
+         m_corroboration_scope, "one of six seasons reported as the whole finding"),
 
     # --- the palette (V-03): the claim, and the values it is about ------------
     Case("palette-collide", ["palette"], "every condition clears the declared floor",

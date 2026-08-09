@@ -66,13 +66,19 @@ require_env()
 
 import numpy as np  # noqa: E402
 
-from aggregate import POINT_DTYPE, SENTINEL_LEAD  # noqa: E402
+from aggregate import (
+    POINT_DTYPE,
+    SENTINEL_DUNK_FG,
+    SENTINEL_LEAD,
+    SENTINEL_WHOLESALE_SHARE,
+)  # noqa: E402
 
 # The rules' own constants, imported rather than restated: a gate that reads its
 # threshold out of the file it is checking is not a gate. Session 1 shipped four
 # of those, and the paint's residual gate compared paint.py's reported maximum
 # against paint.py's reported threshold.
 from window import (  # noqa: E402
+    DISPERSION_MIN_CELLS_PER_SHOT,
     MAX_ANCHOR_RESIDUAL_FT,
     MAX_EVENT_OFFSET,
     MAX_STEP_FT,
@@ -113,23 +119,52 @@ SHORT_SEASON_KATTEMPTS = {1998: 113, 2011: 161, 2019: 188}  # section 3.1
 EXPECTED_N_GAMES = {y: (1189 if y < 2004 else 1230) for y in range(1996, 2026)}
 EXPECTED_N_GAMES.update({1998: 725, 2011: 990, 2012: 1229, 2019: 1059, 2020: 1080})
 
-# --- The record's own resolution (FADEAWAY's texture ladder) -----------------
+# --- The record's own resolution --------------------------------------------
 # Four regimes, measured 2026-08-06 from the bulk mirror and confirmed live
 # against stats.nba.com (2009-10, 2010-11, 2024-25 rates and action types).
-# Classification is derived in aggregate.py from the spread across arenas; these
-# gates pin the result so a re-acquisition cannot move it silently.
+# Classification is derived in aggregate.py; these gates pin the result so a
+# re-acquisition cannot move it silently.
+#
+# RECLASSIFIED AT THE SENTINEL, 2026-08-09, AND THAT CLOSED A CONTRADICTION.
+# This table used to run `uniformly_sighted` from 2010 to 2019 - read off shots
+# filed at EXACTLY (0,0) - while `group_filing` gated, in the same run, that only
+# FOUR seasons refuse no rim shot at all. Two green checks asserting opposite
+# things about six seasons. aggregate.py now classifies on `rim_sentinel`, the
+# coordinate the record actually piles on, and the two agree: the sighted era is
+# 2010-11 through 2013-14, and the categorical refusal begins in 2014-15 rather
+# than 2020-21 - at a different address, and on a different category of shot.
 EXPECTED_REGIMES = {}
 for _y in range(1996, 2026):
     if _y == 1996:
         EXPECTED_REGIMES[_y] = "uniformly_blind"
     elif _y <= 2009:
         EXPECTED_REGIMES[_y] = "uneven"
-    elif _y <= 2019:
+    elif _y <= 2013:
         EXPECTED_REGIMES[_y] = "uniformly_sighted"
     else:
         EXPECTED_REGIMES[_y] = "categorical_refusal"
 
-# Restricted-area shots the record filed at the origin, as a percentage.
+# WHICH refusal each season files, from the record's own made/missed column and
+# the share of the rim the pile swallows. `regime` is the resolution axis - how
+# much of the rim the record could place; this is the other axis - WHAT it
+# declines to place. Four regimes and this field were put to the artist together
+# on 2026-08-09 with the composition table in front of them, and the ruling was
+# four regimes with `kind` shipped beside them rather than a fifth label.
+EXPECTED_SENTINEL_KINDS = {}
+for _y in range(1996, 2026):
+    if _y <= 2009:
+        EXPECTED_SENTINEL_KINDS[_y] = "wholesale"
+    elif _y <= 2013:
+        EXPECTED_SENTINEL_KINDS[_y] = None      # not a refusal at all
+    elif _y <= 2016:
+        EXPECTED_SENTINEL_KINDS[_y] = "dunk"
+    else:
+        EXPECTED_SENTINEL_KINDS[_y] = "tip_putback"
+
+# Restricted-area shots the record filed at the origin, as a percentage. Still
+# the EXACT-ORIGIN measure, deliberately: it is what every earlier reading of
+# this archive was made from, and pinning it is how a re-acquisition that
+# changed it would be caught. It is no longer what the regime is classified on.
 EXPECTED_RA_ORIGIN = {1996: "95.4", 2009: "74.8", 2010: "0.0", 2015: "0.0", 2024: "9.3"}
 
 # Cleveland is the one arena present in every season of the uneven era.
@@ -671,6 +706,28 @@ def group_resolution(g, ctx):
         if y in EXPECTED_REGIMES and seasons[y]["resolution"]["regime"] != EXPECTED_REGIMES[y]
     ], [])
 
+    # THE CONTRADICTION THIS CLOSES. `regime` and `rim_sentinel` are two readings
+    # of one fact, and for two sessions they disagreed in the same green run: the
+    # regime called all ten of 2010-11..2019-20 `uniformly_sighted` while the
+    # sentinel measured beside it says six of them pile 2.5-4.9% of the whole
+    # season onto a coordinate next to the rim. Neither check could see the
+    # other. This is genuinely CROSS-FIELD - the label comes from the arena
+    # spread and the share of the rim, the refusal from the modal restricted-area
+    # coordinate and its lead over the runner-up - so it can still disagree,
+    # which is what makes it evidence rather than a restatement.
+    g.check("no season is labelled as placing every rim shot while its sentinel refuses", [
+        seasons[y]["season"] for y in sorted(seasons)
+        if seasons[y]["resolution"]["regime"] == "uniformly_sighted"
+        and (seasons[y]["resolution"].get("rim_sentinel") or {}).get("is_refusal")
+    ], [])
+    # And the reverse: a season the sentinel says places everything cannot carry
+    # a label that names a refusal.
+    g.check("no season is labelled as refusing while its sentinel places every rim shot", [
+        seasons[y]["season"] for y in sorted(seasons)
+        if seasons[y]["resolution"]["regime"] in ("categorical_refusal", "uniformly_blind")
+        and not (seasons[y]["resolution"].get("rim_sentinel") or {}).get("is_refusal")
+    ], [])
+
     for year, want in sorted(EXPECTED_RA_ORIGIN.items()):
         if year in seasons:
             g.check(f"{seasons[year]['season']} rim shots left unplaced",
@@ -806,10 +863,100 @@ CENTRELINE_MAX_FT = 2.0
 SENTINEL_BAND_LO = 3.0
 SENTINEL_BAND_HI = 15.0
 
+# The two empty bands `rim_sentinel.kind` is read from, bracketed the same way
+# and for the same reason. Among the seasons whose sentinel IS a refusal:
+#   share_of_rim   either 0.081-0.152 or 0.734-0.954   - is the pile a named
+#                                                        CATEGORY, or the rim?
+#   fg_pct         either 0.552-0.642 or 0.9085-0.9124 - dunks, or tip-ins and
+#                                                        putbacks?
+# Both gaps are enormous (0.58 and 0.27) and the labels mean nothing if either
+# ever fills in, so the gate asks for the gap rather than for the label.
+SENTINEL_WHOLESALE_BAND = (0.20, 0.70)
+SENTINEL_FG_BAND = (0.70, 0.87)
+
 # The three categories the record names and this plate cannot hold. Measured,
 # not assumed: every season files backcourt shots beyond the halfcourt line, so
 # their mean lands off the plate and THE CENSUS refuses to strike them.
 BEYOND_THE_PLATE = {"ZONE": "Backcourt", "RANGE": "Back Court Shot", "AREA": "Back Court(BC)"}
+
+
+def _check_sentinel_composition(g, seasons):
+    """THE PILE IS NOT ONE THING, and these gates hold that reading.
+
+    Until 2026-08-09 this project described one refusal that changed address
+    twice. The record's own columns say it is three different acts: the rim
+    swallowed wholesale (1996-2010, ordinary layups, converting like the rim),
+    a DUNK convention (2014-17, converting at .91 and holding almost every dunk
+    the league files), and a TIP AND PUTBACK convention (2017 onward, converting
+    at .62) - which is the `categorical_refusal` this project dated to 2020-21,
+    beginning three seasons earlier at a different coordinate.
+
+    Every check here is CROSS-FIELD or a band. `kind` is derived from two
+    measurements; these re-derive it from those same measurements independently,
+    ask that neither band has filled in, and ask that the label agrees with what
+    the record's own vocabulary says about the same pile.
+    """
+    kinds, bands, comp, projected = [], [], [], []
+    for y, row in sorted(seasons.items()):
+        res = row["resolution"]
+        s = res.get("rim_sentinel")
+        if not isinstance(s, dict):
+            continue
+        label, refusal = row["season"], bool(s.get("is_refusal"))
+
+        # The label against the table, and against its own two inputs.
+        if y in EXPECTED_SENTINEL_KINDS and s.get("kind") != EXPECTED_SENTINEL_KINDS[y]:
+            kinds.append(f"{label}: kind {s.get('kind')} != {EXPECTED_SENTINEL_KINDS[y]}")
+        if not refusal and s.get("kind") is not None:
+            kinds.append(f"{label}: not a refusal but kind {s.get('kind')}")
+        if refusal:
+            share, fg = s.get("share_of_rim"), s.get("fg_pct")
+            want = ("wholesale" if share >= SENTINEL_WHOLESALE_SHARE
+                    else "dunk" if fg >= SENTINEL_DUNK_FG else "tip_putback")
+            if s.get("kind") != want:
+                kinds.append(f"{label}: kind {s.get('kind')} but share {share} fg {fg}")
+            # THE BANDS. The labels are readings of two holes in the data, and
+            # they stop being readings the moment a season lands in one.
+            if SENTINEL_WHOLESALE_BAND[0] < share < SENTINEL_WHOLESALE_BAND[1]:
+                bands.append(f"{label}: share_of_rim {share} is inside the empty band")
+            if SENTINEL_FG_BAND[0] < fg < SENTINEL_FG_BAND[1]:
+                bands.append(f"{label}: fg_pct {fg} is inside the empty band")
+
+        # The composition is the record's own vocabulary, so it has to add up to
+        # the pile it describes and no name may claim more of its own season
+        # than the season holds.
+        c = s.get("composition")
+        if not isinstance(c, dict) or not c:
+            comp.append(f"{label}: no composition")
+            continue
+        if sum(v["n"] for v in c.values()) > s.get("pile_n", 0):
+            comp.append(f"{label}: composition counts more shots than the pile holds")
+        if any(not 0 < v["share_of_type"] <= 1 for v in c.values()):
+            comp.append(f"{label}: a name claims an impossible share of its own season")
+        if any(round(v["n"] / s["pile_n"], 5) != v["share_of_pile"] for v in c.values()):
+            comp.append(f"{label}: share_of_pile is not n over the pile")
+
+        # WHAT THE CAPTION IS MADE OF. THE LEDGER composes the pin's label out of
+        # the FIRST KEY of `refused_action_types`, so that dict has to be a
+        # projection of this pile and of nothing else. It was derived at the
+        # exact origin until 2026-08-09, which in 2017-18 named ten Driving
+        # Layups against a pile of 3,649 Tip Layups six tenths of a foot away -
+        # two populations in one sentence, on the plate.
+        refused = res.get("refused_action_types")
+        if not isinstance(refused, dict):
+            projected.append(f"{label}: refused_action_types is not a dict")
+        elif not refusal:
+            if refused:
+                projected.append(f"{label}: names refused types but refuses nothing")
+        elif list(refused.items()) != [(k, v["n"]) for k, v in list(c.items())[:len(refused)]]:
+            projected.append(f"{label}: refused_action_types is not the head of the pile")
+        elif not refused:
+            projected.append(f"{label}: refuses a pile but names nothing in it")
+
+    g.check("the sentinel's kind is what its own two measurements say", kinds, [])
+    g.check("no season's pile falls inside either empty band the kinds are read from", bands, [])
+    g.check("the pile is described in the record's own vocabulary", comp, [])
+    g.check("what the plate calls the refusal is the head of the pile it draws", projected, [])
 
 
 def group_filing(g, ctx):
@@ -1019,6 +1166,8 @@ def group_filing(g, ctx):
     g.check("every season names the coordinate its rim shots pile on", sentinels, [])
     g.check("no season's lead over the runner-up falls in the empty band", band, [])
     g.check("origin_snapped is the refusal only when the refusal is at the origin", agree, [])
+
+    _check_sentinel_composition(g, seasons)
 
     refusing = [row["season"] for _y, row in sorted(seasons.items())
                 if (row["resolution"].get("rim_sentinel") or {}).get("is_refusal")]
@@ -1490,6 +1639,82 @@ def group_window(g, ctx):
            f"({inv['passes_alt_gap']:,} at the alternate gap), {inv['drives']:,} drives - "
            f"against {inv['drives_unordered']:,} read without requiring the outside sample "
            f"to come first; {inv['feed_breaks']:,} feed breaks segmented on")
+
+    _window_sentinel_corroboration(g, ctx, w)
+
+
+def _window_sentinel_corroboration(g, ctx, w):
+    """A SECOND INSTRUMENT ON THE RECORD'S OWN REFUSAL.
+
+    Everything else in window.json measures the tracking feed. This one thing
+    measures the SHOT RECORD with it, and it is the only reason the piece is
+    allowed to tell a viewer that these shots were refused a place: the claim
+    otherwise rests on a single read of one database, and every other source
+    available today - including a live stats.nba.com query - is another read of
+    the same one.
+
+    The gates here do not re-derive the dispersion; that would need the archives.
+    They ask the three things that could make the shipped result a lie: that it
+    describes the coordinate seasons.json actually measured (not a stale one),
+    that its own two verdicts are what its own numbers say, and that the scope
+    limit is present and honest about how little of the season it covers.
+    """
+    sc = w.get("sentinel_corroboration")
+    if not isinstance(sc, dict):
+        g.fail("the sentinel is corroborated against a second instrument",
+               "window.json has no sentinel_corroboration block")
+        return
+
+    # NOT A STALE COORDINATE. window.py reads the sentinel out of seasons.json
+    # rather than holding its own copy; this is the check that the artifact on
+    # disk was produced against the artifact on disk beside it.
+    seasons = ctx.seasons(g)
+    if seasons:
+        row = seasons.get(sc.get("season") and int(sc["season"][:4]))
+        sent = ((row or {}).get("resolution") or {}).get("rim_sentinel") or {}
+        g.check("the corroborated coordinate is the one the record was measured to pile on",
+                sc.get("coord"), sent.get("coord"))
+        g.check("the corroborated season's whole pile is the one seasons.json counts",
+                sc.get("filed_season"), sent.get("n"))
+
+    s, c = sc.get("sentinel") or {}, sc.get("control") or {}
+    for name, blk in (("pile", s), ("control", c)):
+        if not blk.get("n"):
+            g.fail(f"the {name} has shots to measure", f"n = {blk.get('n')}")
+            return
+        g.check(f"the {name}'s distinct positions are consistent with its own count",
+                round(blk["distinct_cells"] / blk["n"], 4), blk["cells_per_shot"])
+        g.holds(f"the {name} recovered no more shots than the record filed",
+                0 < blk["n"] <= blk["filed"], f"{blk['n']} of {blk['filed']}")
+
+    # THE TWO VERDICTS, RE-DERIVED FROM THE NUMBERS BESIDE THEM. A boolean that
+    # cannot be checked against its own inputs is a claim, not a measurement.
+    g.check("`dispersed` is what the feed's own spread says",
+            sc.get("dispersed"), s["cells_per_shot"] >= DISPERSION_MIN_CELLS_PER_SHOT)
+    g.check("`at_the_rim` is what the like-for-like control says",
+            sc.get("at_the_rim"), s["median_dist_ft"] <= c["p90_dist_ft"])
+    g.check("the verdict is both of its halves",
+            sc.get("corroborated"), bool(sc.get("dispersed") and sc.get("at_the_rim")))
+
+    # THE SEPARATION IS THE EVIDENCE. The record puts this whole population on
+    # one coordinate; the feed puts it in one place per shot. If those two ever
+    # stop being orders of magnitude apart, the finding has gone.
+    g.holds("the two instruments are still orders of magnitude apart",
+            s["cells_per_shot"] > 100 * sc["record_cells_per_shot"],
+            f"{s['cells_per_shot']} against the record's {sc['record_cells_per_shot']}")
+
+    # THE SCOPE LIMIT IS PUBLISHED, NOT BURIED. One of six seasons, and a
+    # minority of that season's pile. A corroboration that hid this would be
+    # claiming six times the evidence it has.
+    g.holds("the corroboration says how little of the season it reaches",
+            0 < s["filed"] < sc["filed_season"],
+            f"{s['filed']:,} of {sc['filed_season']:,} filed shots")
+    g.info(f"the sentinel is corroborated: the record files {sc['filed_season']:,} shots of "
+           f"{sc['season']} on {tuple(sc['coord'])}, and the optical feed puts the "
+           f"{s['n']:,} it can see in {s['distinct_cells']:,} different places "
+           f"({s['cells_per_shot']} per shot, against {c['cells_per_shot']} for dunks the "
+           f"record placed one by one) - scope: {s['filed']:,} of {sc['filed_season']:,} "
+           f"shots, in one of the six seasons that file a displaced pile")
 
 
 def _window_recovery(g, w, corp):
@@ -2752,6 +2977,22 @@ MEMORY_CLAIMS = [
     Claim("**{} categories in 1996-97", "season:1996", "vocabulary.categories_total", "comma"),
     Claim("{} in 2015-16", "season:2015", "vocabulary.categories_total", "comma"),
     Claim("{} in 2024-25**", "season:2024", "vocabulary.categories_total", "comma"),
+
+    # --- the pile, and the second instrument on it (5c) ---------------------
+    # Until this session NOTHING gated touched the sentinel, so the section of
+    # this document that carries the project's newest content claim was the one
+    # section unprotected by the mechanism that has caught every other drift.
+    Claim("**{}** shots on `(0, 1)`", "season:2015", "resolution.rim_sentinel.n", "comma"),
+    Claim("converting at **{}**", "season:2015", "resolution.rim_sentinel.fg_pct", "f2"),
+    Claim("against **{}** for the rest of that season's rim", "season:2015",
+          "resolution.rim_sentinel.fg_pct_off_sentinel", "f2"),
+    Claim("holds **{}%** of every shot the record calls a `Dunk Shot`", "season:2015",
+          "resolution.rim_sentinel.composition.Dunk Shot.share_of_type", "pct1"),
+    Claim("**{}** of them it can see", "window",
+          "sentinel_corroboration.sentinel.n", "comma"),
+    Claim("in **{}** different places", "window",
+          "sentinel_corroboration.sentinel.distinct_cells", "comma"),
+    Claim("**{} of 9,727**", "window", "sentinel_corroboration.sentinel.filed", "comma"),
 
     # --- the schedule, and the ring the numerals settle on ------------------
     Claim("for **{} seconds**", "facts", "loop.seconds"),

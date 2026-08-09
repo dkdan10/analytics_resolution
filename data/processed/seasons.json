@@ -1,6 +1,6 @@
 {
   "generated_by": "pipeline/aggregate.py",
-  "generated_at": "2026-08-09T02:50:56+00:00",
+  "generated_at": "2026-08-09T08:42:52+00:00",
   "provenance": {
     "shots_source": "stats.nba.com shotchartdetail, bulk archive github.com/shufinskiy/nba_data",
     "sportvu_source": "NBA/STATS SportVU public 2015-16 release, github.com/linouk23/NBA-Player-Movements + mirrors (github.com/sealneaward/nba-movement-data, HF dcayton/nba_tracking_data_15_16)",
@@ -19,8 +19,11 @@
     "three_share": "SHOT_TYPE == \"3PT Field Goal\"",
     "sample": "fixed-seed (20151027+year) uniform sample of halfcourt attempts",
     "grid": "1ft bins over LOC_X [-250,250], LOC_Y [-50,420], tenths of feet",
-    "resolution.rim_sentinel": "the single most-filed coordinate among the season's restricted-area shots, with how far it leads the runner-up. `origin_snapped` beside it counts EXACTLY (0,0) and is therefore blind to a refusal filed anywhere else - which is what six seasons do. `is_refusal` reads `lead_ratio` against 8, chosen from the middle of an empty band: across the corpus the lead is either about 2x or 18x and higher, with nothing between, so any threshold from roughly 3 to 15 classifies every season identically",
-    "resolution.ra_origin_share": "restricted-area shots filed at exactly (0,0) - the record declining to say where at the rim; drives the pin and the texture ladder",
+    "resolution.rim_sentinel": "the single most-filed coordinate among the season's restricted-area shots, with how far it leads the runner-up. `origin_snapped` beside it counts EXACTLY (0,0) and is therefore blind to a refusal filed anywhere else - which is what six seasons do. `is_refusal` reads `lead_ratio` against 8, chosen from the middle of an empty band: across the corpus the lead is either about 2x or 18x and higher, with nothing between, so any threshold from roughly 3 to 15 classifies every season identically. CORROBORATED AGAINST A SECOND INSTRUMENT, and the piece says these shots were refused a place only because it is: 2015-16's pile is the one this archive can be asked about twice, because that season is both one of the six that file a displaced pile and the season the public SportVU tracking release covers. The record files the whole pile on one coordinate; the optical feed puts the shots it can see in very nearly one position each, no more concentrated than dunks the record placed individually, and at the same distance from the rim - so the coordinate is a filing convention and not a location. The evidence is the SHOOTER'S FEET, which the join between the two instruments never constrains. Read the figures, the like-for-like control and the method from window.json under `sentinel_corroboration`. SCOPE, and it is a real limit rather than a footnote: ONE of the six seasons, and a minority of even that season's pile. The other five are uncorroborated and no source available today can corroborate them - every one of them is another read of the same database",
+    "resolution.ra_origin_share": "restricted-area shots filed at exactly (0,0). For twenty-four of the thirty seasons that IS the record declining to say where at the rim, and it is the figure every earlier reading of this archive was made from. For the six seasons that file their refusal elsewhere it reports 0.0% or a handful of stragglers and measures nothing - read `rim_sentinel`, which is what the pin, the regime and the arena spread are all taken from now",
+    "resolution.regime": "how the record placed rim shots that season, classified from `rim_sentinel` rather than from the exact origin: `uneven` when the spread across arenas reaches 40 percentage points (the refusal is a property of the BUILDING), `uniformly_sighted` when the sentinel refuses at most 2% of rim shots, `uniformly_blind` when it swallows 50% or more of them, and `categorical_refusal` for the band between - a named category of shot the taxonomy declines to place. `rim_sentinel.kind` divides that band further, and is measured rather than labelled here",
+    "resolution.rim_sentinel.composition": "the record's own names for what sits on the sentinel, with `share_of_pile` and - the measurement the reading rests on - `share_of_type`, how much of the season's WHOLE population of that name the pile holds. A name whose season sits almost entirely on one cell is a name the record never placed",
+    "resolution.rim_sentinel.kind": "which refusal this is, from two measured bands rather than by eye. `wholesale` when the pile is 50% or more of the rim (measured: either 8-15% or 73-95% of it, nothing between); otherwise `dunk` when the pile converts at 0.775 or better and `tip_putback` when it does not (measured: either .552-.642 or .9085-.9124, nothing between). The composition beside it says the same thing in the record's own words, so the label rests on two independent readings. null when the busiest rim coordinate is not a refusal at all",
     "resolution.full_resolution_arenas": "home arenas whose games recorded real rim coordinates that season; through 2009-10 only five or six did, and it follows the building, not the team",
     "contemporaneous": "1996-97 only: mid-range recomputed under the 22-ft line then in force, against the modern polygons SHOT_ZONE_BASIC applies retroactively. `line_ft` is that line's radius - external history no dump records - and both the words the piece prints and the arc it draws for 1996-97 read it from here",
     "schema": "the dump's own header, counted: how many fields the record keeps per shot and how many positions among them. Asserted constant across all thirty seasons - the vocabulary grows, the schema does not",
@@ -105,10 +108,57 @@
           "runner_up_n": 23,
           "lead_ratio": 2928.3,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 67351,
+          "composition": {
+            "Layup Shot": {
+              "n": 42068,
+              "share_of_pile": 0.62461,
+              "share_of_type": 0.97819
+            },
+            "Driving Layup Shot": {
+              "n": 11581,
+              "share_of_pile": 0.17195,
+              "share_of_type": 0.97221
+            },
+            "Dunk Shot": {
+              "n": 3974,
+              "share_of_pile": 0.059,
+              "share_of_type": 0.99574
+            },
+            "Slam Dunk Shot": {
+              "n": 3909,
+              "share_of_pile": 0.05804,
+              "share_of_type": 0.97384
+            },
+            "Tip Shot": {
+              "n": 3858,
+              "share_of_pile": 0.05728,
+              "share_of_type": 0.98494
+            },
+            "Driving Dunk Shot": {
+              "n": 1038,
+              "share_of_pile": 0.01541,
+              "share_of_type": 0.99712
+            },
+            "Jump Shot": {
+              "n": 574,
+              "share_of_pile": 0.00852,
+              "share_of_type": 0.00517
+            },
+            "Hook Shot": {
+              "n": 258,
+              "share_of_pile": 0.00383,
+              "share_of_type": 0.04343
+            }
+          },
+          "fg_pct": 0.55205,
+          "fg_pct_off_sentinel": 0.4535,
+          "kind": "wholesale"
         },
         "regime": "uniformly_blind",
         "arena_spread_pp": 34.449760125048016,
+        "origin_arena_spread_pp": 34.449760125048016,
         "full_resolution_arenas": [],
         "n_full_resolution_arenas": 0,
         "full_resolution_games": 14,
@@ -551,10 +601,57 @@
           "runner_up_n": 139,
           "lead_ratio": 351.6,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 48872,
+          "composition": {
+            "Layup Shot": {
+              "n": 24231,
+              "share_of_pile": 0.49581,
+              "share_of_type": 0.76369
+            },
+            "Driving Layup Shot": {
+              "n": 11048,
+              "share_of_pile": 0.22606,
+              "share_of_type": 0.83406
+            },
+            "Dunk Shot": {
+              "n": 4322,
+              "share_of_pile": 0.08844,
+              "share_of_type": 0.90079
+            },
+            "Tip Shot": {
+              "n": 4289,
+              "share_of_pile": 0.08776,
+              "share_of_type": 0.89391
+            },
+            "Slam Dunk Shot": {
+              "n": 3327,
+              "share_of_pile": 0.06808,
+              "share_of_type": 0.79498
+            },
+            "Driving Dunk Shot": {
+              "n": 832,
+              "share_of_pile": 0.01702,
+              "share_of_type": 0.8
+            },
+            "Jump Shot": {
+              "n": 568,
+              "share_of_pile": 0.01162,
+              "share_of_type": 0.00477
+            },
+            "Hook Shot": {
+              "n": 170,
+              "share_of_pile": 0.00348,
+              "share_of_type": 0.02776
+            }
+          },
+          "fg_pct": 0.62052,
+          "fg_pct_off_sentinel": 0.53958,
+          "kind": "wholesale"
         },
         "regime": "uneven",
         "arena_spread_pp": 98.33612732629543,
+        "origin_arena_spread_pp": 98.33612732629543,
         "full_resolution_arenas": [
           "BOS",
           "CLE",
@@ -997,10 +1094,57 @@
           "runner_up_n": 133,
           "lead_ratio": 195.92,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 26057,
+          "composition": {
+            "Layup Shot": {
+              "n": 12880,
+              "share_of_pile": 0.4943,
+              "share_of_type": 0.73057
+            },
+            "Driving Layup Shot": {
+              "n": 6537,
+              "share_of_pile": 0.25087,
+              "share_of_type": 0.80604
+            },
+            "Tip Shot": {
+              "n": 2270,
+              "share_of_pile": 0.08712,
+              "share_of_type": 0.88396
+            },
+            "Dunk Shot": {
+              "n": 2110,
+              "share_of_pile": 0.08098,
+              "share_of_type": 0.8546
+            },
+            "Slam Dunk Shot": {
+              "n": 1635,
+              "share_of_pile": 0.06275,
+              "share_of_type": 0.77195
+            },
+            "Driving Dunk Shot": {
+              "n": 368,
+              "share_of_pile": 0.01412,
+              "share_of_type": 0.75565
+            },
+            "Jump Shot": {
+              "n": 165,
+              "share_of_pile": 0.00633,
+              "share_of_type": 0.00225
+            },
+            "Hook Shot": {
+              "n": 68,
+              "share_of_pile": 0.00261,
+              "share_of_type": 0.01799
+            }
+          },
+          "fg_pct": 0.613,
+          "fg_pct_off_sentinel": 0.54395,
+          "kind": "wholesale"
         },
         "regime": "uneven",
         "arena_spread_pp": 99.16710829723525,
+        "origin_arena_spread_pp": 99.16710829723525,
         "full_resolution_arenas": [
           "BOS",
           "CLE",
@@ -1446,10 +1590,57 @@
           "runner_up_n": 220,
           "lead_ratio": 196.27,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 43180,
+          "composition": {
+            "Layup Shot": {
+              "n": 20803,
+              "share_of_pile": 0.48177,
+              "share_of_type": 0.72155
+            },
+            "Driving Layup Shot": {
+              "n": 10888,
+              "share_of_pile": 0.25215,
+              "share_of_type": 0.7944
+            },
+            "Dunk Shot": {
+              "n": 3811,
+              "share_of_pile": 0.08826,
+              "share_of_type": 0.85679
+            },
+            "Tip Shot": {
+              "n": 3748,
+              "share_of_pile": 0.0868,
+              "share_of_type": 0.87305
+            },
+            "Slam Dunk Shot": {
+              "n": 2792,
+              "share_of_pile": 0.06466,
+              "share_of_type": 0.75911
+            },
+            "Driving Dunk Shot": {
+              "n": 802,
+              "share_of_pile": 0.01857,
+              "share_of_type": 0.83368
+            },
+            "Jump Shot": {
+              "n": 201,
+              "share_of_pile": 0.00465,
+              "share_of_type": 0.00157
+            },
+            "Hook Shot": {
+              "n": 81,
+              "share_of_pile": 0.00188,
+              "share_of_type": 0.01305
+            }
+          },
+          "fg_pct": 0.63221,
+          "fg_pct_off_sentinel": 0.54372,
+          "kind": "wholesale"
         },
         "regime": "uneven",
         "arena_spread_pp": 99.2000350241949,
+        "origin_arena_spread_pp": 99.2000350241949,
         "full_resolution_arenas": [
           "BOS",
           "CLE",
@@ -1895,10 +2086,57 @@
           "runner_up_n": 268,
           "lead_ratio": 154.25,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 41338,
+          "composition": {
+            "Layup Shot": {
+              "n": 19717,
+              "share_of_pile": 0.47697,
+              "share_of_type": 0.71175
+            },
+            "Driving Layup Shot": {
+              "n": 8299,
+              "share_of_pile": 0.20076,
+              "share_of_type": 0.86116
+            },
+            "Tip Shot": {
+              "n": 3528,
+              "share_of_pile": 0.08535,
+              "share_of_type": 0.87154
+            },
+            "Dunk Shot": {
+              "n": 3439,
+              "share_of_pile": 0.08319,
+              "share_of_type": 0.86385
+            },
+            "Slam Dunk Shot": {
+              "n": 2039,
+              "share_of_pile": 0.04933,
+              "share_of_type": 0.69997
+            },
+            "Reverse Layup Shot": {
+              "n": 1478,
+              "share_of_pile": 0.03575,
+              "share_of_type": 0.88662
+            },
+            "Driving Dunk Shot": {
+              "n": 807,
+              "share_of_pile": 0.01952,
+              "share_of_type": 0.87622
+            },
+            "Alley Oop Dunk Shot": {
+              "n": 526,
+              "share_of_pile": 0.01272,
+              "share_of_type": 0.79697
+            }
+          },
+          "fg_pct": 0.6248,
+          "fg_pct_off_sentinel": 0.53208,
+          "kind": "wholesale"
         },
         "regime": "uneven",
         "arena_spread_pp": 99.76986946628878,
+        "origin_arena_spread_pp": 99.76986946628878,
         "full_resolution_arenas": [
           "BOS",
           "CLE",
@@ -2479,10 +2717,57 @@
           "runner_up_n": 264,
           "lead_ratio": 175.4,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 46305,
+          "composition": {
+            "Layup Shot": {
+              "n": 22820,
+              "share_of_pile": 0.49282,
+              "share_of_type": 0.78441
+            },
+            "Driving Layup Shot": {
+              "n": 8324,
+              "share_of_pile": 0.17976,
+              "share_of_type": 0.88932
+            },
+            "Dunk Shot": {
+              "n": 3793,
+              "share_of_pile": 0.08191,
+              "share_of_type": 0.88271
+            },
+            "Tip Shot": {
+              "n": 3594,
+              "share_of_pile": 0.07762,
+              "share_of_type": 0.87916
+            },
+            "Slam Dunk Shot": {
+              "n": 1977,
+              "share_of_pile": 0.0427,
+              "share_of_type": 0.752
+            },
+            "Reverse Layup Shot": {
+              "n": 1887,
+              "share_of_pile": 0.04075,
+              "share_of_type": 0.86086
+            },
+            "Driving Dunk Shot": {
+              "n": 847,
+              "share_of_pile": 0.01829,
+              "share_of_type": 0.88046
+            },
+            "Alley Oop Dunk Shot": {
+              "n": 645,
+              "share_of_pile": 0.01393,
+              "share_of_type": 0.86577
+            }
+          },
+          "fg_pct": 0.60495,
+          "fg_pct_off_sentinel": 0.55176,
+          "kind": "wholesale"
         },
         "regime": "uneven",
         "arena_spread_pp": 99.74862257125046,
+        "origin_arena_spread_pp": 99.74862257125046,
         "full_resolution_arenas": [
           "BOS",
           "CLE",
@@ -3083,10 +3368,57 @@
           "runner_up_n": 110,
           "lead_ratio": 417.61,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 45937,
+          "composition": {
+            "Layup Shot": {
+              "n": 23645,
+              "share_of_pile": 0.51473,
+              "share_of_type": 0.80458
+            },
+            "Driving Layup Shot": {
+              "n": 7979,
+              "share_of_pile": 0.17369,
+              "share_of_type": 0.87845
+            },
+            "Dunk Shot": {
+              "n": 3309,
+              "share_of_pile": 0.07203,
+              "share_of_type": 0.86623
+            },
+            "Tip Shot": {
+              "n": 3236,
+              "share_of_pile": 0.07044,
+              "share_of_type": 0.85225
+            },
+            "Slam Dunk Shot": {
+              "n": 2007,
+              "share_of_pile": 0.04369,
+              "share_of_type": 0.77044
+            },
+            "Reverse Layup Shot": {
+              "n": 1946,
+              "share_of_pile": 0.04236,
+              "share_of_type": 0.81696
+            },
+            "Driving Dunk Shot": {
+              "n": 857,
+              "share_of_pile": 0.01866,
+              "share_of_type": 0.87988
+            },
+            "Alley Oop Dunk Shot": {
+              "n": 693,
+              "share_of_pile": 0.01509,
+              "share_of_type": 0.83494
+            }
+          },
+          "fg_pct": 0.59899,
+          "fg_pct_off_sentinel": 0.5638,
+          "kind": "wholesale"
         },
         "regime": "uneven",
         "arena_spread_pp": 99.39377904127097,
+        "origin_arena_spread_pp": 99.39377904127097,
         "full_resolution_arenas": [
           "BOS",
           "CLE",
@@ -3687,10 +4019,57 @@
           "runner_up_n": 97,
           "lead_ratio": 482.95,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 46846,
+          "composition": {
+            "Layup Shot": {
+              "n": 24695,
+              "share_of_pile": 0.52715,
+              "share_of_type": 0.80859
+            },
+            "Driving Layup Shot": {
+              "n": 7861,
+              "share_of_pile": 0.16781,
+              "share_of_type": 0.85781
+            },
+            "Dunk Shot": {
+              "n": 3425,
+              "share_of_pile": 0.07311,
+              "share_of_type": 0.85009
+            },
+            "Tip Shot": {
+              "n": 3333,
+              "share_of_pile": 0.07115,
+              "share_of_type": 0.8468
+            },
+            "Reverse Layup Shot": {
+              "n": 1940,
+              "share_of_pile": 0.04141,
+              "share_of_type": 0.81891
+            },
+            "Slam Dunk Shot": {
+              "n": 1853,
+              "share_of_pile": 0.03956,
+              "share_of_type": 0.79665
+            },
+            "Driving Dunk Shot": {
+              "n": 851,
+              "share_of_pile": 0.01817,
+              "share_of_type": 0.84425
+            },
+            "Alley Oop Dunk Shot": {
+              "n": 680,
+              "share_of_pile": 0.01452,
+              "share_of_type": 0.86735
+            }
+          },
+          "fg_pct": 0.58758,
+          "fg_pct_off_sentinel": 0.56074,
+          "kind": "wholesale"
         },
         "regime": "uneven",
         "arena_spread_pp": 99.56737673146505,
+        "origin_arena_spread_pp": 99.56737673146505,
         "full_resolution_arenas": [
           "CLE",
           "IND",
@@ -4305,10 +4684,57 @@
           "runner_up_n": 109,
           "lead_ratio": 451.23,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 49184,
+          "composition": {
+            "Layup Shot": {
+              "n": 25914,
+              "share_of_pile": 0.52688,
+              "share_of_type": 0.7961
+            },
+            "Driving Layup Shot": {
+              "n": 7992,
+              "share_of_pile": 0.16249,
+              "share_of_type": 0.82511
+            },
+            "Dunk Shot": {
+              "n": 3911,
+              "share_of_pile": 0.07952,
+              "share_of_type": 0.8668
+            },
+            "Tip Shot": {
+              "n": 3435,
+              "share_of_pile": 0.06984,
+              "share_of_type": 0.85448
+            },
+            "Reverse Layup Shot": {
+              "n": 1898,
+              "share_of_pile": 0.03859,
+              "share_of_type": 0.78268
+            },
+            "Slam Dunk Shot": {
+              "n": 1782,
+              "share_of_pile": 0.03623,
+              "share_of_type": 0.74405
+            },
+            "Driving Dunk Shot": {
+              "n": 970,
+              "share_of_pile": 0.01972,
+              "share_of_type": 0.8479
+            },
+            "Alley Oop Dunk Shot": {
+              "n": 813,
+              "share_of_pile": 0.01653,
+              "share_of_type": 0.86397
+            }
+          },
+          "fg_pct": 0.58775,
+          "fg_pct_off_sentinel": 0.57701,
+          "kind": "wholesale"
         },
         "regime": "uneven",
         "arena_spread_pp": 99.6539848241737,
+        "origin_arena_spread_pp": 99.6539848241737,
         "full_resolution_arenas": [
           "BOS",
           "CLE",
@@ -4924,10 +5350,57 @@
           "runner_up_n": 126,
           "lead_ratio": 386.41,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 48688,
+          "composition": {
+            "Layup Shot": {
+              "n": 24843,
+              "share_of_pile": 0.51025,
+              "share_of_type": 0.78804
+            },
+            "Driving Layup Shot": {
+              "n": 9136,
+              "share_of_pile": 0.18764,
+              "share_of_type": 0.82136
+            },
+            "Dunk Shot": {
+              "n": 3522,
+              "share_of_pile": 0.07234,
+              "share_of_type": 0.88715
+            },
+            "Tip Shot": {
+              "n": 2971,
+              "share_of_pile": 0.06102,
+              "share_of_type": 0.83549
+            },
+            "Reverse Layup Shot": {
+              "n": 2117,
+              "share_of_pile": 0.04348,
+              "share_of_type": 0.79259
+            },
+            "Slam Dunk Shot": {
+              "n": 1622,
+              "share_of_pile": 0.03331,
+              "share_of_type": 0.71047
+            },
+            "Driving Dunk Shot": {
+              "n": 1023,
+              "share_of_pile": 0.02101,
+              "share_of_type": 0.83171
+            },
+            "Alley Oop Dunk Shot": {
+              "n": 893,
+              "share_of_pile": 0.01834,
+              "share_of_type": 0.86197
+            }
+          },
+          "fg_pct": 0.59446,
+          "fg_pct_off_sentinel": 0.5835,
+          "kind": "wholesale"
         },
         "regime": "uneven",
         "arena_spread_pp": 99.47610110888743,
+        "origin_arena_spread_pp": 99.47610110888743,
         "full_resolution_arenas": [
           "BOS",
           "CLE",
@@ -5546,10 +6019,57 @@
           "runner_up_n": 125,
           "lead_ratio": 399.42,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 49928,
+          "composition": {
+            "Layup Shot": {
+              "n": 25834,
+              "share_of_pile": 0.51743,
+              "share_of_type": 0.7829
+            },
+            "Driving Layup Shot": {
+              "n": 8865,
+              "share_of_pile": 0.17756,
+              "share_of_type": 0.8268
+            },
+            "Dunk Shot": {
+              "n": 3378,
+              "share_of_pile": 0.06766,
+              "share_of_type": 0.85411
+            },
+            "Tip Shot": {
+              "n": 3079,
+              "share_of_pile": 0.06167,
+              "share_of_type": 0.8615
+            },
+            "Reverse Layup Shot": {
+              "n": 2291,
+              "share_of_pile": 0.04589,
+              "share_of_type": 0.80954
+            },
+            "Slam Dunk Shot": {
+              "n": 1853,
+              "share_of_pile": 0.03711,
+              "share_of_type": 0.80321
+            },
+            "Alley Oop Dunk Shot": {
+              "n": 834,
+              "share_of_pile": 0.0167,
+              "share_of_type": 0.9085
+            },
+            "Driving Dunk Shot": {
+              "n": 829,
+              "share_of_pile": 0.0166,
+              "share_of_type": 0.84852
+            }
+          },
+          "fg_pct": 0.60379,
+          "fg_pct_off_sentinel": 0.58782,
+          "kind": "wholesale"
         },
         "regime": "uneven",
         "arena_spread_pp": 99.57141368601059,
+        "origin_arena_spread_pp": 99.57141368601059,
         "full_resolution_arenas": [
           "BOS",
           "CLE",
@@ -6165,10 +6685,57 @@
           "runner_up_n": 144,
           "lead_ratio": 353.07,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 50842,
+          "composition": {
+            "Layup Shot": {
+              "n": 24591,
+              "share_of_pile": 0.48367,
+              "share_of_type": 0.80759
+            },
+            "Driving Layup Shot": {
+              "n": 8844,
+              "share_of_pile": 0.17395,
+              "share_of_type": 0.83081
+            },
+            "Dunk Shot": {
+              "n": 3661,
+              "share_of_pile": 0.07201,
+              "share_of_type": 0.86446
+            },
+            "Tip Shot": {
+              "n": 3110,
+              "share_of_pile": 0.06117,
+              "share_of_type": 0.86605
+            },
+            "Reverse Layup Shot": {
+              "n": 1882,
+              "share_of_pile": 0.03702,
+              "share_of_type": 0.78976
+            },
+            "Slam Dunk Shot": {
+              "n": 1575,
+              "share_of_pile": 0.03098,
+              "share_of_type": 0.76234
+            },
+            "Alley Oop Dunk Shot": {
+              "n": 1022,
+              "share_of_pile": 0.0201,
+              "share_of_type": 0.86979
+            },
+            "Driving Dunk Shot": {
+              "n": 984,
+              "share_of_pile": 0.01935,
+              "share_of_type": 0.85789
+            }
+          },
+          "fg_pct": 0.59889,
+          "fg_pct_off_sentinel": 0.60244,
+          "kind": "wholesale"
         },
         "regime": "uneven",
         "arena_spread_pp": 99.3915796567594,
+        "origin_arena_spread_pp": 99.3915796567594,
         "full_resolution_arenas": [
           "BOS",
           "CLE",
@@ -6972,10 +7539,57 @@
           "runner_up_n": 190,
           "lead_ratio": 263.88,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 50138,
+          "composition": {
+            "Layup Shot": {
+              "n": 23825,
+              "share_of_pile": 0.47519,
+              "share_of_type": 0.78713
+            },
+            "Driving Layup Shot": {
+              "n": 9264,
+              "share_of_pile": 0.18477,
+              "share_of_type": 0.80319
+            },
+            "Dunk Shot": {
+              "n": 3709,
+              "share_of_pile": 0.07398,
+              "share_of_type": 0.85817
+            },
+            "Tip Shot": {
+              "n": 3090,
+              "share_of_pile": 0.06163,
+              "share_of_type": 0.84937
+            },
+            "Reverse Layup Shot": {
+              "n": 1707,
+              "share_of_pile": 0.03405,
+              "share_of_type": 0.77556
+            },
+            "Slam Dunk Shot": {
+              "n": 1595,
+              "share_of_pile": 0.03181,
+              "share_of_type": 0.76793
+            },
+            "Alley Oop Dunk Shot": {
+              "n": 895,
+              "share_of_pile": 0.01785,
+              "share_of_type": 0.8211
+            },
+            "Driving Dunk Shot": {
+              "n": 799,
+              "share_of_pile": 0.01594,
+              "share_of_type": 0.85638
+            }
+          },
+          "fg_pct": 0.59412,
+          "fg_pct_off_sentinel": 0.60144,
+          "kind": "wholesale"
         },
         "regime": "uneven",
         "arena_spread_pp": 99.45142556831,
+        "origin_arena_spread_pp": 99.45142556831,
         "full_resolution_arenas": [
           "BOS",
           "CLE",
@@ -7774,10 +8388,57 @@
           "runner_up_n": 159,
           "lead_ratio": 313.87,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 49905,
+          "composition": {
+            "Layup Shot": {
+              "n": 23430,
+              "share_of_pile": 0.46949,
+              "share_of_type": 0.76971
+            },
+            "Driving Layup Shot": {
+              "n": 9490,
+              "share_of_pile": 0.19016,
+              "share_of_type": 0.7609
+            },
+            "Tip Shot": {
+              "n": 3662,
+              "share_of_pile": 0.07338,
+              "share_of_type": 0.85341
+            },
+            "Dunk Shot": {
+              "n": 3449,
+              "share_of_pile": 0.06911,
+              "share_of_type": 0.83938
+            },
+            "Reverse Layup Shot": {
+              "n": 1846,
+              "share_of_pile": 0.03699,
+              "share_of_type": 0.77694
+            },
+            "Slam Dunk Shot": {
+              "n": 1289,
+              "share_of_pile": 0.02583,
+              "share_of_type": 0.74166
+            },
+            "Putback Layup Shot": {
+              "n": 926,
+              "share_of_pile": 0.01856,
+              "share_of_type": 0.74798
+            },
+            "Alley Oop Dunk Shot": {
+              "n": 862,
+              "share_of_pile": 0.01727,
+              "share_of_type": 0.78506
+            }
+          },
+          "fg_pct": 0.60485,
+          "fg_pct_off_sentinel": 0.60895,
+          "kind": "wholesale"
         },
         "regime": "uneven",
         "arena_spread_pp": 99.41466175954626,
+        "origin_arena_spread_pp": 99.41466175954626,
         "full_resolution_arenas": [
           "BOS",
           "CLE",
@@ -8570,10 +9231,57 @@
           "runner_up_n": 385,
           "lead_ratio": 1.86,
           "is_refusal": false,
-          "at_origin": null
+          "at_origin": null,
+          "pile_n": 715,
+          "composition": {
+            "Layup Shot": {
+              "n": 300,
+              "share_of_pile": 0.41958,
+              "share_of_type": 0.01193
+            },
+            "Dunk Shot": {
+              "n": 104,
+              "share_of_pile": 0.14545,
+              "share_of_type": 0.02602
+            },
+            "Driving Layup Shot": {
+              "n": 82,
+              "share_of_pile": 0.11469,
+              "share_of_type": 0.00742
+            },
+            "Tip Shot": {
+              "n": 58,
+              "share_of_pile": 0.08112,
+              "share_of_type": 0.01383
+            },
+            "Slam Dunk Shot": {
+              "n": 32,
+              "share_of_pile": 0.04476,
+              "share_of_type": 0.01723
+            },
+            "Alley Oop Dunk Shot": {
+              "n": 29,
+              "share_of_pile": 0.04056,
+              "share_of_type": 0.02318
+            },
+            "Reverse Layup Shot": {
+              "n": 24,
+              "share_of_pile": 0.03357,
+              "share_of_type": 0.01004
+            },
+            "Putback Layup Shot": {
+              "n": 20,
+              "share_of_pile": 0.02797,
+              "share_of_type": 0.01527
+            }
+          },
+          "fg_pct": 0.75385,
+          "fg_pct_off_sentinel": 0.61836,
+          "kind": null
         },
         "regime": "uniformly_sighted",
-        "arena_spread_pp": 0.0,
+        "arena_spread_pp": 7.430860107766729,
+        "origin_arena_spread_pp": 0.0,
         "full_resolution_arenas": [],
         "n_full_resolution_arenas": 0,
         "full_resolution_games": 1230,
@@ -9368,10 +10076,57 @@
           "runner_up_n": 347,
           "lead_ratio": 1.85,
           "is_refusal": false,
-          "at_origin": null
+          "at_origin": null,
+          "pile_n": 643,
+          "composition": {
+            "Layup Shot": {
+              "n": 246,
+              "share_of_pile": 0.38258,
+              "share_of_type": 0.0116
+            },
+            "Dunk Shot": {
+              "n": 102,
+              "share_of_pile": 0.15863,
+              "share_of_type": 0.03058
+            },
+            "Driving Layup Shot": {
+              "n": 74,
+              "share_of_pile": 0.11509,
+              "share_of_type": 0.00849
+            },
+            "Tip Shot": {
+              "n": 50,
+              "share_of_pile": 0.07776,
+              "share_of_type": 0.01474
+            },
+            "Slam Dunk Shot": {
+              "n": 36,
+              "share_of_pile": 0.05599,
+              "share_of_type": 0.02416
+            },
+            "Alley Oop Dunk Shot": {
+              "n": 22,
+              "share_of_pile": 0.03421,
+              "share_of_type": 0.02113
+            },
+            "Putback Layup Shot": {
+              "n": 17,
+              "share_of_pile": 0.02644,
+              "share_of_type": 0.01541
+            },
+            "Putback Dunk Shot": {
+              "n": 14,
+              "share_of_pile": 0.02177,
+              "share_of_type": 0.02652
+            }
+          },
+          "fg_pct": 0.73872,
+          "fg_pct_off_sentinel": 0.60318,
+          "kind": null
         },
         "regime": "uniformly_sighted",
-        "arena_spread_pp": 0.0,
+        "arena_spread_pp": 8.034778957589015,
+        "origin_arena_spread_pp": 0.0,
         "full_resolution_arenas": [],
         "n_full_resolution_arenas": 0,
         "full_resolution_games": 990,
@@ -10166,10 +10921,57 @@
           "runner_up_n": 455,
           "lead_ratio": 1.88,
           "is_refusal": false,
-          "at_origin": null
+          "at_origin": null,
+          "pile_n": 854,
+          "composition": {
+            "Layup Shot": {
+              "n": 296,
+              "share_of_pile": 0.3466,
+              "share_of_type": 0.0111
+            },
+            "Dunk Shot": {
+              "n": 145,
+              "share_of_pile": 0.16979,
+              "share_of_type": 0.03231
+            },
+            "Driving Layup Shot": {
+              "n": 93,
+              "share_of_pile": 0.1089,
+              "share_of_type": 0.00826
+            },
+            "Tip Shot": {
+              "n": 52,
+              "share_of_pile": 0.06089,
+              "share_of_type": 0.01261
+            },
+            "Slam Dunk Shot": {
+              "n": 45,
+              "share_of_pile": 0.05269,
+              "share_of_type": 0.02591
+            },
+            "Alley Oop Dunk Shot": {
+              "n": 40,
+              "share_of_pile": 0.04684,
+              "share_of_type": 0.03023
+            },
+            "Driving Dunk Shot": {
+              "n": 37,
+              "share_of_pile": 0.04333,
+              "share_of_type": 0.03807
+            },
+            "Reverse Layup Shot": {
+              "n": 24,
+              "share_of_pile": 0.0281,
+              "share_of_type": 0.01043
+            }
+          },
+          "fg_pct": 0.76815,
+          "fg_pct_off_sentinel": 0.6025,
+          "kind": null
         },
         "regime": "uniformly_sighted",
-        "arena_spread_pp": 0.0,
+        "arena_spread_pp": 4.480696080133147,
+        "origin_arena_spread_pp": 0.0,
         "full_resolution_arenas": [],
         "n_full_resolution_arenas": 0,
         "full_resolution_games": 1229,
@@ -10964,10 +11766,57 @@
           "runner_up_n": 391,
           "lead_ratio": 2.15,
           "is_refusal": false,
-          "at_origin": null
+          "at_origin": null,
+          "pile_n": 842,
+          "composition": {
+            "Layup Shot": {
+              "n": 270,
+              "share_of_pile": 0.32067,
+              "share_of_type": 0.01029
+            },
+            "Dunk Shot": {
+              "n": 145,
+              "share_of_pile": 0.17221,
+              "share_of_type": 0.03693
+            },
+            "Driving Layup Shot": {
+              "n": 93,
+              "share_of_pile": 0.11045,
+              "share_of_type": 0.00771
+            },
+            "Tip Shot": {
+              "n": 68,
+              "share_of_pile": 0.08076,
+              "share_of_type": 0.01624
+            },
+            "Alley Oop Dunk Shot": {
+              "n": 47,
+              "share_of_pile": 0.05582,
+              "share_of_type": 0.03536
+            },
+            "Slam Dunk Shot": {
+              "n": 43,
+              "share_of_pile": 0.05107,
+              "share_of_type": 0.02592
+            },
+            "Driving Dunk Shot": {
+              "n": 29,
+              "share_of_pile": 0.03444,
+              "share_of_type": 0.02731
+            },
+            "Driving Slam Dunk Shot": {
+              "n": 25,
+              "share_of_pile": 0.02969,
+              "share_of_type": 0.04371
+            }
+          },
+          "fg_pct": 0.78741,
+          "fg_pct_off_sentinel": 0.60601,
+          "kind": null
         },
         "regime": "uniformly_sighted",
-        "arena_spread_pp": 0.0,
+        "arena_spread_pp": 5.1672554743388845,
+        "origin_arena_spread_pp": 0.0,
         "full_resolution_arenas": [],
         "n_full_resolution_arenas": 0,
         "full_resolution_games": 1230,
@@ -11746,7 +12595,14 @@
         "ra_attempts": 66134,
         "ra_origin_snapped": 0,
         "ra_origin_share": 0.0,
-        "refused_action_types": {},
+        "refused_action_types": {
+          "Dunk Shot": 3682,
+          "Slam Dunk Shot": 1609,
+          "Alley Oop Dunk Shot": 1321,
+          "Driving Dunk Shot": 910,
+          "Driving Slam Dunk Shot": 594,
+          "Putback Dunk Shot": 573
+        },
         "rim_sentinel": {
           "coord": [
             0,
@@ -11762,10 +12618,57 @@
           "runner_up_n": 547,
           "lead_ratio": 17.83,
           "is_refusal": true,
-          "at_origin": false
+          "at_origin": false,
+          "pile_n": 9752,
+          "composition": {
+            "Dunk Shot": {
+              "n": 3682,
+              "share_of_pile": 0.37756,
+              "share_of_type": 0.98187
+            },
+            "Slam Dunk Shot": {
+              "n": 1609,
+              "share_of_pile": 0.16499,
+              "share_of_type": 0.98894
+            },
+            "Alley Oop Dunk Shot": {
+              "n": 1321,
+              "share_of_pile": 0.13546,
+              "share_of_type": 0.9531
+            },
+            "Driving Dunk Shot": {
+              "n": 910,
+              "share_of_pile": 0.09331,
+              "share_of_type": 0.93621
+            },
+            "Driving Slam Dunk Shot": {
+              "n": 594,
+              "share_of_pile": 0.06091,
+              "share_of_type": 0.98835
+            },
+            "Putback Dunk Shot": {
+              "n": 573,
+              "share_of_pile": 0.05876,
+              "share_of_type": 0.96627
+            },
+            "Running Dunk Shot": {
+              "n": 218,
+              "share_of_pile": 0.02235,
+              "share_of_type": 0.95614
+            },
+            "Running Slam Dunk Shot": {
+              "n": 201,
+              "share_of_pile": 0.02061,
+              "share_of_type": 0.98529
+            }
+          },
+          "fg_pct": 0.90853,
+          "fg_pct_off_sentinel": 0.5476,
+          "kind": "dunk"
         },
-        "regime": "uniformly_sighted",
-        "arena_spread_pp": 0.0,
+        "regime": "categorical_refusal",
+        "arena_spread_pp": 10.006430048978931,
+        "origin_arena_spread_pp": 0.0,
         "full_resolution_arenas": [],
         "n_full_resolution_arenas": 0,
         "full_resolution_games": 1230,
@@ -11966,10 +12869,10 @@
         "TYPE": {
           "2PT Field Goal": {
             "n": 150433,
-            "n_placed": 150433,
-            "dist_ft": 7.804,
-            "bearing_rad": 1.49104,
-            "bearing_concentration": 0.5808
+            "n_placed": 140681,
+            "dist_ft": 8.344,
+            "bearing_rad": 1.48103,
+            "bearing_concentration": 0.552
           },
           "3PT Field Goal": {
             "n": 55117,
@@ -11982,26 +12885,26 @@
         "RESULT": {
           "Missed Shot": {
             "n": 113271,
-            "n_placed": 113271,
-            "dist_ft": 14.122,
-            "bearing_rad": 1.53849,
-            "bearing_concentration": 0.5987
+            "n_placed": 112379,
+            "dist_ft": 14.234,
+            "bearing_rad": 1.53806,
+            "bearing_concentration": 0.5955
           },
           "Made Shot": {
             "n": 92279,
-            "n_placed": 92279,
-            "dist_ft": 10.2,
-            "bearing_rad": 1.49425,
-            "bearing_concentration": 0.5822
+            "n_placed": 83419,
+            "dist_ft": 11.283,
+            "bearing_rad": 1.47916,
+            "bearing_concentration": 0.5382
           }
         },
         "ZONE": {
           "Restricted Area": {
             "n": 66134,
-            "n_placed": 66134,
-            "dist_ft": 1.094,
-            "bearing_rad": 1.38736,
-            "bearing_concentration": 0.5206
+            "n_placed": 56382,
+            "dist_ft": 1.283,
+            "bearing_rad": 1.31587,
+            "bearing_concentration": 0.4417
           },
           "Mid-Range": {
             "n": 53776,
@@ -12049,10 +12952,10 @@
         "RANGE": {
           "Less Than 8 ft.": {
             "n": 86330,
-            "n_placed": 86330,
-            "dist_ft": 2.104,
-            "bearing_rad": 1.42034,
-            "bearing_concentration": 0.5545
+            "n_placed": 76578,
+            "dist_ft": 2.372,
+            "bearing_rad": 1.38212,
+            "bearing_concentration": 0.4995
           },
           "24+ ft.": {
             "n": 54641,
@@ -12086,10 +12989,10 @@
         "AREA": {
           "Center(C)": {
             "n": 112466,
-            "n_placed": 112466,
-            "dist_ft": 5.972,
-            "bearing_rad": 1.46913,
-            "bearing_concentration": 0.6514
+            "n_placed": 102714,
+            "dist_ft": 6.539,
+            "bearing_rad": 1.45356,
+            "bearing_concentration": 0.6188
           },
           "Right Side Center(RC)": {
             "n": 24062,
@@ -12130,24 +13033,24 @@
         "DESCRIPTION": {
           "Jump Shot": {
             "n": 108439,
-            "n_placed": 108439,
+            "n_placed": 108438,
             "dist_ft": 19.183,
             "bearing_rad": 1.57575,
-            "bearing_concentration": 0.6252
+            "bearing_concentration": 0.6251
           },
           "Layup Shot": {
             "n": 26035,
-            "n_placed": 26035,
-            "dist_ft": 1.127,
-            "bearing_rad": 1.32563,
-            "bearing_concentration": 0.421
+            "n_placed": 25897,
+            "dist_ft": 1.133,
+            "bearing_rad": 1.32254,
+            "bearing_concentration": 0.4181
           },
           "Driving Layup Shot": {
             "n": 11997,
-            "n_placed": 11997,
-            "dist_ft": 1.239,
-            "bearing_rad": 1.26294,
-            "bearing_concentration": 0.4134
+            "n_placed": 11949,
+            "dist_ft": 1.244,
+            "bearing_rad": 1.25998,
+            "bearing_concentration": 0.4112
           },
           "Pullup Jump shot": {
             "n": 7058,
@@ -12158,31 +13061,31 @@
           },
           "Tip Shot": {
             "n": 4224,
-            "n_placed": 4224,
-            "dist_ft": 0.81,
-            "bearing_rad": 1.31528,
-            "bearing_concentration": 0.5199
+            "n_placed": 4169,
+            "dist_ft": 0.821,
+            "bearing_rad": 1.3088,
+            "bearing_concentration": 0.514
           },
           "Hook Shot": {
             "n": 3869,
-            "n_placed": 3869,
-            "dist_ft": 5.43,
-            "bearing_rad": 1.5805,
-            "bearing_concentration": 0.6529
+            "n_placed": 3856,
+            "dist_ft": 5.448,
+            "bearing_rad": 1.58055,
+            "bearing_concentration": 0.6518
           },
           "Dunk Shot": {
             "n": 3750,
-            "n_placed": 3750,
-            "dist_ft": 0.017,
-            "bearing_rad": 1.57022,
-            "bearing_concentration": 0.9907
+            "n_placed": 68,
+            "dist_ft": 0.941,
+            "bearing_rad": 1.50642,
+            "bearing_concentration": 0.4907
           },
           "Running Jump Shot": {
             "n": 3427,
-            "n_placed": 3427,
-            "dist_ft": 8.375,
-            "bearing_rad": 1.47502,
-            "bearing_concentration": 0.7141
+            "n_placed": 3425,
+            "dist_ft": 8.38,
+            "bearing_rad": 1.47494,
+            "bearing_concentration": 0.7139
           },
           "Turnaround Jump Shot": {
             "n": 3046,
@@ -12214,10 +13117,10 @@
           },
           "Reverse Layup Shot": {
             "n": 2178,
-            "n_placed": 2178,
-            "dist_ft": 1.044,
-            "bearing_rad": 1.20837,
-            "bearing_concentration": 0.2838
+            "n_placed": 2165,
+            "dist_ft": 1.05,
+            "bearing_rad": 1.20076,
+            "bearing_concentration": 0.2799
           },
           "Driving Jump shot": {
             "n": 1668,
@@ -12228,10 +13131,10 @@
           },
           "Slam Dunk Shot": {
             "n": 1627,
-            "n_placed": 1627,
-            "dist_ft": 0.012,
-            "bearing_rad": 1.56887,
-            "bearing_concentration": 0.9936
+            "n_placed": 18,
+            "dist_ft": 1.111,
+            "bearing_rad": 1.18138,
+            "bearing_concentration": 0.456
           },
           "Jump Bank Shot": {
             "n": 1608,
@@ -12242,38 +13145,38 @@
           },
           "Jump Hook Shot": {
             "n": 1433,
-            "n_placed": 1433,
-            "dist_ft": 5.962,
-            "bearing_rad": 1.55005,
-            "bearing_concentration": 0.7119
+            "n_placed": 1424,
+            "dist_ft": 6.0,
+            "bearing_rad": 1.54987,
+            "bearing_concentration": 0.7101
           },
           "Running Layup Shot": {
             "n": 1409,
-            "n_placed": 1409,
-            "dist_ft": 1.413,
-            "bearing_rad": 1.04891,
-            "bearing_concentration": 0.4793
+            "n_placed": 1403,
+            "dist_ft": 1.419,
+            "bearing_rad": 1.04445,
+            "bearing_concentration": 0.4777
           },
           "Alley Oop Dunk Shot": {
             "n": 1386,
-            "n_placed": 1386,
-            "dist_ft": 0.034,
-            "bearing_rad": 1.56553,
-            "bearing_concentration": 0.9681
+            "n_placed": 65,
+            "dist_ft": 0.723,
+            "bearing_rad": 1.24315,
+            "bearing_concentration": 0.3375
           },
           "Putback Layup Shot": {
             "n": 1353,
-            "n_placed": 1353,
-            "dist_ft": 0.928,
-            "bearing_rad": 1.28345,
-            "bearing_concentration": 0.4586
+            "n_placed": 1330,
+            "dist_ft": 0.944,
+            "bearing_rad": 1.27256,
+            "bearing_concentration": 0.45
           },
           "Driving Finger Roll Layup Shot": {
             "n": 1239,
-            "n_placed": 1239,
-            "dist_ft": 1.254,
-            "bearing_rad": 1.18699,
-            "bearing_concentration": 0.568
+            "n_placed": 1230,
+            "dist_ft": 1.263,
+            "bearing_rad": 1.18215,
+            "bearing_concentration": 0.5654
           },
           "Turnaround Fadeaway shot": {
             "n": 1193,
@@ -12291,17 +13194,17 @@
           },
           "Driving Reverse Layup Shot": {
             "n": 1099,
-            "n_placed": 1099,
-            "dist_ft": 1.101,
-            "bearing_rad": 1.39031,
-            "bearing_concentration": 0.2959
+            "n_placed": 1096,
+            "dist_ft": 1.104,
+            "bearing_rad": 1.38864,
+            "bearing_concentration": 0.294
           },
           "Driving Dunk Shot": {
             "n": 972,
-            "n_placed": 972,
-            "dist_ft": 0.045,
-            "bearing_rad": 1.56685,
-            "bearing_concentration": 0.9542
+            "n_placed": 62,
+            "dist_ft": 0.71,
+            "bearing_rad": 1.36456,
+            "bearing_concentration": 0.2886
           },
           "Running Bank shot": {
             "n": 908,
@@ -12319,45 +13222,45 @@
           },
           "Alley Oop Layup shot": {
             "n": 701,
-            "n_placed": 701,
-            "dist_ft": 1.066,
-            "bearing_rad": 1.20013,
-            "bearing_concentration": 0.3737
+            "n_placed": 691,
+            "dist_ft": 1.081,
+            "bearing_rad": 1.18579,
+            "bearing_concentration": 0.3657
           },
           "Driving Slam Dunk Shot": {
             "n": 601,
-            "n_placed": 601,
-            "dist_ft": 0.012,
-            "bearing_rad": 1.57072,
-            "bearing_concentration": 0.9967
+            "n_placed": 7,
+            "dist_ft": 1.0,
+            "bearing_rad": 1.56219,
+            "bearing_concentration": 0.7127
           },
           "Putback Dunk Shot": {
             "n": 593,
-            "n_placed": 593,
-            "dist_ft": 0.032,
-            "bearing_rad": 1.57452,
-            "bearing_concentration": 0.9878
+            "n_placed": 20,
+            "dist_ft": 0.95,
+            "bearing_rad": 1.7401,
+            "bearing_concentration": 0.6473
           },
           "Finger Roll Layup Shot": {
             "n": 561,
-            "n_placed": 561,
-            "dist_ft": 1.294,
-            "bearing_rad": 1.28874,
-            "bearing_concentration": 0.5427
+            "n_placed": 557,
+            "dist_ft": 1.303,
+            "bearing_rad": 1.28504,
+            "bearing_concentration": 0.5397
           },
           "Driving Bank shot": {
             "n": 390,
-            "n_placed": 390,
-            "dist_ft": 5.528,
-            "bearing_rad": 1.06155,
-            "bearing_concentration": 0.5066
+            "n_placed": 389,
+            "dist_ft": 5.542,
+            "bearing_rad": 1.05907,
+            "bearing_concentration": 0.5056
           },
           "Driving Hook Shot": {
             "n": 356,
-            "n_placed": 356,
-            "dist_ft": 4.817,
-            "bearing_rad": 1.31721,
-            "bearing_concentration": 0.7939
+            "n_placed": 354,
+            "dist_ft": 4.845,
+            "bearing_rad": 1.31542,
+            "bearing_concentration": 0.7929
           },
           "Turnaround Bank shot": {
             "n": 301,
@@ -12368,24 +13271,24 @@
           },
           "Running Dunk Shot": {
             "n": 228,
-            "n_placed": 228,
-            "dist_ft": 0.013,
-            "bearing_rad": 1.54557,
-            "bearing_concentration": 0.9638
+            "n_placed": 10,
+            "dist_ft": 0.3,
+            "bearing_rad": 0.29371,
+            "bearing_concentration": 0.5791
           },
           "Running Slam Dunk Shot": {
             "n": 204,
-            "n_placed": 204,
-            "dist_ft": 0.01,
-            "bearing_rad": 1.56707,
-            "bearing_concentration": 0.9983
+            "n_placed": 3,
+            "dist_ft": 0.667,
+            "bearing_rad": 1.29184,
+            "bearing_concentration": 0.9191
           },
           "Putback Slam Dunk Shot": {
             "n": 159,
-            "n_placed": 159,
-            "dist_ft": 0.031,
-            "bearing_rad": 1.58381,
-            "bearing_concentration": 0.974
+            "n_placed": 9,
+            "dist_ft": 0.556,
+            "bearing_rad": 1.96443,
+            "bearing_concentration": 0.584
           },
           "Running Finger Roll Layup Shot": {
             "n": 144,
@@ -12403,10 +13306,10 @@
           },
           "Reverse Dunk Shot": {
             "n": 123,
-            "n_placed": 123,
-            "dist_ft": 0.024,
-            "bearing_rad": 1.5603,
-            "bearing_concentration": 0.9769
+            "n_placed": 4,
+            "dist_ft": 0.75,
+            "bearing_rad": 0.74005,
+            "bearing_concentration": 0.4269
           },
           "Pullup Bank shot": {
             "n": 120,
@@ -12431,10 +13334,10 @@
           },
           "Turnaround Bank Hook Shot": {
             "n": 82,
-            "n_placed": 82,
-            "dist_ft": 5.841,
-            "bearing_rad": 1.04575,
-            "bearing_concentration": 0.4507
+            "n_placed": 81,
+            "dist_ft": 5.914,
+            "bearing_rad": 1.03186,
+            "bearing_concentration": 0.4457
           },
           "Running Tip Shot": {
             "n": 70,
@@ -12445,10 +13348,10 @@
           },
           "Reverse Slam Dunk Shot": {
             "n": 38,
-            "n_placed": 38,
-            "dist_ft": 0.026,
-            "bearing_rad": 1.54538,
-            "bearing_concentration": 0.9823
+            "n_placed": 1,
+            "dist_ft": 1.0,
+            "bearing_rad": 0.32175,
+            "bearing_concentration": 1.0
           },
           "Running Bank Hook Shot": {
             "n": 30,
@@ -12535,7 +13438,14 @@
         "ra_attempts": 67443,
         "ra_origin_snapped": 0,
         "ra_origin_share": 0.0,
-        "refused_action_types": {},
+        "refused_action_types": {
+          "Dunk Shot": 3194,
+          "Cutting Dunk Shot": 1457,
+          "Alley Oop Dunk Shot": 1401,
+          "Driving Dunk Shot": 1299,
+          "Running Dunk Shot": 1131,
+          "Putback Dunk Shot": 611
+        },
         "rim_sentinel": {
           "coord": [
             0,
@@ -12551,10 +13461,57 @@
           "runner_up_n": 438,
           "lead_ratio": 22.21,
           "is_refusal": true,
-          "at_origin": false
+          "at_origin": false,
+          "pile_n": 9727,
+          "composition": {
+            "Dunk Shot": {
+              "n": 3194,
+              "share_of_pile": 0.32836,
+              "share_of_type": 0.97706
+            },
+            "Cutting Dunk Shot": {
+              "n": 1457,
+              "share_of_pile": 0.14979,
+              "share_of_type": 0.96682
+            },
+            "Alley Oop Dunk Shot": {
+              "n": 1401,
+              "share_of_pile": 0.14403,
+              "share_of_type": 0.94153
+            },
+            "Driving Dunk Shot": {
+              "n": 1299,
+              "share_of_pile": 0.13355,
+              "share_of_type": 0.92259
+            },
+            "Running Dunk Shot": {
+              "n": 1131,
+              "share_of_pile": 0.11627,
+              "share_of_type": 0.88016
+            },
+            "Putback Dunk Shot": {
+              "n": 611,
+              "share_of_pile": 0.06281,
+              "share_of_type": 0.96524
+            },
+            "Tip Dunk Shot": {
+              "n": 249,
+              "share_of_pile": 0.0256,
+              "share_of_type": 0.94318
+            },
+            "Running Alley Oop Dunk Shot": {
+              "n": 121,
+              "share_of_pile": 0.01244,
+              "share_of_type": 0.92366
+            }
+          },
+          "fg_pct": 0.91241,
+          "fg_pct_off_sentinel": 0.55026,
+          "kind": "dunk"
         },
-        "regime": "uniformly_sighted",
-        "arena_spread_pp": 0.0,
+        "regime": "categorical_refusal",
+        "arena_spread_pp": 12.2081529932642,
+        "origin_arena_spread_pp": 0.0,
         "full_resolution_arenas": [],
         "n_full_resolution_arenas": 0,
         "full_resolution_games": 1230,
@@ -12763,10 +13720,10 @@
         "TYPE": {
           "2PT Field Goal": {
             "n": 148808,
-            "n_placed": 148808,
-            "dist_ft": 7.587,
-            "bearing_rad": 1.57693,
-            "bearing_concentration": 0.5676
+            "n_placed": 139081,
+            "dist_ft": 8.117,
+            "bearing_rad": 1.57773,
+            "bearing_concentration": 0.5374
           },
           "3PT Field Goal": {
             "n": 59085,
@@ -12779,26 +13736,26 @@
         "RESULT": {
           "Missed Shot": {
             "n": 113876,
-            "n_placed": 113876,
-            "dist_ft": 14.251,
-            "bearing_rad": 1.59182,
-            "bearing_concentration": 0.5898
+            "n_placed": 113024,
+            "dist_ft": 14.359,
+            "bearing_rad": 1.59209,
+            "bearing_concentration": 0.5867
           },
           "Made Shot": {
             "n": 94017,
-            "n_placed": 94017,
-            "dist_ft": 10.299,
-            "bearing_rad": 1.57689,
-            "bearing_concentration": 0.5749
+            "n_placed": 85142,
+            "dist_ft": 11.372,
+            "bearing_rad": 1.57809,
+            "bearing_concentration": 0.5305
           }
         },
         "ZONE": {
           "Restricted Area": {
             "n": 67443,
-            "n_placed": 67443,
-            "dist_ft": 1.118,
-            "bearing_rad": 1.5739,
-            "bearing_concentration": 0.4932
+            "n_placed": 57716,
+            "dist_ft": 1.306,
+            "bearing_rad": 1.57518,
+            "bearing_concentration": 0.4078
           },
           "Mid-Range": {
             "n": 51133,
@@ -12846,10 +13803,10 @@
         "RANGE": {
           "Less Than 8 ft.": {
             "n": 86795,
-            "n_placed": 86795,
-            "dist_ft": 2.076,
-            "bearing_rad": 1.57608,
-            "bearing_concentration": 0.5301
+            "n_placed": 77068,
+            "dist_ft": 2.338,
+            "bearing_rad": 1.57749,
+            "bearing_concentration": 0.4708
           },
           "24+ ft.": {
             "n": 58594,
@@ -12883,10 +13840,10 @@
         "AREA": {
           "Center(C)": {
             "n": 114120,
-            "n_placed": 114120,
-            "dist_ft": 6.065,
-            "bearing_rad": 1.5715,
-            "bearing_concentration": 0.6372
+            "n_placed": 104393,
+            "dist_ft": 6.63,
+            "bearing_rad": 1.5716,
+            "bearing_concentration": 0.6033
           },
           "Left Side Center(LC)": {
             "n": 24402,
@@ -12934,17 +13891,17 @@
           },
           "Layup Shot": {
             "n": 18143,
-            "n_placed": 18143,
-            "dist_ft": 1.223,
-            "bearing_rad": 1.6042,
-            "bearing_concentration": 0.4002
+            "n_placed": 18133,
+            "dist_ft": 1.224,
+            "bearing_rad": 1.60425,
+            "bearing_concentration": 0.3999
           },
           "Driving Layup Shot": {
             "n": 13066,
-            "n_placed": 13066,
-            "dist_ft": 1.337,
-            "bearing_rad": 1.53565,
-            "bearing_concentration": 0.3685
+            "n_placed": 13057,
+            "dist_ft": 1.338,
+            "bearing_rad": 1.53558,
+            "bearing_concentration": 0.3681
           },
           "Pullup Jump shot": {
             "n": 12254,
@@ -12962,10 +13919,10 @@
           },
           "Hook Shot": {
             "n": 4655,
-            "n_placed": 4655,
-            "dist_ft": 5.36,
-            "bearing_rad": 1.60324,
-            "bearing_concentration": 0.6604
+            "n_placed": 4624,
+            "dist_ft": 5.396,
+            "bearing_rad": 1.60357,
+            "bearing_concentration": 0.6581
           },
           "Step Back Jump shot": {
             "n": 4456,
@@ -12976,17 +13933,17 @@
           },
           "Tip Layup Shot": {
             "n": 4214,
-            "n_placed": 4214,
-            "dist_ft": 0.857,
-            "bearing_rad": 1.69827,
-            "bearing_concentration": 0.4847
+            "n_placed": 4207,
+            "dist_ft": 0.859,
+            "bearing_rad": 1.69871,
+            "bearing_concentration": 0.4839
           },
           "Running Layup Shot": {
             "n": 3617,
-            "n_placed": 3617,
-            "dist_ft": 1.097,
-            "bearing_rad": 1.32098,
-            "bearing_concentration": 0.3494
+            "n_placed": 3612,
+            "dist_ft": 1.099,
+            "bearing_rad": 1.32,
+            "bearing_concentration": 0.3485
           },
           "Turnaround Jump Shot": {
             "n": 3567,
@@ -12997,17 +13954,17 @@
           },
           "Dunk Shot": {
             "n": 3269,
-            "n_placed": 3269,
-            "dist_ft": 0.027,
-            "bearing_rad": 1.57125,
-            "bearing_concentration": 0.9843
+            "n_placed": 75,
+            "dist_ft": 1.16,
+            "bearing_rad": 1.6323,
+            "bearing_concentration": 0.3179
           },
           "Cutting Layup Shot": {
             "n": 3262,
-            "n_placed": 3262,
-            "dist_ft": 1.199,
-            "bearing_rad": 1.53782,
-            "bearing_concentration": 0.3463
+            "n_placed": 3259,
+            "dist_ft": 1.2,
+            "bearing_rad": 1.53773,
+            "bearing_concentration": 0.3457
           },
           "Fadeaway Jump Shot": {
             "n": 2950,
@@ -13025,24 +13982,24 @@
           },
           "Driving Floating Jump Shot": {
             "n": 2213,
-            "n_placed": 2213,
-            "dist_ft": 7.207,
-            "bearing_rad": 1.52864,
-            "bearing_concentration": 0.739
+            "n_placed": 2212,
+            "dist_ft": 7.21,
+            "bearing_rad": 1.52861,
+            "bearing_concentration": 0.7388
           },
           "Putback Layup Shot": {
             "n": 1967,
-            "n_placed": 1967,
-            "dist_ft": 0.959,
-            "bearing_rad": 1.58657,
-            "bearing_concentration": 0.4135
+            "n_placed": 1965,
+            "dist_ft": 0.96,
+            "bearing_rad": 1.58661,
+            "bearing_concentration": 0.4129
           },
           "Reverse Layup Shot": {
             "n": 1924,
-            "n_placed": 1924,
-            "dist_ft": 1.103,
-            "bearing_rad": 1.81087,
-            "bearing_concentration": 0.2579
+            "n_placed": 1921,
+            "dist_ft": 1.105,
+            "bearing_rad": 1.81231,
+            "bearing_concentration": 0.2567
           },
           "Running Jump Shot": {
             "n": 1861,
@@ -13060,10 +14017,10 @@
           },
           "Turnaround Hook Shot": {
             "n": 1765,
-            "n_placed": 1765,
-            "dist_ft": 6.284,
-            "bearing_rad": 1.62996,
-            "bearing_concentration": 0.5915
+            "n_placed": 1748,
+            "dist_ft": 6.346,
+            "bearing_rad": 1.63094,
+            "bearing_concentration": 0.5876
           },
           "Turnaround Fadeaway shot": {
             "n": 1638,
@@ -13074,45 +14031,45 @@
           },
           "Cutting Dunk Shot": {
             "n": 1507,
-            "n_placed": 1507,
-            "dist_ft": 0.054,
-            "bearing_rad": 1.57938,
-            "bearing_concentration": 0.9845
+            "n_placed": 50,
+            "dist_ft": 1.62,
+            "bearing_rad": 2.01675,
+            "bearing_concentration": 0.5905
           },
           "Alley Oop Dunk Shot": {
             "n": 1488,
-            "n_placed": 1488,
-            "dist_ft": 0.046,
-            "bearing_rad": 1.57872,
-            "bearing_concentration": 0.9617
+            "n_placed": 87,
+            "dist_ft": 0.793,
+            "bearing_rad": 1.93177,
+            "bearing_concentration": 0.3688
           },
           "Driving Reverse Layup Shot": {
             "n": 1435,
-            "n_placed": 1435,
+            "n_placed": 1434,
             "dist_ft": 1.146,
-            "bearing_rad": 1.85587,
-            "bearing_concentration": 0.2487
+            "bearing_rad": 1.85666,
+            "bearing_concentration": 0.2482
           },
           "Driving Dunk Shot": {
             "n": 1408,
-            "n_placed": 1408,
-            "dist_ft": 0.071,
-            "bearing_rad": 1.5773,
-            "bearing_concentration": 0.9546
+            "n_placed": 109,
+            "dist_ft": 0.917,
+            "bearing_rad": 1.76268,
+            "bearing_concentration": 0.4207
           },
           "Running Dunk Shot": {
             "n": 1285,
-            "n_placed": 1285,
-            "dist_ft": 0.068,
-            "bearing_rad": 1.59363,
-            "bearing_concentration": 0.9107
+            "n_placed": 154,
+            "dist_ft": 0.571,
+            "bearing_rad": 2.17207,
+            "bearing_concentration": 0.3067
           },
           "Driving Hook Shot": {
             "n": 992,
-            "n_placed": 992,
-            "dist_ft": 5.05,
-            "bearing_rad": 1.40552,
-            "bearing_concentration": 0.7598
+            "n_placed": 986,
+            "dist_ft": 5.081,
+            "bearing_rad": 1.4042,
+            "bearing_concentration": 0.7584
           },
           "Driving Bank shot": {
             "n": 980,
@@ -13123,10 +14080,10 @@
           },
           "Alley Oop Layup shot": {
             "n": 854,
-            "n_placed": 854,
-            "dist_ft": 1.148,
-            "bearing_rad": 1.60399,
-            "bearing_concentration": 0.3925
+            "n_placed": 845,
+            "dist_ft": 1.16,
+            "bearing_rad": 1.6049,
+            "bearing_concentration": 0.3861
           },
           "Finger Roll Layup Shot": {
             "n": 662,
@@ -13137,10 +14094,10 @@
           },
           "Putback Dunk Shot": {
             "n": 633,
-            "n_placed": 633,
-            "dist_ft": 0.024,
-            "bearing_rad": 1.58032,
-            "bearing_concentration": 0.9864
+            "n_placed": 22,
+            "dist_ft": 0.682,
+            "bearing_rad": 1.98879,
+            "bearing_concentration": 0.6658
           },
           "Driving Floating Bank Jump Shot": {
             "n": 514,
@@ -13151,10 +14108,10 @@
           },
           "Running Finger Roll Layup Shot": {
             "n": 483,
-            "n_placed": 483,
-            "dist_ft": 1.014,
-            "bearing_rad": 1.47134,
-            "bearing_concentration": 0.4579
+            "n_placed": 481,
+            "dist_ft": 1.019,
+            "bearing_rad": 1.47043,
+            "bearing_concentration": 0.4556
           },
           "Turnaround Bank shot": {
             "n": 387,
@@ -13193,10 +14150,10 @@
           },
           "Tip Dunk Shot": {
             "n": 264,
-            "n_placed": 264,
-            "dist_ft": 0.053,
-            "bearing_rad": 1.57684,
-            "bearing_concentration": 0.9759
+            "n_placed": 15,
+            "dist_ft": 0.933,
+            "bearing_rad": 1.74923,
+            "bearing_concentration": 0.5851
           },
           "Hook Bank Shot": {
             "n": 183,
@@ -13207,10 +14164,10 @@
           },
           "Running Alley Oop Dunk Shot": {
             "n": 131,
-            "n_placed": 131,
-            "dist_ft": 0.107,
-            "bearing_rad": 1.52754,
-            "bearing_concentration": 0.947
+            "n_placed": 10,
+            "dist_ft": 1.4,
+            "bearing_rad": 0.50082,
+            "bearing_concentration": 0.6115
           },
           "Fadeaway Bank shot": {
             "n": 128,
@@ -13221,17 +14178,17 @@
           },
           "Reverse Dunk Shot": {
             "n": 121,
-            "n_placed": 121,
-            "dist_ft": 0.099,
-            "bearing_rad": 1.56657,
-            "bearing_concentration": 0.8825
+            "n_placed": 15,
+            "dist_ft": 0.8,
+            "bearing_rad": 1.0451,
+            "bearing_concentration": 0.06
           },
           "Turnaround Bank Hook Shot": {
             "n": 110,
-            "n_placed": 110,
-            "dist_ft": 5.991,
-            "bearing_rad": 1.30569,
-            "bearing_concentration": 0.4362
+            "n_placed": 109,
+            "dist_ft": 6.046,
+            "bearing_rad": 1.30012,
+            "bearing_concentration": 0.4313
           },
           "Driving Bank Hook Shot": {
             "n": 79,
@@ -13263,24 +14220,18 @@
           },
           "Driving Reverse Dunk Shot": {
             "n": 30,
-            "n_placed": 30,
-            "dist_ft": 0.0,
-            "bearing_rad": 1.5708,
-            "bearing_concentration": 1.0
+            "n_placed": 0
           },
           "No Shot": {
             "n": 21,
-            "n_placed": 21,
-            "dist_ft": 1.333,
-            "bearing_rad": 1.66961,
-            "bearing_concentration": 0.7679
+            "n_placed": 15,
+            "dist_ft": 1.867,
+            "bearing_rad": 1.72784,
+            "bearing_concentration": 0.6781
           },
           "Running Reverse Dunk Shot": {
             "n": 15,
-            "n_placed": 15,
-            "dist_ft": 0.0,
-            "bearing_rad": 1.5708,
-            "bearing_concentration": 1.0
+            "n_placed": 0
           },
           "Driving Jump shot": {
             "n": 10,
@@ -13360,7 +14311,14 @@
         "ra_attempts": 67289,
         "ra_origin_snapped": 0,
         "ra_origin_share": 0.0,
-        "refused_action_types": {},
+        "refused_action_types": {
+          "Dunk Shot": 2738,
+          "Cutting Dunk Shot": 2109,
+          "Alley Oop Dunk Shot": 1415,
+          "Driving Dunk Shot": 1357,
+          "Running Dunk Shot": 1206,
+          "Putback Dunk Shot": 634
+        },
         "rim_sentinel": {
           "coord": [
             0,
@@ -13376,10 +14334,57 @@
           "runner_up_n": 466,
           "lead_ratio": 21.97,
           "is_refusal": true,
-          "at_origin": false
+          "at_origin": false,
+          "pile_n": 10237,
+          "composition": {
+            "Dunk Shot": {
+              "n": 2738,
+              "share_of_pile": 0.26746,
+              "share_of_type": 0.96681
+            },
+            "Cutting Dunk Shot": {
+              "n": 2109,
+              "share_of_pile": 0.20602,
+              "share_of_type": 0.9701
+            },
+            "Alley Oop Dunk Shot": {
+              "n": 1415,
+              "share_of_pile": 0.13822,
+              "share_of_type": 0.94145
+            },
+            "Driving Dunk Shot": {
+              "n": 1357,
+              "share_of_pile": 0.13256,
+              "share_of_type": 0.93073
+            },
+            "Running Dunk Shot": {
+              "n": 1206,
+              "share_of_pile": 0.11781,
+              "share_of_type": 0.90473
+            },
+            "Putback Dunk Shot": {
+              "n": 634,
+              "share_of_pile": 0.06193,
+              "share_of_type": 0.95626
+            },
+            "Tip Dunk Shot": {
+              "n": 304,
+              "share_of_pile": 0.0297,
+              "share_of_type": 0.95298
+            },
+            "Running Alley Oop Dunk Shot": {
+              "n": 128,
+              "share_of_pile": 0.0125,
+              "share_of_type": 0.91429
+            }
+          },
+          "fg_pct": 0.91023,
+          "fg_pct_off_sentinel": 0.5573,
+          "kind": "dunk"
         },
-        "regime": "uniformly_sighted",
-        "arena_spread_pp": 0.0,
+        "regime": "categorical_refusal",
+        "arena_spread_pp": 13.35036867692837,
+        "origin_arena_spread_pp": 0.0,
         "full_resolution_arenas": [],
         "n_full_resolution_arenas": 0,
         "full_resolution_games": 1230,
@@ -13588,10 +14593,10 @@
         "TYPE": {
           "2PT Field Goal": {
             "n": 143692,
-            "n_placed": 143692,
-            "dist_ft": 7.302,
-            "bearing_rad": 1.52601,
-            "bearing_concentration": 0.5971
+            "n_placed": 133455,
+            "dist_ft": 7.862,
+            "bearing_rad": 1.51994,
+            "bearing_concentration": 0.5663
           },
           "3PT Field Goal": {
             "n": 66237,
@@ -13604,26 +14609,26 @@
         "RESULT": {
           "Missed Shot": {
             "n": 113939,
-            "n_placed": 113939,
-            "dist_ft": 14.775,
-            "bearing_rad": 1.55549,
-            "bearing_concentration": 0.6155
+            "n_placed": 113020,
+            "dist_ft": 14.896,
+            "bearing_rad": 1.55529,
+            "bearing_concentration": 0.6123
           },
           "Made Shot": {
             "n": 95990,
-            "n_placed": 95990,
-            "dist_ft": 10.571,
-            "bearing_rad": 1.5354,
-            "bearing_concentration": 0.6075
+            "n_placed": 86672,
+            "dist_ft": 11.707,
+            "bearing_rad": 1.52867,
+            "bearing_concentration": 0.5654
           }
         },
         "ZONE": {
           "Restricted Area": {
             "n": 67289,
-            "n_placed": 67289,
-            "dist_ft": 1.094,
-            "bearing_rad": 1.4801,
-            "bearing_concentration": 0.5457
+            "n_placed": 57052,
+            "dist_ft": 1.291,
+            "bearing_rad": 1.44517,
+            "bearing_concentration": 0.4652
           },
           "Above the Break 3": {
             "n": 50072,
@@ -13671,10 +14676,10 @@
         "RANGE": {
           "Less Than 8 ft.": {
             "n": 85943,
-            "n_placed": 85943,
-            "dist_ft": 2.036,
-            "bearing_rad": 1.49514,
-            "bearing_concentration": 0.5743
+            "n_placed": 75706,
+            "dist_ft": 2.311,
+            "bearing_rad": 1.47537,
+            "bearing_concentration": 0.5172
           },
           "24+ ft.": {
             "n": 65680,
@@ -13708,10 +14713,10 @@
         "AREA": {
           "Center(C)": {
             "n": 114953,
-            "n_placed": 114953,
-            "dist_ft": 6.38,
-            "bearing_rad": 1.51995,
-            "bearing_concentration": 0.6757
+            "n_placed": 104716,
+            "dist_ft": 7.004,
+            "bearing_rad": 1.51223,
+            "bearing_concentration": 0.6441
           },
           "Right Side Center(RC)": {
             "n": 25820,
@@ -13759,10 +14764,10 @@
           },
           "Layup Shot": {
             "n": 16191,
-            "n_placed": 16191,
-            "dist_ft": 1.211,
-            "bearing_rad": 1.49314,
-            "bearing_concentration": 0.4555
+            "n_placed": 16175,
+            "dist_ft": 1.212,
+            "bearing_rad": 1.49297,
+            "bearing_concentration": 0.455
           },
           "Pullup Jump shot": {
             "n": 15048,
@@ -13773,10 +14778,10 @@
           },
           "Driving Layup Shot": {
             "n": 13721,
-            "n_placed": 13721,
-            "dist_ft": 1.329,
-            "bearing_rad": 1.41506,
-            "bearing_concentration": 0.4351
+            "n_placed": 13710,
+            "dist_ft": 1.33,
+            "bearing_rad": 1.41477,
+            "bearing_concentration": 0.4346
           },
           "Floating Jump shot": {
             "n": 4612,
@@ -13794,31 +14799,31 @@
           },
           "Hook Shot": {
             "n": 4322,
-            "n_placed": 4322,
-            "dist_ft": 5.466,
-            "bearing_rad": 1.61106,
-            "bearing_concentration": 0.6967
+            "n_placed": 4273,
+            "dist_ft": 5.528,
+            "bearing_rad": 1.61173,
+            "bearing_concentration": 0.6932
           },
           "Tip Layup Shot": {
             "n": 4063,
-            "n_placed": 4063,
-            "dist_ft": 0.868,
-            "bearing_rad": 1.50119,
-            "bearing_concentration": 0.5261
+            "n_placed": 4056,
+            "dist_ft": 0.869,
+            "bearing_rad": 1.50096,
+            "bearing_concentration": 0.5252
           },
           "Cutting Layup Shot": {
             "n": 3894,
-            "n_placed": 3894,
-            "dist_ft": 1.221,
-            "bearing_rad": 1.30889,
-            "bearing_concentration": 0.4503
+            "n_placed": 3889,
+            "dist_ft": 1.223,
+            "bearing_rad": 1.30815,
+            "bearing_concentration": 0.4497
           },
           "Running Layup Shot": {
             "n": 3695,
-            "n_placed": 3695,
-            "dist_ft": 1.143,
-            "bearing_rad": 1.15653,
-            "bearing_concentration": 0.4547
+            "n_placed": 3691,
+            "dist_ft": 1.144,
+            "bearing_rad": 1.15557,
+            "bearing_concentration": 0.4542
           },
           "Turnaround Jump Shot": {
             "n": 3332,
@@ -13829,10 +14834,10 @@
           },
           "Driving Floating Jump Shot": {
             "n": 3231,
-            "n_placed": 3231,
-            "dist_ft": 7.283,
-            "bearing_rad": 1.53212,
-            "bearing_concentration": 0.7419
+            "n_placed": 3229,
+            "dist_ft": 7.287,
+            "bearing_rad": 1.53209,
+            "bearing_concentration": 0.7418
           },
           "Fadeaway Jump Shot": {
             "n": 2855,
@@ -13843,52 +14848,52 @@
           },
           "Dunk Shot": {
             "n": 2832,
-            "n_placed": 2832,
-            "dist_ft": 0.041,
-            "bearing_rad": 1.56925,
-            "bearing_concentration": 0.9841
+            "n_placed": 94,
+            "dist_ft": 1.223,
+            "bearing_rad": 1.48283,
+            "bearing_concentration": 0.5225
           },
           "Putback Layup Shot": {
             "n": 2330,
-            "n_placed": 2330,
-            "dist_ft": 1.041,
-            "bearing_rad": 1.40049,
-            "bearing_concentration": 0.4809
+            "n_placed": 2323,
+            "dist_ft": 1.044,
+            "bearing_rad": 1.39942,
+            "bearing_concentration": 0.4794
           },
           "Driving Finger Roll Layup Shot": {
             "n": 2291,
-            "n_placed": 2291,
-            "dist_ft": 1.336,
-            "bearing_rad": 1.48413,
-            "bearing_concentration": 0.4892
+            "n_placed": 2289,
+            "dist_ft": 1.337,
+            "bearing_rad": 1.48398,
+            "bearing_concentration": 0.4888
           },
           "Cutting Dunk Shot": {
             "n": 2174,
-            "n_placed": 2174,
-            "dist_ft": 0.053,
-            "bearing_rad": 1.56763,
-            "bearing_concentration": 0.9851
+            "n_placed": 65,
+            "dist_ft": 1.785,
+            "bearing_rad": 1.36615,
+            "bearing_concentration": 0.5135
           },
           "Reverse Layup Shot": {
             "n": 1917,
-            "n_placed": 1917,
-            "dist_ft": 1.112,
-            "bearing_rad": 1.52577,
-            "bearing_concentration": 0.339
+            "n_placed": 1914,
+            "dist_ft": 1.114,
+            "bearing_rad": 1.52556,
+            "bearing_concentration": 0.3379
           },
           "Running Jump Shot": {
             "n": 1865,
-            "n_placed": 1865,
-            "dist_ft": 15.51,
-            "bearing_rad": 1.5035,
-            "bearing_concentration": 0.677
+            "n_placed": 1864,
+            "dist_ft": 15.519,
+            "bearing_rad": 1.50345,
+            "bearing_concentration": 0.6768
           },
           "Turnaround Hook Shot": {
             "n": 1844,
-            "n_placed": 1844,
-            "dist_ft": 6.178,
-            "bearing_rad": 1.6232,
-            "bearing_concentration": 0.6224
+            "n_placed": 1827,
+            "dist_ft": 6.236,
+            "bearing_rad": 1.62399,
+            "bearing_concentration": 0.6189
           },
           "Turnaround Fadeaway shot": {
             "n": 1817,
@@ -13899,17 +14904,17 @@
           },
           "Driving Reverse Layup Shot": {
             "n": 1721,
-            "n_placed": 1721,
-            "dist_ft": 1.121,
-            "bearing_rad": 1.50932,
-            "bearing_concentration": 0.3106
+            "n_placed": 1720,
+            "dist_ft": 1.122,
+            "bearing_rad": 1.50921,
+            "bearing_concentration": 0.3102
           },
           "Alley Oop Dunk Shot": {
             "n": 1503,
-            "n_placed": 1503,
-            "dist_ft": 0.043,
-            "bearing_rad": 1.57116,
-            "bearing_concentration": 0.9698
+            "n_placed": 88,
+            "dist_ft": 0.727,
+            "bearing_rad": 1.58335,
+            "bearing_concentration": 0.4849
           },
           "Jump Bank Shot": {
             "n": 1485,
@@ -13920,31 +14925,31 @@
           },
           "Driving Dunk Shot": {
             "n": 1458,
-            "n_placed": 1458,
-            "dist_ft": 0.067,
-            "bearing_rad": 1.56299,
-            "bearing_concentration": 0.965
+            "n_placed": 101,
+            "dist_ft": 0.96,
+            "bearing_rad": 1.35399,
+            "bearing_concentration": 0.5056
           },
           "Running Dunk Shot": {
             "n": 1333,
-            "n_placed": 1333,
-            "dist_ft": 0.062,
-            "bearing_rad": 1.5532,
-            "bearing_concentration": 0.9515
+            "n_placed": 127,
+            "dist_ft": 0.646,
+            "bearing_rad": 1.22614,
+            "bearing_concentration": 0.5202
           },
           "Driving Hook Shot": {
             "n": 1311,
-            "n_placed": 1311,
-            "dist_ft": 5.126,
-            "bearing_rad": 1.33824,
-            "bearing_concentration": 0.7722
+            "n_placed": 1293,
+            "dist_ft": 5.197,
+            "bearing_rad": 1.33407,
+            "bearing_concentration": 0.7694
           },
           "Alley Oop Layup shot": {
             "n": 871,
-            "n_placed": 871,
-            "dist_ft": 1.129,
-            "bearing_rad": 1.39698,
-            "bearing_concentration": 0.4472
+            "n_placed": 862,
+            "dist_ft": 1.14,
+            "bearing_rad": 1.39289,
+            "bearing_concentration": 0.4416
           },
           "Driving Bank shot": {
             "n": 835,
@@ -13955,17 +14960,17 @@
           },
           "Driving Floating Bank Jump Shot": {
             "n": 789,
-            "n_placed": 789,
-            "dist_ft": 6.759,
-            "bearing_rad": 1.39142,
-            "bearing_concentration": 0.5158
+            "n_placed": 788,
+            "dist_ft": 6.768,
+            "bearing_rad": 1.39098,
+            "bearing_concentration": 0.5152
           },
           "Putback Dunk Shot": {
             "n": 663,
-            "n_placed": 663,
-            "dist_ft": 0.035,
-            "bearing_rad": 1.56589,
-            "bearing_concentration": 0.9801
+            "n_placed": 29,
+            "dist_ft": 0.793,
+            "bearing_rad": 1.37135,
+            "bearing_concentration": 0.5547
           },
           "Running Pull-Up Jump Shot": {
             "n": 617,
@@ -14011,10 +15016,10 @@
           },
           "Tip Dunk Shot": {
             "n": 319,
-            "n_placed": 319,
-            "dist_ft": 0.041,
-            "bearing_rad": 1.5658,
-            "bearing_concentration": 0.9716
+            "n_placed": 15,
+            "dist_ft": 0.867,
+            "bearing_rad": 1.31568,
+            "bearing_concentration": 0.409
           },
           "Running Reverse Layup Shot": {
             "n": 283,
@@ -14025,17 +15030,17 @@
           },
           "Hook Bank Shot": {
             "n": 158,
-            "n_placed": 158,
-            "dist_ft": 4.937,
-            "bearing_rad": 0.93248,
-            "bearing_concentration": 0.632
+            "n_placed": 156,
+            "dist_ft": 5.0,
+            "bearing_rad": 0.92036,
+            "bearing_concentration": 0.6299
           },
           "Running Alley Oop Dunk Shot": {
             "n": 140,
-            "n_placed": 140,
-            "dist_ft": 0.043,
-            "bearing_rad": 1.58867,
-            "bearing_concentration": 0.953
+            "n_placed": 12,
+            "dist_ft": 0.5,
+            "bearing_rad": 1.98683,
+            "bearing_concentration": 0.4916
           },
           "Fadeaway Bank shot": {
             "n": 130,
@@ -14046,31 +15051,31 @@
           },
           "Driving Bank Hook Shot": {
             "n": 122,
-            "n_placed": 122,
-            "dist_ft": 4.73,
-            "bearing_rad": 0.88272,
-            "bearing_concentration": 0.6687
+            "n_placed": 119,
+            "dist_ft": 4.849,
+            "bearing_rad": 0.85869,
+            "bearing_concentration": 0.6663
           },
           "Reverse Dunk Shot": {
             "n": 120,
-            "n_placed": 120,
-            "dist_ft": 0.05,
-            "bearing_rad": 1.56658,
-            "bearing_concentration": 0.9473
+            "n_placed": 6,
+            "dist_ft": 1.0,
+            "bearing_rad": -0.59899,
+            "bearing_concentration": 0.0966
           },
           "Turnaround Bank Hook Shot": {
             "n": 88,
-            "n_placed": 88,
-            "dist_ft": 5.398,
-            "bearing_rad": 1.28844,
-            "bearing_concentration": 0.4909
+            "n_placed": 87,
+            "dist_ft": 5.46,
+            "bearing_rad": 1.28185,
+            "bearing_concentration": 0.4856
           },
           "No Shot": {
             "n": 60,
-            "n_placed": 60,
-            "dist_ft": 4.333,
-            "bearing_rad": 1.48879,
-            "bearing_concentration": 0.5947
+            "n_placed": 52,
+            "dist_ft": 5.0,
+            "bearing_rad": 1.46514,
+            "bearing_concentration": 0.533
           },
           "Running Alley Oop Layup Shot": {
             "n": 52,
@@ -14081,10 +15086,10 @@
           },
           "Driving Reverse Dunk Shot": {
             "n": 48,
-            "n_placed": 48,
-            "dist_ft": 0.083,
-            "bearing_rad": 1.59283,
-            "bearing_concentration": 0.9923
+            "n_placed": 2,
+            "dist_ft": 2.0,
+            "bearing_rad": 2.14529,
+            "bearing_concentration": 0.9655
           },
           "Turnaround Fadeaway Bank Jump Shot": {
             "n": 43,
@@ -14102,10 +15107,10 @@
           },
           "Running Reverse Dunk Shot": {
             "n": 20,
-            "n_placed": 20,
-            "dist_ft": 0.1,
-            "bearing_rad": 1.53747,
-            "bearing_concentration": 0.9882
+            "n_placed": 1,
+            "dist_ft": 2.0,
+            "bearing_rad": 0.85197,
+            "bearing_concentration": 1.0
           },
           "Driving Jump shot": {
             "n": 5,
@@ -14186,12 +15191,12 @@
         "ra_origin_snapped": 68,
         "ra_origin_share": 0.0010168224299065421,
         "refused_action_types": {
-          "Driving Layup Shot": 10,
-          "Cutting Dunk Shot": 9,
-          "Layup Shot": 7,
-          "Cutting Layup Shot": 6,
-          "Driving Reverse Layup Shot": 6,
-          "Driving Dunk Shot": 4
+          "Tip Layup Shot": 3649,
+          "Putback Layup Shot": 898,
+          "Putback Dunk Shot": 465,
+          "Tip Dunk Shot": 332,
+          "Layup Shot": 19,
+          "Dunk Shot": 9
         },
         "rim_sentinel": {
           "coord": [
@@ -14208,10 +15213,57 @@
           "runner_up_n": 177,
           "lead_ratio": 30.53,
           "is_refusal": true,
-          "at_origin": false
+          "at_origin": false,
+          "pile_n": 5404,
+          "composition": {
+            "Tip Layup Shot": {
+              "n": 3649,
+              "share_of_pile": 0.67524,
+              "share_of_type": 0.85197
+            },
+            "Putback Layup Shot": {
+              "n": 898,
+              "share_of_pile": 0.16617,
+              "share_of_type": 0.37558
+            },
+            "Putback Dunk Shot": {
+              "n": 465,
+              "share_of_pile": 0.08605,
+              "share_of_type": 0.72656
+            },
+            "Tip Dunk Shot": {
+              "n": 332,
+              "share_of_pile": 0.06144,
+              "share_of_type": 0.91209
+            },
+            "Layup Shot": {
+              "n": 19,
+              "share_of_pile": 0.00352,
+              "share_of_type": 0.0014
+            },
+            "Dunk Shot": {
+              "n": 9,
+              "share_of_pile": 0.00167,
+              "share_of_type": 0.00355
+            },
+            "Reverse Layup Shot": {
+              "n": 7,
+              "share_of_pile": 0.0013,
+              "share_of_type": 0.00356
+            },
+            "Driving Layup Shot": {
+              "n": 6,
+              "share_of_pile": 0.00111,
+              "share_of_type": 0.00034
+            }
+          },
+          "fg_pct": 0.61417,
+          "fg_pct_off_sentinel": 0.63231,
+          "kind": "tip_putback"
         },
-        "regime": "uniformly_sighted",
-        "arena_spread_pp": 0.3476601049870129,
+        "regime": "categorical_refusal",
+        "arena_spread_pp": 7.633523913008977,
+        "origin_arena_spread_pp": 0.3476601049870129,
         "full_resolution_arenas": [],
         "n_full_resolution_arenas": 0,
         "full_resolution_games": 1230,
@@ -14406,10 +15458,10 @@
         "TYPE": {
           "2PT Field Goal": {
             "n": 140368,
-            "n_placed": 140300,
-            "dist_ft": 7.089,
-            "bearing_rad": 1.55526,
-            "bearing_concentration": 0.6295
+            "n_placed": 134964,
+            "dist_ft": 7.369,
+            "bearing_rad": 1.55543,
+            "bearing_concentration": 0.6944
           },
           "3PT Field Goal": {
             "n": 71339,
@@ -14422,26 +15474,26 @@
         "RESULT": {
           "Missed Shot": {
             "n": 114272,
-            "n_placed": 114256,
-            "dist_ft": 15.193,
-            "bearing_rad": 1.57803,
-            "bearing_concentration": 0.6654
+            "n_placed": 112187,
+            "dist_ft": 15.473,
+            "bearing_rad": 1.57763,
+            "bearing_concentration": 0.6962
           },
           "Made Shot": {
             "n": 97435,
-            "n_placed": 97383,
-            "dist_ft": 10.783,
-            "bearing_rad": 1.56558,
-            "bearing_concentration": 0.6229
+            "n_placed": 94116,
+            "dist_ft": 11.158,
+            "bearing_rad": 1.56503,
+            "bearing_concentration": 0.6798
           }
         },
         "ZONE": {
           "Restricted Area": {
             "n": 66875,
-            "n_placed": 66807,
-            "dist_ft": 1.19,
-            "bearing_rad": 1.53685,
-            "bearing_concentration": 0.5292
+            "n_placed": 61471,
+            "dist_ft": 1.293,
+            "bearing_rad": 1.53968,
+            "bearing_concentration": 0.663
           },
           "Above the Break 3": {
             "n": 55120,
@@ -14489,10 +15541,10 @@
         "RANGE": {
           "Less Than 8 ft.": {
             "n": 84911,
-            "n_placed": 84843,
-            "dist_ft": 2.093,
-            "bearing_rad": 1.5375,
-            "bearing_concentration": 0.5728
+            "n_placed": 79507,
+            "dist_ft": 2.234,
+            "bearing_rad": 1.53958,
+            "bearing_concentration": 0.6792
           },
           "24+ ft.": {
             "n": 70675,
@@ -14526,10 +15578,10 @@
         "AREA": {
           "Center(C)": {
             "n": 121111,
-            "n_placed": 121043,
-            "dist_ft": 7.099,
-            "bearing_rad": 1.55076,
-            "bearing_concentration": 0.6932
+            "n_placed": 115707,
+            "dist_ft": 7.426,
+            "bearing_rad": 1.55122,
+            "bearing_concentration": 0.7719
           },
           "Left Side Center(LC)": {
             "n": 27095,
@@ -14577,24 +15629,24 @@
           },
           "Pullup Jump shot": {
             "n": 20564,
-            "n_placed": 20564,
-            "dist_ft": 18.72,
+            "n_placed": 20563,
+            "dist_ft": 18.721,
             "bearing_rad": 1.55739,
-            "bearing_concentration": 0.8051
+            "bearing_concentration": 0.8052
           },
           "Driving Layup Shot": {
             "n": 17853,
-            "n_placed": 17843,
-            "dist_ft": 2.002,
-            "bearing_rad": 1.51462,
-            "bearing_concentration": 0.6518
+            "n_placed": 17847,
+            "dist_ft": 2.001,
+            "bearing_rad": 1.51379,
+            "bearing_concentration": 0.652
           },
           "Layup Shot": {
             "n": 13563,
-            "n_placed": 13556,
-            "dist_ft": 2.06,
-            "bearing_rad": 1.54829,
-            "bearing_concentration": 0.6867
+            "n_placed": 13544,
+            "dist_ft": 2.061,
+            "bearing_rad": 1.54758,
+            "bearing_concentration": 0.6887
           },
           "Step Back Jump shot": {
             "n": 5987,
@@ -14612,80 +15664,80 @@
           },
           "Cutting Layup Shot": {
             "n": 5003,
-            "n_placed": 4997,
-            "dist_ft": 1.453,
-            "bearing_rad": 1.49764,
-            "bearing_concentration": 0.6555
+            "n_placed": 5002,
+            "dist_ft": 1.451,
+            "bearing_rad": 1.49584,
+            "bearing_concentration": 0.6551
           },
           "Floating Jump shot": {
             "n": 4995,
-            "n_placed": 4995,
-            "dist_ft": 8.845,
+            "n_placed": 4994,
+            "dist_ft": 8.847,
             "bearing_rad": 1.56397,
-            "bearing_concentration": 0.8145
+            "bearing_concentration": 0.8148
           },
           "Tip Layup Shot": {
             "n": 4283,
-            "n_placed": 4283,
-            "dist_ft": 0.218,
-            "bearing_rad": -1.56132,
-            "bearing_concentration": 0.7483
+            "n_placed": 634,
+            "dist_ft": 1.472,
+            "bearing_rad": 1.50257,
+            "bearing_concentration": 0.7026
           },
           "Running Layup Shot": {
             "n": 4269,
-            "n_placed": 4265,
-            "dist_ft": 1.583,
-            "bearing_rad": 1.46279,
-            "bearing_concentration": 0.6449
+            "n_placed": 4266,
+            "dist_ft": 1.582,
+            "bearing_rad": 1.46146,
+            "bearing_concentration": 0.6456
           },
           "Hook Shot": {
             "n": 4082,
-            "n_placed": 4082,
-            "dist_ft": 5.735,
-            "bearing_rad": 1.58792,
-            "bearing_concentration": 0.7903
+            "n_placed": 4076,
+            "dist_ft": 5.743,
+            "bearing_rad": 1.58789,
+            "bearing_concentration": 0.7929
           },
           "Turnaround Jump Shot": {
             "n": 3451,
-            "n_placed": 3451,
-            "dist_ft": 10.553,
-            "bearing_rad": 1.67264,
-            "bearing_concentration": 0.6462
+            "n_placed": 3450,
+            "dist_ft": 10.556,
+            "bearing_rad": 1.6726,
+            "bearing_concentration": 0.6466
           },
           "Driving Finger Roll Layup Shot": {
             "n": 3334,
-            "n_placed": 3330,
-            "dist_ft": 1.804,
-            "bearing_rad": 1.52792,
-            "bearing_concentration": 0.6916
+            "n_placed": 3334,
+            "dist_ft": 1.802,
+            "bearing_rad": 1.52618,
+            "bearing_concentration": 0.6908
           },
           "Fadeaway Jump Shot": {
             "n": 3242,
-            "n_placed": 3242,
-            "dist_ft": 12.946,
-            "bearing_rad": 1.61003,
-            "bearing_concentration": 0.6019
+            "n_placed": 3240,
+            "dist_ft": 12.954,
+            "bearing_rad": 1.60999,
+            "bearing_concentration": 0.6029
           },
           "Cutting Dunk Shot": {
             "n": 2540,
-            "n_placed": 2531,
-            "dist_ft": 0.765,
-            "bearing_rad": 1.61768,
-            "bearing_concentration": 0.678
+            "n_placed": 2540,
+            "dist_ft": 0.762,
+            "bearing_rad": 1.61244,
+            "bearing_concentration": 0.6754
           },
           "Dunk Shot": {
             "n": 2533,
-            "n_placed": 2530,
-            "dist_ft": 0.941,
-            "bearing_rad": 1.59322,
-            "bearing_concentration": 0.7164
+            "n_placed": 2524,
+            "dist_ft": 0.943,
+            "bearing_rad": 1.59146,
+            "bearing_concentration": 0.7217
           },
           "Putback Layup Shot": {
             "n": 2391,
-            "n_placed": 2389,
-            "dist_ft": 0.807,
-            "bearing_rad": 1.46759,
-            "bearing_concentration": 0.0439
+            "n_placed": 1493,
+            "dist_ft": 1.292,
+            "bearing_rad": 1.55801,
+            "bearing_concentration": 0.6715
           },
           "Turnaround Fadeaway shot": {
             "n": 2264,
@@ -14703,17 +15755,17 @@
           },
           "Reverse Layup Shot": {
             "n": 1965,
-            "n_placed": 1965,
-            "dist_ft": 1.244,
-            "bearing_rad": 1.62504,
-            "bearing_concentration": 0.5847
+            "n_placed": 1958,
+            "dist_ft": 1.249,
+            "bearing_rad": 1.62471,
+            "bearing_concentration": 0.5904
           },
           "Driving Reverse Layup Shot": {
             "n": 1905,
-            "n_placed": 1899,
-            "dist_ft": 1.201,
-            "bearing_rad": 1.65547,
-            "bearing_concentration": 0.5516
+            "n_placed": 1905,
+            "dist_ft": 1.197,
+            "bearing_rad": 1.64976,
+            "bearing_concentration": 0.5496
           },
           "Driving Floating Bank Jump Shot": {
             "n": 1837,
@@ -14724,17 +15776,17 @@
           },
           "Alley Oop Dunk Shot": {
             "n": 1718,
-            "n_placed": 1716,
+            "n_placed": 1717,
             "dist_ft": 0.842,
-            "bearing_rad": 1.5605,
-            "bearing_concentration": 0.6566
+            "bearing_rad": 1.55873,
+            "bearing_concentration": 0.6568
           },
           "Driving Dunk Shot": {
             "n": 1649,
-            "n_placed": 1645,
-            "dist_ft": 0.836,
-            "bearing_rad": 1.59327,
-            "bearing_concentration": 0.6747
+            "n_placed": 1649,
+            "dist_ft": 0.834,
+            "bearing_rad": 1.58967,
+            "bearing_concentration": 0.673
           },
           "Running Jump Shot": {
             "n": 1481,
@@ -14745,10 +15797,10 @@
           },
           "Running Dunk Shot": {
             "n": 1407,
-            "n_placed": 1404,
-            "dist_ft": 0.809,
-            "bearing_rad": 1.51788,
-            "bearing_concentration": 0.6865
+            "n_placed": 1407,
+            "dist_ft": 0.807,
+            "bearing_rad": 1.51477,
+            "bearing_concentration": 0.6851
           },
           "Driving Hook Shot": {
             "n": 1250,
@@ -14759,10 +15811,10 @@
           },
           "Alley Oop Layup shot": {
             "n": 1050,
-            "n_placed": 1050,
-            "dist_ft": 1.355,
-            "bearing_rad": 1.52009,
-            "bearing_concentration": 0.6386
+            "n_placed": 1049,
+            "dist_ft": 1.357,
+            "bearing_rad": 1.52016,
+            "bearing_concentration": 0.6402
           },
           "Jump Bank Shot": {
             "n": 1029,
@@ -14780,24 +15832,24 @@
           },
           "Running Finger Roll Layup Shot": {
             "n": 651,
-            "n_placed": 648,
-            "dist_ft": 1.298,
-            "bearing_rad": 1.44764,
-            "bearing_concentration": 0.6975
+            "n_placed": 651,
+            "dist_ft": 1.292,
+            "bearing_rad": 1.44106,
+            "bearing_concentration": 0.6949
           },
           "Finger Roll Layup Shot": {
             "n": 641,
-            "n_placed": 640,
-            "dist_ft": 2.117,
-            "bearing_rad": 1.63886,
-            "bearing_concentration": 0.7616
+            "n_placed": 641,
+            "dist_ft": 2.114,
+            "bearing_rad": 1.63681,
+            "bearing_concentration": 0.7603
           },
           "Putback Dunk Shot": {
             "n": 640,
-            "n_placed": 640,
-            "dist_ft": 0.256,
-            "bearing_rad": -1.59518,
-            "bearing_concentration": 0.553
+            "n_placed": 175,
+            "dist_ft": 0.937,
+            "bearing_rad": 1.64822,
+            "bearing_concentration": 0.6374
           },
           "Turnaround Fadeaway Bank Jump Shot": {
             "n": 592,
@@ -14808,24 +15860,24 @@
           },
           "Cutting Finger Roll Layup Shot": {
             "n": 486,
-            "n_placed": 485,
-            "dist_ft": 1.464,
-            "bearing_rad": 1.50099,
-            "bearing_concentration": 0.7209
+            "n_placed": 486,
+            "dist_ft": 1.461,
+            "bearing_rad": 1.49814,
+            "bearing_concentration": 0.7196
           },
           "Tip Dunk Shot": {
             "n": 364,
-            "n_placed": 364,
-            "dist_ft": 0.154,
-            "bearing_rad": -1.57075,
-            "bearing_concentration": 0.8569
+            "n_placed": 32,
+            "dist_ft": 1.75,
+            "bearing_rad": 1.5701,
+            "bearing_concentration": 0.6281
           },
           "Running Reverse Layup Shot": {
             "n": 328,
-            "n_placed": 327,
-            "dist_ft": 1.153,
-            "bearing_rad": 1.80046,
-            "bearing_concentration": 0.5722
+            "n_placed": 328,
+            "dist_ft": 1.149,
+            "bearing_rad": 1.79525,
+            "bearing_concentration": 0.5698
           },
           "Turnaround Bank Hook Shot": {
             "n": 143,
@@ -14843,10 +15895,10 @@
           },
           "Running Alley Oop Dunk Shot": {
             "n": 133,
-            "n_placed": 133,
-            "dist_ft": 0.782,
-            "bearing_rad": 1.59503,
-            "bearing_concentration": 0.6935
+            "n_placed": 131,
+            "dist_ft": 0.794,
+            "bearing_rad": 1.59451,
+            "bearing_concentration": 0.7194
           },
           "Driving Bank Hook Shot": {
             "n": 119,
@@ -14871,17 +15923,17 @@
           },
           "Running Alley Oop Layup Shot": {
             "n": 58,
-            "n_placed": 57,
-            "dist_ft": 1.018,
-            "bearing_rad": 1.46479,
-            "bearing_concentration": 0.5864
+            "n_placed": 58,
+            "dist_ft": 1.0,
+            "bearing_rad": 1.43514,
+            "bearing_concentration": 0.5783
           },
           "Driving Reverse Dunk Shot": {
             "n": 40,
-            "n_placed": 39,
-            "dist_ft": 0.769,
-            "bearing_rad": 1.74969,
-            "bearing_concentration": 0.5688
+            "n_placed": 40,
+            "dist_ft": 0.75,
+            "bearing_rad": 1.705,
+            "bearing_concentration": 0.5506
           },
           "Running Reverse Dunk Shot": {
             "n": 17,
@@ -14955,12 +16007,12 @@
         "ra_origin_snapped": 90,
         "ra_origin_share": 0.0012426305107211399,
         "refused_action_types": {
-          "Cutting Dunk Shot": 15,
-          "Driving Layup Shot": 14,
-          "Driving Dunk Shot": 12,
-          "Layup Shot": 11,
-          "Running Dunk Shot": 6,
-          "Cutting Layup Shot": 6
+          "Tip Layup Shot": 4130,
+          "Putback Layup Shot": 744,
+          "Tip Dunk Shot": 710,
+          "Putback Dunk Shot": 298,
+          "Layup Shot": 26,
+          "Reverse Layup Shot": 8
         },
         "rim_sentinel": {
           "coord": [
@@ -14977,10 +16029,57 @@
           "runner_up_n": 180,
           "lead_ratio": 33.07,
           "is_refusal": true,
-          "at_origin": false
+          "at_origin": false,
+          "pile_n": 5952,
+          "composition": {
+            "Tip Layup Shot": {
+              "n": 4130,
+              "share_of_pile": 0.69388,
+              "share_of_type": 0.84562
+            },
+            "Putback Layup Shot": {
+              "n": 744,
+              "share_of_pile": 0.125,
+              "share_of_type": 0.27104
+            },
+            "Tip Dunk Shot": {
+              "n": 710,
+              "share_of_pile": 0.11929,
+              "share_of_type": 0.93176
+            },
+            "Putback Dunk Shot": {
+              "n": 298,
+              "share_of_pile": 0.05007,
+              "share_of_type": 0.56762
+            },
+            "Layup Shot": {
+              "n": 26,
+              "share_of_pile": 0.00437,
+              "share_of_type": 0.00228
+            },
+            "Reverse Layup Shot": {
+              "n": 8,
+              "share_of_pile": 0.00134,
+              "share_of_type": 0.00455
+            },
+            "Dunk Shot": {
+              "n": 7,
+              "share_of_pile": 0.00118,
+              "share_of_type": 0.00296
+            },
+            "Driving Layup Shot": {
+              "n": 6,
+              "share_of_pile": 0.00101,
+              "share_of_type": 0.00029
+            }
+          },
+          "fg_pct": 0.60669,
+          "fg_pct_off_sentinel": 0.63126,
+          "kind": "tip_putback"
         },
-        "regime": "uniformly_sighted",
-        "arena_spread_pp": 0.4019690793432805,
+        "regime": "categorical_refusal",
+        "arena_spread_pp": 7.395986373083435,
+        "origin_arena_spread_pp": 0.4019690793432805,
         "full_resolution_arenas": [],
         "n_full_resolution_arenas": 0,
         "full_resolution_games": 1230,
@@ -15175,10 +16274,10 @@
         "TYPE": {
           "2PT Field Goal": {
             "n": 140716,
-            "n_placed": 140626,
-            "dist_ft": 6.322,
-            "bearing_rad": 1.54294,
-            "bearing_concentration": 0.6054
+            "n_placed": 134764,
+            "dist_ft": 6.597,
+            "bearing_rad": 1.54377,
+            "bearing_concentration": 0.6759
           },
           "3PT Field Goal": {
             "n": 78742,
@@ -15191,26 +16290,26 @@
         "RESULT": {
           "Missed Shot": {
             "n": 118396,
-            "n_placed": 118377,
-            "dist_ft": 15.206,
-            "bearing_rad": 1.5659,
-            "bearing_concentration": 0.6498
+            "n_placed": 116055,
+            "dist_ft": 15.51,
+            "bearing_rad": 1.56581,
+            "bearing_concentration": 0.683
           },
           "Made Shot": {
             "n": 101062,
-            "n_placed": 100991,
-            "dist_ft": 10.545,
-            "bearing_rad": 1.55571,
-            "bearing_concentration": 0.6002
+            "n_placed": 97451,
+            "dist_ft": 10.928,
+            "bearing_rad": 1.55545,
+            "bearing_concentration": 0.6591
           }
         },
         "ZONE": {
           "Restricted Area": {
             "n": 72427,
-            "n_placed": 72337,
-            "dist_ft": 1.198,
-            "bearing_rad": 1.52737,
-            "bearing_concentration": 0.4925
+            "n_placed": 66475,
+            "dist_ft": 1.303,
+            "bearing_rad": 1.53142,
+            "bearing_concentration": 0.6255
           },
           "Above the Break 3": {
             "n": 60285,
@@ -15258,10 +16357,10 @@
         "RANGE": {
           "Less Than 8 ft.": {
             "n": 91981,
-            "n_placed": 91891,
-            "dist_ft": 2.09,
-            "bearing_rad": 1.52679,
-            "bearing_concentration": 0.5436
+            "n_placed": 86029,
+            "dist_ft": 2.232,
+            "bearing_rad": 1.52987,
+            "bearing_concentration": 0.6499
           },
           "24+ ft.": {
             "n": 78125,
@@ -15295,10 +16394,10 @@
         "AREA": {
           "Center(C)": {
             "n": 127287,
-            "n_placed": 127197,
-            "dist_ft": 6.77,
-            "bearing_rad": 1.54348,
-            "bearing_concentration": 0.6633
+            "n_placed": 121335,
+            "dist_ft": 7.097,
+            "bearing_rad": 1.54428,
+            "bearing_concentration": 0.7444
           },
           "Left Side Center(LC)": {
             "n": 27604,
@@ -15339,7 +16438,7 @@
         "DESCRIPTION": {
           "Jump Shot": {
             "n": 77517,
-            "n_placed": 77517,
+            "n_placed": 77516,
             "dist_ft": 23.152,
             "bearing_rad": 1.59192,
             "bearing_concentration": 0.646
@@ -15353,17 +16452,17 @@
           },
           "Driving Layup Shot": {
             "n": 20340,
-            "n_placed": 20326,
-            "dist_ft": 1.977,
-            "bearing_rad": 1.50446,
-            "bearing_concentration": 0.6182
+            "n_placed": 20334,
+            "dist_ft": 1.976,
+            "bearing_rad": 1.50338,
+            "bearing_concentration": 0.6183
           },
           "Layup Shot": {
             "n": 11404,
-            "n_placed": 11393,
-            "dist_ft": 2.028,
-            "bearing_rad": 1.54211,
-            "bearing_concentration": 0.644
+            "n_placed": 11378,
+            "dist_ft": 2.031,
+            "bearing_rad": 1.54072,
+            "bearing_concentration": 0.6471
           },
           "Step Back Jump shot": {
             "n": 7878,
@@ -15381,52 +16480,52 @@
           },
           "Cutting Layup Shot": {
             "n": 5286,
-            "n_placed": 5280,
-            "dist_ft": 1.452,
-            "bearing_rad": 1.49465,
-            "bearing_concentration": 0.6058
+            "n_placed": 5285,
+            "dist_ft": 1.451,
+            "bearing_rad": 1.4928,
+            "bearing_concentration": 0.6055
           },
           "Tip Layup Shot": {
             "n": 4884,
-            "n_placed": 4884,
-            "dist_ft": 0.231,
-            "bearing_rad": -1.5684,
-            "bearing_concentration": 0.7432
+            "n_placed": 754,
+            "dist_ft": 1.493,
+            "bearing_rad": 1.5534,
+            "bearing_concentration": 0.6635
           },
           "Floating Jump shot": {
             "n": 4880,
-            "n_placed": 4880,
-            "dist_ft": 8.439,
-            "bearing_rad": 1.53444,
-            "bearing_concentration": 0.8146
+            "n_placed": 4879,
+            "dist_ft": 8.441,
+            "bearing_rad": 1.53445,
+            "bearing_concentration": 0.815
           },
           "Running Layup Shot": {
             "n": 4668,
             "n_placed": 4666,
             "dist_ft": 1.476,
-            "bearing_rad": 1.46168,
-            "bearing_concentration": 0.6269
+            "bearing_rad": 1.46108,
+            "bearing_concentration": 0.6274
           },
           "Driving Finger Roll Layup Shot": {
             "n": 4168,
-            "n_placed": 4164,
-            "dist_ft": 1.807,
-            "bearing_rad": 1.50965,
-            "bearing_concentration": 0.6363
+            "n_placed": 4168,
+            "dist_ft": 1.805,
+            "bearing_rad": 1.50815,
+            "bearing_concentration": 0.6357
           },
           "Hook Shot": {
             "n": 3664,
-            "n_placed": 3664,
-            "dist_ft": 5.389,
-            "bearing_rad": 1.56481,
-            "bearing_concentration": 0.7909
+            "n_placed": 3660,
+            "dist_ft": 5.395,
+            "bearing_rad": 1.56482,
+            "bearing_concentration": 0.7929
           },
           "Fadeaway Jump Shot": {
             "n": 3611,
-            "n_placed": 3611,
-            "dist_ft": 12.585,
-            "bearing_rad": 1.58963,
-            "bearing_concentration": 0.6134
+            "n_placed": 3610,
+            "dist_ft": 12.589,
+            "bearing_rad": 1.58962,
+            "bearing_concentration": 0.6138
           },
           "Turnaround Jump Shot": {
             "n": 3287,
@@ -15437,24 +16536,24 @@
           },
           "Cutting Dunk Shot": {
             "n": 3227,
-            "n_placed": 3212,
-            "dist_ft": 0.795,
-            "bearing_rad": 1.61431,
-            "bearing_concentration": 0.6471
+            "n_placed": 3224,
+            "dist_ft": 0.792,
+            "bearing_rad": 1.60705,
+            "bearing_concentration": 0.6455
           },
           "Turnaround Hook Shot": {
             "n": 2752,
-            "n_placed": 2752,
-            "dist_ft": 5.648,
+            "n_placed": 2751,
+            "dist_ft": 5.65,
             "bearing_rad": 1.57911,
-            "bearing_concentration": 0.7285
+            "bearing_concentration": 0.7291
           },
           "Putback Layup Shot": {
             "n": 2745,
-            "n_placed": 2743,
-            "dist_ft": 1.047,
-            "bearing_rad": 1.40026,
-            "bearing_concentration": 0.1991
+            "n_placed": 2001,
+            "dist_ft": 1.435,
+            "bearing_rad": 1.49708,
+            "bearing_concentration": 0.6425
           },
           "Turnaround Fadeaway shot": {
             "n": 2546,
@@ -15465,52 +16564,52 @@
           },
           "Dunk Shot": {
             "n": 2362,
-            "n_placed": 2357,
+            "n_placed": 2355,
             "dist_ft": 0.885,
-            "bearing_rad": 1.60464,
-            "bearing_concentration": 0.6848
+            "bearing_rad": 1.60141,
+            "bearing_concentration": 0.6883
           },
           "Driving Floating Bank Jump Shot": {
             "n": 2343,
-            "n_placed": 2342,
-            "dist_ft": 5.939,
-            "bearing_rad": 1.38573,
-            "bearing_concentration": 0.5989
+            "n_placed": 2343,
+            "dist_ft": 5.936,
+            "bearing_rad": 1.38503,
+            "bearing_concentration": 0.5987
           },
           "Driving Reverse Layup Shot": {
             "n": 2203,
-            "n_placed": 2201,
-            "dist_ft": 1.297,
-            "bearing_rad": 1.7073,
-            "bearing_concentration": 0.5194
+            "n_placed": 2203,
+            "dist_ft": 1.296,
+            "bearing_rad": 1.70557,
+            "bearing_concentration": 0.5188
           },
           "Driving Dunk Shot": {
             "n": 1950,
-            "n_placed": 1938,
-            "dist_ft": 0.869,
-            "bearing_rad": 1.56119,
-            "bearing_concentration": 0.6657
+            "n_placed": 1950,
+            "dist_ft": 0.864,
+            "bearing_rad": 1.55189,
+            "bearing_concentration": 0.6617
           },
           "Alley Oop Dunk Shot": {
             "n": 1863,
             "n_placed": 1860,
             "dist_ft": 0.865,
-            "bearing_rad": 1.59896,
-            "bearing_concentration": 0.6334
+            "bearing_rad": 1.59635,
+            "bearing_concentration": 0.6349
           },
           "Reverse Layup Shot": {
             "n": 1758,
-            "n_placed": 1758,
-            "dist_ft": 1.239,
-            "bearing_rad": 1.63497,
-            "bearing_concentration": 0.5363
+            "n_placed": 1750,
+            "dist_ft": 1.245,
+            "bearing_rad": 1.63443,
+            "bearing_concentration": 0.5433
           },
           "Running Dunk Shot": {
             "n": 1722,
-            "n_placed": 1716,
-            "dist_ft": 0.728,
-            "bearing_rad": 1.52683,
-            "bearing_concentration": 0.6563
+            "n_placed": 1720,
+            "dist_ft": 0.727,
+            "bearing_rad": 1.5216,
+            "bearing_concentration": 0.6561
           },
           "Driving Hook Shot": {
             "n": 1447,
@@ -15528,10 +16627,10 @@
           },
           "Alley Oop Layup shot": {
             "n": 1090,
-            "n_placed": 1090,
-            "dist_ft": 1.339,
-            "bearing_rad": 1.48762,
-            "bearing_concentration": 0.6065
+            "n_placed": 1089,
+            "dist_ft": 1.34,
+            "bearing_rad": 1.48775,
+            "bearing_concentration": 0.608
           },
           "Running Pull-Up Jump Shot": {
             "n": 1016,
@@ -15549,24 +16648,24 @@
           },
           "Running Finger Roll Layup Shot": {
             "n": 819,
-            "n_placed": 818,
-            "dist_ft": 1.366,
-            "bearing_rad": 1.51006,
-            "bearing_concentration": 0.6183
+            "n_placed": 819,
+            "dist_ft": 1.364,
+            "bearing_rad": 1.50809,
+            "bearing_concentration": 0.6176
           },
           "Tip Dunk Shot": {
             "n": 762,
-            "n_placed": 762,
-            "dist_ft": 0.089,
-            "bearing_rad": -1.56854,
-            "bearing_concentration": 0.8837
+            "n_placed": 52,
+            "dist_ft": 1.308,
+            "bearing_rad": 1.5294,
+            "bearing_concentration": 0.7055
           },
           "Cutting Finger Roll Layup Shot": {
             "n": 640,
-            "n_placed": 638,
-            "dist_ft": 1.464,
-            "bearing_rad": 1.49561,
-            "bearing_concentration": 0.6781
+            "n_placed": 639,
+            "dist_ft": 1.462,
+            "bearing_rad": 1.49119,
+            "bearing_concentration": 0.6789
           },
           "Turnaround Fadeaway Bank Jump Shot": {
             "n": 581,
@@ -15577,17 +16676,17 @@
           },
           "Putback Dunk Shot": {
             "n": 525,
-            "n_placed": 524,
-            "dist_ft": 0.344,
-            "bearing_rad": -1.53386,
-            "bearing_concentration": 0.2762
+            "n_placed": 227,
+            "dist_ft": 0.793,
+            "bearing_rad": 1.52945,
+            "bearing_concentration": 0.6762
           },
           "Finger Roll Layup Shot": {
             "n": 519,
-            "n_placed": 517,
-            "dist_ft": 2.0,
-            "bearing_rad": 1.54389,
-            "bearing_concentration": 0.7124
+            "n_placed": 518,
+            "dist_ft": 1.996,
+            "bearing_rad": 1.53855,
+            "bearing_concentration": 0.7131
           },
           "Running Reverse Layup Shot": {
             "n": 339,
@@ -15605,10 +16704,10 @@
           },
           "Hook Bank Shot": {
             "n": 195,
-            "n_placed": 195,
-            "dist_ft": 4.138,
-            "bearing_rad": 1.10638,
-            "bearing_concentration": 0.6512
+            "n_placed": 194,
+            "dist_ft": 4.16,
+            "bearing_rad": 1.10988,
+            "bearing_concentration": 0.6591
           },
           "Driving Bank Hook Shot": {
             "n": 165,
@@ -15626,10 +16725,10 @@
           },
           "Reverse Dunk Shot": {
             "n": 120,
-            "n_placed": 119,
-            "dist_ft": 0.739,
-            "bearing_rad": 1.69941,
-            "bearing_concentration": 0.6133
+            "n_placed": 120,
+            "dist_ft": 0.733,
+            "bearing_rad": 1.6858,
+            "bearing_concentration": 0.6072
           },
           "Running Alley Oop Layup Shot": {
             "n": 69,
@@ -15724,12 +16823,12 @@
         "ra_origin_snapped": 65,
         "ra_origin_share": 0.0010743268928813448,
         "refused_action_types": {
-          "Driving Layup Shot": 10,
-          "Cutting Dunk Shot": 9,
-          "Dunk Shot": 6,
-          "Cutting Layup Shot": 6,
-          "Running Dunk Shot": 6,
-          "Driving Finger Roll Layup Shot": 5
+          "Tip Layup Shot": 3452,
+          "Tip Dunk Shot": 652,
+          "Putback Layup Shot": 648,
+          "Putback Dunk Shot": 207,
+          "Layup Shot": 16,
+          "Dunk Shot": 5
         },
         "rim_sentinel": {
           "coord": [
@@ -15746,10 +16845,57 @@
           "runner_up_n": 152,
           "lead_ratio": 32.92,
           "is_refusal": true,
-          "at_origin": false
+          "at_origin": false,
+          "pile_n": 5004,
+          "composition": {
+            "Tip Layup Shot": {
+              "n": 3452,
+              "share_of_pile": 0.68985,
+              "share_of_type": 0.86042
+            },
+            "Tip Dunk Shot": {
+              "n": 652,
+              "share_of_pile": 0.1303,
+              "share_of_type": 0.94084
+            },
+            "Putback Layup Shot": {
+              "n": 648,
+              "share_of_pile": 0.1295,
+              "share_of_type": 0.24952
+            },
+            "Putback Dunk Shot": {
+              "n": 207,
+              "share_of_pile": 0.04137,
+              "share_of_type": 0.46413
+            },
+            "Layup Shot": {
+              "n": 16,
+              "share_of_pile": 0.0032,
+              "share_of_type": 0.00212
+            },
+            "Dunk Shot": {
+              "n": 5,
+              "share_of_pile": 0.001,
+              "share_of_type": 0.00279
+            },
+            "Running Dunk Shot": {
+              "n": 5,
+              "share_of_pile": 0.001,
+              "share_of_type": 0.0033
+            },
+            "Driving Layup Shot": {
+              "n": 5,
+              "share_of_pile": 0.001,
+              "share_of_type": 0.00028
+            }
+          },
+          "fg_pct": 0.6217,
+          "fg_pct_off_sentinel": 0.63659,
+          "kind": "tip_putback"
         },
-        "regime": "uniformly_sighted",
-        "arena_spread_pp": 0.431870035378264,
+        "regime": "categorical_refusal",
+        "arena_spread_pp": 5.680027699059683,
+        "origin_arena_spread_pp": 0.431870035378264,
         "full_resolution_arenas": [],
         "n_full_resolution_arenas": 0,
         "full_resolution_games": 1059,
@@ -15944,10 +17090,10 @@
         "TYPE": {
           "2PT Field Goal": {
             "n": 115864,
-            "n_placed": 115799,
-            "dist_ft": 6.067,
-            "bearing_rad": 1.53232,
-            "bearing_concentration": 0.596
+            "n_placed": 110860,
+            "dist_ft": 6.337,
+            "bearing_rad": 1.53404,
+            "bearing_concentration": 0.6677
           },
           "3PT Field Goal": {
             "n": 72252,
@@ -15960,26 +17106,26 @@
         "RESULT": {
           "Missed Shot": {
             "n": 101566,
-            "n_placed": 101562,
-            "dist_ft": 15.589,
-            "bearing_rad": 1.56497,
-            "bearing_concentration": 0.6507
+            "n_placed": 99673,
+            "dist_ft": 15.884,
+            "bearing_rad": 1.56507,
+            "bearing_concentration": 0.682
           },
           "Made Shot": {
             "n": 86550,
-            "n_placed": 86489,
-            "dist_ft": 10.87,
-            "bearing_rad": 1.55765,
-            "bearing_concentration": 0.5916
+            "n_placed": 83439,
+            "dist_ft": 11.267,
+            "bearing_rad": 1.55728,
+            "bearing_concentration": 0.6505
           }
         },
         "ZONE": {
           "Restricted Area": {
             "n": 60503,
-            "n_placed": 60438,
-            "dist_ft": 1.236,
-            "bearing_rad": 1.51522,
-            "bearing_concentration": 0.4776
+            "n_placed": 55499,
+            "dist_ft": 1.346,
+            "bearing_rad": 1.52151,
+            "bearing_concentration": 0.6102
           },
           "Above the Break 3": {
             "n": 55519,
@@ -16027,10 +17173,10 @@
         "RANGE": {
           "Less Than 8 ft.": {
             "n": 77418,
-            "n_placed": 77353,
-            "dist_ft": 2.137,
-            "bearing_rad": 1.51387,
-            "bearing_concentration": 0.533
+            "n_placed": 72414,
+            "dist_ft": 2.283,
+            "bearing_rad": 1.51862,
+            "bearing_concentration": 0.6384
           },
           "24+ ft.": {
             "n": 71721,
@@ -16064,10 +17210,10 @@
         "AREA": {
           "Center(C)": {
             "n": 108007,
-            "n_placed": 107942,
-            "dist_ft": 7.015,
-            "bearing_rad": 1.5367,
-            "bearing_concentration": 0.6582
+            "n_placed": 103003,
+            "dist_ft": 7.351,
+            "bearing_rad": 1.53809,
+            "bearing_concentration": 0.7383
           },
           "Left Side Center(LC)": {
             "n": 24529,
@@ -16108,24 +17254,24 @@
         "DESCRIPTION": {
           "Jump Shot": {
             "n": 64462,
-            "n_placed": 64462,
+            "n_placed": 64461,
             "dist_ft": 23.72,
             "bearing_rad": 1.60196,
             "bearing_concentration": 0.64
           },
           "Pullup Jump shot": {
             "n": 20766,
-            "n_placed": 20766,
-            "dist_ft": 19.612,
+            "n_placed": 20765,
+            "dist_ft": 19.613,
             "bearing_rad": 1.55667,
             "bearing_concentration": 0.807
           },
           "Driving Layup Shot": {
             "n": 17764,
-            "n_placed": 17754,
+            "n_placed": 17759,
             "dist_ft": 2.203,
-            "bearing_rad": 1.47592,
-            "bearing_concentration": 0.6043
+            "bearing_rad": 1.47503,
+            "bearing_concentration": 0.6044
           },
           "Step Back Jump shot": {
             "n": 7934,
@@ -16136,31 +17282,31 @@
           },
           "Driving Floating Jump Shot": {
             "n": 7855,
-            "n_placed": 7854,
-            "dist_ft": 8.034,
-            "bearing_rad": 1.54381,
-            "bearing_concentration": 0.812
+            "n_placed": 7855,
+            "dist_ft": 8.033,
+            "bearing_rad": 1.54366,
+            "bearing_concentration": 0.8119
           },
           "Layup Shot": {
             "n": 7565,
-            "n_placed": 7561,
-            "dist_ft": 2.116,
-            "bearing_rad": 1.55754,
-            "bearing_concentration": 0.6258
+            "n_placed": 7549,
+            "dist_ft": 2.119,
+            "bearing_rad": 1.55675,
+            "bearing_concentration": 0.6289
           },
           "Cutting Layup Shot": {
             "n": 4752,
-            "n_placed": 4746,
-            "dist_ft": 1.609,
-            "bearing_rad": 1.47897,
-            "bearing_concentration": 0.6056
+            "n_placed": 4751,
+            "dist_ft": 1.607,
+            "bearing_rad": 1.47692,
+            "bearing_concentration": 0.6053
           },
           "Driving Finger Roll Layup Shot": {
             "n": 4393,
-            "n_placed": 4388,
-            "dist_ft": 1.937,
-            "bearing_rad": 1.49666,
-            "bearing_concentration": 0.624
+            "n_placed": 4393,
+            "dist_ft": 1.935,
+            "bearing_rad": 1.49484,
+            "bearing_concentration": 0.6234
           },
           "Floating Jump shot": {
             "n": 4384,
@@ -16171,17 +17317,17 @@
           },
           "Running Layup Shot": {
             "n": 4197,
-            "n_placed": 4195,
+            "n_placed": 4196,
             "dist_ft": 1.622,
-            "bearing_rad": 1.42084,
-            "bearing_concentration": 0.608
+            "bearing_rad": 1.42013,
+            "bearing_concentration": 0.6082
           },
           "Tip Layup Shot": {
             "n": 4012,
-            "n_placed": 4012,
-            "dist_ft": 0.224,
-            "bearing_rad": -1.56871,
-            "bearing_concentration": 0.7621
+            "n_placed": 560,
+            "dist_ft": 1.604,
+            "bearing_rad": 1.55464,
+            "bearing_concentration": 0.7048
           },
           "Fadeaway Jump Shot": {
             "n": 3032,
@@ -16192,10 +17338,10 @@
           },
           "Cutting Dunk Shot": {
             "n": 2931,
-            "n_placed": 2922,
-            "dist_ft": 0.835,
-            "bearing_rad": 1.59553,
-            "bearing_concentration": 0.6509
+            "n_placed": 2930,
+            "dist_ft": 0.833,
+            "bearing_rad": 1.59079,
+            "bearing_concentration": 0.6494
           },
           "Turnaround Jump Shot": {
             "n": 2704,
@@ -16206,17 +17352,17 @@
           },
           "Putback Layup Shot": {
             "n": 2597,
-            "n_placed": 2596,
-            "dist_ft": 1.134,
-            "bearing_rad": 1.47936,
-            "bearing_concentration": 0.2543
+            "n_placed": 1949,
+            "dist_ft": 1.511,
+            "bearing_rad": 1.52389,
+            "bearing_concentration": 0.6705
           },
           "Hook Shot": {
             "n": 2266,
-            "n_placed": 2266,
-            "dist_ft": 5.238,
-            "bearing_rad": 1.56695,
-            "bearing_concentration": 0.8002
+            "n_placed": 2263,
+            "dist_ft": 5.245,
+            "bearing_rad": 1.56696,
+            "bearing_concentration": 0.8026
           },
           "Driving Floating Bank Jump Shot": {
             "n": 2228,
@@ -16234,10 +17380,10 @@
           },
           "Driving Reverse Layup Shot": {
             "n": 2093,
-            "n_placed": 2089,
-            "dist_ft": 1.346,
-            "bearing_rad": 1.74869,
-            "bearing_concentration": 0.5048
+            "n_placed": 2093,
+            "dist_ft": 1.344,
+            "bearing_rad": 1.74495,
+            "bearing_concentration": 0.5035
           },
           "Turnaround Hook Shot": {
             "n": 1880,
@@ -16248,10 +17394,10 @@
           },
           "Dunk Shot": {
             "n": 1789,
-            "n_placed": 1783,
+            "n_placed": 1784,
             "dist_ft": 0.919,
-            "bearing_rad": 1.61229,
-            "bearing_concentration": 0.6711
+            "bearing_rad": 1.60713,
+            "bearing_concentration": 0.6734
           },
           "Running Jump Shot": {
             "n": 1686,
@@ -16262,31 +17408,31 @@
           },
           "Alley Oop Dunk Shot": {
             "n": 1684,
-            "n_placed": 1679,
-            "dist_ft": 0.845,
-            "bearing_rad": 1.60401,
-            "bearing_concentration": 0.5783
+            "n_placed": 1682,
+            "dist_ft": 0.843,
+            "bearing_rad": 1.59881,
+            "bearing_concentration": 0.5784
           },
           "Driving Dunk Shot": {
             "n": 1659,
             "n_placed": 1658,
             "dist_ft": 0.922,
-            "bearing_rad": 1.56055,
-            "bearing_concentration": 0.6651
+            "bearing_rad": 1.55965,
+            "bearing_concentration": 0.6657
           },
           "Running Dunk Shot": {
             "n": 1516,
-            "n_placed": 1510,
-            "dist_ft": 0.793,
-            "bearing_rad": 1.52509,
-            "bearing_concentration": 0.6564
+            "n_placed": 1511,
+            "dist_ft": 0.792,
+            "bearing_rad": 1.51931,
+            "bearing_concentration": 0.6595
           },
           "Reverse Layup Shot": {
             "n": 1320,
-            "n_placed": 1320,
-            "dist_ft": 1.311,
-            "bearing_rad": 1.66518,
-            "bearing_concentration": 0.5156
+            "n_placed": 1319,
+            "dist_ft": 1.312,
+            "bearing_rad": 1.66504,
+            "bearing_concentration": 0.5167
           },
           "Running Pull-Up Jump Shot": {
             "n": 1237,
@@ -16299,21 +17445,21 @@
             "n": 1021,
             "n_placed": 1020,
             "dist_ft": 5.356,
-            "bearing_rad": 1.35826,
-            "bearing_concentration": 0.8076
+            "bearing_rad": 1.35733,
+            "bearing_concentration": 0.8088
           },
           "Running Finger Roll Layup Shot": {
             "n": 954,
-            "n_placed": 953,
-            "dist_ft": 1.373,
-            "bearing_rad": 1.43898,
-            "bearing_concentration": 0.6218
+            "n_placed": 954,
+            "dist_ft": 1.371,
+            "bearing_rad": 1.43731,
+            "bearing_concentration": 0.6212
           },
           "Alley Oop Layup shot": {
             "n": 885,
-            "n_placed": 882,
-            "dist_ft": 1.527,
-            "bearing_rad": 1.48849,
+            "n_placed": 884,
+            "dist_ft": 1.524,
+            "bearing_rad": 1.48288,
             "bearing_concentration": 0.5861
           },
           "Jump Bank Shot": {
@@ -16325,10 +17471,10 @@
           },
           "Tip Dunk Shot": {
             "n": 693,
-            "n_placed": 693,
-            "dist_ft": 0.1,
-            "bearing_rad": -1.57838,
-            "bearing_concentration": 0.8953
+            "n_placed": 41,
+            "dist_ft": 1.683,
+            "bearing_rad": 1.71853,
+            "bearing_concentration": 0.7794
           },
           "Cutting Finger Roll Layup Shot": {
             "n": 584,
@@ -16346,10 +17492,10 @@
           },
           "Putback Dunk Shot": {
             "n": 446,
-            "n_placed": 446,
-            "dist_ft": 0.502,
-            "bearing_rad": -1.523,
-            "bearing_concentration": 0.1306
+            "n_placed": 239,
+            "dist_ft": 0.937,
+            "bearing_rad": 1.55211,
+            "bearing_concentration": 0.6229
           },
           "Finger Roll Layup Shot": {
             "n": 404,
@@ -16515,10 +17661,57 @@
           "runner_up_n": 110,
           "lead_ratio": 46.29,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 5092,
+          "composition": {
+            "Tip Layup Shot": {
+              "n": 3398,
+              "share_of_pile": 0.66732,
+              "share_of_type": 0.87397
+            },
+            "Putback Layup Shot": {
+              "n": 817,
+              "share_of_pile": 0.16045,
+              "share_of_type": 0.28859
+            },
+            "Tip Dunk Shot": {
+              "n": 530,
+              "share_of_pile": 0.10408,
+              "share_of_type": 0.9331
+            },
+            "Putback Dunk Shot": {
+              "n": 229,
+              "share_of_pile": 0.04497,
+              "share_of_type": 0.52403
+            },
+            "Layup Shot": {
+              "n": 28,
+              "share_of_pile": 0.0055,
+              "share_of_type": 0.00363
+            },
+            "Driving Layup Shot": {
+              "n": 12,
+              "share_of_pile": 0.00236,
+              "share_of_type": 0.00067
+            },
+            "Alley Oop Dunk Shot": {
+              "n": 11,
+              "share_of_pile": 0.00216,
+              "share_of_type": 0.00709
+            },
+            "Reverse Layup Shot": {
+              "n": 10,
+              "share_of_pile": 0.00196,
+              "share_of_type": 0.00735
+            }
+          },
+          "fg_pct": 0.6304,
+          "fg_pct_off_sentinel": 0.64201,
+          "kind": "tip_putback"
         },
         "regime": "categorical_refusal",
         "arena_spread_pp": 8.161909922059014,
+        "origin_arena_spread_pp": 8.161909922059014,
         "full_resolution_arenas": [],
         "n_full_resolution_arenas": 0,
         "full_resolution_games": 222,
@@ -17284,10 +18477,57 @@
           "runner_up_n": 144,
           "lead_ratio": 40.24,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 5794,
+          "composition": {
+            "Tip Layup Shot": {
+              "n": 3773,
+              "share_of_pile": 0.65119,
+              "share_of_type": 0.84615
+            },
+            "Putback Layup Shot": {
+              "n": 960,
+              "share_of_pile": 0.16569,
+              "share_of_type": 0.28968
+            },
+            "Tip Dunk Shot": {
+              "n": 666,
+              "share_of_pile": 0.11495,
+              "share_of_type": 0.925
+            },
+            "Putback Dunk Shot": {
+              "n": 268,
+              "share_of_pile": 0.04625,
+              "share_of_type": 0.51737
+            },
+            "Layup Shot": {
+              "n": 20,
+              "share_of_pile": 0.00345,
+              "share_of_type": 0.00251
+            },
+            "Driving Layup Shot": {
+              "n": 17,
+              "share_of_pile": 0.00293,
+              "share_of_type": 0.0009
+            },
+            "Floating Jump shot": {
+              "n": 8,
+              "share_of_pile": 0.00138,
+              "share_of_type": 0.00165
+            },
+            "Running Dunk Shot": {
+              "n": 8,
+              "share_of_pile": 0.00138,
+              "share_of_type": 0.00365
+            }
+          },
+          "fg_pct": 0.62202,
+          "fg_pct_off_sentinel": 0.6563,
+          "kind": "tip_putback"
         },
         "regime": "categorical_refusal",
         "arena_spread_pp": 12.949561655287281,
+        "origin_arena_spread_pp": 12.949561655287281,
         "full_resolution_arenas": [],
         "n_full_resolution_arenas": 0,
         "full_resolution_games": 271,
@@ -18053,10 +19293,57 @@
           "runner_up_n": 160,
           "lead_ratio": 39.26,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 6281,
+          "composition": {
+            "Tip Layup Shot": {
+              "n": 4036,
+              "share_of_pile": 0.64257,
+              "share_of_type": 0.86147
+            },
+            "Putback Layup Shot": {
+              "n": 1094,
+              "share_of_pile": 0.17418,
+              "share_of_type": 0.31035
+            },
+            "Tip Dunk Shot": {
+              "n": 784,
+              "share_of_pile": 0.12482,
+              "share_of_type": 0.95377
+            },
+            "Putback Dunk Shot": {
+              "n": 267,
+              "share_of_pile": 0.04251,
+              "share_of_type": 0.47679
+            },
+            "Layup Shot": {
+              "n": 19,
+              "share_of_pile": 0.00302,
+              "share_of_type": 0.00326
+            },
+            "Driving Layup Shot": {
+              "n": 9,
+              "share_of_pile": 0.00143,
+              "share_of_type": 0.00047
+            },
+            "Dunk Shot": {
+              "n": 9,
+              "share_of_pile": 0.00143,
+              "share_of_type": 0.0055
+            },
+            "Reverse Layup Shot": {
+              "n": 8,
+              "share_of_pile": 0.00127,
+              "share_of_type": 0.00571
+            }
+          },
+          "fg_pct": 0.63382,
+          "fg_pct_off_sentinel": 0.66978,
+          "kind": "tip_putback"
         },
         "regime": "categorical_refusal",
         "arena_spread_pp": 20.034472947452947,
+        "origin_arena_spread_pp": 20.034472947452947,
         "full_resolution_arenas": [],
         "n_full_resolution_arenas": 0,
         "full_resolution_games": 242,
@@ -18840,10 +20127,57 @@
           "runner_up_n": 129,
           "lead_ratio": 47.7,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 6153,
+          "composition": {
+            "Tip Layup Shot": {
+              "n": 3924,
+              "share_of_pile": 0.63774,
+              "share_of_type": 0.83667
+            },
+            "Putback Layup Shot": {
+              "n": 1113,
+              "share_of_pile": 0.18089,
+              "share_of_type": 0.29421
+            },
+            "Tip Dunk Shot": {
+              "n": 798,
+              "share_of_pile": 0.12969,
+              "share_of_type": 0.94774
+            },
+            "Putback Dunk Shot": {
+              "n": 199,
+              "share_of_pile": 0.03234,
+              "share_of_type": 0.40283
+            },
+            "Layup Shot": {
+              "n": 19,
+              "share_of_pile": 0.00309,
+              "share_of_type": 0.00352
+            },
+            "Driving Layup Shot": {
+              "n": 12,
+              "share_of_pile": 0.00195,
+              "share_of_type": 0.00061
+            },
+            "Driving Finger Roll Layup Shot": {
+              "n": 10,
+              "share_of_pile": 0.00163,
+              "share_of_type": 0.00163
+            },
+            "Cutting Dunk Shot": {
+              "n": 9,
+              "share_of_pile": 0.00146,
+              "share_of_type": 0.00298
+            }
+          },
+          "fg_pct": 0.64213,
+          "fg_pct_off_sentinel": 0.66534,
+          "kind": "tip_putback"
         },
         "regime": "categorical_refusal",
         "arena_spread_pp": 14.704095618393243,
+        "origin_arena_spread_pp": 14.704095618393243,
         "full_resolution_arenas": [],
         "n_full_resolution_arenas": 0,
         "full_resolution_games": 235,
@@ -19627,10 +20961,57 @@
           "runner_up_n": 133,
           "lead_ratio": 42.69,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 5678,
+          "composition": {
+            "Tip Layup Shot": {
+              "n": 3732,
+              "share_of_pile": 0.65727,
+              "share_of_type": 0.7668
+            },
+            "Putback Layup Shot": {
+              "n": 914,
+              "share_of_pile": 0.16097,
+              "share_of_type": 0.24776
+            },
+            "Tip Dunk Shot": {
+              "n": 762,
+              "share_of_pile": 0.1342,
+              "share_of_type": 0.90822
+            },
+            "Putback Dunk Shot": {
+              "n": 168,
+              "share_of_pile": 0.02959,
+              "share_of_type": 0.32246
+            },
+            "Layup Shot": {
+              "n": 18,
+              "share_of_pile": 0.00317,
+              "share_of_type": 0.00521
+            },
+            "Driving Layup Shot": {
+              "n": 10,
+              "share_of_pile": 0.00176,
+              "share_of_type": 0.00053
+            },
+            "Dunk Shot": {
+              "n": 9,
+              "share_of_pile": 0.00159,
+              "share_of_type": 0.00817
+            },
+            "Running Dunk Shot": {
+              "n": 8,
+              "share_of_pile": 0.00141,
+              "share_of_type": 0.00263
+            }
+          },
+          "fg_pct": 0.62698,
+          "fg_pct_off_sentinel": 0.6673,
+          "kind": "tip_putback"
         },
         "regime": "categorical_refusal",
         "arena_spread_pp": 12.101844472575799,
+        "origin_arena_spread_pp": 12.101844472575799,
         "full_resolution_arenas": [],
         "n_full_resolution_arenas": 0,
         "full_resolution_games": 304,
@@ -20414,10 +21795,57 @@
           "runner_up_n": 124,
           "lead_ratio": 48.59,
           "is_refusal": true,
-          "at_origin": true
+          "at_origin": true,
+          "pile_n": 6025,
+          "composition": {
+            "Tip Layup Shot": {
+              "n": 3890,
+              "share_of_pile": 0.64564,
+              "share_of_type": 0.82784
+            },
+            "Putback Layup Shot": {
+              "n": 1020,
+              "share_of_pile": 0.16929,
+              "share_of_type": 0.2635
+            },
+            "Tip Dunk Shot": {
+              "n": 780,
+              "share_of_pile": 0.12946,
+              "share_of_type": 0.93976
+            },
+            "Putback Dunk Shot": {
+              "n": 221,
+              "share_of_pile": 0.03668,
+              "share_of_type": 0.42913
+            },
+            "Layup Shot": {
+              "n": 18,
+              "share_of_pile": 0.00299,
+              "share_of_type": 0.00572
+            },
+            "Cutting Dunk Shot": {
+              "n": 11,
+              "share_of_pile": 0.00183,
+              "share_of_type": 0.00353
+            },
+            "Dunk Shot": {
+              "n": 10,
+              "share_of_pile": 0.00166,
+              "share_of_type": 0.00861
+            },
+            "Running Layup Shot": {
+              "n": 8,
+              "share_of_pile": 0.00133,
+              "share_of_type": 0.00101
+            }
+          },
+          "fg_pct": 0.63071,
+          "fg_pct_off_sentinel": 0.67525,
+          "kind": "tip_putback"
         },
         "regime": "categorical_refusal",
         "arena_spread_pp": 11.319430086077892,
+        "origin_arena_spread_pp": 11.319430086077892,
         "full_resolution_arenas": [],
         "n_full_resolution_arenas": 0,
         "full_resolution_games": 235,

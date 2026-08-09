@@ -41,6 +41,7 @@ import datetime
 import json
 import math
 import os
+import statistics
 import sys
 import tempfile
 from collections import Counter
@@ -75,6 +76,12 @@ from common import (  # noqa: E402
 WINDOW_DIR = REPO_ROOT / "data" / "window"
 GAMES_DIR = WINDOW_DIR / "games"
 SPORTVU_DIR = RAW_DIR / "sportvu"
+
+# The season the public tracking release covers, and therefore the only season
+# any measurement in this file describes. Named once: it was written literally
+# in the anchor load, the reduce and the corroboration, and a stage that talks
+# about one season in three places should say which one in only one of them.
+WINDOW_SEASON_YEAR = 2015
 
 # --- the proof fixture -------------------------------------------------------
 # The blocking gate for this stage is not its own output, which does not exist
@@ -160,6 +167,20 @@ HALFCOURT_Y_TENTHS = 420
 # Ball-occupancy bands, in feet from the hoop. The same bands the shot record's
 # own distance is read in, so dwell and attempts can be set side by side.
 OCCUPANCY_BANDS = [(0, 4), (4, 14), (14, 22), (22, 27), (27, 999)]
+
+# How many distinct positions per shot a population must reach before the second
+# instrument is said to disperse it.
+#
+# NOT A TUNED PARAMETER - the three readings it separates span four orders of
+# magnitude. Asked of the SAME 2015-16 shots, three different ways:
+#
+#   the record's own filing of them        1 cell for thousands of shots  ~0.0002
+#   the optical feed, sentinel pile                                        ~0.99
+#   the optical feed, shots the record placed one by one                    1.00
+#
+# Anything from about 0.01 to about 0.9 says the same thing. A population the
+# feed genuinely saw in one place would sit down at the record's own figure.
+DISPERSION_MIN_CELLS_PER_SHOT = 0.5
 
 
 # --- corpus listing ----------------------------------------------------------
@@ -1235,7 +1256,7 @@ def load_anchors():
     """2015-16 shot record, keyed game -> event, for the geometric join check."""
     cols = ["GAME_ID", "GAME_EVENT_ID", "LOC_X", "LOC_Y", "PLAYER_ID",
             "ACTION_TYPE", "SHOT_ZONE_BASIC", "SHOT_MADE_FLAG"]
-    shots = read_season_csv(2015, usecols=cols)
+    shots = read_season_csv(WINDOW_SEASON_YEAR, usecols=cols)
     shots["gid"] = shots.GAME_ID.astype(str).str.lstrip("0")
     out = {}
     for r in shots.itertuples():
@@ -1279,6 +1300,154 @@ def _pct(sorted_or_not, q):
         return None
     v = sorted(sorted_or_not)
     return round(v[min(len(v) - 1, int(len(v) * q))], 2)
+
+
+def _dispersion(rows, label, filed):
+    """How many places a second instrument puts a population the record filed."""
+    if not rows:
+        return {"label": label, "n": 0, "filed": filed}
+    xs = [r[0] for r in rows]
+    ys = [r[1] for r in rows]
+    dist = sorted(math.hypot(x, y) / 10.0 for x, y in rows)
+    cells = Counter(rows)
+    busiest = cells.most_common(1)[0][1]
+    n = len(rows)
+    return {
+        "label": label,
+        # How many of these the record filed across the parsed games, and how
+        # many the tracking stage recovered. The recovery rate is here so a
+        # population the detector finds harder than average cannot pass itself
+        # off as evidence.
+        "filed": filed,
+        "n": n,
+        "recovery": round(n / filed, 4) if filed else None,
+        "distinct_cells": len(cells),
+        # THE STATISTIC. One position per shot means the feed placed every one
+        # of them separately; a population it saw in one place would sit at 1/n.
+        "cells_per_shot": round(len(cells) / n, 4),
+        "busiest_cell_n": busiest,
+        "busiest_cell_share": round(busiest / n, 5),
+        "sd_x_ft": round(statistics.pstdev(xs) / 10.0, 3),
+        "sd_y_ft": round(statistics.pstdev(ys) / 10.0, 3),
+        "median_dist_ft": round(statistics.median(dist), 3),
+        "p90_dist_ft": round(dist[int(0.9 * (n - 1))], 3),
+    }
+
+
+def measure_sentinel_corroboration(anchors):
+    """Does a SECOND INSTRUMENT see the sentinel pile spread out?
+
+    THE CLAIM THIS EARNS. `seasons.json` says the record refuses to place a
+    named category of shot, and files the refusal on one coordinate. Until this
+    ran, that rested on a single read of one database - every other source
+    available today, including a live stats.nba.com query, is another read of
+    the SAME database. The SportVU optical feed is a different instrument, and
+    2015-16 is both the window season and one of the six seasons that file a
+    displaced pile, so the archive can be asked the question twice.
+
+    THE METHOD, AND ITS ONE LOAD-BEARING SEPARATION. The join between the two
+    instruments constrains THE BALL: `reconciles` above tests where the ball was
+    at release against the coordinate the record filed, within
+    MAX_ANCHOR_RESIDUAL_FT. The evidence here is THE SHOOTER'S FEET - the `x, y`
+    of `measures[]`, which the join never looks at. So a dispersed distribution
+    of feet cannot be an artefact of the tolerance that admitted the shot.
+
+    THE CONTROL IS LIKE-FOR-LIKE, and it has to be, because the pile is ~99%
+    dunks and the dunk family is exactly where this project's own release
+    detector is weakest (`disagreement.by_action` puts Alley Oop Dunk at 0.098).
+    So the comparison is against restricted-area dunks the record placed
+    INDIVIDUALLY - same instrument, same season, same games, same action family,
+    same detector. Any weakness in the detector applies equally to both.
+
+    THE SCOPE LIMIT SHIPS WITH THE RESULT rather than being buried: SportVU
+    covers ONE of the six affected seasons, and only the part of that season the
+    corpus parsed. `filed` beside `filed_season` is that limit in numbers.
+    """
+    sentinel_coord, season, filed_season = _sentinel_under_test()
+    if sentinel_coord is None:
+        return None
+    sx, sy = sentinel_coord
+
+    sent, ctrl = [], []
+    filed_sent = filed_ctrl = 0
+    games = 0
+    for path in sorted(GAMES_DIR.glob("*.json")):
+        d = json.loads(path.read_text())
+        ga = anchors.get(str(d["game_id"]).lstrip("0"))
+        if ga is None:
+            continue
+        games += 1
+        for a in ga.values():
+            if (a["loc_x"], a["loc_y"]) == (sx, sy):
+                filed_sent += 1
+            elif "Dunk" in a["action"] and a["zone"] == "Restricted Area":
+                filed_ctrl += 1
+
+        corr, meas = d["corroborated"], d["measures"]
+        if len(corr) != len(meas):
+            die(f"{path.name}: corroborated/measures are not index-aligned "
+                f"({len(corr)} vs {len(meas)})")
+        for c, m in zip(corr, meas):
+            a = ga.get(c["anchor_event_id"])
+            if a is None:
+                continue
+            feet = (round(m["x"], 1), round(m["y"], 1))
+            if (a["loc_x"], a["loc_y"]) == (sx, sy):
+                sent.append(feet)
+            elif "Dunk" in a["action"] and a["zone"] == "Restricted Area":
+                ctrl.append(feet)
+
+    s = _dispersion(sent, f"the record filed these at ({sx},{sy})", filed_sent)
+    c = _dispersion(ctrl, "restricted-area dunks the record placed individually", filed_ctrl)
+
+    # The record's own answer to the same question, over the same shots: one
+    # coordinate, however many shots. This is the null the feed is measured
+    # against, and it is a measurement rather than an assumption.
+    record_cells_per_shot = round(1 / filed_sent, 6) if filed_sent else None
+
+    dispersed = bool(s["n"] and s["cells_per_shot"] >= DISPERSION_MIN_CELLS_PER_SHOT)
+    # AND THE FEED AGREES THEY ARE RIM SHOTS. If it did not - if these shots
+    # happened somewhere else entirely - the record would not be DECLINING to
+    # place them, it would be placing them WRONGLY, which is a different finding
+    # and a different mark on the plate. Asked like-for-like rather than against
+    # an absolute radius: the pile must sit inside the spread of the dunks the
+    # record placed one by one.
+    at_the_rim = bool(s["n"] and c["n"] and s["median_dist_ft"] <= c["p90_dist_ft"])
+
+    return {
+        "season": season,
+        "coord": [sx, sy],
+        "games": games,
+        "filed_season": filed_season,
+        "instrument": "SportVU optical tracking, 2015-16 public release",
+        "evidence": "the shooter's feet at release, which the join does not constrain",
+        "record_cells_per_shot": record_cells_per_shot,
+        "sentinel": s,
+        "control": c,
+        "dispersed": dispersed,
+        "at_the_rim": at_the_rim,
+        "corroborated": bool(dispersed and at_the_rim),
+    }
+
+
+def _sentinel_under_test():
+    """The coordinate to corroborate, read from the artifact that measured it.
+
+    Never hardcoded here: the stage that finds the sentinel is aggregate.py, and
+    a second copy of the coordinate in this file could go stale against it
+    without anything noticing. Same pattern facts.py uses on timeline.ts.
+    """
+    path = PROCESSED_DIR / "seasons.json"
+    if not path.exists():
+        die("seasons.json missing - run pipeline/aggregate.py before this stage")
+    seasons = json.loads(path.read_text())["seasons"]
+    row = next((r for r in seasons if r["year"] == WINDOW_SEASON_YEAR), None)
+    if row is None:
+        die(f"seasons.json has no {WINDOW_SEASON_YEAR} row to corroborate")
+    sent = row["resolution"]["rim_sentinel"]
+    if not sent or not sent["is_refusal"]:
+        return None, row["season"], 0
+    return tuple(sent["coord"]), row["season"], int(sent["n"])
 
 
 def reduce_all():
@@ -1531,7 +1700,7 @@ def reduce_all():
     misnamed = sorted(e["name"] for e in entries if e["name"].startswith(MISNAMED_PREFIX))
 
     seasons = json.loads((PROCESSED_DIR / "seasons.json").read_text())["seasons"]
-    season15 = next(s for s in seasons if s["year"] == 2015)
+    season15 = next(s for s in seasons if s["year"] == WINDOW_SEASON_YEAR)
 
     # WHAT THE INSTRUMENT PREFERS - measured, and not a small effect.
     #
@@ -1601,6 +1770,30 @@ def reduce_all():
                 "earlier, on that same bound body"
             ),
             "buckets": "the league's own four published categories: 0-2, 2-4, 4-6, 6+ ft",
+            "sentinel_corroboration": (
+                "the one measurement in this file whose subject is the SHOT RECORD rather than "
+                "the tracking feed. seasons.json says the record files a whole category of shot "
+                "on a single coordinate; that rested on one read of one database, and every "
+                "other source available today - including a live stats.nba.com query - is "
+                "another read of the SAME database. This asks a DIFFERENT INSTRUMENT. The join "
+                "between the two constrains the BALL (reconciles tests the ball at release "
+                f"against the filed coordinate within {MAX_ANCHOR_RESIDUAL_FT:g} ft); the "
+                "evidence here is the SHOOTER'S FEET, which the join never looks at, so a "
+                "dispersed result cannot be an artefact of the tolerance that admitted the shot. "
+                "The control is like-for-like because it has to be - the pile is almost entirely "
+                "dunks and the dunk family is where this project's own release detector is "
+                "weakest (see disagreement.by_action) - so it is restricted-area dunks the "
+                "record placed individually: same instrument, same season, same games, same "
+                "action family, same detector. `dispersed` reads `cells_per_shot` against "
+                f"{DISPERSION_MIN_CELLS_PER_SHOT:g}, which separates readings four orders of "
+                "magnitude apart. `at_the_rim` asks the other half of the question - if the feed "
+                "put these shots somewhere else entirely the record would be placing them "
+                "WRONGLY rather than declining to place them - and asks it like-for-like, "
+                "against the control's own spread rather than an absolute radius. SCOPE, stated "
+                "rather than buried: the public tracking release covers ONE of the six seasons "
+                "that file a displaced pile, and `sentinel.filed` against `filed_season` is how "
+                "much of that season the corpus reaches"
+            ),
             "hero": (
                 "one of the four shots the opening beat draws, one per published category, "
                 "chosen by the tightest corroboration with the record. A hero must BE one "
@@ -1933,6 +2126,12 @@ def reduce_all():
                        "never clipped); bucket; made; day"),
             "day0": day0,
         },
+        # A SECOND INSTRUMENT ON THE RECORD'S OWN REFUSAL. See
+        # measure_sentinel_corroboration: everything else in this file measures
+        # the tracking feed, and this one thing measures the SHOT RECORD with
+        # it. It is here rather than in seasons.json because this is where the
+        # evidence is; seasons.json's definition points at it.
+        "sentinel_corroboration": measure_sentinel_corroboration(load_anchors()),
     }
     write_json(PROCESSED_DIR / "window.json", out, compact=True)
 

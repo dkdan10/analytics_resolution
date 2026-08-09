@@ -195,8 +195,16 @@ def render_note(year, template, n_games, n_teams):
 def measure_resolution(year, df):
     """Measure how finely the record could draw this season.
 
-    Drives FADEAWAY's texture ladder. Every value here is a measurement of the
-    archive, not of the game.
+    Every value here is a measurement of the archive, not of the game.
+
+    MEASURED AT THE SENTINEL, NOT AT THE ORIGIN (changed 2026-08-09). Both the
+    regime and the arena spread used to be read off shots filed at EXACTLY
+    (0,0), which is one coordinate rather than the phenomenon: six seasons file
+    their refusal somewhere else and reported a flawless 0.0% while piling two
+    and a half to five per cent of the season onto a single cell beside the rim.
+    So the classification now reads `rim_sentinel` - the coordinate the record
+    actually piles on - and the exact-origin figures ship beside it, unchanged,
+    because they are what every earlier reading of this archive was made from.
     """
     n = len(df)
     at_origin = (df.LOC_X == 0) & (df.LOC_Y == 0)
@@ -204,11 +212,19 @@ def measure_resolution(year, df):
     ra_n = int(ra.sum())
     ra_origin = int((ra & at_origin).sum())
 
-    # Which action types the record declines to place. Through 2009-10 this is
-    # ordinary layups and dunks; from 2020-21 it is only tip-ins and putbacks.
+    sentinel = measure_rim_sentinel(df)
+
+    # Which action types the record declines to place - READ AT THE SENTINEL.
+    # Until 2026-08-09 this was read at the exact origin, so in 2017-18 through
+    # 2019-20 it named the handful of stragglers still filed at (0,0) - ten
+    # Driving Layups against a pile of 3,649 Tip Layups six tenths away - and in
+    # 2014-15 through 2016-17 it was empty. THE LEDGER composes the pin's
+    # caption out of the first key of this dict, so an origin-derived answer
+    # beside a sentinel-drawn pin would have put two different populations in
+    # one sentence.
     refused = (
-        df.loc[at_origin, "ACTION_TYPE"].value_counts().head(6).astype(int).to_dict()
-        if int(at_origin.sum()) else {}
+        {k: v["n"] for k, v in list(sentinel["composition"].items())[:6]}
+        if sentinel and sentinel["is_refusal"] else {}
     )
 
     # Resolution by building: a game is full-resolution when its restricted-area
@@ -223,15 +239,30 @@ def measure_resolution(year, df):
     full_arenas = sorted(by_arena[by_arena >= FULL_RES_ARENA_MIN_GAMES].index)
 
     arena_rate = per_game.groupby("arena")["snap"].mean()
-    spread_pp = float(100 * (arena_rate.max() - arena_rate.min())) if len(arena_rate) else 0.0
+    origin_spread_pp = (
+        float(100 * (arena_rate.max() - arena_rate.min())) if len(arena_rate) else 0.0
+    )
+
+    # The same question asked of the coordinate the record actually uses. In the
+    # uneven era the sentinel IS the origin, so this reproduces the old figure;
+    # in the six displaced seasons it is the only version that measures anything.
+    spread_pp = sentinel_arena_spread_pp(df, ra, sentinel)
+
+    # How much of the rim the refusal swallows. Zero when the busiest rim
+    # coordinate is not a refusal at all, because then nothing is being
+    # refused - a share read off an ordinary coordinate would classify four
+    # seasons on a number that means nothing.
     league_share = float(ra_origin / ra_n) if ra_n else 0.0
+    sentinel_share = (
+        float(sentinel["share_of_rim"]) if sentinel and sentinel["is_refusal"] else 0.0
+    )
 
     if spread_pp >= UNEVEN_SPREAD_PP:
         # Some buildings recorded rim coordinates and others did not.
         regime = "uneven"
-    elif league_share <= MOSTLY_SIGHTED_MAX:
+    elif sentinel_share <= MOSTLY_SIGHTED_MAX:
         regime = "uniformly_sighted"
-    elif league_share < 0.5:
+    elif sentinel_share < SENTINEL_WHOLESALE_SHARE:
         # A small, uniform residue confined to specific action types: the
         # taxonomy declining to place shots, not an instrument failing to see.
         regime = "categorical_refusal"
@@ -249,9 +280,13 @@ def measure_resolution(year, df):
         # measure_rim_sentinel: `origin_snapped` above measures one coordinate,
         # this measures the phenomenon, and for six seasons they disagree
         # completely.
-        "rim_sentinel": measure_rim_sentinel(df),
+        "rim_sentinel": sentinel,
         "regime": regime,
         "arena_spread_pp": spread_pp,
+        # The same spread measured at the exact origin - what the regime was
+        # classified on until 2026-08-09. Kept so the two readings can be
+        # compared rather than one silently replacing the other.
+        "origin_arena_spread_pp": origin_spread_pp,
         # Only meaningful where the regime is uneven; elsewhere every arena is
         # alike and naming a subset would imply a distinction that is not there.
         "full_resolution_arenas": full_arenas if regime == "uneven" else [],
@@ -259,6 +294,29 @@ def measure_resolution(year, df):
         "full_resolution_games": int(per_game["full"].sum()),
         "n_games_with_ra": int(len(per_game)),
     }
+
+
+def sentinel_arena_spread_pp(df, ra, sentinel):
+    """How unevenly the sentinel is used across the league's buildings.
+
+    The uneven era's whole finding is that rim blindness was a property of the
+    BUILDING - arenas run 0.1% to 99.8% - and that question has to be asked of
+    the coordinate the record actually piles on, or it is asked of an empty cell
+    for six seasons. It is also the second, weaker axis of the sentinel's
+    corroboration: a convention applied league-wide spreads a few points across
+    thirty arenas, a habit of one scorer's table spreads ninety-nine.
+    """
+    if sentinel is None:
+        return 0.0
+    x1, y1 = sentinel["coord"]
+    on = (df.LOC_X == x1) & (df.LOC_Y == y1)
+    per_game = (
+        df[ra].assign(_s=on[ra])
+        .groupby("GAME_ID")
+        .agg(s=("_s", "mean"), arena=("HTM", "first"))
+    )
+    rate = per_game.groupby("arena")["s"].mean()
+    return float(100 * (rate.max() - rate.min())) if len(rate) else 0.0
 
 
 """How far a refusal's coordinate must lead the busiest real one.
@@ -270,6 +328,37 @@ to about 15 classifies every season identically; 8 sits in the middle of that
 band. The same footing MIN_RUN_FRAMES stands on in paint.py.
 """
 SENTINEL_LEAD = 8.0
+
+"""How much of the rim a refusal must swallow before it is the rim itself.
+
+MEASURED, AND THE BAND IS ENORMOUS. Among the twenty-six seasons whose busiest
+rim coordinate is a refusal, `share_of_rim` is either 0.081-0.152 or 0.734-0.954
+and NOTHING falls between - a gap of 0.58. Below the band the record is
+declining to place a named CATEGORY of shot; above it the record is declining to
+place the rim. Any threshold from about 0.2 to about 0.7 classifies every season
+identically. This is the same 0.5 the regime already split on, named and
+measured rather than written into the branch.
+"""
+SENTINEL_WHOLESALE_SHARE = 0.5
+
+"""Which of the two categorical refusals a season files, from the record's own
+made/missed column.
+
+MEASURED, AND BIMODAL WITH A 0.27 EMPTY BAND. Among the seasons whose sentinel
+is a refusal, the pile converts at either 0.552-0.642 or 0.9085-0.9124, with
+nothing between. That is not a curiosity: a pile that converts at .91 is a pile
+of dunks, and one at .62 is a pile of tip-ins and putbacks. The action-type
+composition shipped beside it says the same thing in the record's own words -
+2014-15 to 2016-17 are 96.5-98.8% dunk, 2017-18 onward 97.7-99.1% tip or
+putback - so the label is a reading of two independent measurements rather than
+a claim standing on its own. Any threshold from about 0.65 to about 0.90
+classifies every season identically; 0.775 is the middle of the band.
+"""
+SENTINEL_DUNK_FG = 0.775
+
+# How many of the record's own names for what sits on the pile to ship. The
+# populations are so concentrated that eight covers 99.9% of every refusal.
+SENTINEL_COMPOSITION_N = 8
 
 
 def measure_rim_sentinel(df):
@@ -300,6 +389,30 @@ def measure_rim_sentinel(df):
 
     Nothing here is classified by eye. The lead over the runner-up is shipped, so
     a reader can see the separation rather than take the label on trust.
+
+    AND THE PILE IS NOT ONE THING (found 2026-08-09). The three addresses above
+    were read as one refusal that wandered. They are three different acts, and
+    the record's own columns say so without being asked twice:
+
+        1996-97 - 2009-10   (0, 0)   72-80% ordinary layups, converting at
+                                     .55-.63, and it holds 80-99% of every dunk,
+                                     layup and tip the season files. The record
+                                     is declining to place THE RIM.
+        2014-15 - 2016-17   (0, 1)   96.5-98.8% DUNK, converting at .91, holding
+                                     94.7-97.2% of the league's whole dunk
+                                     population. A dunk convention.
+        2017-18 -           (0,-6),  97.7-99.1% tip and putback, converting at
+                            then     .61-.64, holding 56-70% of the league's
+                            (0, 0)   whole tip and putback population - the same
+                                     four names in the same order either side of
+                                     the 2020-21 move.
+
+    So `categorical_refusal`, which this project described as beginning in
+    2020-21, began in 2017-18 at a different address; and the three seasons
+    before it are a different category again. `composition` ships the record's
+    own names and `share_of_type` beside each, which is the measurement the
+    reading rests on: a name whose whole season sits on one cell is a name the
+    record never placed at all.
     """
     ra = df[df.SHOT_ZONE_BASIC == "Restricted Area"]
     if ra.empty:
@@ -309,6 +422,29 @@ def measure_rim_sentinel(df):
     second = counts.iloc[1] if len(counts) > 1 else 0
     (x2, y2) = counts.index[1] if len(counts) > 1 else (None, None)
     lead = float(n1 / second) if second else float("inf")
+    is_refusal = bool(lead >= SENTINEL_LEAD)
+
+    # The pile itself: every shot the record filed on that coordinate, not only
+    # the restricted-area ones the sentinel was found among. For the (0,0)
+    # seasons this is exactly `origin_snapped`, which is the check qa.py makes.
+    pile = df[(df.LOC_X == x1) & (df.LOC_Y == y1)]
+    by_type = pile.ACTION_TYPE.value_counts()
+    season_by_type = df.ACTION_TYPE.value_counts()
+    composition = {
+        str(name): {
+            "n": int(k),
+            "share_of_pile": round(float(k) / len(pile), 5),
+            # WHAT SHARE OF THE LEAGUE'S WHOLE POPULATION OF THIS NAME SITS
+            # HERE. The finding: in 2015-16, 96.8% of every shot the record
+            # calls a Dunk Shot is on this one cell.
+            "share_of_type": round(float(k) / int(season_by_type[name]), 5),
+        }
+        for name, k in by_type.head(SENTINEL_COMPOSITION_N).items()
+    }
+
+    off = ra[(ra.LOC_X != x1) | (ra.LOC_Y != y1)]
+    fg = float(pile.SHOT_MADE_FLAG.mean())
+
     return {
         "coord": [int(x1), int(y1)],
         "n": n1,
@@ -319,10 +455,26 @@ def measure_rim_sentinel(df):
         # How far the leader leads. THE SEPARATION, shipped, so the label below
         # is a reading of a number rather than a claim on its own.
         "lead_ratio": round(lead, 2) if second else None,
-        "is_refusal": bool(lead >= SENTINEL_LEAD),
+        "is_refusal": is_refusal,
         # Only meaningful when it IS a refusal; None otherwise, rather than a
         # zero that would read as "the record refused nothing at (0,0)".
-        "at_origin": bool(x1 == 0 and y1 == 0) if lead >= SENTINEL_LEAD else None,
+        "at_origin": bool(x1 == 0 and y1 == 0) if is_refusal else None,
+        "pile_n": int(len(pile)),
+        "composition": composition,
+        "fg_pct": round(fg, 5),
+        # The same season's other rim shots. .91 means nothing without it.
+        "fg_pct_off_sentinel": (
+            round(float(off.SHOT_MADE_FLAG.mean()), 5) if len(off) else None
+        ),
+        # WHICH refusal this is, read off the two measured bands above. None
+        # when the busiest coordinate is not a refusal, because an ordinary
+        # coordinate is not a kind of anything.
+        "kind": (
+            None if not is_refusal
+            else "wholesale" if n1 / len(ra) >= SENTINEL_WHOLESALE_SHARE
+            else "dunk" if fg >= SENTINEL_DUNK_FG
+            else "tip_putback"
+        ),
     }
 
 
@@ -457,7 +609,7 @@ def measure_classification(df):
     return out
 
 
-def measure_classification_place(df):
+def measure_classification_place(df, pin_coord):
     """Where on the floor each of the record's own categories actually sits.
 
     THE MEASUREMENT THE FILING RESTS ON (V-05). THE CENSUS used to be two
@@ -473,14 +625,21 @@ def measure_classification_place(df):
     with a circular-mean bearing lands inside the band, and it is also the
     piece's native geometry: hoop origin, distance bands, the numeral annulus.
 
-    PLACED SHOTS ONLY. Shots the record filed at exactly the origin are
-    excluded, exactly as `marks.ts` excludes them and for the same reason - the
-    record gave them no place and the pin already carries them. This is the
-    standing "grain applies only where it was measured" decision. `n_placed`
-    ships beside `n` so a category whose place rests on a small minority of its
-    own shots says so: 1996-97's Restricted Area has ~70,000 shots and about
-    three thousand places, which is the piece's four-regime finding appearing
-    inside the census.
+    PLACED SHOTS ONLY. Shots the record filed on the SENTINEL are excluded,
+    exactly as `marks.ts` excludes them and for the same reason - the record
+    gave them no place and the pin already carries them. This is the standing
+    "grain applies only where it was measured" decision. `n_placed` ships beside
+    `n` so a category whose place rests on a small minority of its own shots
+    says so: 1996-97's Restricted Area has ~70,000 shots and about three
+    thousand places, which is the piece's regime finding appearing inside the
+    census.
+
+    THE EXCLUSION FOLLOWS THE PIN, and it has to (2026-08-09). It used to be
+    hardcoded to exactly (0,0), which was the same cell as the pin for
+    twenty-four seasons and a different one for six: from 2014-15 to 2019-20
+    the pin stands on a displaced pile that this measurement was still counting
+    as placed, so the same 4.7% of a season would have been drawn twice - once
+    under the pin and once inside the mean position of `Dunk Shot`.
 
     DISTANCE IS THE RECORD'S OWN `SHOT_DISTANCE`, not a radius re-derived from
     the coordinates - one fewer thing this pipeline invents, and it makes the
@@ -493,7 +652,8 @@ def measure_classification_place(df):
     refuses to strike them and counts them, which is the honest division - the
     measurement is the record's, the plate's edge is the plate's.
     """
-    placed = df[(df.LOC_X != 0) | (df.LOC_Y != 0)]
+    px, py = pin_coord if pin_coord is not None else (None, None)
+    placed = df if pin_coord is None else df[(df.LOC_X != px) | (df.LOC_Y != py)]
     # One angle per placed shot, reused across all six taxonomies.
     ang = np.arctan2(placed.LOC_Y.to_numpy(np.float64), placed.LOC_X.to_numpy(np.float64))
     sin_a, cos_a = np.sin(ang), np.cos(ang)
@@ -587,6 +747,16 @@ def aggregate_season(year):
     zone_counts = df.SHOT_ZONE_BASIC.value_counts()
     zone_made = df[made].SHOT_ZONE_BASIC.value_counts()
 
+    # WHERE THE PIN STANDS, and therefore which shots every other measurement
+    # here must treat as unplaced. One derivation, used by the filing below and
+    # by the per-dot `pin` flag in the sample, so a shot cannot be the pin's in
+    # one artifact and the floor's in another.
+    resolution = measure_resolution(year, df)
+    sentinel = resolution["rim_sentinel"]
+    pin_coord = (
+        tuple(sentinel["coord"]) if sentinel and sentinel["is_refusal"] else None
+    )
+
     row = {
         "year": year,
         "season": season_label(year),
@@ -609,11 +779,11 @@ def aggregate_season(year):
         "date_min": str(df.GAME_DATE.min()),
         "date_max": str(df.GAME_DATE.max()),
         "shot_type_nulls": type_nulls,
-        "resolution": measure_resolution(year, df),
+        "resolution": resolution,
         "schema": measure_schema(year),
         "vocabulary": measure_vocabulary(df),
         "classification": measure_classification(df),
-        "classification_place": measure_classification_place(df),
+        "classification_place": measure_classification_place(df, pin_coord),
         "contemporaneous": measure_contemporaneous(year, df),
         "note": None,
     }
@@ -628,8 +798,8 @@ def aggregate_season(year):
     take = min(SAMPLE_N, len(half))
     idx = np.sort(rng.choice(len(half), size=take, replace=False))
     s = half.iloc[idx]
-    # Per-dot provenance the renderer needs: `pin` marks dots the record filed at
-    # the origin (drawn as the pile, never jittered apart); `hires` marks dots
+    # Per-dot provenance the renderer needs: `pin` marks dots the record filed on
+    # the SENTINEL (drawn as the pile, never jittered apart); `hires` marks dots
     # from arenas that recorded rim coordinates that season (the arena inlay).
     hires_arenas = set(row["resolution"]["full_resolution_arenas"])
 
@@ -669,7 +839,10 @@ def aggregate_season(year):
         "y": s.LOC_Y.tolist(),
         "made": s.SHOT_MADE_FLAG.astype(int).tolist(),
         "three": (s.SHOT_TYPE == "3PT Field Goal").astype(int).tolist(),
-        "pin": ((s.LOC_X == 0) & (s.LOC_Y == 0)).astype(int).tolist(),
+        "pin": (
+            np.zeros(len(s), dtype=int).tolist() if pin_coord is None
+            else ((s.LOC_X == pin_coord[0]) & (s.LOC_Y == pin_coord[1])).astype(int).tolist()
+        ),
         "hires": s.HTM.isin(hires_arenas).astype(int).tolist(),
         "zone": zones,
         "action": actions,
@@ -779,8 +952,10 @@ def main():
         print(
             f"  {row['season']}  {row['attempts']:>7,} att  {row['n_games']:>5} games  "
             f"mid {100 * row['mid_share']:4.1f}%  3PT {100 * row['three_share']:4.1f}%  "
-            f"| rim unplaced {100 * res['ra_origin_share']:5.1f}%  "
-            f"{res['regime']:<20} {res['n_full_resolution_arenas'] or '':>2}"
+            f"| rim unplaced {100 * (res['rim_sentinel']['share_of_rim'] if res['rim_sentinel']['is_refusal'] else 0.0):5.1f}%"
+            f" at {str(tuple(res['rim_sentinel']['coord'])):>8}  "
+            f"{res['regime']:<20} {(res['rim_sentinel']['kind'] or ''):<12}"
+            f"{res['n_full_resolution_arenas'] or '':>2}"
             f"{'/' + str(row['n_teams']) if res['regime'] == 'uneven' else ''}"
             f"  | {row['vocabulary']['words']:>2} words"
         )
@@ -820,11 +995,57 @@ def main():
                 f"against {SENTINEL_LEAD:g}, chosen from the middle of an empty band: "
                 "across the corpus the lead is either about 2x or 18x and higher, with "
                 "nothing between, so any threshold from roughly 3 to 15 classifies every "
-                "season identically"
+                "season identically. "
+                "CORROBORATED AGAINST A SECOND INSTRUMENT, and the piece says these shots "
+                "were refused a place only because it is: 2015-16's pile is the one this "
+                "archive can be asked about twice, because that season is both one of the "
+                "six that file a displaced pile and the season the public SportVU tracking "
+                "release covers. The record files the whole pile on one coordinate; the "
+                "optical feed puts the shots it can see in very nearly one position each, "
+                "no more concentrated than dunks the record placed individually, and at "
+                "the same distance from the rim - so the coordinate is a filing convention "
+                "and not a location. The evidence is the SHOOTER'S FEET, which the join "
+                "between the two instruments never constrains. Read the figures, the "
+                "like-for-like control and the method from window.json under "
+                "`sentinel_corroboration`. SCOPE, and it is a real limit rather than a "
+                "footnote: ONE of the six seasons, and a minority of even that season's "
+                "pile. The other five are uncorroborated and no source available today can "
+                "corroborate them - every one of them is another read of the same database"
             ),
             "resolution.ra_origin_share": (
-                "restricted-area shots filed at exactly (0,0) - the record declining to say "
-                "where at the rim; drives the pin and the texture ladder"
+                "restricted-area shots filed at exactly (0,0). For twenty-four of the "
+                "thirty seasons that IS the record declining to say where at the rim, and "
+                "it is the figure every earlier reading of this archive was made from. For "
+                "the six seasons that file their refusal elsewhere it reports 0.0% or a "
+                "handful of stragglers and measures nothing - read `rim_sentinel`, which "
+                "is what the pin, the regime and the arena spread are all taken from now"
+            ),
+            "resolution.regime": (
+                "how the record placed rim shots that season, classified from "
+                "`rim_sentinel` rather than from the exact origin: `uneven` when the "
+                f"spread across arenas reaches {UNEVEN_SPREAD_PP:g} percentage points (the "
+                "refusal is a property of the BUILDING), `uniformly_sighted` when the "
+                f"sentinel refuses at most {100 * MOSTLY_SIGHTED_MAX:g}% of rim shots, "
+                f"`uniformly_blind` when it swallows {100 * SENTINEL_WHOLESALE_SHARE:g}% "
+                "or more of them, and `categorical_refusal` for the band between - a named "
+                "category of shot the taxonomy declines to place. `rim_sentinel.kind` "
+                "divides that band further, and is measured rather than labelled here"
+            ),
+            "resolution.rim_sentinel.composition": (
+                "the record's own names for what sits on the sentinel, with `share_of_pile` "
+                "and - the measurement the reading rests on - `share_of_type`, how much of "
+                "the season's WHOLE population of that name the pile holds. A name whose "
+                "season sits almost entirely on one cell is a name the record never placed"
+            ),
+            "resolution.rim_sentinel.kind": (
+                "which refusal this is, from two measured bands rather than by eye. "
+                f"`wholesale` when the pile is {100 * SENTINEL_WHOLESALE_SHARE:g}% or more "
+                "of the rim (measured: either 8-15% or 73-95% of it, nothing between); "
+                f"otherwise `dunk` when the pile converts at {SENTINEL_DUNK_FG:g} or better "
+                "and `tip_putback` when it does not (measured: either .552-.642 or "
+                ".9085-.9124, nothing between). The composition beside it says the same "
+                "thing in the record's own words, so the label rests on two independent "
+                "readings. null when the busiest rim coordinate is not a refusal at all"
             ),
             "resolution.full_resolution_arenas": (
                 "home arenas whose games recorded real rim coordinates that season; through "
