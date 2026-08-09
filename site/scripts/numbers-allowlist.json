@@ -104,6 +104,11 @@
       "file": "navigator.ts",
       "contains": "1-5 ACTS",
       "why": "KEY_HINTS: the presenter's keyboard, printed in the rail so a shortcut nobody is told about is not one (audit V-09). The digits are the NAMES OF KEYS - 0 the start, 1-5 the acts, 6-9 the window's four beats - not a quantity the record measured, and the beats they reach are derived from Navigator.starts(), which is derived from the schedule. Rail only: exhibit never builds it."
+    },
+    {
+      "file": "modes/operations.ts",
+      "text": "vocabulary.covering_90pct",
+      "why": "the NAME of a key in seasons.json, printed in THE STACK's rail so an operation declares the artifact it reads. The digits are part of an identifier the pipeline chose, not a quantity this file is asserting - the VALUE behind it is read from the artifact at run time and never appears in source. Same standing as a season label, which check-numbers already masks as an identifier."
     }
   ],
   "comments": [

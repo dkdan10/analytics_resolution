@@ -103,6 +103,21 @@ const MARK_LAYERS = [
   /^modes\/ledger\.ts$/,
   /^modes\/census\.ts$/,
   /^palette\.ts$/,
+  // Session 6's two, added in the commit that CREATES them and before the first
+  // material literal either one holds — which is the whole discipline, because
+  // the failure is silent in the safe-looking direction. A renderer outside this
+  // list ships every inline radius and alpha green, and since nothing fails
+  // there is no signal to come back and check.
+  //
+  // modes/stack.ts       — THE STACK, which composites the other hands' material
+  //   over one shared base and therefore declares dims, alphas and widths of its
+  //   own for every layer it composites.
+  // modes/operations.ts  — the operation table. It holds NO material value today
+  //   and is listed anyway: it is the file a material constant would most
+  //   naturally be hidden in, sitting one import away from the renderer, and a
+  //   list that only covers files that already failed is not a check.
+  /^modes\/stack\.ts$/,
+  /^modes\/operations\.ts$/,
 ];
 
 /** Sinks. A literal on a line that reaches one of these changes a mark. */

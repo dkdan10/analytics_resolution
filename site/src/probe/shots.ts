@@ -20,6 +20,7 @@
 
 import { buildInscriptions } from "../inscription";
 import { isModeId, type ModeId } from "../modes";
+import { parseOps } from "../modes/operations";
 import { GROUND } from "../palette";
 import { makeView } from "../plate";
 import { renderTo } from "../render";
@@ -33,6 +34,11 @@ export interface ShotRequest {
   height: number;
   dpr: number;
   talk?: boolean;
+  /** THE STACK's operation token, exactly as `?ops=` carries it — `lci` for
+   *  locate, classify and inscribe. Ignored by every other hand. Without it a
+   *  picture of THE STACK is always a picture of bare stone, which is the one
+   *  frame nobody needs a driver to imagine. */
+  ops?: string;
 }
 
 /**
@@ -63,6 +69,7 @@ export async function shotsProbe(env: Env): Promise<void> {
     renderTo(
       { ctx, view: makeView(r.width, r.height), dpr: r.dpr },
       r.t, env.data, env.schedule, inscriptions, mode, r.talk ?? false,
+      parseOps(r.ops ?? null),
     );
     return ctx;
   };

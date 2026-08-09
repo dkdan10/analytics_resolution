@@ -10,7 +10,15 @@
  * the record's own resolution changes.
  */
 
-import { factExternal, type FactsFile, type Season } from "./data";
+import { factExternal, type FactsFile, type Loaded, type Season } from "./data";
+import {
+  ALL_OPS,
+  has,
+  OPERATIONS,
+  type OpId,
+  type Operation,
+  type StackOps,
+} from "./modes/operations";
 import { ACT_TITLES, CUT_YEAR, stateAt, WINDOW_BEATS, WINDOW_YEAR, type Act, type Schedule } from "./timeline";
 
 export interface Transport {
@@ -23,6 +31,11 @@ export interface Transport {
   mode(): string;
   /** Step to the next hand, pinning it; wraps back to letting the loop rotate. */
   cycleMode(): void;
+  /** THE STACK's operation mask, and whether the panel that drives it applies. */
+  stack(): StackOps;
+  isStack(): boolean;
+  toggleOp(id: OpId): void;
+  allRenderings(): void;
 }
 
 interface Row {
@@ -49,6 +62,26 @@ const KEY_HINTS = [
   "W WINDOW · , . SEASON · ←→ SCRUB",
 ];
 
+/**
+ * What an operation's own artifact says the thing it reads IS.
+ *
+ * Read out of `data/processed/` at run time and never written here. Two reasons,
+ * and the second is the one that generalises: a sentence copied into source goes
+ * stale exactly the way a number does, and `window.json` and `paint.json` both
+ * ship a `definitions` block precisely so a renderer does not have to author
+ * one. Where the artifact has not been generated — `paint.json` and
+ * `window.json` are both optional stages and the piece runs without them — the
+ * row says the stage is absent rather than inventing a definition for it.
+ */
+function definitionOf(data: Loaded, op: Operation): string {
+  const [file, key] = op.definition;
+  const block =
+    file === "seasons" ? data.seasonDefinitions
+      : file === "window" ? data.window?.definitions
+        : data.paint?.definitions;
+  return block?.[key] ?? `${file}.json has not been generated`;
+}
+
 export class Navigator {
   private rows: Row[] = [];
   private current: Row | null = null;
@@ -58,6 +91,11 @@ export class Navigator {
   private playBtn: HTMLButtonElement;
   private scrubEl!: HTMLElement;
   private shownSecond = -1;
+  /** THE STACK's panel: hidden unless THE STACK is the hand now drawing. */
+  private stackEl!: HTMLElement;
+  private opBtns: { op: Operation; el: HTMLButtonElement; glyph: HTMLElement }[] = [];
+  private allBtn!: HTMLButtonElement;
+  private shownOps = -1;
 
   /** The scrolling list. The transport lives outside it, because a rail that
    *  scrolls its own controls off the top leaves the presenter with no mouse
@@ -69,8 +107,9 @@ export class Navigator {
     private schedule: Schedule,
     seasons: Season[],
     private transport: Transport,
-    facts: FactsFile,
+    data: Loaded,
   ) {
+    const facts: FactsFile = data.facts;
     root.hidden = false;
     root.innerHTML = "";
 
@@ -189,6 +228,15 @@ export class Navigator {
     }
     head.append(keys);
 
+    // OUTSIDE the head, and this is V-09's lesson rather than a layout taste.
+    // The head is `flex: 0 0 auto`, so anything put in it takes its full height
+    // out of the rail: the first build of this panel pushed the whole segment
+    // list off the bottom, which is the same failure as a transport that
+    // scrolls itself away — the presenter loses the controls exactly when they
+    // need them. It scrolls in its own region now, and the transport above and
+    // the segments below both keep their room.
+    root.append(this.buildStack(data));
+
     this.list = document.createElement("div");
     this.list.id = "nav-list";
     root.append(this.list);
@@ -247,6 +295,129 @@ export class Navigator {
       year: null,
       start: schedule.lastEnds,
     });
+  }
+
+  /**
+   * THE STACK's panel: seven operations, each declaring what it reads.
+   *
+   * WHAT KEEPS THIS FROM BEING THE SETTINGS PANEL THE AUDIT REFUSED. Every row
+   * names an ACT performed on a record rather than a renderer or a visual
+   * effect, and every row carries the artifact key it reads and the sentence
+   * that artifact ships defining it. A viewer reading this panel is reading a
+   * list of interpretations, with their sources — which is the argument, not a
+   * preferences dialog with better labels.
+   *
+   * BUILT ONCE AND HIDDEN, rather than built on demand: the rail is constructed
+   * once and `update()` only touches the DOM when something moved, which is the
+   * discipline the rest of this file keeps. Only the state glyphs and the
+   * hidden flag change per frame, and only when they actually differ.
+   *
+   * Real buttons throughout, with `aria-pressed` and `aria-keyshortcuts` — the
+   * idiom V-09 established, and for its reason: the transport used to be
+   * glyph-only divs that no keyboard could reach, and a new panel of clickable
+   * divs would put that back one session after it was fixed.
+   */
+  private buildStack(data: Loaded): HTMLElement {
+    const box = document.createElement("div");
+    box.id = "stack";
+    box.hidden = true;
+
+    const title = document.createElement("p");
+    title.className = "stack-title";
+    title.textContent = "THE OPERATIONS";
+    box.append(title);
+
+    const note = document.createElement("p");
+    note.className = "stack-note";
+    note.textContent = "nothing is applied until it is named";
+    box.append(note);
+
+    for (const op of OPERATIONS) {
+      const el = document.createElement("button");
+      el.type = "button";
+      el.className = "op";
+      if ("requires" in op) el.classList.add("op-modifier");
+
+      const line = document.createElement("span");
+      line.className = "op-line";
+      const glyph = document.createElement("span");
+      glyph.className = "op-glyph";
+      glyph.setAttribute("aria-hidden", "true");
+      const name = document.createElement("span");
+      name.className = "op-name";
+      name.textContent = op.title;
+      const key = document.createElement("span");
+      key.className = "op-key";
+      key.setAttribute("aria-hidden", "true");
+      key.textContent = op.key.toUpperCase();
+      line.append(glyph, name, key);
+
+      // The artifact key, then the sentence that artifact ships defining it.
+      // Two lines, and the spec asks for exactly these two — the rail is narrow
+      // and shares its height with the transport and a row per season, so a
+      // third line per operation is a third of the rail spent on prose.
+      const reads = document.createElement("span");
+      reads.className = "op-reads";
+      reads.textContent = op.reads.join("  ·  ");
+      const def = document.createElement("span");
+      def.className = "op-def";
+      def.textContent = definitionOf(data, op);
+      // Clamped to two lines in the rail; the artifact's whole sentence on hover,
+      // because the point of the line is that the record speaks for itself.
+      def.title = def.textContent;
+
+      el.append(line, reads, def);
+      // What the operation DOES lives here rather than in a third row: spoken
+      // by a screen reader, shown on hover, and costing the rail no height.
+      el.title = `${op.title} — ${op.does} (${op.key.toUpperCase()})`;
+      el.setAttribute("aria-label", `${op.title}: ${op.does}`);
+      el.setAttribute("aria-keyshortcuts", op.key.toUpperCase());
+      el.addEventListener("click", () => this.transport.toggleOp(op.id));
+      this.opBtns.push({ op, el, glyph });
+      box.append(el);
+    }
+
+    // The argumentative event. It is not a seven-fold convenience: applying
+    // every operation at once is the demonstration that maximal rendering is not
+    // maximal access, and the plate becomes illegible on purpose. HOLD UNTIL
+    // RELEASED, by the artist's ruling — pressing again restores exactly the
+    // selection it was applied over.
+    this.allBtn = document.createElement("button");
+    this.allBtn.type = "button";
+    this.allBtn.id = "all-renderings";
+    this.allBtn.textContent = "ALL RENDERINGS";
+    this.allBtn.title = "apply every operation at once (A) — press again to release";
+    this.allBtn.setAttribute("aria-label",
+      "apply every operation at once; press again to release");
+    this.allBtn.setAttribute("aria-keyshortcuts", "A");
+    this.allBtn.addEventListener("click", () => this.transport.allRenderings());
+    box.append(this.allBtn);
+
+    this.stackEl = box;
+    return box;
+  }
+
+  /** The panel's state, written only when the mask actually moved. */
+  private syncStack(): void {
+    const on = this.transport.isStack();
+    if (this.stackEl.hidden === on) this.stackEl.hidden = !on;
+    if (!on) return;
+    const ops = this.transport.stack();
+    if (ops === this.shownOps) return;
+    this.shownOps = ops;
+    for (const { op, el, glyph } of this.opBtns) {
+      const applied = has(ops, op.id);
+      glyph.textContent = applied ? "◼" : "◻";
+      el.setAttribute("aria-pressed", String(applied));
+      el.classList.toggle("on", applied);
+      // A modifier with nothing to modify is shown as inert rather than hidden:
+      // the dependency is part of what the panel is saying — CLASSIFY re-tints
+      // the base LOCATE draws and never draws a field of its own.
+      const inert = "requires" in op && !has(ops, op.requires as OpId);
+      el.classList.toggle("inert", applied && inert);
+    }
+    this.allBtn.setAttribute("aria-pressed", String(ops === ALL_OPS));
+    this.allBtn.classList.toggle("on", ops === ALL_OPS);
   }
 
   private addRow(label: string, _x: null, _start: number, cls: string): void {
@@ -327,6 +498,8 @@ export class Navigator {
 
     const hand = `▣ ${this.transport.mode()}`;
     if (this.handEl.textContent !== hand) this.handEl.textContent = hand;
+
+    this.syncStack();
 
     let row: Row | null = null;
     for (const r of this.rows) if (r.start <= time) row = r;

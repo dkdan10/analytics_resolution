@@ -81,10 +81,12 @@
 
 import { renderTo, type Target } from "../render";
 import type { ModeId } from "../modes";
+import { OPERATIONS, opsToken, toggle, type StackOps } from "../modes/operations";
 import type { PixelDiff } from "./shared";
 import {
   cold,
   beatsOf,
+  configsOf,
   diffPixels,
   emit,
   forceResidency,
@@ -152,37 +154,92 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
   // as the gallery does, rather than out of nothing.
   const base = schedule.duration;
 
-  const drawOn = (tg: Target, t: number, mode: ModeId) =>
-    renderTo(tg, t, data, schedule, inscriptions, mode);
-  const draw = (t: number, mode: ModeId) => drawOn(surface, t, mode);
+  // `ops` is threaded through EVERY draw here, defaulting to none, so the six
+  // hands that ignore it are measured exactly as they were before session 6 and
+  // their committed sweeps stay comparable.
+  const drawOn = (tg: Target, t: number, mode: ModeId, ops: StackOps = 0) =>
+    renderTo(tg, t, data, schedule, inscriptions, mode, false, ops);
+  const draw = (t: number, mode: ModeId, ops: StackOps = 0) => drawOn(surface, t, mode, ops);
   const pixels = (tg: Target) =>
     tg.ctx.getImageData(0, 0, PROBE_W * PROBE_DPR, PROBE_H * PROBE_DPR).data;
 
   /** The frames a history draws BEFORE the one under test. */
-  const replay = (tg: Target, t: number, mode: ModeId, history: History): void => {
-    if (history === "forward") drawOn(tg, t - SEEK_S, mode);
-    if (history === "backward") drawOn(tg, t + SEEK_S, mode);
+  const replay = (tg: Target, t: number, mode: ModeId, history: History, ops: StackOps): void => {
+    if (history === "forward") drawOn(tg, t - SEEK_S, mode, ops);
+    if (history === "backward") drawOn(tg, t + SEEK_S, mode, ops);
     if (history === "continuous") {
-      for (let k = Math.round(playback / STEP); k >= 1; k--) drawOn(tg, t - k * STEP, mode);
+      for (let k = Math.round(playback / STEP); k >= 1; k--) drawOn(tg, t - k * STEP, mode, ops);
     }
   };
 
   /** THE VERDICT ARM. The history warms the renderer's caches on a surface
    *  nobody reads, and the frame under test is drawn on a virgin one. */
-  const captureRenderer = (t: number, mode: ModeId, history: History): Uint8ClampedArray => {
+  const captureRenderer = (
+    t: number, mode: ModeId, history: History, ops: StackOps,
+  ): Uint8ClampedArray => {
     cold();
-    if (history !== "direct") replay(makeTarget(exact), t, mode, history);
+    if (history !== "direct") replay(makeTarget(exact), t, mode, history, ops);
     const tg = makeTarget(exact);
-    drawOn(tg, t, mode);
+    drawOn(tg, t, mode, ops);
     return pixels(tg);
   };
 
   /** The old arm, unchanged: history and frame share one destination. */
-  const captureSurface = (t: number, mode: ModeId, history: History): Uint8ClampedArray => {
+  const captureSurface = (
+    t: number, mode: ModeId, history: History, ops: StackOps,
+  ): Uint8ClampedArray => {
     cold();
-    replay(surface, t, mode, history);
-    draw(t, mode);
+    replay(surface, t, mode, history, ops);
+    draw(t, mode, ops);
     return pixels(surface);
+  };
+
+  /**
+   * THE TOGGLE ROUND-TRIP — the one question no seek test can ask.
+   *
+   * The audit's purity requirement has two halves. "Backward and forward
+   * scrubbing are pixel-identical for the same configuration and `t`" is what
+   * the four histories above test. "No toggle may retain artistic state between
+   * frames" is a different claim on a different axis, and nothing in this probe
+   * could see it: every history varies `t` at a fixed configuration, and this
+   * varies the CONFIGURATION at a fixed `t`.
+   *
+   * So: draw the frame, turn one operation on, turn it back off, draw it again.
+   * The two must be the same bytes. Run once per operation, so a failure names
+   * the operation that left something behind rather than the configuration that
+   * happened to contain it.
+   *
+   * COMPARED BY HASH, NEVER THROUGH `aboveNoise`. That predicate carries a hard
+   * thousand-channel, delta-two tolerance whatever floor the run measured — and
+   * a slow accumulation across a toggle is exactly the shape of defect it would
+   * swallow. This is the one place in the probe where a single differing channel
+   * really is a finding, and it is true here because both frames are drawn at
+   * the same `t` on virgin surfaces after the same number of passes: there is no
+   * destination-canvas confound left to excuse a difference with.
+   */
+  const roundTrip = (t: number, mode: ModeId, ops: StackOps): {
+    clean: boolean; failures: string[];
+  } => {
+    const failures: string[] = [];
+    for (const op of OPERATIONS) {
+      cold();
+      const before = hashPixels(pixels(drawFresh(t, mode, ops)));
+      // The excursion goes to a surface nobody reads, exactly as a history does:
+      // what is under test is whether the RENDERER kept anything, not whether a
+      // canvas rasterises its second pass like its first.
+      const scratch = makeTarget(exact);
+      drawOn(scratch, t, mode, toggle(ops, op.id));
+      drawOn(scratch, t, mode, ops);
+      const after = hashPixels(pixels(drawFresh(t, mode, ops)));
+      if (before !== after) failures.push(op.id);
+    }
+    return { clean: failures.length === 0, failures };
+  };
+
+  const drawFresh = (t: number, mode: ModeId, ops: StackOps): Target => {
+    const tg = makeTarget(exact);
+    drawOn(tg, t, mode, ops);
+    return tg;
   };
 
   // Settle every first-use cost before anything is captured. Without this the
@@ -208,18 +265,29 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
   // A floor taken on a shared surface says nothing about an arm that draws on a
   // virgin one, and the reverse: the two differ by precisely the effect the
   // renderer arm exists to remove.
+  // THE STACK's densest configuration, not its default, is what the floor has to
+  // be characterised on: its default is bare stone and therefore the cheapest
+  // frame in the piece, so a floor taken there would be measured on an empty
+  // plate and applied to a full one — the same mistake session 4 corrected when
+  // the floor was being taken on the prelude.
+  const heaviestOps = (m: ModeId): StackOps => {
+    const cs = configsOf(m);
+    return cs[cs.length - 1]!.ops;
+  };
   let floorTarget: Target = surface;
   const noise = measureNoiseFloor(
     () => {
       floorTarget = makeTarget(exact);
-      for (const mode of modes) drawOn(floorTarget, base + heaviest.at, mode);
+      for (const mode of modes) {
+        drawOn(floorTarget, base + heaviest.at, mode, heaviestOps(mode));
+      }
     },
     () => pixels(floorTarget),
     PROBE_W * PROBE_DPR,
   );
   const surfaceNoise = measureNoiseFloor(
     () => {
-      for (const mode of modes) draw(base + heaviest.at, mode);
+      for (const mode of modes) draw(base + heaviest.at, mode, heaviestOps(mode));
     },
     () => pixels(surface),
     PROBE_W * PROBE_DPR,
@@ -234,7 +302,12 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
   let withinNoise = 0;
   let surfaceImpure = 0;
 
+  const roundTrips: unknown[] = [];
+  let roundTripFailures = 0;
+
   for (const mode of modes) {
+   const configs = narrow("configuration", configsOf(mode), q.get("ops"), (c) => c.id);
+   for (const cfg of configs) {
     for (const beat of beats) {
       // Hand the main thread back between beats. Five thousand renders onto a
       // software-rasterised surface is minutes of work, and a page that cannot
@@ -252,14 +325,17 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
        * instrument that cannot tell "the piece is impure" from "the instrument
        * drifted" is not evidence, and this is the difference between the two.
        */
-      const arm = (cap: (t: number, m: ModeId, h: History) => Uint8ClampedArray, floor = noise) => {
+      const arm = (
+        cap: (t: number, m: ModeId, h: History, o: StackOps) => Uint8ClampedArray,
+        floor = noise,
+      ) => {
         const shots: Partial<Record<History, Uint8ClampedArray>> = {};
         const hashes: Partial<Record<History, string>> = {};
         for (const h of HISTORIES) {
-          shots[h] = cap(t, mode, h);
+          shots[h] = cap(t, mode, h, cfg.ops);
           hashes[h] = hashPixels(shots[h]!);
         }
-        const control = cap(t, mode, "direct");
+        const control = cap(t, mode, "direct", cfg.ops);
         const stable = hashPixels(control) === hashes.direct;
         // `direct` is what a fresh load produces, so it is what the others are
         // measured against.
@@ -299,9 +375,14 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
         : real ? "IMPURE" : identical ? "pure" : "within-noise";
       const surfaceVerdict = !surfaceArm.controlStable ? "INCONCLUSIVE"
         : surfaceReal ? "IMPURE" : _si ? "pure" : "within-noise";
-      console.log(`purity ${mode}/${beat.id}: ${verdict} (surface arm ${surfaceVerdict})`);
+      const where = mode === "stack" ? `${mode}[${cfg.id}]` : mode;
+      console.log(`purity ${where}/${beat.id}: ${verdict} (surface arm ${surfaceVerdict})`);
       rows.push({
         mode,
+        // Which operations were applied. `-` for the six hands that ignore the
+        // configuration entirely, so their rows read exactly as they always have.
+        config: cfg.id,
+        ops: mode === "stack" ? opsToken(cfg.ops) : "-",
         beat: beat.id,
         t: Number(t.toFixed(4)),
         verdict,
@@ -316,6 +397,20 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
       });
       if (surfaceVerdict === "IMPURE") surfaceImpure++;
     }
+    // Once per (mode, configuration), on the heaviest beat rather than on every
+    // beat in the sweep: the round-trip asks whether the renderer keeps anything
+    // across a configuration change, and the frame that has the most for it to
+    // keep is the one worth asking on. One excursion per operation per config is
+    // already the expensive part of a stack sweep.
+    if (mode === "stack") {
+      const rt = roundTrip(base + heaviest.at, mode, cfg.ops);
+      if (!rt.clean) roundTripFailures++;
+      console.log(`round-trip ${mode}[${cfg.id}]: ${rt.clean ? "clean" : `LEFT STATE: ${rt.failures.join(", ")}`}`);
+      roundTrips.push({
+        mode, config: cfg.id, ops: opsToken(cfg.ops), beat: heaviest.id, ...rt,
+      });
+    }
+   }
   }
 
   const byMode = Object.fromEntries(
@@ -339,7 +434,12 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
 
   return {
     probe: "purity",
-    verdict: inconclusive ? "INCONCLUSIVE" : impure === 0 ? "PURE" : "IMPURE",
+    // A round-trip failure is an IMPURE verdict for the whole run: it is the
+    // fifth rule failing on the configuration axis rather than the time axis,
+    // and burying it in a sub-object nobody reads is how `withinNoiseBeats`
+    // came to be invisible for a day.
+    verdict: inconclusive ? "INCONCLUSIVE"
+      : impure === 0 && roundTripFailures === 0 ? "PURE" : "IMPURE",
     surface: { width: PROBE_W, height: PROBE_H, dpr: PROBE_DPR },
     histories: HISTORIES,
     reference: "direct",
@@ -366,6 +466,18 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
         + "pass the way it rasterised its first",
     },
     surfaceImpureBeats: surfaceImpure,
+    /** The configuration axis: turning an operation on and off again must
+     *  return the exact bytes it started from. Hash equality, never the noise
+     *  predicate — see `roundTrip` for why that distinction is the test. */
+    roundTrip: {
+      what: "at a held t: draw, toggle one operation on, toggle it off, draw "
+        + "again. The two frames must hash identically. Compared by hash and "
+        + "NOT through aboveNoise, whose 1000-channel tolerance is the exact "
+        + "size of the accumulation this exists to catch",
+      configurations: roundTrips.length,
+      failures: roundTripFailures,
+      rows: roundTrips,
+    },
     surfaceNoiseFloor: surfaceNoise,
     rasterisation: exact
       ? "software (willReadFrequently), pinned - the floor is zero and a single "

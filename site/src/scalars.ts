@@ -1118,6 +1118,42 @@ export const SCALARS = {
       "a ceiling on that shadow, so a numeral at full strength does not punch a " +
       "hole of pure black through the plate.",
   },
+
+  // --- modes/stack.ts — THE STACK, seven operations over one base -----------
+  // Every one of these is a COMPOSITE weight: how loudly a layer speaks when it
+  // is one of seven rather than the whole frame. They are authored, they are
+  // material, and the reason they exist at all is that material tuned to own a
+  // frame is too loud inside a composite - which is the audit's "an all-on
+  // default dissolves the court into proof-of-capability spectacle", answered
+  // with numbers rather than with a promise.
+  STACK_FIELD_DIM: {
+    class: "authored",
+    value: 0.78,
+    material: true,
+    controls:
+      "how bright the one shot-material base is under a stack of operations. At " +
+      "full strength the field is the whole image and the six layers over it read " +
+      "as decoration on a picture that was already finished; held here, the marks " +
+      "stay the ground the other operations are applied TO.",
+  },
+  STACK_INSCRIPTION_DIM: {
+    class: "authored",
+    value: 0.72,
+    material: false,
+    controls:
+      "the struck season numerals' ink in the composite. In THE PLATE the figure " +
+      "is the thing the frame is about; here it is one operation of seven, and at " +
+      "its own weight it dominates every layer a presenter adds after it. " +
+      "Typography, not grain.",
+  },
+  STACK_DISCLOSURE_INSET: {
+    class: "authored",
+    value: 18,
+    material: false,
+    controls:
+      "how far inside the plate's far edge a disclosure line sits, in court " +
+      "tenths. Composition: it moves a sentence, never a mark.",
+  },
 } as const satisfies Record<string, Entry>;
 
 // --- the values, for the renderers ------------------------------------------
@@ -1257,3 +1293,7 @@ export const SLUG_ASIDE_ALPHA: number = SCALARS.SLUG_ASIDE_ALPHA.value;
 export const STRIKE_FACE_ALPHA: number = SCALARS.STRIKE_FACE_ALPHA.value;
 export const STRIKE_SHADOW_K: number = SCALARS.STRIKE_SHADOW_K.value;
 export const STRIKE_SHADOW_MAX: number = SCALARS.STRIKE_SHADOW_MAX.value;
+
+export const STACK_FIELD_DIM: number = SCALARS.STACK_FIELD_DIM.value;
+export const STACK_INSCRIPTION_DIM: number = SCALARS.STACK_INSCRIPTION_DIM.value;
+export const STACK_DISCLOSURE_INSET: number = SCALARS.STACK_DISCLOSURE_INSET.value;

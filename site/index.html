@@ -119,6 +119,110 @@
       }
       #keys p { margin: 0; }
 
+      /* THE STACK's operation panel. Present only while THE STACK is the hand
+         drawing, and never in exhibit — the rail itself does not exist there.
+         Each row is a real button carrying its own artifact key and the
+         definition that artifact ships, so the panel reads as a list of
+         interpretations with their sources rather than as preferences. */
+      #stack {
+        /* Its own scrolling region between the transport and the segment list,
+           so a panel of seven operations cannot push either of them away. */
+        flex: 0 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        margin: 0 0 8px;
+        border-top: 1px solid rgba(232, 226, 214, 0.07);
+        padding-top: 10px;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(232, 226, 214, 0.15) transparent;
+      }
+      #stack .stack-title {
+        margin: 0 16px 1px;
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        color: rgba(232, 226, 214, 0.42);
+      }
+      #stack .stack-note {
+        margin: 0 16px 8px;
+        font-size: 9px;
+        letter-spacing: 0.04em;
+        color: rgba(232, 226, 214, 0.26);
+      }
+      .op {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        padding: 4px 16px 5px;
+        background: transparent;
+        border: 0;
+        text-align: left;
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+      }
+      .op:hover { background: rgba(232, 226, 214, 0.05); }
+      .op.on { background: rgba(232, 226, 214, 0.07); }
+      /* A modifier sits under the thing it modifies: CLASSIFY re-tints the base
+         LOCATE draws and never draws a field of its own. */
+      .op-modifier { padding-left: 28px; }
+      .op-line { display: flex; gap: 6px; align-items: baseline; }
+      .op-glyph { color: rgba(232, 226, 214, 0.35); }
+      .op.on .op-glyph { color: var(--bone); }
+      .op-name {
+        flex: 1 1 auto;
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        color: rgba(232, 226, 214, 0.5);
+      }
+      .op.on .op-name { color: var(--bone); }
+      .op-key { font-size: 9px; color: rgba(232, 226, 214, 0.22); }
+      .op-reads, .op-def {
+        display: block;
+        font-size: 9px;
+        line-height: 1.45;
+        letter-spacing: 0.02em;
+        padding-left: 15px;
+      }
+      .op-reads { color: rgba(232, 226, 214, 0.36); margin-top: 2px; }
+      /* The record's own sentence, not this piece's. Some of these definitions
+         are a paragraph, so they are clamped with an ellipsis rather than cut
+         mid-word — a sentence sliced through the middle of a clause reads as a
+         rendering fault, and the whole point of the line is that the artifact
+         speaks for itself. The full text is one hover away in the title. */
+      .op-def {
+        color: rgba(232, 226, 214, 0.2);
+        margin-top: 1px;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        overflow: hidden;
+      }
+      /* Applied, but with nothing to apply itself to. Shown rather than hidden:
+         the dependency is part of what the panel is saying. */
+      .op.inert .op-name { color: rgba(232, 226, 214, 0.32); font-style: italic; }
+      #all-renderings {
+        display: block;
+        width: calc(100% - 32px);
+        margin: 8px 16px 2px;
+        padding: 5px 0;
+        background: transparent;
+        border: 1px solid rgba(232, 226, 214, 0.12);
+        border-radius: 2px;
+        font-family: var(--mono);
+        font-size: 9px;
+        letter-spacing: 0.18em;
+        color: rgba(232, 226, 214, 0.45);
+        cursor: pointer;
+      }
+      #all-renderings:hover { border-color: rgba(232, 226, 214, 0.35); color: var(--bone); }
+      #all-renderings.on {
+        border-color: rgba(232, 226, 214, 0.5);
+        background: rgba(232, 226, 214, 0.1);
+        color: var(--bone);
+      }
+
       /* Every control in the rail is reachable from the keyboard, so every
          control has to SHOW that it has focus. Bone, not the browser's blue. */
       #nav :focus-visible {

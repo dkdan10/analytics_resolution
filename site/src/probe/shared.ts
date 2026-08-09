@@ -9,6 +9,7 @@
 import type { Loaded } from "../data";
 import type { Inscription } from "../inscription";
 import { MODE_IDS, type ModeId } from "../modes";
+import { ALL_OPS, bitOf, NO_OPS, OPERATIONS, type StackOps } from "../modes/operations";
 import { clearLayers } from "../field";
 import { clearStamps } from "../marks";
 import { clearCensusCaches } from "../modes/census";
@@ -138,6 +139,36 @@ export function beatsOf(schedule: Schedule): Beat[] {
 }
 
 export const MODES: readonly ModeId[] = MODE_IDS;
+
+/**
+ * THE STACK's third axis: which operations are applied.
+ *
+ * The other six hands are a pure function of `(mode, t)` and this probe sweeps
+ * exactly that. THE STACK takes a configuration as well, so a sweep that only
+ * ever renders it with nothing switched on has tested the one frame that is
+ * guaranteed to be cheap and empty — a control, and a necessary one, but not
+ * coverage.
+ *
+ * The shape is the audit's own minimum: nothing on, each operation ALONE (so a
+ * row that moves names the operation that moved it), and everything at once —
+ * which is also the densest frame the view can produce, and therefore the one
+ * the noise floor and the frame budget both have to be judged on. Every
+ * configuration is a real address, `?ops=lci`, so a row in the verdict can be
+ * reopened in a browser exactly as it was measured.
+ */
+export interface Config {
+  id: string;
+  ops: StackOps;
+}
+
+export function configsOf(mode: ModeId): Config[] {
+  if (mode !== "stack") return [{ id: "-", ops: NO_OPS }];
+  return [
+    { id: "none", ops: NO_OPS },
+    ...OPERATIONS.map((o) => ({ id: o.id, ops: bitOf(o.id) })),
+    { id: "all", ops: ALL_OPS },
+  ];
+}
 
 /**
  * Narrow a sweep, and refuse a filter that matches nothing.

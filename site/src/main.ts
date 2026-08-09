@@ -8,7 +8,16 @@
 import { exhibitClock, TalkClock, type Clock } from "./clock";
 import { load } from "./data";
 import { buildInscriptions } from "./inscription";
-import { isModeId, modeAt, MODE_IDS, MODE_TITLES, type ModeId } from "./modes";
+import { isGalleryMode, isModeId, modeAt, MODE_IDS, MODE_TITLES, type ModeId } from "./modes";
+import {
+  ALL_OPS,
+  NO_OPS,
+  opForKey,
+  opsToken,
+  parseOps,
+  toggle,
+  type StackOps,
+} from "./modes/operations";
 import { Navigator } from "./navigator";
 import { makeView } from "./plate";
 import { renderTo, type Target } from "./render";
@@ -52,10 +61,31 @@ function resize(): void {
  * straight after the acts, so the number row reads as the piece's own order:
  * 0 the start, 1-5 the acts, then the inside of act 3.
  *
- * `cycleMode` is passed in rather than reached for, because the rail owns the
- * mode override and there is exactly one of it.
+ * THE STACK'S SEVEN OPERATIONS TAKE LETTERS, and the letter is the same one the
+ * URL token uses — `operations.ts` holds that alphabet and both readers take it
+ * from there, the way `WINDOW_BEATS` is one definition read by the rail and by
+ * the hand. `a` applies all seven at once. Those eight keys are LIVE ONLY WHILE
+ * THE STACK IS PINNED: a key that silently mutates a configuration nothing on
+ * screen is showing is worse than no key, and `c` belongs to nobody while THE
+ * CENSUS is drawing.
+ *
+ * `cycleMode` and `stack` are passed in rather than reached for, because the
+ * rail owns the mode override and the operation mask and there is exactly one
+ * of each.
  */
-function bindTalkKeys(clock: TalkClock, schedule: Schedule, cycleMode: () => void): void {
+interface StackKeys {
+  /** Whether THE STACK is the hand now drawing, so these keys mean anything. */
+  active(): boolean;
+  toggle(id: Parameters<typeof toggle>[1]): void;
+  all(): void;
+}
+
+function bindTalkKeys(
+  clock: TalkClock,
+  schedule: Schedule,
+  cycleMode: () => void,
+  stack: StackKeys,
+): void {
   const beats = Navigator.starts(schedule).filter((s) => {
     const w = schedule.byYear.get(WINDOW_YEAR);
     return w ? s >= w.start && s < w.start + w.duration : false;
@@ -69,6 +99,20 @@ function bindTalkKeys(clock: TalkClock, schedule: Schedule, cycleMode: () => voi
       && (e.key === " " || e.key === "Enter" || e.key.startsWith("Arrow")
         || e.key === "Home" || e.key === "End")) {
       return;
+    }
+    // THE STACK's own alphabet, before the piece's transport, and only while
+    // THE STACK is drawing. `a` is the argumentative event; the other seven are
+    // one operation each, keyed in `operations.ts`.
+    if (stack.active()) {
+      if (e.key === "a") {
+        stack.all();
+        return;
+      }
+      const op = opForKey(e.key);
+      if (op) {
+        stack.toggle(op.id);
+        return;
+      }
     }
     switch (e.key) {
       case "h":
@@ -160,12 +204,37 @@ async function main(): Promise<void> {
   // With no override the loop rotates hands, so the mode axis stays a pure
   // function of the same float and the rail keeps scrubbing it. Pinning one is
   // the presenter's affordance, not the gallery's.
+  //
+  // AND ONE OF THE SEVEN IDS MAY NOT BE PINNED WITHOUT A RAIL. `?mode=` used to
+  // be honoured anywhere, which was harmless while every id named a hand that
+  // draws the whole record. THE STACK opens on bare stone and is driven entirely
+  // from the rail and the keyboard, neither of which exists on a wall machine —
+  // so `/?mode=stack` there would pin an empty plate with no way out of it.
+  // Artist's ruling, 2026-08-09: require talk or nav. An ignored `?mode=` falls
+  // back to the rotation, which is the same thing a misspelt one has always done.
+  const talking = q.has("talk") || wantsNav;
   const requested = q.get("mode");
-  let modeOverride: ModeId | null = isModeId(requested) ? requested : null;
+  let modeOverride: ModeId | null =
+    isModeId(requested) && (talking || isGalleryMode(requested)) ? requested : null;
+
+  /**
+   * THE STACK's operation mask — UI state here, mode configuration downstream.
+   *
+   * Exactly the standing this file already gives `modeOverride`: a variable the
+   * rail and the keyboard write, read once per frame, and hand to a `renderTo`
+   * that is a pure function of it. Nothing accumulates, and the same
+   * `(mask, t)` always produces the same pixels.
+   */
+  let ops: StackOps = parseOps(q.get("ops"));
+  /** What ALL RENDERINGS was applied over, so releasing it returns to exactly
+   *  that. The artist chose hold-until-released over a decaying transient, which
+   *  is why the return is a remembered NUMBER and not an arithmetic — restoring
+   *  it is byte-identical because it is the same configuration. */
+  let beforeAll: StackOps = ops;
 
   let clock: Clock;
   let nav: Navigator | null = null;
-  if (q.has("talk") || wantsNav) {
+  if (talking) {
     const tc = new TalkClock(offset);
     // The hand key and the rail's hand row are the same action, so they share
     // one implementation rather than two that can drift.
@@ -173,7 +242,45 @@ async function main(): Promise<void> {
       const i = modeOverride === null ? 0 : MODE_IDS.indexOf(modeOverride) + 1;
       modeOverride = i >= MODE_IDS.length ? null : MODE_IDS[i]!;
     };
-    bindTalkKeys(tc, schedule, cycleMode);
+    /**
+     * Keep the address bar naming the frame on screen.
+     *
+     * A configuration reachable only by pressing keys is not addressable, and
+     * addressability is a purity requirement here rather than a nicety: the
+     * harness reaches a frame by direct URL and has to be able to reach a
+     * CONFIGURED one. `replaceState` rather than `pushState` — the browser's
+     * back button is not a transport for this piece, and a talk's worth of
+     * toggles should not be a talk's worth of history entries.
+     */
+    const address = () => {
+      const url = new URL(location.href);
+      if (ops === NO_OPS) url.searchParams.delete("ops");
+      else url.searchParams.set("ops", opsToken(ops));
+      history.replaceState(null, "", url);
+    };
+    const stackKeys = {
+      active: () => modeOverride === "stack",
+      toggle: (id: Parameters<typeof toggle>[1]) => {
+        ops = toggle(ops, id);
+        // A single toggle re-bases the release point, so ALL RENDERINGS always
+        // returns to the last thing the presenter actually chose rather than to
+        // whatever was up several minutes ago.
+        beforeAll = ops;
+        address();
+      },
+      all: () => {
+        // Hold until released (artist's ruling): the argumentative event IS the
+        // configuration with every bit set, and the presenter decides how long
+        // the audience sits in it. Pressing again restores the previous mask.
+        if (ops === ALL_OPS) ops = beforeAll;
+        else {
+          beforeAll = ops;
+          ops = ALL_OPS;
+        }
+        address();
+      },
+    };
+    bindTalkKeys(tc, schedule, cycleMode, stackKeys);
     clock = tc;
     if (wantsNav) {
       document.body.classList.remove("exhibit");
@@ -194,6 +301,13 @@ async function main(): Promise<void> {
         // so the gallery behaviour is always one click away. Same function the
         // H key calls.
         cycleMode,
+        // THE STACK's operation panel. Same three functions the keyboard calls,
+        // for the same reason the hand row and the H key share one: a rail and
+        // a key that do the same thing must be the same code or they drift.
+        stack: () => ops,
+        isStack: () => modeOverride === "stack",
+        toggleOp: stackKeys.toggle,
+        allRenderings: stackKeys.all,
         nudgeSegment: (dir) => {
           const now = ((tc.seconds % schedule.duration) + schedule.duration) % schedule.duration;
           // Step by segment INDEX, never by elapsed seconds. A seek leaves the
@@ -205,7 +319,7 @@ async function main(): Promise<void> {
           for (let k = 0; k < starts.length; k++) if (starts[k]! <= now + 0.01) i = k;
           tc.seek(starts[i + dir] ?? (dir === 1 ? 0 : starts[starts.length - 1]!));
         },
-      }, data.facts);
+      }, data);
     }
   } else {
     document.body.classList.add("exhibit");
@@ -223,7 +337,7 @@ async function main(): Promise<void> {
   const inscriptions = buildInscriptions(data.seasons, schedule);
   const frame = (now: number) => {
     const t = clock.at(now);
-    renderTo(target, t, data, schedule, inscriptions, modeOverride, wantsNav);
+    renderTo(target, t, data, schedule, inscriptions, modeOverride, wantsNav, ops);
     nav?.update(t);
     requestAnimationFrame(frame);
   };

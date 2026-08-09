@@ -83,12 +83,16 @@ await page.waitForFunction(() => window.__probeDone !== undefined, null, { timeo
 
 mkdirSync(outDir, { recursive: true });
 for (const spec of shots) {
-  const [mode, t] = spec.split("@");
-  const dataUrl = await page.evaluate(async ({ mode, t, width, height, dpr, talk }) => {
-    const png = await window.__shot({ mode, t: Number(t), width, height, dpr, talk });
+  // `hand@t` as before, and `stack:lci@t` for THE STACK — the operations after
+  // the colon are the same token `?ops=` takes, so a filename says exactly what
+  // configuration produced the picture.
+  const [where, t] = spec.split("@");
+  const [mode, ops = ""] = where.split(":");
+  const dataUrl = await page.evaluate(async ({ mode, t, width, height, dpr, talk, ops }) => {
+    const png = await window.__shot({ mode, t: Number(t), width, height, dpr, talk, ops });
     return png;
-  }, { mode, t, width, height, dpr, talk });
-  const name = `${mode}-${String(t).replace(".", "_")}.png`;
+  }, { mode, t, width, height, dpr, talk, ops });
+  const name = `${mode}${ops ? `-${ops}` : ""}-${String(t).replace(".", "_")}.png`;
   writeFileSync(join(outDir, name), Buffer.from(dataUrl.split(",")[1], "base64"));
   console.log(`shots: ${join(outDir, name).replace(`${REPO}/`, "")}`);
 }

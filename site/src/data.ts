@@ -666,6 +666,15 @@ export interface Loaded {
    *  finite list and the probes assert it is empty before believing a row. */
   assetErrors(): string[];
   provenance: Record<string, string>;
+  /**
+   * `seasons.json:definitions` — the pipeline's own sentence for each key it
+   * ships. Carried into the site by session 6 because THE STACK's rail states,
+   * beside every operation, what the artifact behind it means; and a definition
+   * copied into a TypeScript string is a definition that will go stale, which is
+   * the honesty rule applied to prose rather than to a number. `window.json` and
+   * `paint.json` already reached the site with theirs.
+   */
+  seasonDefinitions: Record<string, string>;
   /** Which database column each of the six taxonomies IS — `DESCRIPTION` is
    *  `ACTION_TYPE`. THE CENSUS strikes the machine's own field name into the
    *  floor, and a name the record uses is a name the record has to supply. Its
@@ -831,6 +840,7 @@ export async function load(): Promise<Loaded> {
       return all.filter(([, e]) => e !== null).map(([n, e]) => `${n}: ${e}`);
     },
     provenance: file.provenance,
+    seasonDefinitions: file.definitions,
     taxonomyColumns: file.taxonomy_columns,
   };
 }

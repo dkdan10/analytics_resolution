@@ -101,7 +101,10 @@ async function main() {
   const timeoutMs = Number(flags.timeout ?? (kind === "purity" ? 3600 : 900)) * 1000;
 
   const q = new URLSearchParams({ probe: kind });
-  for (const k of ["mode", "beat", "t", "frames", "playback"]) {
+  // `ops` narrows THE STACK's configuration axis the way `mode` and `beat`
+  // narrow the other two. Without it a stack run always sweeps every
+  // configuration, which is right for a verdict and slow for an iteration.
+  for (const k of ["mode", "beat", "t", "frames", "playback", "ops"]) {
     if (flags[k] !== undefined) q.set(k, flags[k]);
   }
   if (bools.has("exact")) q.set("exact", "1");
@@ -207,7 +210,7 @@ async function main() {
   // `--out` names the file, so a "before" measurement is not overwritten by the
   // "after" that is supposed to be compared with it. Unnamed narrowed runs are
   // marked partial rather than posing as a full sweep.
-  const suffix = flags.mode || flags.beat || flags.t ? "-partial" : "";
+  const suffix = flags.mode || flags.beat || flags.t || flags.ops ? "-partial" : "";
   const path = join(OUT_DIR, flags.out ? `${flags.out}.json` : `${kind}${suffix}.json`);
   writeFileSync(path, `${JSON.stringify(stamped, null, 2)}\n`);
 

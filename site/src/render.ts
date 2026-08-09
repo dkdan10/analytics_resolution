@@ -14,6 +14,7 @@
 import { factExternal, type Loaded } from "./data";
 import { drawSlug, type Inscription } from "./inscription";
 import { drawHand, modeAt, type ModeId } from "./modes";
+import { NO_OPS, type StackOps } from "./modes/operations";
 import { GROUND } from "./palette";
 import { drawPlate, shortenedThreeR, type View } from "./plate";
 import { CUT_YEAR, stateAt, type Schedule } from "./timeline";
@@ -103,6 +104,14 @@ export function renderTo(
    *  stays a pure function of its arguments. Defaulted false so every probe and
    *  every caller that does not care gets the gallery. */
   talk = false,
+  /** Which of THE STACK's seven operations are applied. The same kind of thing
+   *  as `talk` and on the same footing — passed in, never written to, nothing
+   *  held between frames — and unlike `talk` it is addressable, because the
+   *  purity harness reaches a frame by direct URL and has to be able to reach
+   *  a CONFIGURED one. Every hand but THE STACK ignores it; defaulted to none,
+   *  which is the view's own opening state, so a caller that does not care gets
+   *  bare stone rather than an arbitrary selection. */
+  stack: StackOps = NO_OPS,
 ): void {
   const st = stateAt(t, schedule);
 
@@ -182,7 +191,7 @@ export function renderTo(
   // ground, the prelude, the era's arc.
   if (remains > 0.001) {
     drawHand(modeAt(t, schedule, modeOverride), {
-      ctx, view, dpr, st, data, schedule, inscriptions, remains, talk,
+      ctx, view, dpr, st, data, schedule, inscriptions, remains, talk, stack,
     });
   }
 

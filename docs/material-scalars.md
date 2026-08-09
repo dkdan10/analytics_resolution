@@ -4,7 +4,7 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**122 scalars**, 87 of them material: 2 measured, 3 geometry, 117 authored.
+**125 scalars**, 88 of them material: 2 measured, 3 geometry, 120 authored.
 
 A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
@@ -266,3 +266,9 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   how much darker the numeral's upper wall is than its face - the whole of the illusion that the figure is cut rather than printed.
 - **STRIKE_SHADOW_MAX** — **0.85**  
   a ceiling on that shadow, so a numeral at full strength does not punch a hole of pure black through the plate.
+- **STACK_FIELD_DIM** — **0.78**  
+  how bright the one shot-material base is under a stack of operations. At full strength the field is the whole image and the six layers over it read as decoration on a picture that was already finished; held here, the marks stay the ground the other operations are applied TO.
+- **STACK_INSCRIPTION_DIM** — **0.72** *(not material)*  
+  the struck season numerals' ink in the composite. In THE PLATE the figure is the thing the frame is about; here it is one operation of seven, and at its own weight it dominates every layer a presenter adds after it. Typography, not grain.
+- **STACK_DISCLOSURE_INSET** — **18** *(not material)*  
+  how far inside the plate's far edge a disclosure line sits, in court tenths. Composition: it moves a sentence, never a mark.
