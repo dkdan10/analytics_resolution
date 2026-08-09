@@ -33,6 +33,7 @@ import {
   SCATTER_ALPHA,
   SCATTER_MIN_PX,
   SCATTER_TENTHS,
+  SLUG_STATEMENT_TENTHS,
   TERM_ALPHA_AGED,
   TERM_ALPHA_FRESH,
   TERM_BIRTH_TENTHS,
@@ -322,9 +323,9 @@ function utterancesFor(
   sample: Sample,
   seasons: Season[],
   writingSeconds: number,
-  /** Boxes already spoken for all act long - the league's names, in Acts III
-   *  and V. A function of the act, which is a function of the year, so the
-   *  memo key stays the year alone. */
+  /** Boxes occupied for the whole season - the league's names in Acts III and
+   *  V, and the pin's caption in every season that refuses. Functions of the
+   *  year and the season alone, so the memo key stays the year alone. */
   fixed: Box[],
 ): Term[] {
   const hit = utterances.get(year);
@@ -460,6 +461,47 @@ function leagueObstacles(data: Loaded, year: number): Box[] {
     : [];
 }
 
+/** The caption sits three feet below the pile it names, in court tenths.
+ *  Shared by `drawPinLabel` and `pinCaptionBox` so the drawn caption and the
+ *  box the register avoids cannot drift apart. */
+const PIN_CAPTION_DROP = 30;
+
+/**
+ * The pin caption's footprint, in COURT TENTHS, derived from the SEASON alone.
+ *
+ * Until 2026-08-09 the refusal's one caption was in nobody's collision set —
+ * `utterancesFor`'s fixed obstacles were the league boxes only, `drawLabels`'
+ * live set was terms plus league boxes — so in the act the piece dilates a
+ * birth term's margin line and a scatter label struck straight through it
+ * (second audit, O1). The rect joins both sets now, from this one derivation.
+ *
+ * Every input is the season's: the sentinel's final count (the caption's widest
+ * state — conservative while the count is still growing, and free of `t`), the
+ * head of the same pile, and the statement rank's size in tenths. Nothing from
+ * the viewport or the hand, which is what lets the box join the year-keyed
+ * memo — see `ledgerUtterances`. Width adds `drawSlug`'s own per-character
+ * letter-spacing fraction, which `widthTenths`'s ruler does not apply.
+ */
+function pinCaptionBox(season: Season): Box | null {
+  const sentinel = season.resolution.rim_sentinel;
+  if (!sentinel || !sentinel.is_refusal) return null;
+  const size = SLUG_STATEMENT_TENTHS;
+  const lines = [`${sentinel.n.toLocaleString()} SHOTS · NO PLACE GIVEN`];
+  const refused = Object.keys(season.resolution.refused_action_types)[0];
+  if (refused) lines.push(refused.toUpperCase());
+  const w = Math.max(...lines.map((l) => widthTenths(l, size) + 0.14 * size * l.length));
+  // `drawSlug` stacks lines down-screen, and screen-down is DECREASING court
+  // y, so the second line sits one line-advance below the anchor in court
+  // terms. Height uses the same line-height convention as every other Box here.
+  const drop = (lines.length - 1) * 1.9 * size;
+  return {
+    wx: sentinel.coord[0] - w / 2,
+    wy: sentinel.coord[1] - PIN_CAPTION_DROP - drop / 2,
+    w,
+    h: drop + size * 1.7,
+  };
+}
+
 /**
  * What this season says, and when — the whole of the spoken register, in one
  * place, so that two hands cannot ask for it two different ways.
@@ -491,8 +533,16 @@ export function ledgerUtterances(
   // A season spends `ARRIVAL_TAIL` of itself being written; the utterances are
   // spread over exactly that, so a term lands with the marks it describes.
   const secs = seg.duration * ARRIVAL_TAIL;
-  const terms = utterancesFor(year, season, sample, data.seasons, secs,
-    leagueObstacles(data, year));
+  // The fixed obstacles: the league's boxes (a function of the act, so of the
+  // year) and the pin's caption (a function of the season). Both are properties
+  // of the YEAR and never of the hand or the viewport, so the year-only memo
+  // in `utterancesFor` stays sound with the pin rect enrolled — every caller
+  // receives the same obstacle set for a given year, by construction.
+  const pinBox = pinCaptionBox(season);
+  const fixed = pinBox
+    ? [...leagueObstacles(data, year), pinBox]
+    : leagueObstacles(data, year);
+  const terms = utterancesFor(year, season, sample, data.seasons, secs, fixed);
   return {
     terms,
     interval: secs / Math.max(1, terms.length),
@@ -537,8 +587,12 @@ export function drawLedgerHand(f: Frame): void {
     });
     // The league's names hold their ground against the grain too. They are the
     // whole of Act V's argument and a scatter label running through PASSING
-    // makes them one more piece of noise.
+    // makes them one more piece of noise. The pin's caption holds its ground
+    // the same way — the same box the spoken register avoids, from the same
+    // derivation, so the two readers cannot disagree about where it stands.
     speaking = [...speaking, ...leagueObstacles(data, year)];
+    const pinBox = pinCaptionBox(season);
+    if (pinBox) speaking = [...speaking, pinBox];
 
     // The scatter goes down FIRST and yields wherever a term is speaking, so
     // the big register has the local emptiness that makes it read.
@@ -630,9 +684,11 @@ function drawPinLabel(f: Frame, season: Season): void {
   const lines = [`${count.toLocaleString()} SHOTS · NO PLACE GIVEN`];
   if (refused) lines.push(refused.toUpperCase());
   // Under the pile it names, wherever the record filed it - a caption anchored
-  // three feet below the origin would sit under nothing in six seasons.
+  // three feet below the origin would sit under nothing in six seasons. The
+  // drop is shared with `pinCaptionBox`, whose rect is what keeps the spoken
+  // register and the scatter out of these two lines.
   drawSlug(ctx, view, lines,
-    { x: sentinel.coord[0], y: sentinel.coord[1] - 30 }, remains * 0.85);
+    { x: sentinel.coord[0], y: sentinel.coord[1] - PIN_CAPTION_DROP }, remains * 0.85);
 }
 
 /**
