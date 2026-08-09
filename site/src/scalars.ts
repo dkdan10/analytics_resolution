@@ -618,6 +618,145 @@ export const SCALARS = {
     material: false,
     controls: "the four category names beside the boundaries, as the boxes are cut.",
   },
+  // --- modes/ledger.ts — the scatter, and the register above it ------------
+  SCATTER_TENTHS: {
+    class: "authored",
+    value: 4.75,
+    material: false,
+    controls:
+      "the size of a label on a datapoint, in court tenths. NUMERICALLY WHAT IT " +
+      "HAS ALWAYS BEEN - it was written as a multiple of the viewport's scale, " +
+      "which happens to come to the same thing and hid the fact that a label is " +
+      "half a foot tall on the floor. Expressed in court units so it cannot " +
+      "drift from the marks it annotates.",
+  },
+  SCATTER_MIN_PX: {
+    class: "authored",
+    value: 8,
+    material: false,
+    controls: "a CSS-pixel floor for the scatter, so it survives a small window.",
+  },
+  SCATTER_ALPHA: {
+    class: "authored",
+    value: 0.3,
+    material: false,
+    controls:
+      "the scatter's alpha ceiling, dropped from what it was so it sits UNDER " +
+      "the spoken register rather than competing with it. This is the audit's " +
+      "'secondary residue', and it is still every label the hand ever drew - " +
+      "what changed is that there is now something above it.",
+  },
+  TERM_HEAD_TENTHS: {
+    class: "authored",
+    value: 30,
+    material: false,
+    controls:
+      "the size of the head phrase AT THE REFERENCE SHARE, in court tenths - " +
+      "the top of the type ladder. Every head term is this scaled by the square " +
+      "root of its own share against the largest share any season reaches, so " +
+      "AREA is proportional to the shots the word names, which is the law the " +
+      "pin already obeys. The reference share itself is computed over the " +
+      "corpus at load and is never written down.",
+  },
+  TERM_BIRTH_TENTHS: {
+    class: "authored",
+    value: 20,
+    material: false,
+    controls:
+      "the size of a phrase the record is filing for the FIRST time. Authored " +
+      "rather than share-scaled on purpose, and the margin line beneath it " +
+      "discloses exactly what it is: most births are under one per cent, so " +
+      "sizing the moment the archive learned a word by that word's share would " +
+      "whisper it.",
+  },
+  TERM_NINETY_TENTHS: {
+    class: "authored",
+    value: 12,
+    material: false,
+    controls:
+      "any phrase inside the season's ninety-per-cent set that is not the head.",
+  },
+  TERM_TAIL_TENTHS: {
+    class: "authored",
+    value: 9,
+    material: false,
+    controls:
+      "anything outside it. Rarity is expressed as rarity of UTTERANCE, not as " +
+      "smallness: shares span five decades and every continuous map of them - " +
+      "root, log, linear - drops most of the vocabulary below the acuity limit. " +
+      "A rare phrase is rare because the plate almost never says it, and when " +
+      "it does it is said legibly.",
+  },
+  TERM_MARGIN_SCALE: {
+    class: "authored",
+    value: 0.3,
+    material: false,
+    controls: "the disclosure line under a birth, as a fraction of the term above it.",
+  },
+  TERM_HOLD_SECONDS: {
+    class: "authored",
+    value: 3,
+    material: false,
+    controls:
+      "how long a spoken term stays on the plate. The one pacing scalar the " +
+      "spoken register adds, and the reason the hand is readable at all: a " +
+      "scatter label in the calmest season lives about a sixth of a second, " +
+      "because the arrival edge moves far faster than a reader.",
+  },
+  TERM_CLEAR_PAD: {
+    class: "authored",
+    value: 0.35,
+    material: false,
+    controls:
+      "cap heights of empty floor demanded around a spoken term before another " +
+      "may be placed. Local emptiness is what makes a large word read; the " +
+      "collision test is on boxes in court tenths, because a twelve-tenth " +
+      "phrase is over a hundred tenths WIDE and point exclusion misses that.",
+  },
+  TERM_ALPHA_FRESH: {
+    class: "authored",
+    value: 0.85,
+    material: false,
+    controls: "a spoken term's ink when it is struck.",
+  },
+  TERM_ALPHA_AGED: {
+    class: "authored",
+    value: 0.4,
+    material: false,
+    controls:
+      "and when it is about to go. It never reaches invisibility: a term that " +
+      "fades to nothing reads as a fault rather than as a word being replaced.",
+  },
+  TERM_TIE_ALPHA: {
+    class: "authored",
+    value: 0.28,
+    material: false,
+    controls:
+      "the hairline from the mark to the word. This is what keeps a three-foot " +
+      "phrase reading as an ANNOTATION of one datapoint rather than as a " +
+      "headline laid over the floor - the tie between description and shot, " +
+      "made explicit.",
+  },
+  LEAGUE_NAME_TENTHS: {
+    class: "authored",
+    value: 13,
+    material: false,
+    controls:
+      "the twelve names the league publishes instead of the geometry, all at " +
+      "ONE size, and that is the argument: every other word on this plate is " +
+      "sized by how many shots it names, and these cannot be, because the " +
+      "record beneath them is not public. They were drawn at scatter size, " +
+      "among two hundred action labels, so Act V's claim was invisible.",
+  },
+  LEAGUE_VALUE_SCALE: {
+    class: "authored",
+    value: 0.62,
+    material: false,
+    controls:
+      "the recomputed figure under a league name in Act III, as a fraction of " +
+      "the name. It was nearly the same size as the name and did not read as " +
+      "subordinate to it.",
+  },
   INSTANT_BAND_HALF_W: {
     class: "authored",
     value: 90,
@@ -823,6 +962,21 @@ export const INSTANT_CUT_ALPHA: number = SCALARS.INSTANT_CUT_ALPHA.value;
 export const FIGURE_SUB_ALPHA: number = SCALARS.FIGURE_SUB_ALPHA.value;
 export const NAMES_ONLY_ALPHA: number = SCALARS.NAMES_ONLY_ALPHA.value;
 export const BUCKET_LABEL_ALPHA: number = SCALARS.BUCKET_LABEL_ALPHA.value;
+export const SCATTER_TENTHS: number = SCALARS.SCATTER_TENTHS.value;
+export const SCATTER_MIN_PX: number = SCALARS.SCATTER_MIN_PX.value;
+export const SCATTER_ALPHA: number = SCALARS.SCATTER_ALPHA.value;
+export const TERM_HEAD_TENTHS: number = SCALARS.TERM_HEAD_TENTHS.value;
+export const TERM_BIRTH_TENTHS: number = SCALARS.TERM_BIRTH_TENTHS.value;
+export const TERM_NINETY_TENTHS: number = SCALARS.TERM_NINETY_TENTHS.value;
+export const TERM_TAIL_TENTHS: number = SCALARS.TERM_TAIL_TENTHS.value;
+export const TERM_MARGIN_SCALE: number = SCALARS.TERM_MARGIN_SCALE.value;
+export const TERM_HOLD_SECONDS: number = SCALARS.TERM_HOLD_SECONDS.value;
+export const TERM_CLEAR_PAD: number = SCALARS.TERM_CLEAR_PAD.value;
+export const TERM_ALPHA_FRESH: number = SCALARS.TERM_ALPHA_FRESH.value;
+export const TERM_ALPHA_AGED: number = SCALARS.TERM_ALPHA_AGED.value;
+export const TERM_TIE_ALPHA: number = SCALARS.TERM_TIE_ALPHA.value;
+export const LEAGUE_NAME_TENTHS: number = SCALARS.LEAGUE_NAME_TENTHS.value;
+export const LEAGUE_VALUE_SCALE: number = SCALARS.LEAGUE_VALUE_SCALE.value;
 export const INSTANT_BAND_HALF_W: number = SCALARS.INSTANT_BAND_HALF_W.value;
 export const BUCKET_NAME_TENTHS: number = SCALARS.BUCKET_NAME_TENTHS.value;
 

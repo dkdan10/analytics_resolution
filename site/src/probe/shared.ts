@@ -12,6 +12,7 @@ import { MODE_IDS, type ModeId } from "../modes";
 import { clearLayers } from "../field";
 import { clearStamps } from "../marks";
 import { clearCanvas } from "../modes/hand";
+import { clearLedgerCaches } from "../modes/ledger";
 import { makeView } from "../plate";
 import type { Target } from "../render";
 import { clearAtlas } from "../textatlas";
@@ -83,6 +84,12 @@ export function cold(): void {
   clearAtlas();
   clearLayers();
   clearStamps();
+  // THE LEDGER's per-year utterance list and its string ruler. Registering a new
+  // cache here is not optional and the failure mode is the dangerous direction:
+  // an unregistered cache does not produce a false IMPURE, it produces a false
+  // PURE, because every history then shares the same stale cache and they agree
+  // with each other.
+  clearLedgerCaches();
 }
 
 export interface Beat {

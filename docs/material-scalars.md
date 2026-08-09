@@ -4,7 +4,7 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**84 scalars**, 73 of them material: 2 measured, 3 geometry, 79 authored.
+**99 scalars**, 73 of them material: 2 measured, 3 geometry, 94 authored.
 
 A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
@@ -166,6 +166,36 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   Act II's four category names, struck with no figures beside them - the league has begun publishing the measure and nobody outside can make it.
 - **BUCKET_LABEL_ALPHA** — **0.55** *(not material)*  
   the four category names beside the boundaries, as the boxes are cut.
+- **SCATTER_TENTHS** — **4.75** *(not material)*  
+  the size of a label on a datapoint, in court tenths. NUMERICALLY WHAT IT HAS ALWAYS BEEN - it was written as a multiple of the viewport's scale, which happens to come to the same thing and hid the fact that a label is half a foot tall on the floor. Expressed in court units so it cannot drift from the marks it annotates.
+- **SCATTER_MIN_PX** — **8** *(not material)*  
+  a CSS-pixel floor for the scatter, so it survives a small window.
+- **SCATTER_ALPHA** — **0.3** *(not material)*  
+  the scatter's alpha ceiling, dropped from what it was so it sits UNDER the spoken register rather than competing with it. This is the audit's 'secondary residue', and it is still every label the hand ever drew - what changed is that there is now something above it.
+- **TERM_HEAD_TENTHS** — **30** *(not material)*  
+  the size of the head phrase AT THE REFERENCE SHARE, in court tenths - the top of the type ladder. Every head term is this scaled by the square root of its own share against the largest share any season reaches, so AREA is proportional to the shots the word names, which is the law the pin already obeys. The reference share itself is computed over the corpus at load and is never written down.
+- **TERM_BIRTH_TENTHS** — **20** *(not material)*  
+  the size of a phrase the record is filing for the FIRST time. Authored rather than share-scaled on purpose, and the margin line beneath it discloses exactly what it is: most births are under one per cent, so sizing the moment the archive learned a word by that word's share would whisper it.
+- **TERM_NINETY_TENTHS** — **12** *(not material)*  
+  any phrase inside the season's ninety-per-cent set that is not the head.
+- **TERM_TAIL_TENTHS** — **9** *(not material)*  
+  anything outside it. Rarity is expressed as rarity of UTTERANCE, not as smallness: shares span five decades and every continuous map of them - root, log, linear - drops most of the vocabulary below the acuity limit. A rare phrase is rare because the plate almost never says it, and when it does it is said legibly.
+- **TERM_MARGIN_SCALE** — **0.3** *(not material)*  
+  the disclosure line under a birth, as a fraction of the term above it.
+- **TERM_HOLD_SECONDS** — **3** *(not material)*  
+  how long a spoken term stays on the plate. The one pacing scalar the spoken register adds, and the reason the hand is readable at all: a scatter label in the calmest season lives about a sixth of a second, because the arrival edge moves far faster than a reader.
+- **TERM_CLEAR_PAD** — **0.35** *(not material)*  
+  cap heights of empty floor demanded around a spoken term before another may be placed. Local emptiness is what makes a large word read; the collision test is on boxes in court tenths, because a twelve-tenth phrase is over a hundred tenths WIDE and point exclusion misses that.
+- **TERM_ALPHA_FRESH** — **0.85** *(not material)*  
+  a spoken term's ink when it is struck.
+- **TERM_ALPHA_AGED** — **0.4** *(not material)*  
+  and when it is about to go. It never reaches invisibility: a term that fades to nothing reads as a fault rather than as a word being replaced.
+- **TERM_TIE_ALPHA** — **0.28** *(not material)*  
+  the hairline from the mark to the word. This is what keeps a three-foot phrase reading as an ANNOTATION of one datapoint rather than as a headline laid over the floor - the tie between description and shot, made explicit.
+- **LEAGUE_NAME_TENTHS** — **13** *(not material)*  
+  the twelve names the league publishes instead of the geometry, all at ONE size, and that is the argument: every other word on this plate is sized by how many shots it names, and these cannot be, because the record beneath them is not public. They were drawn at scatter size, among two hundred action labels, so Act V's claim was invisible.
+- **LEAGUE_VALUE_SCALE** — **0.62** *(not material)*  
+  the recomputed figure under a league name in Act III, as a fraction of the name. It was nearly the same size as the name and did not read as subordinate to it.
 - **INSTANT_BAND_HALF_W** — **90**  
   how far either side of the centreline a category boundary is drawn, in court tenths - how wide the four boxes are. It carries NO measurement: the boundary's DISTANCE from the hoop is the measured axis and is untouched by this. At the foot and a half it used to be, the one image this piece calls its whole argument read as a small ladder near the rim instead of as a continuous quantity being divided (audit V-06).
 - **BUCKET_NAME_TENTHS** — **6.6** *(not material)*  
