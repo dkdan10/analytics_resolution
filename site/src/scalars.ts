@@ -1154,6 +1154,83 @@ export const SCALARS = {
       "how far inside the plate's far edge a disclosure line sits, in court " +
       "tenths. Composition: it moves a sentence, never a mark.",
   },
+  STACK_WINDOW_FIELD_DIM: {
+    class: "authored",
+    value: 0.4,
+    material: true,
+    controls:
+      "how far the shot-material base yields when a WINDOW operation is applied " +
+      "over it — the painted possession or the calipers. Both are thin by " +
+      "measurement rather than by choice (ink is conserved against time, and one " +
+      "possession is one possession), so against a field at full weight neither " +
+      "is visible at all. THE PLATE dims its own field through Act III for the " +
+      "same reason and this is that rule, applied when the presenter names the " +
+      "operation instead of when the act arrives. Raise it and CONNECT THE BODY " +
+      "stops changing the plate when it is switched on.",
+  },
+  STACK_NAME_DIM: {
+    class: "authored",
+    value: 0.8,
+    material: false,
+    controls:
+      "the spoken term's ink in the composite. Its SIZE is not touched — area is " +
+      "proportional to the shots the word names, which is the measurement THE " +
+      "LEDGER's register is built on — so ink is the only lever that can make it " +
+      "one voice among seven rather than the loudest thing on the plate. " +
+      "Typography, not grain.",
+  },
+  STACK_CALIPER_ALPHA: {
+    class: "authored",
+    value: 0.55,
+    material: true,
+    controls:
+      "the four hero calipers' ink. A caliper is a hairline the length of the " +
+      "floor, and four of them at full strength read as engraving rather than as " +
+      "one operation applied over others.",
+  },
+  STACK_TICK_ALPHA: {
+    class: "authored",
+    value: 0.8,
+    material: true,
+    controls:
+      "the census tick's ink relative to THE CENSUS's own. The ticks are the one " +
+      "part of COUNT THE EVENT that lands on the floor, and their COUNT is the " +
+      "measurement — how many categories the taxonomy has — so they have to stay " +
+      "individually countable against a lit field without becoming a second " +
+      "population of marks.",
+  },
+  STACK_GUTTER_TENTHS: {
+    class: "authored",
+    value: 7.5,
+    material: false,
+    controls:
+      "the tally's type size in the exterior gutter, in court tenths — so the " +
+      "margin's type scales with the floor like every other string in the piece " +
+      "and does not change with the window. Typography, not grain.",
+  },
+  STACK_GUTTER_PAD_TENTHS: {
+    class: "authored",
+    value: 24,
+    material: false,
+    controls:
+      "how far outside the plate's sideline the tally is set, in court tenths. " +
+      "Composition: it holds the count clear of the court so COUNT THE EVENT " +
+      "never occupies the floor the way NAME THE ACTION does.",
+  },
+  STACK_GUTTER_ROW_ALPHA: {
+    class: "authored",
+    value: 0.46,
+    material: false,
+    controls: "a tally row's ink in the margin. Typography, not grain.",
+  },
+  STACK_GUTTER_SUB_ALPHA: {
+    class: "authored",
+    value: 0.3,
+    material: false,
+    controls:
+      "the margin's subordinate lines — the record's own column name above the " +
+      "tally, and the tick-and-a-count tail below it.",
+  },
 } as const satisfies Record<string, Entry>;
 
 // --- the values, for the renderers ------------------------------------------
@@ -1297,3 +1374,11 @@ export const STRIKE_SHADOW_MAX: number = SCALARS.STRIKE_SHADOW_MAX.value;
 export const STACK_FIELD_DIM: number = SCALARS.STACK_FIELD_DIM.value;
 export const STACK_INSCRIPTION_DIM: number = SCALARS.STACK_INSCRIPTION_DIM.value;
 export const STACK_DISCLOSURE_INSET: number = SCALARS.STACK_DISCLOSURE_INSET.value;
+export const STACK_WINDOW_FIELD_DIM: number = SCALARS.STACK_WINDOW_FIELD_DIM.value;
+export const STACK_NAME_DIM: number = SCALARS.STACK_NAME_DIM.value;
+export const STACK_CALIPER_ALPHA: number = SCALARS.STACK_CALIPER_ALPHA.value;
+export const STACK_TICK_ALPHA: number = SCALARS.STACK_TICK_ALPHA.value;
+export const STACK_GUTTER_TENTHS: number = SCALARS.STACK_GUTTER_TENTHS.value;
+export const STACK_GUTTER_PAD_TENTHS: number = SCALARS.STACK_GUTTER_PAD_TENTHS.value;
+export const STACK_GUTTER_ROW_ALPHA: number = SCALARS.STACK_GUTTER_ROW_ALPHA.value;
+export const STACK_GUTTER_SUB_ALPHA: number = SCALARS.STACK_GUTTER_SUB_ALPHA.value;

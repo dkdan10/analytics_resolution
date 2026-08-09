@@ -168,7 +168,7 @@ const STROKE_STEP = 128;
  *  time rather than appearing whole. */
 const WET_STROKES = 6;
 
-interface Regimes {
+export interface Regimes {
   v10: number;
   v50: number;
   v90: number;
@@ -329,7 +329,7 @@ function smooth(x: number): number {
  * `drawn` is how much of it has been laid so far, which is what makes the
  * gesture read as a gesture rather than as a shape that appears.
  */
-function paintStroke(
+export function paintStroke(
   ctx: CanvasRenderingContext2D,
   view: View,
   s: Strokes,
@@ -667,7 +667,7 @@ export function drawHandHand(f: Frame): void {
  *  possession, and the index is ordered by day and then by canvas, so this is a
  *  prefix — read from the data rather than assumed to be a fixed number, since
  *  after the discontinuity split a body can be several strokes. */
-function firstCanvasStrokes(s: Strokes): number {
+export function firstCanvasStrokes(s: Strokes): number {
   const c0 = s.canvas[0]!;
   let i = 0;
   while (i < s.n && s.canvas[i] === c0) i++;

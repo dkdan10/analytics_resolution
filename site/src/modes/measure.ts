@@ -138,7 +138,7 @@ function spell(n: number): string {
  * not a gauge: the segment IS the number, at the scale the floor is drawn in,
  * so its length can be read against the court's own geometry.
  */
-function caliper(
+export function caliper(
   ctx: CanvasRenderingContext2D,
   view: View,
   sx: number,

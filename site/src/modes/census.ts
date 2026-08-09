@@ -81,7 +81,7 @@ const FOOTER_AT = { x: 0, y: -32 };
 
 /** One category, ready to be struck. Court tenths throughout — nothing here
  *  depends on the viewport, so the plate files the same way on every screen. */
-interface Filed {
+export interface Filed {
   name: string;
   /** Arrived-scaled count and its share of the season so far. */
   n: number;
@@ -150,7 +150,7 @@ export function clearCensusCaches(): void {
  * rather than a summary after the fact. A category whose arrived count has not
  * reached one yet is not there at all.
  */
-function filing(
+export function filing(
   season: Season,
   taxonomy: string,
   arrived: number,
@@ -272,7 +272,7 @@ function layOut(words: Filed[]): void {
 
 /** Every category leaves a mark whether or not it is named. The tick count IS
  *  the taxonomy's size, which is the growth made visible without a digit. */
-function strikeTicks(f: Frame, words: Filed[], alpha: number): void {
+export function strikeTicks(f: Frame, words: Filed[], alpha: number): void {
   const { ctx, view } = f;
   if (alpha <= 0.01) return;
   const arm = view.s(CENSUS_TICK_TENTHS);

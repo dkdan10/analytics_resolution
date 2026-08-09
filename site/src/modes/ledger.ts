@@ -406,7 +406,7 @@ export function clearLedgerCaches(): void {
  * outgoing season's last words recede as the new season's first arrive instead
  * of vanishing at the boundary.
  */
-function drawTerms(f: Frame, terms: Term[], elapsed: number, interval: number, dim: number): void {
+export function drawTerms(f: Frame, terms: Term[], elapsed: number, interval: number, dim: number): void {
   const { ctx, view, dpr, remains } = f;
   if (dim <= 0.01) return;
   const spoken = Math.min(terms.length - 1, Math.floor(elapsed / interval));
@@ -451,8 +451,57 @@ function drawTerms(f: Frame, terms: Term[], elapsed: number, interval: number, d
   ctx.restore();
 }
 
+/** The league's names hold the middle of the floor for Acts III and V, so in
+ *  those acts they are obstacles the plate has to speak around. Part of the
+ *  memo's contract rather than a local convenience — see `ledgerUtterances`. */
+function leagueObstacles(data: Loaded, year: number): Box[] {
+  return actOf(year) === 3 || actOf(year) === 5
+    ? leagueBoxes(publishedInstead(data))
+    : [];
+}
+
+/**
+ * What this season says, and when — the whole of the spoken register, in one
+ * place, so that two hands cannot ask for it two different ways.
+ *
+ * THIS EXISTS BECAUSE OF A CACHE HAZARD, not for tidiness. `utterancesFor`
+ * memoises BY YEAR ALONE, and that key is the invariant that keeps the plate
+ * speaking the same words on every screen — but it is only sound while every
+ * caller passes the same `writingSeconds` and the same `fixed` boxes for a given
+ * year. THE STACK's NAME THE ACTION is the second caller this file has ever had.
+ * Had it computed its own obstacle set, the memo would have handed whichever
+ * hand asked FIRST its own layout and the other hand a layout built for someone
+ * else, silently, for the rest of the page session — and the purity probe could
+ * not have caught it, because both hands would be consistent with themselves.
+ *
+ * So there is one derivation and both hands call it. That the two hands then
+ * speak the same words in the same places is not a side effect to apologise for:
+ * it is one measurement, read twice, which is what the rest of this piece does
+ * with `WINDOW_BEATS` and with `covering_90pct`.
+ */
+export function ledgerUtterances(
+  f: Frame,
+  year: number,
+): { terms: Term[]; interval: number; elapsed: number } | null {
+  const { data, schedule } = f;
+  const season = data.byYear.get(year);
+  const sample = data.samples.get(year);
+  const seg = schedule.byYear.get(year);
+  if (!season || !sample || !seg) return null;
+  // A season spends `ARRIVAL_TAIL` of itself being written; the utterances are
+  // spread over exactly that, so a term lands with the marks it describes.
+  const secs = seg.duration * ARRIVAL_TAIL;
+  const terms = utterancesFor(year, season, sample, data.seasons, secs,
+    leagueObstacles(data, year));
+  return {
+    terms,
+    interval: secs / Math.max(1, terms.length),
+    elapsed: f.st.year === year ? f.st.phase * seg.duration : secs,
+  };
+}
+
 export function drawLedgerHand(f: Frame): void {
-  const { st, data, schedule, remains } = f;
+  const { st, data, remains } = f;
   const year = st.year!;
   const season = data.byYear.get(year)!;
   const sample = data.samples.get(year);
@@ -471,30 +520,17 @@ export function drawLedgerHand(f: Frame): void {
   // way `drawSeasonField` already treats the marks - without it the plate would
   // snap every time a season turned over, which at three feet is the most
   // noticeable event on it.
-  const writing = (seg: number) => seg * ARRIVAL_TAIL;
-  // The league's names hold the middle of the floor for Acts III and V, so in
-  // those acts they are obstacles the plate has to speak around.
-  const obstacles = (y: number) =>
-    actOf(y) === 3 || actOf(y) === 5 ? leagueBoxes(publishedInstead(data)) : [];
-
+  // The outgoing season's last words, still receding. `ledgerUtterances`
+  // returns its `elapsed` at the END of the writing for a season that is not
+  // the current one, which is what the explicit `secs` here used to say.
   if (st.prev !== null && st.arrived < 1) {
-    const prevSeason = data.byYear.get(st.prev);
-    const prevSample = data.samples.get(st.prev);
-    const prevSeg = schedule.byYear.get(st.prev);
-    if (prevSeason && prevSample && prevSeg) {
-      const secs = writing(prevSeg.duration);
-      const terms = utterancesFor(st.prev, prevSeason, prevSample, data.seasons, secs,
-        obstacles(st.prev));
-      drawTerms(f, terms, secs, secs / Math.max(1, terms.length), 1 - st.arrived);
-    }
+    const out = ledgerUtterances(f, st.prev);
+    if (out) drawTerms(f, out.terms, out.elapsed, out.interval, 1 - st.arrived);
   }
   let speaking: Box[] = [];
-  if (sample) {
-    const seg = schedule.byYear.get(year)!;
-    const secs = writing(seg.duration);
-    const terms = utterancesFor(year, season, sample, data.seasons, secs, obstacles(year));
-    const interval = secs / Math.max(1, terms.length);
-    const elapsed = st.phase * seg.duration;
+  const here = ledgerUtterances(f, year);
+  if (sample && here) {
+    const { terms, interval, elapsed } = here;
     speaking = terms.filter((t) => {
       const age = elapsed - t.j * interval;
       return age >= 0 && age < TERM_HOLD_SECONDS;
@@ -502,7 +538,7 @@ export function drawLedgerHand(f: Frame): void {
     // The league's names hold their ground against the grain too. They are the
     // whole of Act V's argument and a scatter label running through PASSING
     // makes them one more piece of noise.
-    speaking = [...speaking, ...obstacles(year)];
+    speaking = [...speaking, ...leagueObstacles(data, year)];
 
     // The scatter goes down FIRST and yields wherever a term is speaking, so
     // the big register has the local emptiness that makes it read.

@@ -72,15 +72,29 @@
  * `check-numbers.mjs:MARK_LAYERS`, added before its first literal was written.
  */
 
+import type { HeroShot } from "../data";
 import { drawInscriptions, drawSlug } from "../inscription";
+import { BONE_RGB, SLUG_FAMILY } from "../palette";
 import { COURT } from "../plate";
 import {
+  STACK_CALIPER_ALPHA,
   STACK_DISCLOSURE_INSET,
   STACK_FIELD_DIM,
+  STACK_GUTTER_PAD_TENTHS,
+  STACK_GUTTER_ROW_ALPHA,
+  STACK_GUTTER_SUB_ALPHA,
+  STACK_GUTTER_TENTHS,
   STACK_INSCRIPTION_DIM,
+  STACK_NAME_DIM,
+  STACK_TICK_ALPHA,
+  STACK_WINDOW_FIELD_DIM,
 } from "../scalars";
 import { WINDOW_YEAR } from "../timeline";
+import { filing, strikeTicks } from "./census";
 import { drawSeasonField } from "./fieldlayer";
+import { firstCanvasStrokes, paintStroke, type Regimes } from "./hand";
+import { drawTerms, ledgerUtterances } from "./ledger";
+import { caliper } from "./measure";
 import { has, type StackOps } from "./operations";
 import type { Frame } from "./types";
 
@@ -114,14 +128,211 @@ export function drawStackHand(f: Frame): void {
   //    `coloured` is the whole of CLASSIFY: the same marks in the same places
   //    with the same counts, given the hue of the region the NBA filed them in.
   if (has(ops, "locate")) {
+    // THE BASE YIELDS UNDER THE TWO WINDOW OPERATIONS, and this is THE PLATE's
+    // own rule rather than a new one: in Act III it dims the field because "the
+    // rest of the league is still only dots, and the gestures have to be the
+    // brightest thing the window holds". It is not a preference here, it is
+    // arithmetic. A possession's paint and a caliper's hairline are thin by
+    // measurement — ink is conserved against time, and one possession is one
+    // possession — so over a field at full weight they are invisible, and an
+    // operation a presenter has just NAMED that visibly does nothing is a broken
+    // control. Verified against THE HAND at its own opening beat: the same
+    // possession is exactly this faint there, so the answer was never to
+    // brighten the paint past what the record deposits.
+    const yielding = (has(ops, "connect") || has(ops, "measure")) && inWindow(f);
     drawSeasonField(f, {
       coloured: has(ops, "classify"),
-      dim: f.remains * STACK_FIELD_DIM,
+      dim: f.remains * STACK_FIELD_DIM * (yielding ? STACK_WINDOW_FIELD_DIM : 1),
     });
   }
 
+  // 5. CONNECT THE BODY — the window's trajectories, and only those. THE HAND's
+  //    drops are its material ALTERNATIVE for the base, so offering them here
+  //    would be a second rendering of the same shots.
+  if (has(ops, "connect") && inWindow(f)) drawConnect(f);
+
+  // 6. MEASURE THE DEFENDER — sparse, and the selection is the pipeline's.
+  if (has(ops, "measure") && inWindow(f)) drawMeasure(f);
+
+  // 7. NAME THE ACTION — sparse action labels, over the court.
+  if (has(ops, "name")) drawName(f);
+
+  // 8. COUNT THE EVENT — a tick per category on the floor, the tally OUTSIDE it.
+  if (has(ops, "count")) drawCount(f);
+
   // 9. Last, over everything.
   drawDisclosures(f, ops);
+}
+
+/**
+ * CONNECT THE BODY — one corroborated possession, laid as the window runs.
+ *
+ * ONE canvas: every body the feed held plus the ball — `paint.json`'s
+ * `bodies_per_canvas` says how many that is and this file does not — over the
+ * span before one verified shot. THE HAND spends a whole pass accumulating the
+ * painting across the window's own calendar and needs a block-prefix cache to
+ * afford it; a composite does not want that image and could not carry it. What
+ * this operation has to show is that a record which kept ONE POINT per shot was
+ * made from a machine that held every position of every body, and one gesture
+ * says that at a scale a viewer can follow.
+ *
+ * `drawn` is the window's own phase, so the paths are laid rather than appearing:
+ * the bodies move while the season does.
+ *
+ * Wrapped in save/restore because `paintStroke` is not: it sets `fillStyle`,
+ * `strokeStyle`, `lineWidth`, `lineCap` and `lineJoin` and restores none of
+ * them. THE HAND does not notice because it wraps its whole body, and the fix
+ * belongs here rather than there — changing a function six committed sweeps were
+ * measured through, to suit a new caller, is how a hand gets moved by accident.
+ */
+function drawConnect(f: Frame): void {
+  const { ctx, view, st, data, remains } = f;
+  const paint = data.paint;
+  const strokes = data.strokes();
+  if (!paint || !strokes) return;
+
+  const r: Regimes = {
+    v10: paint.speed_ft_s.p10,
+    v50: paint.speed_ft_s.p50,
+    v90: paint.speed_ft_s.p90,
+  };
+  const n = firstCanvasStrokes(strokes);
+  ctx.save();
+  // `source-over`, deliberately, and it is the one operation here that occludes.
+  // A stroke crossing an earlier one must COVER it or the canvas is a glow
+  // rather than a painting — THE HAND's rule, and the reason it is the only hand
+  // that does not composite `lighter`.
+  ctx.globalCompositeOperation = "source-over";
+  // At `remains`, exactly as THE HAND composites the same strokes. There is no
+  // dim knob here on purpose: the paint's weight is DRIP conserving ink against
+  // time, and a composite that quietly brightened it would be drawing more ink
+  // than the record deposited. What yields is the field underneath.
+  ctx.globalAlpha = remains;
+  for (let i = 0; i < n; i++) paintStroke(ctx, view, strokes, i, st.phase, r);
+  ctx.restore();
+}
+
+/**
+ * MEASURE THE DEFENDER — four calipers, one per published category.
+ *
+ * THE SELECTION IS NOT THIS FILE'S. `window.json:contest.heroes` is four shots
+ * the pipeline chose, one per bucket, by tightest corroboration — its own rule,
+ * disclosed in its own `definitions.hero`. Picking four calipers here by any
+ * rule of mine would be authoring a sample and calling it evidence, and THE
+ * MEASURE's flood (`CALIPER_BUDGET` in that hand) is neither sparse nor
+ * composable — it is weather over a floor it owns.
+ *
+ * The caliper is drawn at the RELEASE, which is the last frame of the hero's
+ * track: the statistic is defined at the instant the ball leaves the hand, and a
+ * composite that showed the whole approach would be drawing THE MEASURE's beat
+ * rather than its material.
+ *
+ * F-12's disclosure travels with it, always. These four come out of the
+ * recovered set, and a proportion from that set shown without its scope is the
+ * defect session 3 closed.
+ */
+function drawMeasure(f: Frame): void {
+  const { ctx, view, data, remains } = f;
+  const w = data.window;
+  if (!w) return;
+  const a = remains * STACK_CALIPER_ALPHA;
+  for (const h of w.contest.heroes as HeroShot[]) {
+    const frames = h.track.filter((p): p is number[] => p !== null);
+    const p = frames[frames.length - 1];
+    if (!p) continue;
+    caliper(ctx, view, p[0]!, p[1]!, p[2]!, p[3]!, a);
+    // The league's own name for the category this distance was cut into, at the
+    // caliper's midpoint. `aside`: it annotates the mark above it.
+    drawSlug(ctx, view, [h.bucket_name.toUpperCase()],
+      { x: (p[0]! + p[2]!) / 2, y: (p[1]! + p[3]!) / 2 }, remains, "aside",
+      -view.s(STACK_GUTTER_TENTHS));
+  }
+}
+
+/**
+ * NAME THE ACTION — what the record called the shots, as often as it varies.
+ *
+ * THE LEDGER's spoken register, through `ledgerUtterances`, so both hands speak
+ * the same words in the same places from one derivation. How often a season
+ * speaks is `vocabulary.words_covering_90pct`: the measured driver, not a rate
+ * chosen here. `drawTerms` brings its own scatter-free register — the dimmed
+ * label field THE LEDGER draws underneath is that hand's own second register and
+ * is NOT composited, because it materialises the same shots the base already
+ * has, which is the rule this whole view is built on.
+ */
+function drawName(f: Frame): void {
+  const year = f.st.year;
+  if (year === null) return;
+  const u = ledgerUtterances(f, year);
+  if (u) drawTerms(f, u.terms, u.elapsed, u.interval, STACK_NAME_DIM);
+}
+
+/**
+ * COUNT THE EVENT — a tick on the floor, the tally in the margin.
+ *
+ * THIS IS WHERE TWO OF THE AUDIT'S RULES MEET, and the resolution is the same
+ * one for both. "Census in an exterior gutter" (composition rule 8) and "NAME
+ * and full COUNT should not occupy the court simultaneously" (a mutual
+ * exclusion) are satisfied by the same decision: the NAMES and the numbers go
+ * outside the plate, and what stays on the floor is a tick per category at the
+ * record's own measured place for it.
+ *
+ * That is not a compromise, it is the better half of THE CENSUS. The tick count
+ * IS the taxonomy's size, so the constellation on the floor breeds across the
+ * corpus while five of the six taxonomies never change their count — the second
+ * curve, seen rather than read — and a tick is a mark, so it cannot collide
+ * typographically with INSCRIBE's numerals the way a struck category name would.
+ * THE CENSUS still strikes the words into the floor in its own hand, where it
+ * owns the frame and nothing else is competing for it.
+ *
+ * The taxonomy is the season's own `active_taxonomy`, always. THE CENSUS files
+ * all six in sequence inside the window; a presenter here is holding one
+ * operation still while they talk about it, and a filing that changed underneath
+ * them six times in one season would be the view arguing with its own controls.
+ */
+function drawCount(f: Frame): void {
+  const { ctx, view, st, data, remains } = f;
+  const season = data.byYear.get(st.year!);
+  if (!season) return;
+  const columns = Object.keys(data.taxonomyColumns);
+  const taxonomy = season.active_taxonomy ?? columns[0]!;
+  const zoneNames = data.samples.get(st.year!)?.zone_names ?? [];
+  const words = filing(season, taxonomy, st.arrived, zoneNames,
+    season.vocabulary.covering_90pct?.[taxonomy] ?? 1);
+  // No `layOut`: nothing is struck on the floor, so nothing needs a bearing
+  // moved to make room, and the tick sits at the record's own place by
+  // construction rather than by `strikeTicks` undoing a nudge.
+  strikeTicks(f, words, remains * STACK_TICK_ALPHA);
+
+  // The margin. The plate hangs rather than fills, so the halfcourt leaves a
+  // real gutter either side of it at every window size — the tally is set flush
+  // against the plate's edge and grows away from it, so it never crosses the
+  // court however narrow the window gets.
+  const right = view.sx(COURT.x0) - view.s(STACK_GUTTER_PAD_TENTHS);
+  const px = view.s(STACK_GUTTER_TENTHS);
+  const named = words.filter((x) => x.named);
+  ctx.save();
+  ctx.font = `${px}px ${SLUG_FAMILY}`;
+  ctx.textAlign = "right";
+  ctx.textBaseline = "alphabetic";
+  let y = view.sy(COURT.y1);
+  ctx.fillStyle = `rgba(${BONE_RGB}, ${remains * STACK_GUTTER_SUB_ALPHA})`;
+  // Which of the record's own columns this filing IS. The record supplies the
+  // name of its own field; this hand does not name it.
+  ctx.fillText(data.taxonomyColumns[taxonomy] ?? taxonomy, right, y);
+  y += px * 2.2;
+  ctx.fillStyle = `rgba(${BONE_RGB}, ${remains * STACK_GUTTER_ROW_ALPHA})`;
+  for (const c of named) {
+    ctx.fillText(`${c.name.toLowerCase()}   ${c.n.toLocaleString()}`, right, y);
+    y += px * 1.5;
+  }
+  // The tail is a count, never a cloud — THE CENSUS's rule, kept.
+  const rest = Object.keys(season.classification[taxonomy] ?? {}).length - named.length;
+  if (rest > 0) {
+    ctx.fillStyle = `rgba(${BONE_RGB}, ${remains * STACK_GUTTER_SUB_ALPHA})`;
+    ctx.fillText(`${rest} more · a tick and a count`, right, y + px * 0.6);
+  }
+  ctx.restore();
 }
 
 /**
@@ -144,6 +355,14 @@ function drawDisclosures(f: Frame, ops: StackOps): void {
   if (has(ops, "locate") && has(ops, "classify")) {
     lines.push("COLOURED BY THE NBA'S OWN ZONES");
   }
+  // F-12, and it travels with the calipers wherever they are drawn. The four
+  // heroes come out of the recovered set — a biased subset, over-representing
+  // shots that reach the rim, because a release is only found by following the
+  // ball back from it. The string is TEMPLATED BY THE PIPELINE from the figures
+  // it quotes (`window.json:bias.scope`); the site draws it and never composes
+  // its own, so a re-run updates the wall text.
+  const scope = has(ops, "measure") && inWindow(f) ? f.data.window?.bias.scope : null;
+  if (scope) lines.push(scope);
   if (!lines.length) return;
   // `aside`: subordinate to the marks it describes. docs/typography-inventory.md.
   drawSlug(ctx, view, lines, { x: 0, y: COURT.y1 - STACK_DISCLOSURE_INSET },

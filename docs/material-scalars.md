@@ -4,7 +4,7 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**125 scalars**, 88 of them material: 2 measured, 3 geometry, 120 authored.
+**133 scalars**, 91 of them material: 2 measured, 3 geometry, 128 authored.
 
 A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
@@ -272,3 +272,19 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   the struck season numerals' ink in the composite. In THE PLATE the figure is the thing the frame is about; here it is one operation of seven, and at its own weight it dominates every layer a presenter adds after it. Typography, not grain.
 - **STACK_DISCLOSURE_INSET** — **18** *(not material)*  
   how far inside the plate's far edge a disclosure line sits, in court tenths. Composition: it moves a sentence, never a mark.
+- **STACK_WINDOW_FIELD_DIM** — **0.4**  
+  how far the shot-material base yields when a WINDOW operation is applied over it — the painted possession or the calipers. Both are thin by measurement rather than by choice (ink is conserved against time, and one possession is one possession), so against a field at full weight neither is visible at all. THE PLATE dims its own field through Act III for the same reason and this is that rule, applied when the presenter names the operation instead of when the act arrives. Raise it and CONNECT THE BODY stops changing the plate when it is switched on.
+- **STACK_NAME_DIM** — **0.8** *(not material)*  
+  the spoken term's ink in the composite. Its SIZE is not touched — area is proportional to the shots the word names, which is the measurement THE LEDGER's register is built on — so ink is the only lever that can make it one voice among seven rather than the loudest thing on the plate. Typography, not grain.
+- **STACK_CALIPER_ALPHA** — **0.55**  
+  the four hero calipers' ink. A caliper is a hairline the length of the floor, and four of them at full strength read as engraving rather than as one operation applied over others.
+- **STACK_TICK_ALPHA** — **0.8**  
+  the census tick's ink relative to THE CENSUS's own. The ticks are the one part of COUNT THE EVENT that lands on the floor, and their COUNT is the measurement — how many categories the taxonomy has — so they have to stay individually countable against a lit field without becoming a second population of marks.
+- **STACK_GUTTER_TENTHS** — **7.5** *(not material)*  
+  the tally's type size in the exterior gutter, in court tenths — so the margin's type scales with the floor like every other string in the piece and does not change with the window. Typography, not grain.
+- **STACK_GUTTER_PAD_TENTHS** — **24** *(not material)*  
+  how far outside the plate's sideline the tally is set, in court tenths. Composition: it holds the count clear of the court so COUNT THE EVENT never occupies the floor the way NAME THE ACTION does.
+- **STACK_GUTTER_ROW_ALPHA** — **0.46** *(not material)*  
+  a tally row's ink in the margin. Typography, not grain.
+- **STACK_GUTTER_SUB_ALPHA** — **0.3** *(not material)*  
+  the margin's subordinate lines — the record's own column name above the tally, and the tick-and-a-count tail below it.
