@@ -452,6 +452,44 @@ def measure_classification_place(df):
     return out
 
 
+# The five that rotate, in the order they come round. DESCRIPTION is not here:
+# it is filed exactly when it changes, which is the whole point of it.
+ROTATING = ["RESULT", "ZONE", "RANGE", "AREA", "TYPE"]
+
+
+def assign_active_taxonomy(rows):
+    """Which of the six taxonomies THE CENSUS files, season by season.
+
+    DERIVED, NOT CHOSEN, and derived HERE rather than in the renderer. The rule
+    reads two measurements the pipeline already makes, so the pipeline is where
+    it belongs - and it means there is exactly one implementation for qa.py to
+    gate rather than a second copy in TypeScript that could drift from it.
+
+    The rule, and every consequence of it is content:
+
+      contemporaneous != null  -> TYPE. The one season where the taxonomy and
+        the floor disagree, so `3PT FIELD GOAL`'s anchor sits INSIDE the modern
+        arc: the 19,165 shots that were threes when taken become a position on
+        the plate rather than a footnote.
+      the vocabulary changed   -> DESCRIPTION. The growing taxonomy appears
+        exactly when it grows - INCLUDING the seasons it shrinks, which is the
+        archive forgetting words and deserves to be seen.
+      otherwise                -> the next of the five that never move.
+
+    A --years subset produces a subset schedule, which is correct: the rule is
+    a function of the sequence it is given, and qa.py gates the full thirty.
+    """
+    rank = 0
+    for i, row in enumerate(rows):
+        if row["contemporaneous"] is not None:
+            row["active_taxonomy"] = "TYPE"
+        elif i == 0 or row["vocabulary"]["words"] != rows[i - 1]["vocabulary"]["words"]:
+            row["active_taxonomy"] = "DESCRIPTION"
+        else:
+            row["active_taxonomy"] = ROTATING[rank % len(ROTATING)]
+            rank += 1
+
+
 def aggregate_season(year):
     df = read_season_csv(year, usecols=USECOLS, dtype=DTYPES)
     n = len(df)
@@ -682,6 +720,8 @@ def main():
     # substitution and never a richer per-shot record - has to be restated rather
     # than asserted. Checked over the seasons actually run, so a --years subset
     # still checks what it can.
+    assign_active_taxonomy(rows)
+
     widths = {r["schema"]["fields_per_shot"] for r in rows}
     positions = {r["schema"]["positions_per_shot"] for r in rows}
     if len(widths) > 1 or len(positions) > 1:
@@ -692,6 +732,11 @@ def main():
         "generated_by": "pipeline/aggregate.py",
         "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
         "provenance": PROVENANCE,
+        # Which database column each of the six taxonomies IS. THE CENSUS
+        # strikes the machine's own field name into the floor - `ACTION_TYPE`,
+        # not "description" - because this is the machine's field, and a name
+        # the record uses is a name the record has to supply.
+        "taxonomy_columns": dict(TAXONOMIES),
         "definitions": {
             "mid_share": 'SHOT_ZONE_BASIC == "Mid-Range" (NBA zone taxonomy, disclosed)',
             "three_share": 'SHOT_TYPE == "3PT Field Goal"',

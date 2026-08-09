@@ -46,13 +46,22 @@ export async function runProbe(kind: string, q: URLSearchParams, env: Env): Prom
       done(true);
       return;
     }
+    // Pictures for a person, not a verdict. It installs `window.__shot` and
+    // hands control back to the driver, which asks for one frame at a time.
+    if (kind === "shots") {
+      const { shotsProbe } = await import("./shots");
+      await shotsProbe(env);
+      done(true);
+      return;
+    }
     fail({
       probe: kind,
       error: "unknown probe",
-      known: ["purity", "perf"],
+      known: ["purity", "perf", "shots"],
       usage: [
         "?probe=purity[&mode=<id>][&beat=<id>][&playback=<s>][&exact=1]",
         "?probe=perf[&mode=<id>][&t=<seconds>][&frames=<n>]",
+        "?probe=shots  (driven by scripts/shots.mjs; installs window.__shot)",
       ],
     });
   } catch (e) {

@@ -223,7 +223,7 @@ async function main(): Promise<void> {
   const inscriptions = buildInscriptions(data.seasons, schedule);
   const frame = (now: number) => {
     const t = clock.at(now);
-    renderTo(target, t, data, schedule, inscriptions, modeOverride);
+    renderTo(target, t, data, schedule, inscriptions, modeOverride, wantsNav);
     nav?.update(t);
     requestAnimationFrame(frame);
   };

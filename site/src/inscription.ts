@@ -75,10 +75,18 @@ function fmtFt(ft: number): string {
   return Number.isInteger(ft) ? String(ft) : ft.toFixed(1);
 }
 
-/** A share -> a struck numeral, not a label with a percent sign. */
-function struckFigure(share: number): string {
+/** A share -> a struck numeral, not a label with a percent sign. Exported since
+ *  V-05: THE CENSUS says a share the same way the plate does, or the floor holds
+ *  two conventions for one quantity. */
+export function struckFigure(share: number): string {
   return (100 * share).toFixed(1).replace(".", "·");
 }
+
+/** How far apart a struck glyph's letters sit, as a fraction of its cap height.
+ *  Exported because THE CENSUS has to MEASURE a word it is going to strike, and
+ *  a ruler set to different spacing from the pen lays out boxes for a string
+ *  nobody draws. */
+export const STRIKE_LETTER_SPACING = 0.08;
 
 export function buildInscriptions(seasons: Season[], schedule: Schedule): Inscription[] {
   const n = seasons.length;
@@ -145,10 +153,17 @@ function placementAt(ins: Inscription, t: number): Placement | null {
   };
 }
 
-/** Cut, not printed: a shadowed upper wall above a dull face.
- *  `rotation` lays the numeral tangent to the annulus, so the ring reads as a
- *  garland around the void rather than a row of labels. */
-function strike(
+/**
+ * Cut, not printed: a shadowed upper wall above a dull face.
+ *
+ * `rotation` lays the numeral tangent to the annulus, so the ring reads as a
+ * garland around the void rather than a row of labels.
+ *
+ * Exported since V-05, because THE CENSUS strikes its categories into the same
+ * floor by the same idiom - one engraved system rather than two. Its words are
+ * the same KIND of claim as a season's figure, so they are cut the same way.
+ */
+export function strike(
   ctx: CanvasRenderingContext2D,
   text: string,
   x: number,
@@ -156,6 +171,11 @@ function strike(
   px: number,
   alpha: number,
   rotation = 0,
+  /** The face's colour, when a caller has one the record supplied. THE CENSUS's
+   *  zone filing passes the league's own hue for that region — permitted
+   *  because ZONE *is* SHOT_ZONE_BASIC, so the colour exposes a classification
+   *  rather than adding one. Everything else strikes in bone. */
+  rgb: string = BONE_RGB,
 ): void {
   ctx.save();
   ctx.translate(x, y);
@@ -163,12 +183,12 @@ function strike(
   ctx.font = `${px}px ${INSCRIPTION_FAMILY}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.letterSpacing = `${Math.max(1, px * 0.08)}px`;
+  ctx.letterSpacing = `${Math.max(1, px * STRIKE_LETTER_SPACING)}px`;
 
   const depth = Math.max(1, px * 0.045);
   ctx.fillStyle = `rgba(0, 0, 0, ${Math.min(STRIKE_SHADOW_MAX, alpha * STRIKE_SHADOW_K)})`;
   ctx.fillText(text, 0, -depth);
-  ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha * STRIKE_FACE_ALPHA})`;
+  ctx.fillStyle = `rgba(${rgb}, ${alpha * STRIKE_FACE_ALPHA})`;
   ctx.fillText(text, 0, 0);
   ctx.letterSpacing = "0px";
   ctx.restore();

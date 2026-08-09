@@ -16,7 +16,8 @@
     "disclose": "node scripts/disclose.mjs",
     "check:public": "node scripts/check-public-data.mjs",
     "probe:purity": "node scripts/probe-run.mjs purity",
-    "probe:perf": "node scripts/probe-run.mjs perf"
+    "probe:perf": "node scripts/probe-run.mjs perf",
+    "shots": "node scripts/shots.mjs"
   },
   "devDependencies": {
     "playwright": "^1.62.1",

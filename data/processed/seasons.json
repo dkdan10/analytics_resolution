@@ -1,10 +1,18 @@
 {
   "generated_by": "pipeline/aggregate.py",
-  "generated_at": "2026-08-09T01:44:09+00:00",
+  "generated_at": "2026-08-09T02:07:06+00:00",
   "provenance": {
     "shots_source": "stats.nba.com shotchartdetail, bulk archive github.com/shufinskiy/nba_data",
     "sportvu_source": "NBA/STATS SportVU public 2015-16 release, github.com/linouk23/NBA-Player-Movements + mirrors (github.com/sealneaward/nba-movement-data, HF dcayton/nba_tracking_data_15_16)",
     "license_note": "derived data only; bulk dumps are never committed (see CLAUDE.md data rights)"
+  },
+  "taxonomy_columns": {
+    "TYPE": "SHOT_TYPE",
+    "RESULT": "EVENT_TYPE",
+    "ZONE": "SHOT_ZONE_BASIC",
+    "RANGE": "SHOT_ZONE_RANGE",
+    "AREA": "SHOT_ZONE_AREA",
+    "DESCRIPTION": "ACTION_TYPE"
   },
   "definitions": {
     "mid_share": "SHOT_ZONE_BASIC == \"Mid-Range\" (NBA zone taxonomy, disclosed)",
@@ -445,7 +453,8 @@
       "points": {
         "cells": 24897,
         "bytes": 348558
-      }
+      },
+      "active_taxonomy": "TYPE"
     },
     {
       "year": 1997,
@@ -873,7 +882,8 @@
       "points": {
         "cells": 27778,
         "bytes": 388892
-      }
+      },
+      "active_taxonomy": "DESCRIPTION"
     },
     {
       "year": 1998,
@@ -1304,7 +1314,8 @@
       "points": {
         "cells": 20743,
         "bytes": 290402
-      }
+      },
+      "active_taxonomy": "RESULT"
     },
     {
       "year": 1999,
@@ -1735,7 +1746,8 @@
       "points": {
         "cells": 24623,
         "bytes": 344722
-      }
+      },
+      "active_taxonomy": "ZONE"
     },
     {
       "year": 2000,
@@ -2301,7 +2313,8 @@
       "points": {
         "cells": 25017,
         "bytes": 350238
-      }
+      },
+      "active_taxonomy": "DESCRIPTION"
     },
     {
       "year": 2001,
@@ -2887,7 +2900,8 @@
       "points": {
         "cells": 25894,
         "bytes": 362516
-      }
+      },
+      "active_taxonomy": "DESCRIPTION"
     },
     {
       "year": 2002,
@@ -3473,7 +3487,8 @@
       "points": {
         "cells": 40557,
         "bytes": 567798
-      }
+      },
+      "active_taxonomy": "RANGE"
     },
     {
       "year": 2003,
@@ -4073,7 +4088,8 @@
       "points": {
         "cells": 40680,
         "bytes": 569520
-      }
+      },
+      "active_taxonomy": "DESCRIPTION"
     },
     {
       "year": 2004,
@@ -4674,7 +4690,8 @@
       "points": {
         "cells": 40928,
         "bytes": 572992
-      }
+      },
+      "active_taxonomy": "AREA"
     },
     {
       "year": 2005,
@@ -5278,7 +5295,8 @@
       "points": {
         "cells": 40868,
         "bytes": 572152
-      }
+      },
+      "active_taxonomy": "TYPE"
     },
     {
       "year": 2006,
@@ -5879,7 +5897,8 @@
       "points": {
         "cells": 42270,
         "bytes": 591780
-      }
+      },
+      "active_taxonomy": "RESULT"
     },
     {
       "year": 2007,
@@ -6668,7 +6687,8 @@
       "points": {
         "cells": 41110,
         "bytes": 575540
-      }
+      },
+      "active_taxonomy": "DESCRIPTION"
     },
     {
       "year": 2008,
@@ -7452,7 +7472,8 @@
       "points": {
         "cells": 43705,
         "bytes": 611870
-      }
+      },
+      "active_taxonomy": "DESCRIPTION"
     },
     {
       "year": 2009,
@@ -8237,7 +8258,8 @@
       "points": {
         "cells": 44963,
         "bytes": 629482
-      }
+      },
+      "active_taxonomy": "ZONE"
     },
     {
       "year": 2010,
@@ -9017,7 +9039,8 @@
       "points": {
         "cells": 43502,
         "bytes": 609028
-      }
+      },
+      "active_taxonomy": "DESCRIPTION"
     },
     {
       "year": 2011,
@@ -9797,7 +9820,8 @@
       "points": {
         "cells": 40730,
         "bytes": 570220
-      }
+      },
+      "active_taxonomy": "RANGE"
     },
     {
       "year": 2012,
@@ -10577,7 +10601,8 @@
       "points": {
         "cells": 44332,
         "bytes": 620648
-      }
+      },
+      "active_taxonomy": "AREA"
     },
     {
       "year": 2013,
@@ -11357,7 +11382,8 @@
       "points": {
         "cells": 42758,
         "bytes": 598612
-      }
+      },
+      "active_taxonomy": "TYPE"
     },
     {
       "year": 2014,
@@ -12128,7 +12154,8 @@
       "points": {
         "cells": 43663,
         "bytes": 611282
-      }
+      },
+      "active_taxonomy": "DESCRIPTION"
     },
     {
       "year": 2015,
@@ -12935,7 +12962,8 @@
       "points": {
         "cells": 30671,
         "bytes": 429394
-      }
+      },
+      "active_taxonomy": "DESCRIPTION"
     },
     {
       "year": 2016,
@@ -13742,7 +13770,8 @@
       "points": {
         "cells": 33726,
         "bytes": 472164
-      }
+      },
+      "active_taxonomy": "RESULT"
     },
     {
       "year": 2017,
@@ -14493,7 +14522,8 @@
       "points": {
         "cells": 66264,
         "bytes": 927696
-      }
+      },
+      "active_taxonomy": "DESCRIPTION"
     },
     {
       "year": 2018,
@@ -15244,7 +15274,8 @@
       "points": {
         "cells": 64795,
         "bytes": 907130
-      }
+      },
+      "active_taxonomy": "ZONE"
     },
     {
       "year": 2019,
@@ -15995,7 +16026,8 @@
       "points": {
         "cells": 59129,
         "bytes": 827806
-      }
+      },
+      "active_taxonomy": "RANGE"
     },
     {
       "year": 2020,
@@ -16746,7 +16778,8 @@
       "points": {
         "cells": 60159,
         "bytes": 842226
-      }
+      },
+      "active_taxonomy": "AREA"
     },
     {
       "year": 2021,
@@ -17497,7 +17530,8 @@
       "points": {
         "cells": 60220,
         "bytes": 843080
-      }
+      },
+      "active_taxonomy": "TYPE"
     },
     {
       "year": 2022,
@@ -18266,7 +18300,8 @@
       "points": {
         "cells": 58918,
         "bytes": 824852
-      }
+      },
+      "active_taxonomy": "DESCRIPTION"
     },
     {
       "year": 2023,
@@ -19035,7 +19070,8 @@
       "points": {
         "cells": 58893,
         "bytes": 824502
-      }
+      },
+      "active_taxonomy": "RESULT"
     },
     {
       "year": 2024,
@@ -19804,7 +19840,8 @@
       "points": {
         "cells": 59730,
         "bytes": 836220
-      }
+      },
+      "active_taxonomy": "ZONE"
     },
     {
       "year": 2025,
@@ -20573,7 +20610,8 @@
       "points": {
         "cells": 58836,
         "bytes": 823704
-      }
+      },
+      "active_taxonomy": "RANGE"
     }
   ]
 }

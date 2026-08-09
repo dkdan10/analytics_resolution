@@ -4,7 +4,7 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**107 scalars**, 75 of them material: 2 measured, 3 geometry, 102 authored.
+**121 scalars**, 87 of them material: 2 measured, 3 geometry, 116 authored.
 
 A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
@@ -208,6 +208,34 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   the engraved court - baseline, sidelines, lane, free-throw circle and the three-point line. Never brighter than the marks it holds: above roughly a tenth the floor reads as a diagram with data on it rather than as a plate the record is accumulating on.
 - **ENGRAVING_FAINT_ALPHA** — **0.05**  
   the apparatus at the centre of the record - backboard, rim and the restricted arc. Fainter than the rest of the engraving because it sits exactly where the density is highest, and at the same weight it would cut a visible ring through the one region every act is about.
+- **STRIKE_MAX_TENTHS** — **55**  
+  the cap height, in court tenths, a category holding ONE HUNDRED PER CENT of a season would be struck at. Every word is this times the square root of its own share, so the word's AREA is proportional to the shots it names - the law drawPin already obeys. Raise it and the biggest categories run off the floor; lower it and the census stops being monumental and goes back to being a list.
+- **STRIKE_FLOOR_TENTHS** — **12**  
+  the smallest a struck word may be. THE PLATE DOES NOT WHISPER: a category whose share would draw it under this is a tick and a number in the footer instead, never a small word. Rule 3's law is kept - area stays proportional to share for everything that IS struck - and 5a's lesson from THE LEDGER is kept beside it, that rarity is rarity of utterance and not smallness. WHAT IT COSTS IS ITSELF THE CENSUS'S ARGUMENT, and it is measured: at this value the five taxonomies that never grow lose NOTHING - every one of them still says its whole ninety-per-cent set - while DESCRIPTION, the one that grows, is cut to the three or four the floor can hold. The machine has more names than the floor has room for, and the footer counts them.
+- **WORD_CLEAR_PAD** — **0.22**  
+  cap heights of clear floor a struck word demands around itself before another may be laid. The collision test is done in POLAR terms because the words are laid tangent to the hoop, so this pads a radial gap and an angular one at once.
+- **ROTATE_STEP_RAD** — **0.11**  
+  the bearing step a word is moved by when it collides. BEARING IS THE ONLY FREE VARIABLE: distance from the basket is the quantity this entire piece is about and is never perturbed, and the disclosure line on the plate says so. Smaller steps find more room and cost more tries.
+- **ROTATE_MAX_RAD** — **1.5708**  
+  how far around its own radius a word may be moved before the plate gives up and does not strike it at all. A quarter turn: past that the word is describing a different part of the floor from the one the record put it in. What it refuses is counted in the footer rather than hidden.
+- **SIXFOLD_SECONDS** — **2.2** *(not material)*  
+  how long ALL SIX taxonomies are struck at once at a season's opening before five withdraw. It is the 31-to-75 growth made a single perceivable event that recurs thirty times, and it is the only pacing scalar this hand adds.
+- **SIXFOLD_ALPHA** — **0.3**  
+  how strongly the other five are struck during that moment. Low enough that the floor reads as covered rather than as legible - the point is the DENSITY of six overlapping vocabularies, not any one of them.
+- **CENSUS_FIELD_DIM** — **0.5**  
+  how far the season's marks are held back beneath the filing. The census is about the marks, so they have to be there; the words are cut into the plate underneath and the marks settle over them.
+- **CENSUS_TICK_TENTHS** — **9**  
+  the arm length of the incised cross struck at EVERY category's place, named or not. The tick count is the taxonomy's whole size, so five constellations never change their count across thirty seasons while the sixth breeds - the growth seen rather than read.
+- **CENSUS_TICK_ALPHA** — **0.3**  
+  how deeply a tick is cut, against the words above it.
+- **CENSUS_TICK_WEIGHT** — **1.4**  
+  a tick's stroke width as a multiple of the plate scale, so the incision keeps its weight across window sizes. Heavier than the engraving it is cut beside, because a tick stands for a whole category of the record.
+- **CENSUS_WORD_ALPHA** — **0.92**  
+  the struck word's own strength, before the frame's fade. Near the top of the range because these ARE the hand - the tables they replaced were the brightest thing on the plate and read as an overlay.
+- **MACHINE_SAW_SCALE** — **0.6**  
+  the window's seventh beat - the count of body positions the machine held - as a fraction of the largest a category may be struck at. It is the strongest content the census has and it used to be set in the smallest type on screen, in a gutter. Struck below a full-share word because it is a count and not a share, and nothing here is entitled to the whole floor.
+- **CENSUS_SHARE_SCALE** — **0.32** *(not material)*  
+  the share numeral riding under each word, as a fraction of the word. Subordinate on purpose: the word's own SIZE already carries the share, and the numeral only says exactly how much.
 - **CENSUS_HEAD_ALPHA** — **0.75** *(not material)*  
   the tally's own heading line - the season and the count classified so far.
 - **CENSUS_SUB_ALPHA** — **0.45** *(not material)*  

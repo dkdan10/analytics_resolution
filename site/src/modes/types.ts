@@ -25,6 +25,20 @@ export interface Frame {
   inscriptions: Inscription[];
   /** 1 minus the coda; everything the piece drew recedes to bare stone. */
   remains: number;
+  /**
+   * Whether somebody is working, rather than whether anything is remembered.
+   *
+   * MODE CONFIGURATION, NOT HELD STATE, and the distinction is the reason this
+   * is allowed to exist at all: `render` is still a pure function of its inputs,
+   * and `t` still determines the frame completely for a given configuration.
+   * Nothing here accumulates and nothing here survives a frame.
+   *
+   * It follows the RAIL rather than the talk clock, so `?talk&nav=0` gives a
+   * clean plate for a capture — which is what the capture recipe asks for. THE
+   * CENSUS is the only hand that reads it today: its six-table apparatus is
+   * kept verbatim for the lectern and is not on the gallery wall.
+   */
+  talk: boolean;
 }
 
 export type Hand = (f: Frame) => void;

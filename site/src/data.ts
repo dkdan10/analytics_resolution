@@ -45,6 +45,12 @@ export interface Vocabulary {
   longest: string;
   most_common: string;
   words_list: string[];
+  /** How many categories of EACH taxonomy account for the bulk of the
+   *  season, which is how many words THE CENSUS strikes into the floor for
+   *  whichever one it is filing. `covering_90pct.DESCRIPTION` IS
+   *  `words_covering_90pct` above - one measurement, gated, so the two hands'
+   *  text density cannot disagree. */
+  covering_90pct: Record<string, number>;
   /** Distinct values per classification field. */
   taxonomies: Record<string, number>;
   /** Every taxonomy's distinct values added up - the size of the machine's
@@ -123,6 +129,31 @@ export interface Contemporaneous {
   note: string;
 }
 
+/**
+ * Where one category of the record sits on the floor.
+ *
+ * POLAR, and that is not a formatting choice: the Cartesian centroid of an
+ * annular category is pulled toward the hoop and lands outside the band it is
+ * named for. `dist_ft` is the mean of the record's own SHOT_DISTANCE and
+ * `bearing_rad` the CIRCULAR mean of the coordinates' angle.
+ *
+ * `n_placed` is how many of the category's `n` shots the record actually gave a
+ * place. It is not bookkeeping: in the blind era it is a few per cent, which is
+ * the piece's four-regime finding arriving inside the census.
+ */
+export interface Place {
+  n: number;
+  n_placed: number;
+  /** Absent when `n_placed` is 0 - the record named the category and placed
+   *  none of it, so there is nowhere to strike the word. */
+  dist_ft?: number;
+  bearing_rad?: number;
+  /** The resultant length: 1 is a ray, 0 is a category with no direction at
+   *  all. A category symmetric about the centreline has a meaningless bearing
+   *  sitting near pi/2, and this is what says so. */
+  bearing_concentration?: number;
+}
+
 export interface Season {
   year: number;
   season: string;
@@ -144,6 +175,19 @@ export interface Season {
    *  -> count. THE CENSUS reads these, so its figures equal the ones the plate
    *  strikes into the floor instead of estimating them from a sample. */
   classification: Record<string, Record<string, number>>;
+  /** WHERE each of those categories sits on this floor: the mean of the
+   *  record's own SHOT_DISTANCE and the CIRCULAR mean of atan2(LOC_Y, LOC_X)
+   *  over that category's placed shots. THE CENSUS strikes one word per
+   *  category HERE, so there is no authored position anywhere in that hand.
+   *  A category with no placed shots carries `n_placed: 0` and no position at
+   *  all, rather than a default one. */
+  classification_place: Record<string, Record<string, Place>>;
+  /** Which of the six THE CENSUS files this season. DERIVED BY THE PIPELINE
+   *  from two measurements it already makes - the era's own three-point line
+   *  and whether the vocabulary moved - so there is one implementation of the
+   *  rule and qa.py gates it. The renderer reads the answer; it does not decide
+   *  it. Overridden only in the window, which files all six in sequence. */
+  active_taxonomy: string;
   contemporaneous: Contemporaneous | null;
   note: string | null;
 }
@@ -152,6 +196,8 @@ export interface SeasonsFile {
   generated_by: string;
   generated_at: string;
   provenance: Record<string, string>;
+  /** Taxonomy title -> the record's own column name. */
+  taxonomy_columns: Record<string, string>;
   definitions: Record<string, string>;
   seasons: Season[];
 }
@@ -620,6 +666,11 @@ export interface Loaded {
    *  finite list and the probes assert it is empty before believing a row. */
   assetErrors(): string[];
   provenance: Record<string, string>;
+  /** Which database column each of the six taxonomies IS — `DESCRIPTION` is
+   *  `ACTION_TYPE`. THE CENSUS strikes the machine's own field name into the
+   *  floor, and a name the record uses is a name the record has to supply. Its
+   *  KEY ORDER is the record's own and is what the window's beats run through. */
+  taxonomyColumns: Record<string, string>;
 }
 
 const BASE = import.meta.env.BASE_URL;
@@ -780,5 +831,6 @@ export async function load(): Promise<Loaded> {
       return all.filter(([, e]) => e !== null).map(([n, e]) => `${n}: ${e}`);
     },
     provenance: file.provenance,
+    taxonomyColumns: file.taxonomy_columns,
   };
 }

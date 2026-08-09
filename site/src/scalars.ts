@@ -825,6 +825,154 @@ export const SCALARS = {
       "cut a visible ring through the one region every act is about.",
   },
 
+  // --- modes/census.ts — the filing (V-05) ---------------------------------
+  //
+  // NO POSITION AND NO PROPORTION IS AUTHORED IN THIS HAND. Every place on the
+  // plate comes from `seasons.json:classification_place` and every size from a
+  // measured share. What is authored is how LARGE the largest thing may be, how
+  // much room a word demands, and how long the six-fold strike lasts.
+  STRIKE_MAX_TENTHS: {
+    class: "authored",
+    value: 55,
+    material: true,
+    controls:
+      "the cap height, in court tenths, a category holding ONE HUNDRED PER CENT " +
+      "of a season would be struck at. Every word is this times the square root " +
+      "of its own share, so the word's AREA is proportional to the shots it " +
+      "names - the law drawPin already obeys. Raise it and the biggest " +
+      "categories run off the floor; lower it and the census stops being " +
+      "monumental and goes back to being a list.",
+  },
+  STRIKE_FLOOR_TENTHS: {
+    class: "authored",
+    value: 12,
+    material: true,
+    controls:
+      "the smallest a struck word may be. THE PLATE DOES NOT WHISPER: a category " +
+      "whose share would draw it under this is a tick and a number in the footer " +
+      "instead, never a small word. Rule 3's law is kept - area stays " +
+      "proportional to share for everything that IS struck - and 5a's lesson " +
+      "from THE LEDGER is kept beside it, that rarity is rarity of utterance and " +
+      "not smallness. " +
+      "WHAT IT COSTS IS ITSELF THE CENSUS'S ARGUMENT, and it is measured: at this " +
+      "value the five taxonomies that never grow lose NOTHING - every one of them " +
+      "still says its whole ninety-per-cent set - while DESCRIPTION, the one that " +
+      "grows, is cut to the three or four the floor can hold. The machine has " +
+      "more names than the floor has room for, and the footer counts them.",
+  },
+  WORD_CLEAR_PAD: {
+    class: "authored",
+    value: 0.22,
+    material: true,
+    controls:
+      "cap heights of clear floor a struck word demands around itself before " +
+      "another may be laid. The collision test is done in POLAR terms because " +
+      "the words are laid tangent to the hoop, so this pads a radial gap and an " +
+      "angular one at once.",
+  },
+  ROTATE_STEP_RAD: {
+    class: "authored",
+    value: 0.11,
+    material: true,
+    controls:
+      "the bearing step a word is moved by when it collides. BEARING IS THE ONLY " +
+      "FREE VARIABLE: distance from the basket is the quantity this entire piece " +
+      "is about and is never perturbed, and the disclosure line on the plate says " +
+      "so. Smaller steps find more room and cost more tries.",
+  },
+  ROTATE_MAX_RAD: {
+    class: "authored",
+    value: 1.5708,
+    material: true,
+    controls:
+      "how far around its own radius a word may be moved before the plate gives " +
+      "up and does not strike it at all. A quarter turn: past that the word is " +
+      "describing a different part of the floor from the one the record put it " +
+      "in. What it refuses is counted in the footer rather than hidden.",
+  },
+  SIXFOLD_SECONDS: {
+    class: "authored",
+    value: 2.2,
+    material: false,
+    controls:
+      "how long ALL SIX taxonomies are struck at once at a season's opening " +
+      "before five withdraw. It is the 31-to-75 growth made a single perceivable " +
+      "event that recurs thirty times, and it is the only pacing scalar this " +
+      "hand adds.",
+  },
+  SIXFOLD_ALPHA: {
+    class: "authored",
+    value: 0.3,
+    material: true,
+    controls:
+      "how strongly the other five are struck during that moment. Low enough " +
+      "that the floor reads as covered rather than as legible - the point is the " +
+      "DENSITY of six overlapping vocabularies, not any one of them.",
+  },
+  CENSUS_FIELD_DIM: {
+    class: "authored",
+    value: 0.5,
+    material: true,
+    controls:
+      "how far the season's marks are held back beneath the filing. The census " +
+      "is about the marks, so they have to be there; the words are cut into the " +
+      "plate underneath and the marks settle over them.",
+  },
+  CENSUS_TICK_TENTHS: {
+    class: "authored",
+    value: 9,
+    material: true,
+    controls:
+      "the arm length of the incised cross struck at EVERY category's place, " +
+      "named or not. The tick count is the taxonomy's whole size, so five " +
+      "constellations never change their count across thirty seasons while the " +
+      "sixth breeds - the growth seen rather than read.",
+  },
+  CENSUS_TICK_ALPHA: {
+    class: "authored",
+    value: 0.3,
+    material: true,
+    controls: "how deeply a tick is cut, against the words above it.",
+  },
+  CENSUS_TICK_WEIGHT: {
+    class: "authored",
+    value: 1.4,
+    material: true,
+    controls:
+      "a tick's stroke width as a multiple of the plate scale, so the incision " +
+      "keeps its weight across window sizes. Heavier than the engraving it is " +
+      "cut beside, because a tick stands for a whole category of the record.",
+  },
+  CENSUS_WORD_ALPHA: {
+    class: "authored",
+    value: 0.92,
+    material: true,
+    controls:
+      "the struck word's own strength, before the frame's fade. Near the top of " +
+      "the range because these ARE the hand - the tables they replaced were the " +
+      "brightest thing on the plate and read as an overlay.",
+  },
+  MACHINE_SAW_SCALE: {
+    class: "authored",
+    value: 0.6,
+    material: true,
+    controls:
+      "the window's seventh beat - the count of body positions the machine held " +
+      "- as a fraction of the largest a category may be struck at. It is the " +
+      "strongest content the census has and it used to be set in the smallest " +
+      "type on screen, in a gutter. Struck below a full-share word because it is " +
+      "a count and not a share, and nothing here is entitled to the whole floor.",
+  },
+  CENSUS_SHARE_SCALE: {
+    class: "authored",
+    value: 0.32,
+    material: false,
+    controls:
+      "the share numeral riding under each word, as a fraction of the word. " +
+      "Subordinate on purpose: the word's own SIZE already carries the share, " +
+      "and the numeral only says exactly how much.",
+  },
+
   // --- modes/census.ts — the tally's own type ------------------------------
   CENSUS_HEAD_ALPHA: {
     class: "authored",
@@ -1064,6 +1212,20 @@ export const TERM_MARGIN_ALPHA: number = SCALARS.TERM_MARGIN_ALPHA.value;
 export const LEAGUE_NAME_ALPHA: number = SCALARS.LEAGUE_NAME_ALPHA.value;
 export const LEAGUE_VALUE_ALPHA: number = SCALARS.LEAGUE_VALUE_ALPHA.value;
 export const LEAGUE_ARRIVAL_K: number = SCALARS.LEAGUE_ARRIVAL_K.value;
+export const STRIKE_MAX_TENTHS: number = SCALARS.STRIKE_MAX_TENTHS.value;
+export const STRIKE_FLOOR_TENTHS: number = SCALARS.STRIKE_FLOOR_TENTHS.value;
+export const WORD_CLEAR_PAD: number = SCALARS.WORD_CLEAR_PAD.value;
+export const ROTATE_STEP_RAD: number = SCALARS.ROTATE_STEP_RAD.value;
+export const ROTATE_MAX_RAD: number = SCALARS.ROTATE_MAX_RAD.value;
+export const SIXFOLD_SECONDS: number = SCALARS.SIXFOLD_SECONDS.value;
+export const SIXFOLD_ALPHA: number = SCALARS.SIXFOLD_ALPHA.value;
+export const CENSUS_FIELD_DIM: number = SCALARS.CENSUS_FIELD_DIM.value;
+export const CENSUS_TICK_TENTHS: number = SCALARS.CENSUS_TICK_TENTHS.value;
+export const CENSUS_TICK_ALPHA: number = SCALARS.CENSUS_TICK_ALPHA.value;
+export const CENSUS_TICK_WEIGHT: number = SCALARS.CENSUS_TICK_WEIGHT.value;
+export const CENSUS_WORD_ALPHA: number = SCALARS.CENSUS_WORD_ALPHA.value;
+export const MACHINE_SAW_SCALE: number = SCALARS.MACHINE_SAW_SCALE.value;
+export const CENSUS_SHARE_SCALE: number = SCALARS.CENSUS_SHARE_SCALE.value;
 export const CENSUS_HEAD_ALPHA: number = SCALARS.CENSUS_HEAD_ALPHA.value;
 export const CENSUS_SUB_ALPHA: number = SCALARS.CENSUS_SUB_ALPHA.value;
 export const ENGRAVING_ALPHA: number = SCALARS.ENGRAVING_ALPHA.value;

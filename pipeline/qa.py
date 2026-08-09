@@ -919,6 +919,53 @@ def group_filing(g, ctx):
     g.check("the ledger's label budget is the census's DESCRIPTION budget", identity, [])
     g.check("every taxonomy's ninety-per-cent set fits inside that taxonomy", sums, [])
 
+    # --- which taxonomy THE CENSUS files, and when -------------------------
+    #
+    # RE-DERIVED HERE, not read back. It is a six-line rule and this is a second
+    # implementation of it on purpose - the same footing pipeline/checks/ stands
+    # on, where the arithmetic that decides something is written out twice so a
+    # mistake cannot agree with itself.
+    cols = (ctx.json(g, "seasons.json") or {}).get("taxonomy_columns")
+    titles = set(next(iter(seasons.values())).get("classification", {}))
+    g.check("every taxonomy names the database column it is",
+            sorted(cols or {}), sorted(titles))
+    g.check("those columns are the ones the vocabulary counts",
+            sorted((cols or {}).values()),
+            sorted(next(iter(seasons.values())).get("vocabulary", {}).get("taxonomies", {})))
+
+    order = ["RESULT", "ZONE", "RANGE", "AREA", "TYPE"]
+    ordered = [seasons[y] for y in sorted(seasons)]
+    wrong, rank = [], 0
+    for i, row in enumerate(ordered):
+        if row.get("contemporaneous") is not None:
+            want = "TYPE"
+        elif i == 0 or row["vocabulary"]["words"] != ordered[i - 1]["vocabulary"]["words"]:
+            want = "DESCRIPTION"
+        else:
+            want = order[rank % len(order)]
+            rank += 1
+        if row.get("active_taxonomy") != want:
+            wrong.append(f"{row['season']}: {row.get('active_taxonomy')} != {want}")
+    g.check("the filing schedule is the rule it says it is", wrong, [])
+
+    filed = {row.get("active_taxonomy") for row in ordered}
+    g.check("the schedule shows all six taxonomies across the corpus",
+            sorted(filed), sorted(titles))
+    forced = {row["season"] for row in ordered if row.get("contemporaneous") is not None}
+    g.check("the one season the taxonomy disagrees with its own era files by TYPE",
+            sorted(row["season"] for row in ordered
+                   if row.get("active_taxonomy") == "TYPE"
+                   and row.get("contemporaneous") is not None),
+            sorted(forced))
+    changed = sorted(
+        row["season"] for i, row in enumerate(ordered)
+        if row.get("contemporaneous") is None
+        and (i == 0 or row["vocabulary"]["words"] != ordered[i - 1]["vocabulary"]["words"])
+    )
+    g.check("DESCRIPTION is filed in exactly the seasons the vocabulary moved",
+            sorted(row["season"] for row in ordered
+                   if row.get("active_taxonomy") == "DESCRIPTION"), changed)
+
     ex = seasons.get(1996) or next(iter(seasons.values()))
     zone = ex.get("classification_place", {}).get("ZONE", {})
     ra = zone.get("Restricted Area", {})

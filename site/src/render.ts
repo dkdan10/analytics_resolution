@@ -33,6 +33,11 @@ export function renderTo(
   schedule: Schedule,
   inscriptions: Inscription[],
   modeOverride: ModeId | null,
+  /** Whether the rail is up. Mode CONFIGURATION, like `modeOverride`: it does
+   *  not travel with `t` and it holds nothing between frames, so `renderTo`
+   *  stays a pure function of its arguments. Defaulted false so every probe and
+   *  every caller that does not care gets the gallery. */
+  talk = false,
 ): void {
   const st = stateAt(t, schedule);
 
@@ -97,7 +102,7 @@ export function renderTo(
   // ground, the prelude, the era's arc.
   if (remains > 0.001) {
     drawHand(modeAt(t, schedule, modeOverride), {
-      ctx, view, dpr, st, data, schedule, inscriptions, remains,
+      ctx, view, dpr, st, data, schedule, inscriptions, remains, talk,
     });
   }
 }

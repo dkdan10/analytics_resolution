@@ -11,6 +11,7 @@ import type { Inscription } from "../inscription";
 import { MODE_IDS, type ModeId } from "../modes";
 import { clearLayers } from "../field";
 import { clearStamps } from "../marks";
+import { clearCensusCaches } from "../modes/census";
 import { clearCanvas } from "../modes/hand";
 import { clearLedgerCaches } from "../modes/ledger";
 import { makeView } from "../plate";
@@ -90,6 +91,9 @@ export function cold(): void {
   // PURE, because every history then shares the same stale cache and they agree
   // with each other.
   clearLedgerCaches();
+  // THE CENSUS's string ruler: a word's width in COURT TENTHS, measured once
+  // per string at a fixed nominal size. Same trap as the line above.
+  clearCensusCaches();
 }
 
 export interface Beat {
