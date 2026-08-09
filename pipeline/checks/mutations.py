@@ -325,6 +325,150 @@ def m_covering_90_split(d):
     _save(d, "seasons.json", s)
 
 
+# --- the eleven V-05 gates that had no owning defect (session 7, S1) ---------
+#
+# "Add a gate, add its defect" is the law and nobody staged these eleven when
+# sessions 5b's two V-05 commits added the gates. Each mutation below is
+# surgical on purpose - it corrupts exactly what its gate reads, so the RED
+# proves the named check and not a neighbour - but surgical is style, not the
+# rule: run_mutations counts a case caught when its named check fails, whatever
+# else fails beside it.
+
+def _season_row(s, year):
+    """The one season row a surgical mutation edits."""
+    for row in s["seasons"]:
+        if row["year"] == year:
+            return row
+    raise KeyError(year)
+
+
+def m_place_degenerate(d):
+    """A concentration leaves [0, 1] - the resultant length claims more than one.
+
+    Everything downstream sizes ticks and reads confidence off this number; a
+    value above one is not a strange measurement, it is arithmetic that cannot
+    have happened.
+    """
+    s = _load(d, "seasons.json")
+    _season_row(s, 2015)["classification_place"]["ZONE"]["Mid-Range"][
+        "bearing_concentration"] = 1.5
+    _save(d, "seasons.json", s)
+
+
+def m_place_band(d):
+    """A distance band's own mean walks out of the band it names.
+
+    '8-16 ft.' filing its mean at 20 ft is the record contradicting its own
+    category name - kept inside the plate so only the band check can see it.
+    """
+    s = _load(d, "seasons.json")
+    _season_row(s, 2015)["classification_place"]["RANGE"]["8-16 ft."]["dist_ft"] = 20.0
+    _save(d, "seasons.json", s)
+
+
+def m_place_centre(d):
+    """The centre category swings off the centreline.
+
+    Center(C)'s bearing moves enough that its projection onto the baseline
+    leaves the tolerance, while staying inside [-pi, pi] so the degenerate
+    check has nothing to say.
+    """
+    s = _load(d, "seasons.json")
+    _season_row(s, 2015)["classification_place"]["AREA"]["Center(C)"]["bearing_rad"] = 1.0
+    _save(d, "seasons.json", s)
+
+
+def m_place_offplate(d):
+    """An on-plate category is filed beyond the halfcourt.
+
+    The mirror of filing-backcourt: Mid-Range at 45 ft would put a word the
+    census strikes on ground the plate does not hold.
+    """
+    s = _load(d, "seasons.json")
+    _season_row(s, 2015)["classification_place"]["ZONE"]["Mid-Range"]["dist_ft"] = 45.0
+    _save(d, "seasons.json", s)
+
+
+def m_ninety_overflow(d):
+    """A ninety-per-cent set claims more categories than its taxonomy has.
+
+    ZONE holds seven categories; a covering count of nine is not a wide
+    vocabulary, it is a count of something else.
+    """
+    s = _load(d, "seasons.json")
+    _season_row(s, 2015)["vocabulary"]["covering_90pct"]["ZONE"] = 9
+    _save(d, "seasons.json", s)
+
+
+def m_taxonomy_title(d):
+    """A taxonomy title drifts from the classification it names.
+
+    The key renames while its column value survives, so the titles and the
+    tallies stop being the same six words.
+    """
+    s = _load(d, "seasons.json")
+    cols = s["taxonomy_columns"]
+    cols["ZONE_AREA"] = cols.pop("AREA")
+    _save(d, "seasons.json", s)
+
+
+def m_taxonomy_column(d):
+    """A taxonomy's database column drifts from the one the vocabulary counts.
+
+    The titles still agree, but the column the census cites is no longer the
+    column the vocabulary was measured over.
+    """
+    s = _load(d, "seasons.json")
+    s["taxonomy_columns"]["AREA"] = "SHOT_AREA"
+    _save(d, "seasons.json", s)
+
+
+def m_schedule_rule(d):
+    """Two cycling seasons swap filings, against the rule the artifact states.
+
+    The filed set stays complete and every list the other schedule checks read
+    is untouched - only the re-derivation can see the swap.
+    """
+    s = _load(d, "seasons.json")
+    _season_row(s, 1998)["active_taxonomy"] = "ZONE"
+    _season_row(s, 1999)["active_taxonomy"] = "RESULT"
+    _save(d, "seasons.json", s)
+
+
+def m_schedule_missing(d):
+    """A taxonomy vanishes from the filing schedule entirely.
+
+    AREA is filed by exactly three seasons; refile all three by TYPE and the
+    census never shows one of the record's six readings across the whole loop.
+    """
+    s = _load(d, "seasons.json")
+    for year in (2004, 2012, 2020):
+        _season_row(s, year)["active_taxonomy"] = "TYPE"
+    _save(d, "seasons.json", s)
+
+
+def m_schedule_forced(d):
+    """The one contemporaneous season stops filing by TYPE.
+
+    1996-97 is the only season whose taxonomy disagrees with its own era, and
+    filing it by anything else erases the one filing that discloses that.
+    """
+    s = _load(d, "seasons.json")
+    _season_row(s, 1996)["active_taxonomy"] = "ZONE"
+    _save(d, "seasons.json", s)
+
+
+def m_schedule_description(d):
+    """DESCRIPTION is filed in a season whose vocabulary did not move.
+
+    2016-17 holds the same word count as 2015-16; filing it by DESCRIPTION
+    claims a change of vocabulary the record does not contain.
+    """
+    s = _load(d, "seasons.json")
+    _season_row(s, 2016)["active_taxonomy"] = "DESCRIPTION"
+    _save(d, "seasons.json", s)
+
+
 def m_sentinel_move(d):
     """A refusal is moved back onto the origin without its count changing.
 
@@ -981,6 +1125,43 @@ CASES = [
     Case("covering-90-split", ["filing"],
          "the ledger's label budget is the census's DESCRIPTION budget",
          m_covering_90_split, "two hands stop reading one measurement"),
+
+    # --- the eleven V-05 gates that had no owning defect (session 7, S1) ------
+    Case("place-degenerate", ["filing"],
+         "no category carries a degenerate place",
+         m_place_degenerate,
+         "a concentration above one is arithmetic that cannot have happened"),
+    Case("place-band", ["filing"],
+         "every distance band's mean sits inside its own band",
+         m_place_band, "'8-16 ft.' filing its mean at 20 ft, category against itself"),
+    Case("place-centre", ["filing"],
+         "every category naming the centre sits within",
+         m_place_centre, "the centre category swung off the centreline"),
+    Case("place-offplate", ["filing"],
+         "every other category lands on the plate",
+         m_place_offplate, "an on-plate word filed on ground the plate does not hold"),
+    Case("ninety-overflow", ["filing"],
+         "every taxonomy's ninety-per-cent set fits inside that taxonomy",
+         m_ninety_overflow, "a covering count larger than the taxonomy it covers"),
+    Case("taxonomy-title", ["filing"],
+         "every taxonomy names the database column it is",
+         m_taxonomy_title, "a title renamed out from under its own tallies"),
+    Case("taxonomy-column", ["filing"],
+         "those columns are the ones the vocabulary counts",
+         m_taxonomy_column, "the census citing a column the vocabulary never measured"),
+    Case("schedule-rule", ["filing"],
+         "the filing schedule is the rule it says it is",
+         m_schedule_rule, "two cycling seasons swapped against the stated rule"),
+    Case("schedule-missing", ["filing"],
+         "the schedule shows all six taxonomies across the corpus",
+         m_schedule_missing, "one of the record's six readings never filed at all"),
+    Case("schedule-forced", ["filing"],
+         "the one season the taxonomy disagrees with its own era files by TYPE",
+         m_schedule_forced, "the one disclosing filing erased"),
+    Case("schedule-description", ["filing"],
+         "DESCRIPTION is filed in exactly the seasons the vocabulary moved",
+         m_schedule_description,
+         "a vocabulary change claimed for a season that held still"),
 
     # --- where the record's refusal actually is (5b) --------------------------
     Case("sentinel-move", ["filing"],
