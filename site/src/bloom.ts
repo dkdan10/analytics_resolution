@@ -61,8 +61,13 @@ const DRAW_S = 1.3;
 const HOLD_S = 2.2;
 const FADE_S = 2.4;
 const LIFE_S = DRAW_S + HOLD_S + FADE_S;
-/** Ignitions are spread across this much of the act; the tail is the closing. */
-const SPREAD = 0.86;
+/** Ignitions are spread across this much of the act. The remainder belongs to
+ *  the terminal beat: the last gesture is still fading as the shell's three
+ *  lines strike, and the closing takes whatever is left lit. The old value
+ *  left the plate holding an empty-of-event frame inside the window — the
+ *  leftover of this arithmetic, which both display audits hashed
+ *  independently. Absence must be an event, not a remainder. */
+const SPREAD = 0.96;
 
 export interface BloomTiming {
   /** 0..1 through Act III. */

@@ -41,7 +41,10 @@ export function drawPlateHand(f: Frame): void {
   if (st.act === 3 && data.corpus) {
     const last = terminalShell(data.corpus);
     if (last) {
-      const closing = Math.max(0, Math.min(1, (st.phase - 0.93) / 0.05));
+      // The shell arrives while the last gesture is still fading — the plate
+      // hands itself from the corpus's last trace to the record's last file
+      // with no dead interval between them. Paired with `bloom.ts:SPREAD`.
+      const closing = Math.max(0, Math.min(1, (st.phase - 0.90) / 0.05));
       drawSlug(
         ctx,
         view,
