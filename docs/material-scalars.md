@@ -4,7 +4,7 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**82 scalars**, 72 of them material: 2 measured, 3 geometry, 77 authored.
+**84 scalars**, 73 of them material: 2 measured, 3 geometry, 79 authored.
 
 A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
@@ -166,6 +166,10 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   Act II's four category names, struck with no figures beside them - the league has begun publishing the measure and nobody outside can make it.
 - **BUCKET_LABEL_ALPHA** — **0.55** *(not material)*  
   the four category names beside the boundaries, as the boxes are cut.
+- **INSTANT_BAND_HALF_W** — **90**  
+  how far either side of the centreline a category boundary is drawn, in court tenths - how wide the four boxes are. It carries NO measurement: the boundary's DISTANCE from the hoop is the measured axis and is untouched by this. At the foot and a half it used to be, the one image this piece calls its whole argument read as a small ladder near the rim instead of as a continuous quantity being divided (audit V-06).
+- **BUCKET_NAME_TENTHS** — **6.6** *(not material)*  
+  the size of a category name inside its own band, in court tenths. It was set at the size of a label on a datapoint, against a tick, and could not be read; it now matches the statement rank the rest of the piece speaks at. Typography, not grain.
 - **SLUG_VOICE_TENTHS** — **9** *(not material)*  
   the four sentences the piece is ABOUT - the prelude's, the one that names what a caliper measures, the one that says the league will not name the instant, and the one that says the record keeps only endpoints. At most one is ever on the plate, and it is the loudest thing on it.
 - **SLUG_STATEMENT_TENTHS** — **6.6** *(not material)*  

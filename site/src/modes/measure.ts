@@ -41,6 +41,7 @@ import { BONE_RGB, INSCRIPTION_FAMILY } from "../palette";
 import type { View } from "../plate";
 import {
   BUCKET_LABEL_ALPHA,
+  BUCKET_NAME_TENTHS,
   CALIPER_SERIF,
   CALIPER_SERIF_CLOSE,
   CALIPER_SERIF_FLOOD,
@@ -53,9 +54,11 @@ import {
   HERO_PATH_ALPHA,
   HERO_RING_ALPHA,
   HERO_TAIL,
+  INSTANT_BAND_HALF_W,
   INSTANT_CUT_ALPHA,
   INSTANT_LINE_ALPHA,
   NAMES_ONLY_ALPHA,
+  SLUG_MIN_PX,
 } from "../scalars";
 import { label } from "../textatlas";
 import { WINDOW_BEATS } from "../timeline";
@@ -92,7 +95,19 @@ function win(phase: number, [a, b]: readonly [number, number]): number {
   return Math.max(0, Math.min(1, (phase - a) / (b - a)));
 }
 
-function fade(x: number, inAt = 0.12, outAt = 0.88): number {
+/**
+ * A beat's own envelope, and why the ramps are short.
+ *
+ * Only one beat is drawn at a time, so a long fade out into a long fade in is
+ * not a cross-dissolve — it is an empty plate. Measured across the three
+ * internal boundaries before this was shortened: the flood dimmed to nothing
+ * over three and a half seconds, the plate held one hairline, and the next beat
+ * took nearly three more to arrive. Beats now hold almost to their edge and the
+ * handover is quick, which is the only honest way to have soft edges without a
+ * gap between them. The ramps exist so nothing snaps on; they are not
+ * transitions.
+ */
+function fade(x: number, inAt = 0.01, outAt = 0.99): number {
   return Math.min(1, Math.min(x / inAt, (1 - x) / (1 - outAt)));
 }
 
@@ -336,7 +351,7 @@ function beatOne(f: Frame, w: WindowFile, k: number): void {
   const heroes = w.contest.heroes;
   if (!heroes.length) return;
 
-  const a = fade(k, 0.08, 0.9) * remains;
+  const a = fade(k) * remains;
   // Each hero runs in its own quarter of the beat, so the four categories are
   // shown one at a time rather than as a crowd.
   heroes.forEach((h: HeroShot, i: number) => {
@@ -386,7 +401,7 @@ function beatOne(f: Frame, w: WindowFile, k: number): void {
 /** MANY — the rate climbs from one to all of them, in calendar order. */
 function beatMany(f: Frame, w: WindowFile, k: number, m: Measures | null): void {
   const { ctx, view, remains } = f;
-  const a = fade(k, 0.06, 0.94) * remains;
+  const a = fade(k) * remains;
   const measured = w.recovery.measured;
 
   // Exponential ramp: one, a few, a few dozen, hundreds, thousands, all of
@@ -448,12 +463,22 @@ function beatMany(f: Frame, w: WindowFile, k: number, m: Measures | null): void 
  */
 function beatInstant(f: Frame, w: WindowFile, k: number): void {
   const { ctx, view, remains } = f;
-  const a = fade(k, 0.08, 0.9) * remains;
+  const a = fade(k) * remains;
   const curve = w.contest.approach_curve_ft.filter((v): v is number => v !== null);
   if (!curve.length) return;
 
-  const run = Math.min(1, k / 0.55);
-  const idx = Math.min(curve.length - 1, Math.floor(run * (curve.length - 1)));
+  // HOW LONG THE APPROACH RUNS BEFORE THE BOXES ARE CUT.
+  //
+  // This used to be more than half the beat, and it was the piece's longest dead
+  // interval: measured on the shipped frames, from its start until the cut began
+  // the plate held ONE hairline and ONE numeral, for a stretch measured in tens
+  // of seconds, against beats either side carrying the whole flood. The approach is
+  // a real measurement and it should be watchable, but watching a line shorten
+  // is not nineteen seconds of subject. The cut - a continuous quantity being
+  // divided into four boxes - is what this beat is FOR, so it gets most of it.
+  const RUN_ENDS = 0.22;
+  const run = Math.min(1, Math.max(0, k) / RUN_ENDS);
+  const idx = Math.min(curve.length - 1, Math.max(0, Math.floor(run * (curve.length - 1))));
   const dist = curve[idx]!;
 
   // A hairline out from the hoop along the centreline; its length is the mean
@@ -474,9 +499,19 @@ function beatInstant(f: Frame, w: WindowFile, k: number): void {
     0, y1 + 26, a * 0.8, 20);
 
   // Once it stops, the boundaries are cut and the boxes named.
-  const cut = Math.max(0, (k - 0.55) / 0.45);
+  const cut = Math.max(0, (k - RUN_ENDS) / (1 - RUN_ENDS));
   if (cut > 0) {
     const buckets: DefenderBucket[] = w.contest.buckets;
+    // THE BOXES ARE DRAWN AS BOXES (audit V-06).
+    //
+    // The boundaries used to be ticks a foot and a half either side of the
+    // centreline, with the category names crammed against them at the size of a
+    // scatter label - so the one image this piece calls its whole argument read
+    // as a small ladder near the hoop rather than as a continuous quantity being
+    // divided. The VERTICAL axis is untouched and stays true to the floor: a
+    // boundary is drawn at the distance it actually is, in court tenths. Only
+    // the horizontal extent grows, and it carries no measurement at all - it is
+    // how wide the band is, and a band has to be wide enough to be a band.
     ctx.save();
     ctx.strokeStyle = `rgba(${BONE_RGB}, ${a * cut * INSTANT_CUT_ALPHA})`;
     ctx.lineWidth = 1;
@@ -484,23 +519,35 @@ function beatInstant(f: Frame, w: WindowFile, k: number): void {
       if (b.hi_ft === null) return;
       const ty = b.hi_ft * 10;
       ctx.beginPath();
-      ctx.moveTo(view.sx(-14), view.sy(ty));
-      ctx.lineTo(view.sx(14), view.sy(ty));
+      ctx.moveTo(view.sx(-INSTANT_BAND_HALF_W), view.sy(ty));
+      ctx.lineTo(view.sx(INSTANT_BAND_HALF_W), view.sy(ty));
       ctx.stroke();
     });
     ctx.restore();
 
-    buckets.forEach((b, i) => {
+    // EACH BOX CARRIES ITS OWN NAME AND ITS OWN SHARE, and this is the one beat
+    // where the figures leave the annulus.
+    //
+    // They are ON the ring through the flood before this and back on it at the
+    // close after it, because the ring is where they are orphaned in Acts IV-V.
+    // Here they are not orphaned - here they are being MADE, and a share drawn
+    // a third of the floor away from the band it belongs to is the reader's
+    // problem to solve rather than the picture's to state. Drawing both was
+    // tried first and the ring's figures land squarely on the band names.
+    buckets.forEach((b) => {
       const lo = b.lo_ft * 10;
       const hi = b.hi_ft === null ? Math.max(y1, lo + 60) : b.hi_ft * 10;
-      const lab = label(b.name.toUpperCase(), Math.max(8, 9 * (view.scale / 2)), f.dpr);
+      const mid = (lo + hi) / 2;
+      // Clear of the centreline, which the measured hairline runs along.
+      const inset = INSTANT_BAND_HALF_W * 0.55;
+      const lab = label(b.name.toUpperCase(), Math.max(SLUG_MIN_PX, view.s(BUCKET_NAME_TENTHS)),
+        f.dpr);
       ctx.save();
       ctx.globalAlpha = a * cut * BUCKET_LABEL_ALPHA;
-      ctx.drawImage(lab.canvas, view.sx(22), view.sy((lo + hi) / 2) - lab.height / 2,
+      ctx.drawImage(lab.canvas, view.sx(-inset) - lab.width / 2, view.sy(mid) - lab.height / 2,
         lab.width, lab.height);
       ctx.restore();
-      const slot = figureSlot(i, buckets.length);
-      strikeFigure(ctx, view, struck(100 * b.share), "", slot.x, slot.y, a * cut * 0.6, 18);
+      strikeFigure(ctx, view, struck(100 * b.share), "", inset, mid, a * cut * 0.7, 18);
     });
 
     // What the definition is worth, in the piece's own terms.
@@ -532,7 +579,12 @@ function beatInstant(f: Frame, w: WindowFile, k: number): void {
 function beatClose(f: Frame, w: WindowFile, k: number, m: Measures | null): void {
   const { ctx, view, remains } = f;
   const remain = Math.max(0, 1 - k / 0.7);
-  const a = remains;
+  // This beat used to open at full strength while the one before it had just
+  // faded to nothing, so the plate went from empty to three times the flood in
+  // a single second - a hard arrival, where the piece's only cut is 2010-11. It
+  // ramps in like every other beat now; it still does not fade OUT, because
+  // what it hands over to is the end of the act.
+  const a = remains * Math.min(1, k / 0.01);
 
   if (m && m.n && remain > 0) {
     const upto = Math.round(m.n * remain);

@@ -618,6 +618,28 @@ export const SCALARS = {
     material: false,
     controls: "the four category names beside the boundaries, as the boxes are cut.",
   },
+  INSTANT_BAND_HALF_W: {
+    class: "authored",
+    value: 90,
+    material: true,
+    controls:
+      "how far either side of the centreline a category boundary is drawn, in " +
+      "court tenths - how wide the four boxes are. It carries NO measurement: " +
+      "the boundary's DISTANCE from the hoop is the measured axis and is " +
+      "untouched by this. At the foot and a half it used to be, the one image " +
+      "this piece calls its whole argument read as a small ladder near the rim " +
+      "instead of as a continuous quantity being divided (audit V-06).",
+  },
+  BUCKET_NAME_TENTHS: {
+    class: "authored",
+    value: 6.6,
+    material: false,
+    controls:
+      "the size of a category name inside its own band, in court tenths. It was " +
+      "set at the size of a label on a datapoint, against a tick, and could not " +
+      "be read; it now matches the statement rank the rest of the piece speaks " +
+      "at. Typography, not grain.",
+  },
 
   // --- inscription.ts — how loudly the plate is allowed to speak (V-08) -----
   //
@@ -801,6 +823,8 @@ export const INSTANT_CUT_ALPHA: number = SCALARS.INSTANT_CUT_ALPHA.value;
 export const FIGURE_SUB_ALPHA: number = SCALARS.FIGURE_SUB_ALPHA.value;
 export const NAMES_ONLY_ALPHA: number = SCALARS.NAMES_ONLY_ALPHA.value;
 export const BUCKET_LABEL_ALPHA: number = SCALARS.BUCKET_LABEL_ALPHA.value;
+export const INSTANT_BAND_HALF_W: number = SCALARS.INSTANT_BAND_HALF_W.value;
+export const BUCKET_NAME_TENTHS: number = SCALARS.BUCKET_NAME_TENTHS.value;
 
 export const SLUG_VOICE_TENTHS: number = SCALARS.SLUG_VOICE_TENTHS.value;
 export const SLUG_STATEMENT_TENTHS: number = SCALARS.SLUG_STATEMENT_TENTHS.value;
