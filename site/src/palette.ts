@@ -5,13 +5,18 @@
  * recognised a beat after the image is - which is the piece's first event.
  */
 
+import { ENGRAVING_ALPHA, ENGRAVING_FAINT_ALPHA } from "./scalars";
+
 export const GROUND = "#0b0a09";
 export const BONE = "#e8e2d6";
 export const BONE_RGB = "232, 226, 214";
 
-/** The engraving. Never brighter than the marks it holds. */
-export const LINE = `rgba(${BONE_RGB}, 0.085)`;
-export const LINE_FAINT = `rgba(${BONE_RGB}, 0.05)`;
+/** The engraving. Never brighter than the marks it holds. Both weights are
+ *  authored and both are declared in the material register — they were written
+ *  here as literals inside template strings, where check-numbers.mjs's third
+ *  pass cannot see them, which is exactly why they are named now. */
+export const LINE = `rgba(${BONE_RGB}, ${ENGRAVING_ALPHA})`;
+export const LINE_FAINT = `rgba(${BONE_RGB}, ${ENGRAVING_FAINT_ALPHA})`;
 
 export function bone(alpha: number): string {
   return `rgba(${BONE_RGB}, ${alpha})`;

@@ -4,7 +4,7 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**99 scalars**, 73 of them material: 2 measured, 3 geometry, 94 authored.
+**107 scalars**, 75 of them material: 2 measured, 3 geometry, 102 authored.
 
 A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
@@ -196,6 +196,22 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   the twelve names the league publishes instead of the geometry, all at ONE size, and that is the argument: every other word on this plate is sized by how many shots it names, and these cannot be, because the record beneath them is not public. They were drawn at scatter size, among two hundred action labels, so Act V's claim was invisible.
 - **LEAGUE_VALUE_SCALE** — **0.62** *(not material)*  
   the recomputed figure under a league name in Act III, as a fraction of the name. It was nearly the same size as the name and did not read as subordinate to it.
+- **TERM_MARGIN_ALPHA** — **0.7** *(not material)*  
+  the FIRST FILED line under a birth term, against the term itself. It discloses what the size above it is claiming, so it has to be readable and must not compete.
+- **LEAGUE_NAME_ALPHA** — **0.62** *(not material)*  
+  a published measure's name, where the league's words hold the emptied mid-range.
+- **LEAGUE_VALUE_ALPHA** — **0.5** *(not material)*  
+  the recomputed figure beneath it, inside the window only. Below the name it belongs to, because the name is the claim and the figure is this project's reconstruction of it.
+- **LEAGUE_ARRIVAL_K** — **0.5** *(not material)*  
+  how fast a league name reaches full ink as the act accumulates them - the newest is half-struck while the one before it is whole, so the arc reads as filling rather than as appearing. Pacing, not grain.
+- **ENGRAVING_ALPHA** — **0.085**  
+  the engraved court - baseline, sidelines, lane, free-throw circle and the three-point line. Never brighter than the marks it holds: above roughly a tenth the floor reads as a diagram with data on it rather than as a plate the record is accumulating on.
+- **ENGRAVING_FAINT_ALPHA** — **0.05**  
+  the apparatus at the centre of the record - backboard, rim and the restricted arc. Fainter than the rest of the engraving because it sits exactly where the density is highest, and at the same weight it would cut a visible ring through the one region every act is about.
+- **CENSUS_HEAD_ALPHA** — **0.75** *(not material)*  
+  the tally's own heading line - the season and the count classified so far.
+- **CENSUS_SUB_ALPHA** — **0.45** *(not material)*  
+  the line beneath it, naming how many categories in how many taxonomies. Subordinate, because it describes the machine rather than counting shots.
 - **INSTANT_BAND_HALF_W** — **90**  
   how far either side of the centreline a category boundary is drawn, in court tenths - how wide the four boxes are. It carries NO measurement: the boundary's DISTANCE from the hoop is the measured axis and is untouched by this. At the foot and a half it used to be, the one image this piece calls its whole argument read as a small ladder near the rim instead of as a continuous quantity being divided (audit V-06).
 - **BUCKET_NAME_TENTHS** — **6.6** *(not material)*  

@@ -19,6 +19,7 @@
 
 import { factNum, type Season } from "../data";
 import { BONE_RGB, SLUG_FAMILY } from "../palette";
+import { CENSUS_HEAD_ALPHA, CENSUS_SUB_ALPHA } from "../scalars";
 import { drawSeasonField } from "./fieldlayer";
 import type { Frame } from "./types";
 
@@ -152,10 +153,10 @@ export function drawCensusHand(f: Frame): void {
 
   // Left: the season, the size of the machine's vocabulary, and the smaller
   // taxonomies. Right: the description, which is where the growth happens.
-  ctx.fillStyle = `rgba(${BONE_RGB}, ${0.75 * remains})`;
+  ctx.fillStyle = `rgba(${BONE_RGB}, ${CENSUS_HEAD_ALPHA * remains})`;
   ctx.textAlign = "left";
   ctx.fillText(`${season.season}  ·  ${classified} SHOTS CLASSIFIED`, pad, pad + LINE);
-  ctx.fillStyle = `rgba(${BONE_RGB}, ${0.45 * remains})`;
+  ctx.fillStyle = `rgba(${BONE_RGB}, ${CENSUS_SUB_ALPHA * remains})`;
   // How many ways a shot is filed, counted from this season's own artifact -
   // the machine's vocabulary grows and the shape of its filing does not.
   const taxonomies = Object.keys(season.vocabulary.taxonomies).length;

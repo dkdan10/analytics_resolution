@@ -86,6 +86,23 @@ const MARK_LAYERS = [
   // file's composition literals - the strike/hold/migrate beats, the annulus,
   // the weight curve - reach no material sink and are session 5b's.
   /^inscription\.ts$/,
+  // Session 5b's three, added BEFORE the literals they are there to catch.
+  //
+  // The failure this closes is invisible: the build stays green while rule 3's
+  // enforcement quietly stops reaching new code, so a scalar written into an
+  // uncovered file is not caught by anything and looks exactly like one that was
+  // checked. 5a registered fifteen authored scalars in modes/ledger.ts and left
+  // the file outside this list, which is that gap in its purest form.
+  //
+  // ledger.ts — 5a's spoken register (V-04).
+  // census.ts — the filing (V-05): every word's size is a measured share and
+  //   the strike's own material lives in scalars.ts, not in the renderer.
+  // palette.ts — THE FIELD's seven hues (V-03). These reach `rgba(` by
+  //   definition, and the point of the palette artifact is that the values are
+  //   no longer written here at all.
+  /^modes\/ledger\.ts$/,
+  /^modes\/census\.ts$/,
+  /^palette\.ts$/,
 ];
 
 /** Sinks. A literal on a line that reaches one of these changes a mark. */

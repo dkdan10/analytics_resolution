@@ -25,7 +25,10 @@ import { drawSlug } from "../inscription";
 import { BONE_RGB, SLUG_FAMILY } from "../palette";
 import { COURT } from "../plate";
 import {
+  LEAGUE_ARRIVAL_K,
+  LEAGUE_NAME_ALPHA,
   LEAGUE_NAME_TENTHS,
+  LEAGUE_VALUE_ALPHA,
   LEAGUE_VALUE_SCALE,
   SCATTER_ALPHA,
   SCATTER_MIN_PX,
@@ -36,6 +39,7 @@ import {
   TERM_CLEAR_PAD,
   TERM_HEAD_TENTHS,
   TERM_HOLD_SECONDS,
+  TERM_MARGIN_ALPHA,
   TERM_MARGIN_SCALE,
   TERM_NINETY_TENTHS,
   TERM_TAIL_TENTHS,
@@ -438,7 +442,7 @@ function drawTerms(f: Frame, terms: Term[], elapsed: number, interval: number, d
     if (t.bornIn) {
       const mp = Math.max(SCATTER_MIN_PX * 0.8, px * TERM_MARGIN_SCALE);
       const margin = label(`FIRST FILED ${t.bornIn}`, mp, dpr);
-      ctx.globalAlpha = alpha * 0.7;
+      ctx.globalAlpha = alpha * TERM_MARGIN_ALPHA;
       ctx.drawImage(margin.canvas, view.sx(t.wx),
         view.sy(t.wy) - lab.height / 2 + lab.height * 1.05, margin.width, margin.height);
     }
@@ -618,14 +622,15 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
     const box = boxes[i]!;
     const x = view.sx(box.wx + box.w / 2);
     const y = view.sy(box.wy);
-    ctx.globalAlpha = remains * 0.62 * Math.min(1, (shown - i) * 0.5);
+    const arriving = Math.min(1, (shown - i) * LEAGUE_ARRIVAL_K);
+    ctx.globalAlpha = remains * LEAGUE_NAME_ALPHA * arriving;
     ctx.drawImage(lab.canvas, x - lab.width / 2, y - lab.height / 2, lab.width, lab.height);
 
     // The value, when there is one to show, struck beneath its own name.
     const v = values.get(text);
     if (v) {
       const vl = label(v, px * LEAGUE_VALUE_SCALE, dpr);
-      ctx.globalAlpha = remains * 0.5 * Math.min(1, (shown - i) * 0.5);
+      ctx.globalAlpha = remains * LEAGUE_VALUE_ALPHA * arriving;
       ctx.drawImage(vl.canvas, x - vl.width / 2, y + lab.height * 0.75, vl.width, vl.height);
     }
   }

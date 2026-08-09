@@ -37,14 +37,18 @@
  *
  * SCOPE IS DELIBERATELY PARTIAL AND SAYING SO IS PART OF THE DISCLOSURE. The
  * list covers the layers that deposit marks, plus (since V-08) the type ranks
- * the piece speaks at. It does NOT cover composition — where a slug sits, how
- * long a numeral holds before it migrates, which act a thing appears in. Those
- * are session 5b's, and widening the list is how they come in.
+ * the piece speaks at, plus (since 5b) `modes/ledger.ts`, `modes/census.ts` and
+ * `palette.ts`. It does NOT cover composition — where a slug sits, how long a
+ * numeral holds before it migrates, which act a thing appears in.
  *
- * SESSION 4, READ THIS. THE HAND is rebuilt against F-04 and V-07 and nearly
- * every scalar below marked `hand` will be rewritten. New material scalars go
- * HERE, with a class and a `controls` line. The check is what stops the rebuild
- * from quietly undoing this.
+ * ONE BLIND SPOT IN THE ENFORCEMENT, STATED SO NOBODY MISTAKES COVERAGE FOR
+ * PROOF. Pass 3 judges CODE spans, so a material value written inside a STRING
+ * is invisible to it: `palette.ts` held its hues as comma-separated channel
+ * strings and its hairlines as interpolated `rgba(...)` templates, and adding
+ * that file to the list flagged neither. The hues are answered by V-03 — they
+ * come out of an artifact now and are not written in source at all — and the two
+ * engraving alphas are declared below. The blind spot itself remains: a scalar
+ * smuggled into a string literal is not caught by anything.
  */
 
 type Entry =
@@ -757,6 +761,85 @@ export const SCALARS = {
       "the name. It was nearly the same size as the name and did not read as " +
       "subordinate to it.",
   },
+  // Alphas that were inline in modes/ledger.ts. 5a registered that hand's
+  // spoken register here and left the FILE outside check-numbers.mjs's
+  // MARK_LAYERS, so these were never asked for. They are here because 5b widened
+  // the list, which is the only reason anyone found them.
+  TERM_MARGIN_ALPHA: {
+    class: "authored",
+    value: 0.7,
+    material: false,
+    controls:
+      "the FIRST FILED line under a birth term, against the term itself. It " +
+      "discloses what the size above it is claiming, so it has to be readable " +
+      "and must not compete.",
+  },
+  LEAGUE_NAME_ALPHA: {
+    class: "authored",
+    value: 0.62,
+    material: false,
+    controls: "a published measure's name, where the league's words hold the emptied mid-range.",
+  },
+  LEAGUE_VALUE_ALPHA: {
+    class: "authored",
+    value: 0.5,
+    material: false,
+    controls:
+      "the recomputed figure beneath it, inside the window only. Below the name " +
+      "it belongs to, because the name is the claim and the figure is this " +
+      "project's reconstruction of it.",
+  },
+  LEAGUE_ARRIVAL_K: {
+    class: "authored",
+    value: 0.5,
+    material: false,
+    controls:
+      "how fast a league name reaches full ink as the act accumulates them - the " +
+      "newest is half-struck while the one before it is whole, so the arc reads " +
+      "as filling rather than as appearing. Pacing, not grain.",
+  },
+
+  // --- palette.ts — the engraving's two weights ----------------------------
+  //
+  // The court is drawn at these and nothing else. They are the piece's first
+  // event: the plate is recognised a beat AFTER the image is, which only works
+  // if the lines sit below the marks rather than framing them.
+  ENGRAVING_ALPHA: {
+    class: "authored",
+    value: 0.085,
+    material: true,
+    controls:
+      "the engraved court - baseline, sidelines, lane, free-throw circle and " +
+      "the three-point line. Never brighter than the marks it holds: above " +
+      "roughly a tenth the floor reads as a diagram with data on it rather " +
+      "than as a plate the record is accumulating on.",
+  },
+  ENGRAVING_FAINT_ALPHA: {
+    class: "authored",
+    value: 0.05,
+    material: true,
+    controls:
+      "the apparatus at the centre of the record - backboard, rim and the " +
+      "restricted arc. Fainter than the rest of the engraving because it sits " +
+      "exactly where the density is highest, and at the same weight it would " +
+      "cut a visible ring through the one region every act is about.",
+  },
+
+  // --- modes/census.ts — the tally's own type ------------------------------
+  CENSUS_HEAD_ALPHA: {
+    class: "authored",
+    value: 0.75,
+    material: false,
+    controls: "the tally's own heading line - the season and the count classified so far.",
+  },
+  CENSUS_SUB_ALPHA: {
+    class: "authored",
+    value: 0.45,
+    material: false,
+    controls:
+      "the line beneath it, naming how many categories in how many taxonomies. " +
+      "Subordinate, because it describes the machine rather than counting shots.",
+  },
   INSTANT_BAND_HALF_W: {
     class: "authored",
     value: 90,
@@ -977,6 +1060,14 @@ export const TERM_ALPHA_AGED: number = SCALARS.TERM_ALPHA_AGED.value;
 export const TERM_TIE_ALPHA: number = SCALARS.TERM_TIE_ALPHA.value;
 export const LEAGUE_NAME_TENTHS: number = SCALARS.LEAGUE_NAME_TENTHS.value;
 export const LEAGUE_VALUE_SCALE: number = SCALARS.LEAGUE_VALUE_SCALE.value;
+export const TERM_MARGIN_ALPHA: number = SCALARS.TERM_MARGIN_ALPHA.value;
+export const LEAGUE_NAME_ALPHA: number = SCALARS.LEAGUE_NAME_ALPHA.value;
+export const LEAGUE_VALUE_ALPHA: number = SCALARS.LEAGUE_VALUE_ALPHA.value;
+export const LEAGUE_ARRIVAL_K: number = SCALARS.LEAGUE_ARRIVAL_K.value;
+export const CENSUS_HEAD_ALPHA: number = SCALARS.CENSUS_HEAD_ALPHA.value;
+export const CENSUS_SUB_ALPHA: number = SCALARS.CENSUS_SUB_ALPHA.value;
+export const ENGRAVING_ALPHA: number = SCALARS.ENGRAVING_ALPHA.value;
+export const ENGRAVING_FAINT_ALPHA: number = SCALARS.ENGRAVING_FAINT_ALPHA.value;
 export const INSTANT_BAND_HALF_W: number = SCALARS.INSTANT_BAND_HALF_W.value;
 export const BUCKET_NAME_TENTHS: number = SCALARS.BUCKET_NAME_TENTHS.value;
 
