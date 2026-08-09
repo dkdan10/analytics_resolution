@@ -245,6 +245,11 @@ def measure_resolution(year, df):
         "ra_origin_snapped": ra_origin,
         "ra_origin_share": league_share,
         "refused_action_types": refused,
+        # WHERE the refusal actually is, which is not always the origin. See
+        # measure_rim_sentinel: `origin_snapped` above measures one coordinate,
+        # this measures the phenomenon, and for six seasons they disagree
+        # completely.
+        "rim_sentinel": measure_rim_sentinel(df),
         "regime": regime,
         "arena_spread_pp": spread_pp,
         # Only meaningful where the regime is uneven; elsewhere every arena is
@@ -253,6 +258,71 @@ def measure_resolution(year, df):
         "n_full_resolution_arenas": len(full_arenas) if regime == "uneven" else 0,
         "full_resolution_games": int(per_game["full"].sum()),
         "n_games_with_ra": int(len(per_game)),
+    }
+
+
+"""How far a refusal's coordinate must lead the busiest real one.
+
+MEASURED, AND THE DISTRIBUTION IS BIMODAL WITH AN ENORMOUS EMPTY BAND. Across
+the thirty seasons the leading rim coordinate beats the runner-up by either
+1.9-2.2x or 17.8x-2928x, and NOTHING falls between. Any threshold from about 3
+to about 15 classifies every season identically; 8 sits in the middle of that
+band. The same footing MIN_RUN_FRAMES stands on in paint.py.
+"""
+SENTINEL_LEAD = 8.0
+
+
+def measure_rim_sentinel(df):
+    """WHERE the record refuses to place a rim shot - which is not always (0,0).
+
+    THE DEFECT THIS EXISTS TO CORRECT (found 2026-08-08). `origin_snapped` counts
+    shots filed at EXACTLY the origin, and every claim this project makes about
+    the record's rim blindness was read off it - including "2010-11 to 2019-20,
+    uniformly_sighted, 0.0%, all thirty arenas, in one step". That figure is
+    true and it measures ONE COORDINATE rather than the phenomenon: six of those
+    ten seasons pile two and a half to five per cent of the whole season onto a
+    single coordinate NEXT TO the rim, and `origin_snapped` reports 0.00% for
+    every one of them.
+
+    So the refusal never went away in 2010-11. IT CHANGED ADDRESS, twice, and
+    then changed back:
+
+        1996-97 - 2009-10   (0, 0)
+        2010-11 - 2013-14   nowhere - the record places every rim shot
+        2014-15 - 2016-17   (0, 1)
+        2017-18 - 2019-20   (0, -6)
+        2020-21 -           (0, 0) again
+
+    Which sharpens the 2010-11 cut rather than weakening it: the exact-origin
+    pile really does end there, in one step, and for FOUR seasons the record
+    genuinely places everything. The uniformly-sighted era is four seasons long,
+    not ten.
+
+    Nothing here is classified by eye. The lead over the runner-up is shipped, so
+    a reader can see the separation rather than take the label on trust.
+    """
+    ra = df[df.SHOT_ZONE_BASIC == "Restricted Area"]
+    if ra.empty:
+        return None
+    counts = ra.groupby(["LOC_X", "LOC_Y"]).size().sort_values(ascending=False)
+    (x1, y1), n1 = counts.index[0], int(counts.iloc[0])
+    second = counts.iloc[1] if len(counts) > 1 else 0
+    (x2, y2) = counts.index[1] if len(counts) > 1 else (None, None)
+    lead = float(n1 / second) if second else float("inf")
+    return {
+        "coord": [int(x1), int(y1)],
+        "n": n1,
+        "share_of_season": float(n1 / len(df)),
+        "share_of_rim": float(n1 / len(ra)),
+        "runner_up_coord": [int(x2), int(y2)] if x2 is not None else None,
+        "runner_up_n": int(second),
+        # How far the leader leads. THE SEPARATION, shipped, so the label below
+        # is a reading of a number rather than a claim on its own.
+        "lead_ratio": round(lead, 2) if second else None,
+        "is_refusal": bool(lead >= SENTINEL_LEAD),
+        # Only meaningful when it IS a refusal; None otherwise, rather than a
+        # zero that would read as "the record refused nothing at (0,0)".
+        "at_origin": bool(x1 == 0 and y1 == 0) if lead >= SENTINEL_LEAD else None,
     }
 
 
@@ -742,6 +812,16 @@ def main():
             "three_share": 'SHOT_TYPE == "3PT Field Goal"',
             "sample": f"fixed-seed ({SAMPLE_SEED}+year) uniform sample of halfcourt attempts",
             "grid": "1ft bins over LOC_X [-250,250], LOC_Y [-50,420], tenths of feet",
+            "resolution.rim_sentinel": (
+                "the single most-filed coordinate among the season's restricted-area "
+                "shots, with how far it leads the runner-up. `origin_snapped` beside it "
+                "counts EXACTLY (0,0) and is therefore blind to a refusal filed anywhere "
+                "else - which is what six seasons do. `is_refusal` reads `lead_ratio` "
+                f"against {SENTINEL_LEAD:g}, chosen from the middle of an empty band: "
+                "across the corpus the lead is either about 2x or 18x and higher, with "
+                "nothing between, so any threshold from roughly 3 to 15 classifies every "
+                "season identically"
+            ),
             "resolution.ra_origin_share": (
                 "restricted-area shots filed at exactly (0,0) - the record declining to say "
                 "where at the rim; drives the pin and the texture ladder"

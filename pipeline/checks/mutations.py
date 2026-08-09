@@ -325,6 +325,51 @@ def m_covering_90_split(d):
     _save(d, "seasons.json", s)
 
 
+def m_sentinel_move(d):
+    """A refusal is moved back onto the origin without its count changing.
+
+    The exact shape of the defect the sentinel exists to catch, run backwards:
+    an artifact claiming the record refused at (0,0) in a season where it
+    refused half a foot away. Nothing about the numbers looks wrong.
+    """
+    s = _load(d, "seasons.json")
+    for row in s["seasons"]:
+        if row["year"] == 2015:
+            row["resolution"]["rim_sentinel"]["coord"] = [0, 0]
+            row["resolution"]["rim_sentinel"]["at_origin"] = True
+    _save(d, "seasons.json", s)
+
+
+def m_sentinel_band(d):
+    """A season's lead drops into the empty band the threshold sits in.
+
+    The band is the whole evidence for the classification. A season landing
+    inside it means the label has stopped being a reading of a hole in the data
+    and become a judgement call, and the gate has to notice before anyone
+    quotes it.
+    """
+    s = _load(d, "seasons.json")
+    for row in s["seasons"]:
+        if row["year"] == 2015:
+            row["resolution"]["rim_sentinel"]["lead_ratio"] = 9.0
+            row["resolution"]["rim_sentinel"]["is_refusal"] = True
+    _save(d, "seasons.json", s)
+
+
+def m_sentinel_sighted(d):
+    """A refusing season is relabelled as one that places every rim shot.
+
+    "The uniformly-sighted era is four seasons, not ten" is now a claim the
+    piece makes, so it needs a gate that can fail.
+    """
+    s = _load(d, "seasons.json")
+    for row in s["seasons"]:
+        if row["year"] == 2016:
+            row["resolution"]["rim_sentinel"]["is_refusal"] = False
+            row["resolution"]["rim_sentinel"]["lead_ratio"] = 2.0
+    _save(d, "seasons.json", s)
+
+
 def m_palette_collide(d):
     """Two of the seven hues become the same colour.
 
@@ -765,6 +810,19 @@ CASES = [
     Case("covering-90-split", ["filing"],
          "the ledger's label budget is the census's DESCRIPTION budget",
          m_covering_90_split, "two hands stop reading one measurement"),
+
+    # --- where the record's refusal actually is (5b) --------------------------
+    Case("sentinel-move", ["filing"],
+         "origin_snapped is the refusal only when the refusal is at the origin",
+         m_sentinel_move,
+         "a refusal filed half a foot from the rim, claimed as one filed on it"),
+    Case("sentinel-band", ["filing"],
+         "no season's lead over the runner-up falls in the empty band",
+         m_sentinel_band,
+         "the separation the classification is read from stops existing"),
+    Case("sentinel-sighted", ["filing"],
+         "the seasons in which the record refuses no rim shot at all",
+         m_sentinel_sighted, "a refusing season relabelled as a sighted one"),
 
     # --- the palette (V-03): the claim, and the values it is about ------------
     Case("palette-collide", ["palette"], "every condition clears the declared floor",

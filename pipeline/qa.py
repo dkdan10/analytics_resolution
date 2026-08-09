@@ -66,7 +66,7 @@ require_env()
 
 import numpy as np  # noqa: E402
 
-from aggregate import POINT_DTYPE  # noqa: E402
+from aggregate import POINT_DTYPE, SENTINEL_LEAD  # noqa: E402
 
 # The rules' own constants, imported rather than restated: a gate that reads its
 # threshold out of the file it is checking is not a gate. Session 1 shipped four
@@ -798,6 +798,14 @@ RIGHT_OF_CENTRE = ("Right Corner 3", "Right Side(R)", "Right Side Center(RC)")
 ON_THE_CENTRELINE = ("Center(C)",)
 CENTRELINE_MAX_FT = 2.0
 
+# The empty band the sentinel threshold was chosen from the middle of. Across
+# the corpus a season's leading rim coordinate beats the runner-up by either
+# about 2x or 18x and up, and NOTHING falls between. These bracket that gap
+# generously, so the gate below fails long before the classification could
+# become a judgement call rather than a reading of a hole in the data.
+SENTINEL_BAND_LO = 3.0
+SENTINEL_BAND_HI = 15.0
+
 # The three categories the record names and this plate cannot hold. Measured,
 # not assumed: every season files backcourt shots beyond the halfcourt line, so
 # their mean lands off the plate and THE CENSUS refuses to strike them.
@@ -965,6 +973,68 @@ def group_filing(g, ctx):
     g.check("DESCRIPTION is filed in exactly the seasons the vocabulary moved",
             sorted(row["season"] for row in ordered
                    if row.get("active_taxonomy") == "DESCRIPTION"), changed)
+
+    # --- where the record's refusal actually is ----------------------------
+    #
+    # `origin_snapped` counts EXACTLY (0,0) and every rim-blindness claim in this
+    # project was read off it. Six seasons pile several per cent of the whole
+    # season onto a coordinate NEXT TO the rim, and it reports 0.00% for all six:
+    # the refusal changed address twice and then changed back. These gates hold
+    # the corrected reading.
+    sentinels, band, agree = [], [], []
+    for year, row in sorted(seasons.items()):
+        s = (row.get("resolution") or {}).get("rim_sentinel")
+        if not isinstance(s, dict) or not isinstance(s.get("coord"), list):
+            sentinels.append(f"{row['season']}: no rim sentinel")
+            continue
+        lead = s.get("lead_ratio")
+        if not isinstance(lead, (int, float)) or lead < 1:
+            sentinels.append(f"{row['season']}: lead_ratio {lead}")
+            continue
+        # THE SEPARATION IS THE EVIDENCE, so the gate asks for it directly: no
+        # season may land inside the empty band the threshold was chosen from.
+        # If one ever does, the classification has stopped being a reading of a
+        # gap and become a judgement call, and this is what says so.
+        if SENTINEL_BAND_LO < lead < SENTINEL_BAND_HI:
+            band.append(f"{row['season']}: lead {lead} is inside the empty band")
+        if s.get("is_refusal") != (lead >= SENTINEL_LEAD):
+            sentinels.append(f"{row['season']}: is_refusal disagrees with its own lead")
+        # WHAT `origin_snapped` IS ACTUALLY MEASURING, asked as a question the
+        # artifact can fail. A refusal AT the origin is the one it counted, so
+        # the two must agree. A refusal ANYWHERE ELSE is one it missed, and the
+        # test for "missed" is not that the exact-origin count is zero — three
+        # seasons file a handful of shots at (0,0) while piling thousands on
+        # (0,-6), which is the first version of this check going red and being
+        # right to. It is that the exact-origin count is not itself a
+        # refusal-sized pile.
+        at_origin = s.get("at_origin")
+        origin = row["resolution"].get("origin_snapped") or 0
+        if s.get("is_refusal") and at_origin is True and origin != s.get("n"):
+            agree.append(f"{row['season']}: sentinel is the origin but counts "
+                         f"{s.get('n')} against origin_snapped {origin}")
+        if s.get("is_refusal") and at_origin is False and origin * SENTINEL_LEAD >= s.get("n", 0):
+            agree.append(f"{row['season']}: origin_snapped {origin} is comparable to the "
+                         f"refusal it is supposed to be blind to ({s.get('n')})")
+
+    g.check("every season names the coordinate its rim shots pile on", sentinels, [])
+    g.check("no season's lead over the runner-up falls in the empty band", band, [])
+    g.check("origin_snapped is the refusal only when the refusal is at the origin", agree, [])
+
+    refusing = [row["season"] for _y, row in sorted(seasons.items())
+                if (row["resolution"].get("rim_sentinel") or {}).get("is_refusal")]
+    placing = [row["season"] for _y, row in sorted(seasons.items())
+               if not (row["resolution"].get("rim_sentinel") or {}).get("is_refusal")]
+    # The uniformly-sighted era is FOUR seasons, not the ten `origin_snapped`
+    # implies. Gated because it is now a claim the piece makes.
+    g.check("the seasons in which the record refuses no rim shot at all",
+            placing, ["2010-11", "2011-12", "2012-13", "2013-14"])
+    missed = [row["season"] for _y, row in sorted(seasons.items())
+              if (row["resolution"].get("rim_sentinel") or {}).get("is_refusal")
+              and not (row["resolution"].get("origin_snapped") or 0)]
+    g.check("the refusals origin_snapped cannot see",
+            missed, ["2014-15", "2015-16", "2016-17"])
+    g.info(f"{len(refusing)} of {len(seasons)} seasons file a rim refusal somewhere; "
+           f"the address moves (0,0) -> nowhere -> (0,1) -> (0,-6) -> (0,0)")
 
     ex = seasons.get(1996) or next(iter(seasons.values()))
     zone = ex.get("classification_place", {}).get("ZONE", {})
