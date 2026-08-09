@@ -1,0 +1,719 @@
+{
+  "generated_by": "pipeline/palette.py",
+  "generated_at": "2026-08-09T01:58:39+00:00",
+  "_why": "THE FIELD's hues, and how far apart they actually are. The seven CATEGORIES are the NBA's (SHOT_ZONE_BASIC); which hue stands for which is authored and lives in site/src/palette.ts, where authored scalars belong. This file is the CLAIM about them, which may never be authored: palette.py reads the hues out of the site and measures them, and qa.py binds the two so an edited hue cannot ship unmeasured.",
+  "metric": {
+    "space": "CAM02-UCS",
+    "unit": "delta E prime; about one just-noticeable difference between two large adjacent patches under a reference viewing condition",
+    "library": "colorspacious 1.1.2",
+    "cvd_model": "Machado, Oliveira & Fernandes (2009), via colorspacious's sRGB1+CVD space",
+    "severity": 100,
+    "conditions": [
+      "normal",
+      "protanomaly-100",
+      "deuteranomaly-100",
+      "tritanomaly-100"
+    ],
+    "not_modelled": "mark size, opacity and the near-black ground. The metric compares two large uniform patches; THE FIELD composites small semi-transparent marks with `lighter` over GROUND. See `composite`."
+  },
+  "threshold": {
+    "floor": 3.0,
+    "floor_is": "a regression guard, not a claim of adequacy: it sits below what this palette measures today so a hue edited without measuring goes red. Same footing as qa.py's WINDOW_RECOVERY_FLOOR.",
+    "target": 10.0,
+    "target_is": "the separation a palette would need before anyone may claim seven-way categorical separation. An order of magnitude above one JND, leaving room for what the metric does not model."
+  },
+  "ground": "#0b0a09",
+  "zones": [
+    "Restricted Area",
+    "In The Paint (Non-RA)",
+    "Mid-Range",
+    "Left Corner 3",
+    "Right Corner 3",
+    "Above the Break 3",
+    "Backcourt"
+  ],
+  "rgb": [
+    [
+      255,
+      196,
+      107
+    ],
+    [
+      242,
+      146,
+      78
+    ],
+    [
+      224,
+      90,
+      65
+    ],
+    [
+      89,
+      184,
+      201
+    ],
+    [
+      79,
+      163,
+      212
+    ],
+    [
+      125,
+      146,
+      224
+    ],
+    [
+      143,
+      138,
+      132
+    ]
+  ],
+  "adjacent_on_the_floor": [
+    [
+      "Restricted Area",
+      "In The Paint (Non-RA)"
+    ],
+    [
+      "In The Paint (Non-RA)",
+      "Mid-Range"
+    ],
+    [
+      "Mid-Range",
+      "Left Corner 3"
+    ],
+    [
+      "Mid-Range",
+      "Right Corner 3"
+    ],
+    [
+      "Mid-Range",
+      "Above the Break 3"
+    ],
+    [
+      "Left Corner 3",
+      "Above the Break 3"
+    ],
+    [
+      "Right Corner 3",
+      "Above the Break 3"
+    ],
+    [
+      "Above the Break 3",
+      "Backcourt"
+    ]
+  ],
+  "separation": {
+    "normal": {
+      "min": 11.402,
+      "min_pair": [
+        "Left Corner 3",
+        "Right Corner 3"
+      ],
+      "min_adjacent": 13.036,
+      "min_adjacent_pair": [
+        "Right Corner 3",
+        "Above the Break 3"
+      ],
+      "pairs": [
+        {
+          "a": "Left Corner 3",
+          "b": "Right Corner 3",
+          "distance": 11.402,
+          "adjacent": false
+        },
+        {
+          "a": "Right Corner 3",
+          "b": "Above the Break 3",
+          "distance": 13.036,
+          "adjacent": true
+        },
+        {
+          "a": "Restricted Area",
+          "b": "In The Paint (Non-RA)",
+          "distance": 15.18,
+          "adjacent": true
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Mid-Range",
+          "distance": 17.602,
+          "adjacent": true
+        },
+        {
+          "a": "Left Corner 3",
+          "b": "Above the Break 3",
+          "distance": 22.399,
+          "adjacent": true
+        },
+        {
+          "a": "Left Corner 3",
+          "b": "Backcourt",
+          "distance": 26.57,
+          "adjacent": false
+        },
+        {
+          "a": "Right Corner 3",
+          "b": "Backcourt",
+          "distance": 28.058,
+          "adjacent": false
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Backcourt",
+          "distance": 28.12,
+          "adjacent": false
+        },
+        {
+          "a": "Above the Break 3",
+          "b": "Backcourt",
+          "distance": 28.249,
+          "adjacent": true
+        },
+        {
+          "a": "Mid-Range",
+          "b": "Backcourt",
+          "distance": 30.547,
+          "adjacent": false
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Mid-Range",
+          "distance": 32.649,
+          "adjacent": false
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Backcourt",
+          "distance": 33.018,
+          "adjacent": false
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Left Corner 3",
+          "distance": 45.624,
+          "adjacent": false
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Left Corner 3",
+          "distance": 48.706,
+          "adjacent": false
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Above the Break 3",
+          "distance": 51.587,
+          "adjacent": false
+        },
+        {
+          "a": "Mid-Range",
+          "b": "Above the Break 3",
+          "distance": 52.191,
+          "adjacent": true
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Right Corner 3",
+          "distance": 52.578,
+          "adjacent": false
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Right Corner 3",
+          "distance": 53.027,
+          "adjacent": false
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Above the Break 3",
+          "distance": 53.657,
+          "adjacent": false
+        },
+        {
+          "a": "Mid-Range",
+          "b": "Left Corner 3",
+          "distance": 55.698,
+          "adjacent": true
+        },
+        {
+          "a": "Mid-Range",
+          "b": "Right Corner 3",
+          "distance": 56.701,
+          "adjacent": true
+        }
+      ]
+    },
+    "protanomaly-100": {
+      "min": 6.199,
+      "min_pair": [
+        "Right Corner 3",
+        "Above the Break 3"
+      ],
+      "min_adjacent": 6.199,
+      "min_adjacent_pair": [
+        "Right Corner 3",
+        "Above the Break 3"
+      ],
+      "pairs": [
+        {
+          "a": "Right Corner 3",
+          "b": "Above the Break 3",
+          "distance": 6.199,
+          "adjacent": true
+        },
+        {
+          "a": "Left Corner 3",
+          "b": "Right Corner 3",
+          "distance": 10.685,
+          "adjacent": false
+        },
+        {
+          "a": "Restricted Area",
+          "b": "In The Paint (Non-RA)",
+          "distance": 14.818,
+          "adjacent": true
+        },
+        {
+          "a": "Mid-Range",
+          "b": "Backcourt",
+          "distance": 16.649,
+          "adjacent": false
+        },
+        {
+          "a": "Left Corner 3",
+          "b": "Above the Break 3",
+          "distance": 16.845,
+          "adjacent": true
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Mid-Range",
+          "distance": 17.526,
+          "adjacent": true
+        },
+        {
+          "a": "Left Corner 3",
+          "b": "Backcourt",
+          "distance": 20.48,
+          "adjacent": false
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Backcourt",
+          "distance": 20.867,
+          "adjacent": false
+        },
+        {
+          "a": "Right Corner 3",
+          "b": "Backcourt",
+          "distance": 24.429,
+          "adjacent": false
+        },
+        {
+          "a": "Above the Break 3",
+          "b": "Backcourt",
+          "distance": 28.444,
+          "adjacent": true
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Backcourt",
+          "distance": 30.42,
+          "adjacent": false
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Mid-Range",
+          "distance": 32.115,
+          "adjacent": false
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Left Corner 3",
+          "distance": 34.286,
+          "adjacent": false
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Left Corner 3",
+          "distance": 35.548,
+          "adjacent": false
+        },
+        {
+          "a": "Mid-Range",
+          "b": "Left Corner 3",
+          "distance": 36.832,
+          "adjacent": true
+        },
+        {
+          "a": "Mid-Range",
+          "b": "Right Corner 3",
+          "distance": 40.712,
+          "adjacent": true
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Right Corner 3",
+          "distance": 42.11,
+          "adjacent": false
+        },
+        {
+          "a": "Mid-Range",
+          "b": "Above the Break 3",
+          "distance": 44.064,
+          "adjacent": true
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Right Corner 3",
+          "distance": 45.443,
+          "adjacent": false
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Above the Break 3",
+          "distance": 47.121,
+          "adjacent": false
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Above the Break 3",
+          "distance": 51.225,
+          "adjacent": false
+        }
+      ]
+    },
+    "deuteranomaly-100": {
+      "min": 3.544,
+      "min_pair": [
+        "Right Corner 3",
+        "Above the Break 3"
+      ],
+      "min_adjacent": 3.544,
+      "min_adjacent_pair": [
+        "Right Corner 3",
+        "Above the Break 3"
+      ],
+      "pairs": [
+        {
+          "a": "Right Corner 3",
+          "b": "Above the Break 3",
+          "distance": 3.544,
+          "adjacent": true
+        },
+        {
+          "a": "Left Corner 3",
+          "b": "Right Corner 3",
+          "distance": 9.875,
+          "adjacent": false
+        },
+        {
+          "a": "Restricted Area",
+          "b": "In The Paint (Non-RA)",
+          "distance": 11.589,
+          "adjacent": true
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Mid-Range",
+          "distance": 12.811,
+          "adjacent": true
+        },
+        {
+          "a": "Left Corner 3",
+          "b": "Above the Break 3",
+          "distance": 13.259,
+          "adjacent": true
+        },
+        {
+          "a": "Mid-Range",
+          "b": "Backcourt",
+          "distance": 19.233,
+          "adjacent": false
+        },
+        {
+          "a": "Left Corner 3",
+          "b": "Backcourt",
+          "distance": 20.718,
+          "adjacent": false
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Mid-Range",
+          "distance": 24.269,
+          "adjacent": false
+        },
+        {
+          "a": "Right Corner 3",
+          "b": "Backcourt",
+          "distance": 25.852,
+          "adjacent": false
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Backcourt",
+          "distance": 25.887,
+          "adjacent": false
+        },
+        {
+          "a": "Above the Break 3",
+          "b": "Backcourt",
+          "distance": 28.9,
+          "adjacent": true
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Backcourt",
+          "distance": 33.585,
+          "adjacent": false
+        },
+        {
+          "a": "Mid-Range",
+          "b": "Left Corner 3",
+          "distance": 38.017,
+          "adjacent": true
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Left Corner 3",
+          "distance": 39.712,
+          "adjacent": false
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Left Corner 3",
+          "distance": 42.377,
+          "adjacent": false
+        },
+        {
+          "a": "Mid-Range",
+          "b": "Right Corner 3",
+          "distance": 44.493,
+          "adjacent": true
+        },
+        {
+          "a": "Mid-Range",
+          "b": "Above the Break 3",
+          "distance": 47.575,
+          "adjacent": true
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Right Corner 3",
+          "distance": 48.017,
+          "adjacent": false
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Above the Break 3",
+          "distance": 51.341,
+          "adjacent": false
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Right Corner 3",
+          "distance": 51.676,
+          "adjacent": false
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Above the Break 3",
+          "distance": 55.046,
+          "adjacent": false
+        }
+      ]
+    },
+    "tritanomaly-100": {
+      "min": 6.158,
+      "min_pair": [
+        "Left Corner 3",
+        "Right Corner 3"
+      ],
+      "min_adjacent": 8.949,
+      "min_adjacent_pair": [
+        "Right Corner 3",
+        "Above the Break 3"
+      ],
+      "pairs": [
+        {
+          "a": "Left Corner 3",
+          "b": "Right Corner 3",
+          "distance": 6.158,
+          "adjacent": false
+        },
+        {
+          "a": "Right Corner 3",
+          "b": "Above the Break 3",
+          "distance": 8.949,
+          "adjacent": true
+        },
+        {
+          "a": "Left Corner 3",
+          "b": "Above the Break 3",
+          "distance": 11.387,
+          "adjacent": true
+        },
+        {
+          "a": "Restricted Area",
+          "b": "In The Paint (Non-RA)",
+          "distance": 14.607,
+          "adjacent": true
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Mid-Range",
+          "distance": 15.388,
+          "adjacent": true
+        },
+        {
+          "a": "Above the Break 3",
+          "b": "Backcourt",
+          "distance": 22.144,
+          "adjacent": true
+        },
+        {
+          "a": "Right Corner 3",
+          "b": "Backcourt",
+          "distance": 29.831,
+          "adjacent": false
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Mid-Range",
+          "distance": 29.981,
+          "adjacent": false
+        },
+        {
+          "a": "Left Corner 3",
+          "b": "Backcourt",
+          "distance": 30.612,
+          "adjacent": false
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Backcourt",
+          "distance": 30.78,
+          "adjacent": false
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Backcourt",
+          "distance": 31.7,
+          "adjacent": false
+        },
+        {
+          "a": "Mid-Range",
+          "b": "Backcourt",
+          "distance": 36.054,
+          "adjacent": false
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Above the Break 3",
+          "distance": 46.039,
+          "adjacent": false
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Left Corner 3",
+          "distance": 49.873,
+          "adjacent": false
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Above the Break 3",
+          "distance": 50.147,
+          "adjacent": false
+        },
+        {
+          "a": "Restricted Area",
+          "b": "Right Corner 3",
+          "distance": 52.631,
+          "adjacent": false
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Left Corner 3",
+          "distance": 56.365,
+          "adjacent": false
+        },
+        {
+          "a": "Mid-Range",
+          "b": "Above the Break 3",
+          "distance": 57.653,
+          "adjacent": true
+        },
+        {
+          "a": "In The Paint (Non-RA)",
+          "b": "Right Corner 3",
+          "distance": 57.726,
+          "adjacent": false
+        },
+        {
+          "a": "Mid-Range",
+          "b": "Left Corner 3",
+          "distance": 65.487,
+          "adjacent": true
+        },
+        {
+          "a": "Mid-Range",
+          "b": "Right Corner 3",
+          "distance": 65.609,
+          "adjacent": true
+        }
+      ]
+    }
+  },
+  "composite": {
+    "levels": [
+      1.0,
+      0.92,
+      0.5,
+      0.25
+    ],
+    "note": "GROUND + level * hue, which is what `lighter` compositing gives. 0.92 is field.ts:TONE_CEILING.",
+    "min": {
+      "1": {
+        "normal": 11.329,
+        "protanomaly-100": 6.117,
+        "deuteranomaly-100": 3.384,
+        "tritanomaly-100": 6.032
+      },
+      "0.92": {
+        "normal": 10.832,
+        "protanomaly-100": 5.877,
+        "deuteranomaly-100": 3.242,
+        "tritanomaly-100": 5.737
+      },
+      "0.5": {
+        "normal": 7.494,
+        "protanomaly-100": 4.2,
+        "deuteranomaly-100": 2.279,
+        "tritanomaly-100": 3.609
+      },
+      "0.25": {
+        "normal": 4.675,
+        "protanomaly-100": 2.708,
+        "deuteranomaly-100": 1.42,
+        "tritanomaly-100": 1.881
+      }
+    },
+    "below_floor": [
+      "0.25: deuteranomaly-100 at 1.42",
+      "0.25: protanomaly-100 at 2.708",
+      "0.25: tritanomaly-100 at 1.881",
+      "0.5: deuteranomaly-100 at 2.279"
+    ]
+  },
+  "floor_applies_to": "the declared hue; see composite.below_floor for the drawn mark",
+  "meets_floor": true,
+  "meets_target": false,
+  "below_target": [
+    "protanomaly-100: Right Corner 3 / Above the Break 3 at 6.199",
+    "deuteranomaly-100: Right Corner 3 / Above the Break 3 at 3.544",
+    "deuteranomaly-100: Left Corner 3 / Right Corner 3 at 9.875",
+    "tritanomaly-100: Left Corner 3 / Right Corner 3 at 6.158",
+    "tritanomaly-100: Right Corner 3 / Above the Break 3 at 8.949"
+  ]
+}

@@ -11,3 +11,15 @@
 # pipeline/common.py:require_env() checks these at the start of every stage.
 numpy==2.0.2
 pandas==2.3.2
+
+# Colour appearance and colour-vision-deficiency simulation, for
+# pipeline/palette.py and qa.py's `palette` group (audit V-03: THE FIELD's hues
+# claimed a separation nobody had measured).
+#
+# DELIBERATELY NOT IN pipeline/common.py:REQUIRED. That dict is checked by
+# require_env() at the top of EVERY stage, so a global entry would make
+# acquire.py and window.py fail for anyone who has no use for a colour
+# appearance model. The palette stage imports it explicitly and says so if it is
+# missing; qa.py's palette group FAILS rather than skipping, because a gate that
+# quietly stops checking when a library is absent is the F-11 defect.
+colorspacious==1.1.2

@@ -542,6 +542,12 @@ REQUIRED_ARTIFACTS = [
     # the shufinskiy mirror; and the work's argument - every shot renders -
     # cannot be made from a residue of itself. Reviewed, not defaulted.
     Artifact("points/season_{year}.bin", "bin", per_season=True),
+    # THE FIELD's hues and what they measurably separate by (audit V-03). NOT
+    # served: nothing fetches it, and the piece cites no figure from it on
+    # screen, which is the whole of the publish rule. The hues themselves live
+    # in site/src/palette.ts, where an authored scalar belongs; this is the
+    # CLAIM about them, and the palette group binds the two.
+    Artifact("palette.json", "json", public=False),
 ]
 
 # Where the Node half reads the same decision. Written by
@@ -2726,6 +2732,119 @@ def group_memory(g, ctx):
            f"of the file is reasoning and carries its artifact key inline")
 
 
+# --- group: the palette ------------------------------------------------------
+
+
+def group_palette(g, ctx):
+    """THE FIELD's hues, and whether the site is still drawing the ones measured.
+
+    The finding this gate closes (audit V-03) is not that the palette is bad -
+    it is that `palette.ts` ASSERTED a separation nobody had measured. So the
+    two things worth gating are that the claim is a real computation, and that
+    the values the claim is about are the values the piece draws.
+
+    RECOMPUTED, NOT READ BACK - but with the same library the stage used, and
+    that limit is stated rather than dressed up. Two independent implementations
+    of CIECAM02 would be checking a published appearance model against a
+    hand-rolled version of itself; the failure mode that actually threatens this
+    project is a stale or corrupt artifact and a source that has drifted from
+    it, and those are what this catches.
+    """
+    p = ctx.json(g, "palette.json")
+    if p is None:
+        return
+    g.section("THE FIELD's palette, measured")
+
+    g.check("the palette names the league's seven regions", p.get("zones"), list(ZONE_NAMES))
+
+    # The hues the SITE draws, out of the site's own source. The artifact is a
+    # claim about this file; if they have parted, the claim describes a palette
+    # nobody is looking at.
+    import re  # noqa: PLC0415
+
+    src = ctx.repo / "site" / "src" / "palette.ts"
+    if not src.exists():
+        g.fail("site/src/palette.ts is readable", f"{src} missing")
+        return
+    m = re.search(r"export const ZONE_RGB:\s*string\[\]\s*=\s*\[(.*?)\];", src.read_text(), re.S)
+    site_rgb = [[int(v) for v in t] for t in
+                re.findall(r'"\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*"', m.group(1))] if m else None
+    g.check("the measured palette is the palette the site draws", site_rgb, p.get("rgb"))
+
+    floor = (p.get("threshold") or {}).get("floor")
+    target = (p.get("threshold") or {}).get("target")
+    g.holds("the palette declares a floor and a target",
+            isinstance(floor, (int, float)) and isinstance(target, (int, float))
+            and 0 < floor <= target)
+    if not isinstance(floor, (int, float)):
+        return
+
+    try:
+        from colorspacious import cspace_convert  # noqa: PLC0415
+    except ImportError:
+        # NOT a silent skip. A gate that quietly stops checking when a library
+        # is absent is the F-11 defect, so this is a failure with the fix in it.
+        g.fail("the palette's separation can be recomputed",
+               "colorspacious is not installed; it is pinned in requirements.txt")
+        return
+
+    import itertools  # noqa: PLC0415
+
+    from palette import CONDITIONS  # noqa: PLC0415
+
+    rgb01 = np.array(p["rgb"], dtype=float) / 255.0
+    drift, under = [], []
+    for cond, block in (p.get("separation") or {}).items():
+        if cond not in CONDITIONS:
+            drift.append(f"{cond} is not a condition palette.py knows")
+            continue
+        j = cspace_convert(rgb01, CONDITIONS[cond] or "sRGB1", "CAM02-UCS")
+        want = {
+            tuple(sorted((ZONE_NAMES[a], ZONE_NAMES[b]))): float(np.linalg.norm(j[a] - j[b]))
+            for a, b in itertools.combinations(range(len(ZONE_NAMES)), 2)
+        }
+        for row in block.get("pairs", []):
+            k = tuple(sorted((row.get("a"), row.get("b"))))
+            if k not in want or abs(want[k] - row.get("distance", -1)) > 5e-3:
+                drift.append(f"{cond}: {k} filed {row.get('distance')} vs {want.get(k)}")
+        if abs(min(want.values()) - block.get("min", -1)) > 5e-3:
+            drift.append(f"{cond}: min filed {block.get('min')} vs {min(want.values())}")
+        if min(want.values()) < floor:
+            under.append(f"{cond}: {min(want.values()):.3f} < {floor}")
+
+    g.check("every filed separation is what the metric gives", drift, [])
+    g.check(f"every condition clears the declared floor of {floor:g}", under, [])
+    g.check("the artifact's own floor verdict is the recomputation's",
+            p.get("meets_floor"), not under)
+
+    # THE PALETTE DOES NOT MEET ITS TARGET, AND THE GATE ASSERTS THAT IT SAYS SO.
+    # This is not a gate that the palette is good; it is a gate that the artifact
+    # is HONEST about not being. Fixing the hues is separate, open work, and if
+    # it ever lands this check is what forces the flag to move with them.
+    below = p.get("below_target")
+    g.check("the artifact's target verdict is its own list of failures",
+            p.get("meets_target"), isinstance(below, list) and not below)
+    if isinstance(below, list) and below:
+        g.info(f"{len(below)} pair-condition(s) below the target of {target:g}: "
+               f"{below[0]}" + (f" (+{len(below) - 1} more)" if len(below) > 1 else ""))
+
+    # Which regions actually touch, so nobody argues a pair apart without it.
+    touching = {tuple(sorted(pair)) for pair in p.get("adjacent_on_the_floor") or []}
+    g.holds("the adjacency list is a set of real region pairs",
+            all(len(t) == 2 and set(t) <= set(ZONE_NAMES) for t in touching) and touching)
+    # LEFT CORNER 3 and RIGHT CORNER 3 are separated by the whole width of the
+    # paint. That is why they may be close in hue; it is measured here so the
+    # argument cannot be made without it.
+    g.holds("the two corner threes never meet on the floor",
+            tuple(sorted(("Left Corner 3", "Right Corner 3"))) not in touching)
+
+    comp = (p.get("composite") or {}).get("below_floor")
+    if isinstance(comp, list) and comp:
+        g.info(f"the DRAWN mark falls below the floor at {len(comp)} level-condition(s) - "
+               f"e.g. {comp[0]} - because `lighter` over a near-black ground carries every "
+               f"hue toward the ground as density falls")
+
+
 # --- group: the deploy allowlist ---------------------------------------------
 
 
@@ -2794,6 +2913,7 @@ GROUPS = {
     "window": group_window,
     "paint": group_paint,
     "traces": group_traces,
+    "palette": group_palette,
     "inventory": group_inventory,
     "deploy": group_deploy,
     "memory": group_memory,

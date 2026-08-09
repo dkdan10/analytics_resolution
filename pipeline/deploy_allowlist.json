@@ -104,6 +104,7 @@
     "grids/season_2023.json",
     "grids/season_2024.json",
     "grids/season_2025.json",
+    "palette.json",
     "window_manifest.json"
   ]
 }

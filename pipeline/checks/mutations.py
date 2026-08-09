@@ -325,6 +325,52 @@ def m_covering_90_split(d):
     _save(d, "seasons.json", s)
 
 
+def m_palette_collide(d):
+    """Two of the seven hues become the same colour.
+
+    The failure the whole finding is about, taken to its limit: two of the
+    league's categories drawn in one colour. Nothing in the site would complain
+    and the plate would look like a palette of six.
+    """
+    p = _load(d, "palette.json")
+    p["rgb"][4] = list(p["rgb"][5])
+    _save(d, "palette.json", p)
+
+
+def m_palette_stale(d):
+    """The separation table is left describing a palette that has moved.
+
+    A distance nudged by a tenth. This is what a hue edited without re-running
+    pipeline/palette.py looks like from the gate's side, and it is why the gate
+    RECOMPUTES rather than reading the number back.
+    """
+    p = _load(d, "palette.json")
+    p["separation"]["normal"]["pairs"][0]["distance"] += 0.1
+    _save(d, "palette.json", p)
+
+
+def m_palette_verdict(d):
+    """The artifact claims to meet a target it lists its own failures against.
+
+    The dishonest-artifact case, and the one worth having: the numbers stay
+    right and only the CLAIM about them is wrong.
+    """
+    p = _load(d, "palette.json")
+    p["meets_target"] = True
+    _save(d, "palette.json", p)
+
+
+def m_palette_source_drift(d):
+    """The site's hue is edited and the measurement is not re-run.
+
+    Repo scope, because this defect lives in site/src/palette.ts rather than in
+    data/processed/ - the two halves the gate exists to bind.
+    """
+    p = d / "site" / "src" / "palette.ts"
+    src = p.read_text()
+    p.write_text(src.replace('"224, 90, 65",', '"224, 90, 66",', 1))
+
+
 def m_zone_byte(d):
     """One zone byte flipped in a points/*.bin.
 
@@ -719,6 +765,19 @@ CASES = [
     Case("covering-90-split", ["filing"],
          "the ledger's label budget is the census's DESCRIPTION budget",
          m_covering_90_split, "two hands stop reading one measurement"),
+
+    # --- the palette (V-03): the claim, and the values it is about ------------
+    Case("palette-collide", ["palette"], "every condition clears the declared floor",
+         m_palette_collide, "two of the league's categories drawn in one colour"),
+    Case("palette-stale", ["palette"], "every filed separation is what the metric gives",
+         m_palette_stale, "the table stops describing the palette it is a table of"),
+    Case("palette-verdict", ["palette"],
+         "the artifact's target verdict is its own list of failures",
+         m_palette_verdict, "the numbers stay right and only the claim about them is wrong"),
+    Case("palette-source-drift", ["palette"],
+         "the measured palette is the palette the site draws",
+         m_palette_source_drift, "a hue edited in the site without re-measuring",
+         scope="repo"),
     Case("random-measures", ["window"], "every filed bucket is one of the published categories",
          m_random_measures, "structure destroyed, length preserved"),
     Case("random-strokes", ["paint"], "no stroke spans more frames than the possession it was cut from",
@@ -846,17 +905,22 @@ def run_mutations(processed=PROCESSED_DIR, only=None, quiet=False):
         shutil.copytree(processed, pristine)
         root = Path(tmp) / "work"
 
-        # A repo-shaped root, not a bare processed directory: the `memory` and
-        # `deploy` groups read CLAUDE.md, pipeline/deploy_allowlist.json and one
-        # site source file, and a gate that cannot be aimed at a copy cannot be
-        # mutation-tested at all.
+        # A repo-shaped root, not a bare processed directory: the `memory`,
+        # `deploy` and `palette` groups read CLAUDE.md,
+        # pipeline/deploy_allowlist.json and two site source files, and a gate
+        # that cannot be aimed at a copy cannot be mutation-tested at all.
+        #
+        # ADD A SITE FILE HERE WHEN A GATE STARTS READING ONE. The failure is
+        # loud but confusing: the group fails on "…is readable" for every case in
+        # its list, so every one of its mutations reports WRONG CHECK rather than
+        # the check it actually owns.
         def stage():
             shutil.rmtree(root, ignore_errors=True)
             (root / "data").mkdir(parents=True)
             shutil.copytree(pristine, root / "data" / "processed")
             (root / "pipeline").mkdir(exist_ok=True)
             for rel in ("CLAUDE.md", "pipeline/deploy_allowlist.json",
-                        "site/src/inscription.ts"):
+                        "site/src/inscription.ts", "site/src/palette.ts"):
                 src = REPO_ROOT / rel
                 if src.exists():
                     dst = root / rel

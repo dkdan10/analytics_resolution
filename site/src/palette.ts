@@ -37,8 +37,22 @@ export function bone(alpha: number): string {
  * arc, so the corpus carries the image from warm-centred to cool-edged as a
  * consequence of the migration rather than as a second, invented channel. The
  * split is warm-versus-cool rather than red-versus-green, and lightness varies
- * with hue, so the seven stay separable for colour-blind viewers and survive a
- * bright room.
+ * with hue.
+ *
+ * THIS COMMENT USED TO END "so the seven stay separable for colour-blind
+ * viewers and survive a bright room." NOBODY HAD MEASURED THAT AND IT IS NOT
+ * TRUE (audit V-03). The claim now lives where a claim belongs — in an artifact,
+ * as script output: `pipeline/palette.py` reads these seven values out of THIS
+ * FILE, measures every pairwise CAM02-UCS distance under normal vision and under
+ * simulated protanopia, deuteranopia and tritanopia, and writes
+ * `data/processed/palette.json`. `qa.py` binds the two in both directions, so a
+ * hue edited here without re-running that stage turns the gate red.
+ *
+ * WHAT THE MEASUREMENT SAYS, IN ONE SENTENCE: the palette clears its declared
+ * regression floor and does NOT reach the separation a seven-way categorical
+ * claim would need — read `separation`, `below_target` and `composite` rather
+ * than any number written here. Choosing better hues is a separate, open piece
+ * of work; declaring honestly what these ones do is this one.
  */
 export const ZONE_RGB: string[] = [
   "255, 196, 107", // Restricted Area      — gold, the brightest thing on the floor
