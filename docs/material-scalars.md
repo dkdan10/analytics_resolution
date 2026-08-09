@@ -4,7 +4,7 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**121 scalars**, 87 of them material: 2 measured, 3 geometry, 116 authored.
+**122 scalars**, 87 of them material: 2 measured, 3 geometry, 117 authored.
 
 A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
@@ -210,8 +210,8 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   the apparatus at the centre of the record - backboard, rim and the restricted arc. Fainter than the rest of the engraving because it sits exactly where the density is highest, and at the same weight it would cut a visible ring through the one region every act is about.
 - **STRIKE_MAX_TENTHS** — **55**  
   the cap height, in court tenths, a category holding ONE HUNDRED PER CENT of a season would be struck at. Every word is this times the square root of its own share, so the word's AREA is proportional to the shots it names - the law drawPin already obeys. Raise it and the biggest categories run off the floor; lower it and the census stops being monumental and goes back to being a list.
-- **STRIKE_FLOOR_TENTHS** — **12**  
-  the smallest a struck word may be. THE PLATE DOES NOT WHISPER: a category whose share would draw it under this is a tick and a number in the footer instead, never a small word. Rule 3's law is kept - area stays proportional to share for everything that IS struck - and 5a's lesson from THE LEDGER is kept beside it, that rarity is rarity of utterance and not smallness. WHAT IT COSTS IS ITSELF THE CENSUS'S ARGUMENT, and it is measured: at this value the five taxonomies that never grow lose NOTHING - every one of them still says its whole ninety-per-cent set - while DESCRIPTION, the one that grows, is cut to the three or four the floor can hold. The machine has more names than the floor has room for, and the footer counts them.
+- **STRIKE_FLOOR_TENTHS** — **4.75**  
+  the smallest a struck word may be. A category whose share would draw it under this is a tick and a number in the footer instead. DELIBERATELY THE SAME VALUE AS SCATTER_TENTHS, which is the rule rather than a coincidence: a struck category is never smaller than a label on a single datapoint, because below that it has stopped being a monument and become THE LEDGER's grain. AT THIS VALUE IT BINDS ON NOTHING, and that is the artist's decision, taken against a measurement. It was first set high enough to keep only the three or four largest words - which cost DESCRIPTION most of its vocabulary while the five fixed taxonomies lost nothing - and the ruling was to have the whole named set on the floor and accept the smaller type. So `vocabulary.covering_90pct` is what decides the count again, exactly as the direction specifies, and this only stops a degenerate case: the smallest member of any season's ninety-per-cent set measures 4.89 tenths, just above it.
 - **WORD_CLEAR_PAD** — **0.22**  
   cap heights of clear floor a struck word demands around itself before another may be laid. The collision test is done in POLAR terms because the words are laid tangent to the hoop, so this pads a radial gap and an angular one at once.
 - **ROTATE_STEP_RAD** — **0.11**  
@@ -238,6 +238,8 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   the share numeral riding under each word, as a fraction of the word. Subordinate on purpose: the word's own SIZE already carries the share, and the numeral only says exactly how much.
 - **CENSUS_HEAD_ALPHA** — **0.75** *(not material)*  
   the tally's own heading line - the season and the count classified so far.
+- **CENSUS_ROW_ALPHA** — **0.72** *(not material)*  
+  a tally row's ink - the receipt column in the gallery, and every row of the full apparatus behind the rail. Above the headings it sits under, because the rows are the content and the heading only says what kind.
 - **CENSUS_SUB_ALPHA** — **0.45** *(not material)*  
   the line beneath it, naming how many categories in how many taxonomies. Subordinate, because it describes the machine rather than counting shots.
 - **INSTANT_BAND_HALF_W** — **90**  

@@ -9,7 +9,8 @@
  *
  * WHAT THIS HAND WAS, AND WHY IT COULD NOT STAY (audit V-05). Two statistical
  * tables flanking a court chart, a wall of the smallest type on screen redrawn
- * every frame. Almost all of it disappeared at any distance, and close up it read as an analytical
+ * every frame. Almost all of it disappeared at any distance, and close up it
+ * read as an analytical
  * instrument — the clearest recurrence of the failure this project is named
  * against. The artist's ruling was that the information is valuable and the hand
  * stays: *"CENSUS holds valuable information but maybe it could have an
@@ -56,6 +57,7 @@ import {
   CENSUS_SUB_ALPHA,
   CENSUS_TICK_ALPHA,
   CENSUS_TICK_TENTHS,
+  CENSUS_ROW_ALPHA,
   CENSUS_TICK_WEIGHT,
   CENSUS_WORD_ALPHA,
   MACHINE_SAW_SCALE,
@@ -67,6 +69,7 @@ import {
   STRIKE_MAX_TENTHS,
   WORD_CLEAR_PAD,
 } from "../scalars";
+import { ARRIVAL_TAIL } from "../timeline";
 import { drawSeasonField } from "./fieldlayer";
 import type { Frame } from "./types";
 
@@ -402,6 +405,59 @@ function strikeFooter(f: Frame, season: Season, taxonomy: string, words: Filed[]
 }
 
 /**
+ * The receipt: the active taxonomy's rows, printed AFTER the filing.
+ *
+ * ARTIST'S RULING, 2026-08-08, against the direction's recommendation of no
+ * table in the gallery at all. The ruling was *"CENSUS holds valuable
+ * information but maybe it could have an ADDITIONAL visual representation than
+ * only the tables"* — additional, so the table is not necessarily gone — and
+ * shown the two options with pictures they chose to keep a narrow one.
+ *
+ * WHAT MAKES THIS NOT THE THING THE AUDIT FAILED. It is one column, not two
+ * blocks flanking the court; it carries the ACTIVE taxonomy only, not all six at
+ * once; and it does not exist for most of the season. It fades in only once the
+ * marks have landed (`phase > ARRIVAL_TAIL`), so it reads as a receipt printed
+ * after the filing rather than as a panel that grows throughout — which is the
+ * difference between a record of what happened and a dashboard.
+ *
+ * It costs part of "no persistent dashboard layout", and saying so is the point:
+ * the criterion is met for most of every season and knowingly relaxed at the end
+ * of it, by decision.
+ */
+function drawReceipt(f: Frame, season: Season, taxonomy: string, words: Filed[]): void {
+  const { ctx, view, st, remains } = f;
+  // Nothing until the season has finished arriving, then in over the tail.
+  const k = Math.min(1, Math.max(0, (st.phase - ARRIVAL_TAIL) / (1 - ARRIVAL_TAIL) * 3));
+  if (k <= 0.01) return;
+
+  const px = Math.max(8.5, Math.min(11, view.width / 150));
+  const pad = Math.round(px * 1.6);
+  ctx.save();
+  ctx.font = `${px}px ${SLUG_FAMILY}`;
+  ctx.textBaseline = "alphabetic";
+  ctx.textAlign = "left";
+
+  const total = Object.keys(season.classification[taxonomy] ?? {}).length;
+  let y = pad + LINE;
+  ctx.fillStyle = `rgba(${BONE_RGB}, ${CENSUS_SUB_ALPHA * remains * k})`;
+  ctx.fillText(taxonomy, pad, y);
+  y += LINE + 3;
+  ctx.fillStyle = `rgba(${BONE_RGB}, ${CENSUS_ROW_ALPHA * remains * k})`;
+  for (const w of words) {
+    if (!w.named) continue;
+    ctx.fillText(`${w.name.toLowerCase()}   ${struckFigure(w.share)}`, pad, y);
+    y += LINE;
+  }
+  // The tail is a count, never a cloud — the same rule the footer obeys.
+  const rest = total - words.filter((x) => x.named).length;
+  if (rest > 0) {
+    ctx.fillStyle = `rgba(${BONE_RGB}, ${CENSUS_SUB_ALPHA * remains * k})`;
+    ctx.fillText(`… ${rest} more`, pad, y);
+  }
+  ctx.restore();
+}
+
+/**
  * The window's seventh beat: what the machine actually saw.
  *
  * 2015-16 gets seven — the six taxonomies in the record's own column order, then
@@ -428,14 +484,16 @@ function strikeMachineSaw(f: Frame, k: number): void {
     `${grown(inv.moments)} MOMENTS · ${grown(inv.miles_run)} MILES · ${grown(inv.touches)} TOUCHES`,
     `${grown(inv.passes)} PASSES · ${grown(inv.drives)} DRIVES · ${grown(inv.hours_tracked)} HOURS`,
   ], { x: 0, y: 130 }, remains * k);
-  // `statement`, not `voice`. The rank system and the inventory that assigns it
-  // are 5a's and the artist's, and promoting a new string into the four
-  // sentences the piece is ABOUT is their call, not this file's — even though
-  // this one has a fair claim. It is in the handoff as a question.
+  // `voice` — THE FIFTH, and it is an artist's ruling rather than this file's
+  // decision (5a reserved the rank for four sentences and said not to move copy
+  // between ranks without asking). It earns it: the figure struck above is how
+  // many body positions the machine held, and the record kept one point per
+  // shot, which is the enclosure this whole piece is about, in one line.
+  // docs/typography-inventory.md carries the classification.
   drawSlug(ctx, view, [
     "THE RECORD KEPT",
     `${positions} POSITION PER SHOT`,
-  ], { x: 0, y: 60 }, remains * k);
+  ], { x: 0, y: 60 }, remains * k, "voice");
   // THE SCOPE THAT IS ACTUALLY TRUE OF THESE FIGURES. The first build put
   // `bias.scope` here, and it was a FALSE disclosure: `bias` measures the
   // recovered SHOT set — a fraction of the season's attempts — while `inventory`
@@ -481,6 +539,7 @@ export function drawCensusHand(f: Frame): void {
     strikeHeader(f, season, taxonomy, arrived);
     strikeDisclosure(f);
     strikeFooter(f, season, taxonomy, words);
+    drawReceipt(f, season, taxonomy, words);
 
     // All six at once, briefly, at the opening of every season.
     const k = 1 - Math.min(1, elapsed / SIXFOLD_SECONDS);
@@ -643,7 +702,7 @@ function drawTables(f: Frame, season: Season): void {
     left.line(g.title, "", CENSUS_SUB_ALPHA * remains, true);
     for (const r of g.rows) {
       const p = g.of ? ((100 * r.n) / g.of).toFixed(1) : "0.0";
-      left.line(r.name, `${r.n}  ${p}%`, 0.72 * remains);
+      left.line(r.name, `${r.n}  ${p}%`, CENSUS_ROW_ALPHA * remains);
     }
     left.gap();
   }
@@ -656,7 +715,7 @@ function drawTables(f: Frame, season: Season): void {
              CENSUS_SUB_ALPHA * remains, true);
   for (const r of desc.rows) {
     const p = desc.of ? ((100 * r.n) / desc.of).toFixed(1) : "0.0";
-    right.line(r.name, `${r.n}  ${p}%`, 0.72 * remains);
+    right.line(r.name, `${r.n}  ${p}%`, CENSUS_ROW_ALPHA * remains);
   }
 
   if (st.act === 3 && data.window) drawWindowInventory(f, left);
@@ -682,13 +741,13 @@ function drawWindowInventory(f: Frame, col: Columns): void {
 
   col.gap();
   col.line("THE MACHINE SAW", "", CENSUS_SUB_ALPHA * remains, true);
-  col.line("Moments", grown(inv.moments), 0.72 * remains);
-  col.line("Body positions", grown(inv.body_positions), 0.72 * remains);
-  col.line("Miles run", grown(inv.miles_run), 0.72 * remains);
-  col.line("Hours tracked", grown(inv.hours_tracked), 0.72 * remains);
-  col.line("Touches", grown(inv.touches), 0.72 * remains);
-  col.line("Passes", grown(inv.passes), 0.72 * remains);
-  col.line("Drives", grown(inv.drives), 0.72 * remains);
+  col.line("Moments", grown(inv.moments), CENSUS_ROW_ALPHA * remains);
+  col.line("Body positions", grown(inv.body_positions), CENSUS_ROW_ALPHA * remains);
+  col.line("Miles run", grown(inv.miles_run), CENSUS_ROW_ALPHA * remains);
+  col.line("Hours tracked", grown(inv.hours_tracked), CENSUS_ROW_ALPHA * remains);
+  col.line("Touches", grown(inv.touches), CENSUS_ROW_ALPHA * remains);
+  col.line("Passes", grown(inv.passes), CENSUS_ROW_ALPHA * remains);
+  col.line("Drives", grown(inv.drives), CENSUS_ROW_ALPHA * remains);
   col.gap();
   col.line("THE RECORD KEPT", "", CENSUS_SUB_ALPHA * remains, true);
   // Both measured. The record's width per shot is counted from the dump's own
@@ -696,6 +755,6 @@ function drawWindowInventory(f: Frame, col: Columns): void {
   // neither is a number this file is entitled to know.
   const positions = factNum(data.facts, "schema.positions_per_shot");
   const full = factNum(data.facts, "season.games_full");
-  col.line("Positions per shot", String(positions), 0.72 * remains);
-  col.line(`Games of ${full.toLocaleString()}`, String(w.corpus.games_parsed), 0.72 * remains);
+  col.line("Positions per shot", String(positions), CENSUS_ROW_ALPHA * remains);
+  col.line(`Games of ${full.toLocaleString()}`, String(w.corpus.games_parsed), CENSUS_ROW_ALPHA * remains);
 }

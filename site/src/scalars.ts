@@ -845,20 +845,24 @@ export const SCALARS = {
   },
   STRIKE_FLOOR_TENTHS: {
     class: "authored",
-    value: 12,
+    value: 4.75,
     material: true,
     controls:
-      "the smallest a struck word may be. THE PLATE DOES NOT WHISPER: a category " +
-      "whose share would draw it under this is a tick and a number in the footer " +
-      "instead, never a small word. Rule 3's law is kept - area stays " +
-      "proportional to share for everything that IS struck - and 5a's lesson " +
-      "from THE LEDGER is kept beside it, that rarity is rarity of utterance and " +
-      "not smallness. " +
-      "WHAT IT COSTS IS ITSELF THE CENSUS'S ARGUMENT, and it is measured: at this " +
-      "value the five taxonomies that never grow lose NOTHING - every one of them " +
-      "still says its whole ninety-per-cent set - while DESCRIPTION, the one that " +
-      "grows, is cut to the three or four the floor can hold. The machine has " +
-      "more names than the floor has room for, and the footer counts them.",
+      "the smallest a struck word may be. A category whose share would draw it " +
+      "under this is a tick and a number in the footer instead. " +
+      "DELIBERATELY THE SAME VALUE AS SCATTER_TENTHS, which is the rule rather " +
+      "than a coincidence: a struck category is never smaller than a label on a " +
+      "single datapoint, because below that it has stopped being a monument and " +
+      "become THE LEDGER's grain. " +
+      "AT THIS VALUE IT BINDS ON NOTHING, and that is the artist's decision, " +
+      "taken against a measurement. It was first set high enough to keep only the " +
+      "three or four largest words - which cost DESCRIPTION most of its " +
+      "vocabulary while the five fixed taxonomies lost nothing - and the ruling " +
+      "was to have the whole named set on the floor and accept the smaller type. " +
+      "So `vocabulary.covering_90pct` is what decides the count again, exactly as " +
+      "the direction specifies, and this only stops a degenerate case: the " +
+      "smallest member of any season's ninety-per-cent set measures 4.89 tenths, " +
+      "just above it.",
   },
   WORD_CLEAR_PAD: {
     class: "authored",
@@ -979,6 +983,15 @@ export const SCALARS = {
     value: 0.75,
     material: false,
     controls: "the tally's own heading line - the season and the count classified so far.",
+  },
+  CENSUS_ROW_ALPHA: {
+    class: "authored",
+    value: 0.72,
+    material: false,
+    controls:
+      "a tally row's ink - the receipt column in the gallery, and every row of " +
+      "the full apparatus behind the rail. Above the headings it sits under, " +
+      "because the rows are the content and the heading only says what kind.",
   },
   CENSUS_SUB_ALPHA: {
     class: "authored",
@@ -1227,6 +1240,7 @@ export const CENSUS_WORD_ALPHA: number = SCALARS.CENSUS_WORD_ALPHA.value;
 export const MACHINE_SAW_SCALE: number = SCALARS.MACHINE_SAW_SCALE.value;
 export const CENSUS_SHARE_SCALE: number = SCALARS.CENSUS_SHARE_SCALE.value;
 export const CENSUS_HEAD_ALPHA: number = SCALARS.CENSUS_HEAD_ALPHA.value;
+export const CENSUS_ROW_ALPHA: number = SCALARS.CENSUS_ROW_ALPHA.value;
 export const CENSUS_SUB_ALPHA: number = SCALARS.CENSUS_SUB_ALPHA.value;
 export const ENGRAVING_ALPHA: number = SCALARS.ENGRAVING_ALPHA.value;
 export const ENGRAVING_FAINT_ALPHA: number = SCALARS.ENGRAVING_FAINT_ALPHA.value;
