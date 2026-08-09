@@ -23,6 +23,17 @@ colour is the league's own seven-region map of the floor, so a stroke recolours 
 length as it crosses the lines the NBA drew. Twenty-nine seasons are splotches and nothing between
 them, because that is all the record kept.
 
+**The stack** is a seventh view, and it is not a hand. The six each render the whole record one
+way; the stack renders nothing of its own. It composites the others' material over a single shared
+base, one named interpretive operation at a time — LOCATE THE ATTEMPT, CLASSIFY THE FLOOR, INSCRIBE
+THE SEASON, CONNECT THE BODY, MEASURE THE DEFENDER, NAME THE ACTION, COUNT THE EVENT — and it opens
+with all seven switched off, on bare stone. Each control names an act somebody performed on a list
+of coordinates rather than a renderer or a visual effect, and each declares the artifact it reads
+and the definition that artifact ships. A presenter builds the image live, and ALL RENDERINGS
+applies every operation at once until it is released: the plate becomes illegible, which is the
+point, because maximal rendering is not maximal access. It is **talk mode only** and is not in the
+gallery rotation, which stays six.
+
 ## Running it
 
 The pipeline pins both its interpreter (`.python-version`, pyenv 3.9.4) and its libraries
@@ -117,12 +128,18 @@ numbers are a property of the machine that took them.
 
 ```bash
 cd site && npm run dev                    # in one shell - the probes need the data synced
-cd site && npm run probe:purity           # all six hands x twelve beats, ~47 s
-cd site && npm run probe:perf             # 72 rows, ~8 s
+cd site && npm run probe:purity           # seven hands x twelve beats, two arms
+cd site && npm run probe:perf             # one row per hand per beat
 ```
 
-Verdicts land in `docs/probe/`. `--mode`, `--beat` and `--out` narrow a run and name its output;
-an unmatched name is an error rather than an empty table.
+Verdicts land in `docs/probe/`. `--mode`, `--beat`, `--ops` and `--out` narrow a run and name its
+output; an unmatched name is an error rather than an empty table. Read the RENDERER arm — the
+history warms the caches on a scratch surface and the tested frame is drawn on a virgin one, so a
+difference there is renderer state; `row.surfaceArm` is a kept second reading and carries no
+verdict. THE STACK adds a third axis, the operation mask, so its rows sweep nothing-on, each
+operation alone, and everything at once; and a **toggle round-trip** turns each operation on and
+off at a held instant and requires the exact same bytes back, compared by hash rather than through
+the noise predicate.
 
 - `http://localhost:5173/?probe=purity` — the same instant reached four ways (continuous playback,
   a forward seek, a backward seek, and a cold direct load) and compared by exact pixel hash, for
@@ -159,6 +176,14 @@ the same work sampled differently:
   window is 150 seconds and is the only segment with an inside, so the rail lists its four beats
   and the step buttons stop at each.
   `?t=<seconds>` and `?year=<YYYY>` open on any beat; `?nav` adds the rail, `?nav=0` removes it.
+  `?mode=<id>` pins one hand; the rail's hand row and `h` cycle through them and back to rotating.
+
+**THE STACK is talk mode only, and `?mode=stack` is refused without `?talk` or `?nav`.** It opens
+on bare stone and is driven entirely from the rail and the keyboard, neither of which exists on a
+wall machine, so a gallery pinned to it would show an empty plate with no way out. Its seven
+operations take one letter each — `l` `c` `i` `b` `d` `n` `e`, and `a` for ALL RENDERINGS — and the
+same letters are the URL token, so `?talk&mode=stack&ops=lci&t=120` reopens an exact configured
+frame and the address bar keeps naming the frame on screen as a presenter toggles.
 
 The rail is deliberately absent from exhibit mode — the gallery loop shows nothing that looks like
 it wants to be touched.

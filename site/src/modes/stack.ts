@@ -309,9 +309,31 @@ function drawCount(f: Frame): void {
   // against the plate's edge and grows away from it, so it never crosses the
   // court however narrow the window gets.
   const right = view.sx(COURT.x0) - view.s(STACK_GUTTER_PAD_TENTHS);
-  const px = view.s(STACK_GUTTER_TENTHS);
   const named = words.filter((x) => x.named);
+  const rows = named.map((c) => `${c.name.toLowerCase()}   ${c.n.toLocaleString()}`);
   ctx.save();
+
+  // THE COLUMN FITS THE GUTTER IT ACTUALLY HAS, and the type size is derived
+  // rather than fixed. `STACK_GUTTER_TENTHS` is the size the tally takes when
+  // there is room; how much room there IS depends on the rail, which takes a
+  // fixed slice of the window and leaves the plate a narrower canvas to be
+  // centred in. At a lectern width the widest row of the DESCRIPTION taxonomy —
+  // the record's longest phrases, which are the whole of the second curve — ran
+  // off the left edge and was clipped mid-word.
+  //
+  // Shrinking is the only honest lever. Truncating would cut the record's own
+  // words, which is the one thing this operation exists to show; wrapping would
+  // turn a tally into a paragraph; and moving the column right would put COUNT
+  // on the court, which is precisely what rule 8 and the NAME/COUNT exclusion
+  // forbid. So the whole column scales down together and stays outside the
+  // floor at every window size.
+  ctx.font = `${view.s(STACK_GUTTER_TENTHS)}px ${SLUG_FAMILY}`;
+  const widest = rows.reduce((m, r) => Math.max(m, ctx.measureText(r).width), 1);
+  const px = view.s(STACK_GUTTER_TENTHS) * Math.min(1, (right - view.s(STACK_GUTTER_PAD_TENTHS)) / widest);
+  if (px < 1) {
+    ctx.restore();
+    return;
+  }
   ctx.font = `${px}px ${SLUG_FAMILY}`;
   ctx.textAlign = "right";
   ctx.textBaseline = "alphabetic";
@@ -322,8 +344,8 @@ function drawCount(f: Frame): void {
   ctx.fillText(data.taxonomyColumns[taxonomy] ?? taxonomy, right, y);
   y += px * 2.2;
   ctx.fillStyle = `rgba(${BONE_RGB}, ${remains * STACK_GUTTER_ROW_ALPHA})`;
-  for (const c of named) {
-    ctx.fillText(`${c.name.toLowerCase()}   ${c.n.toLocaleString()}`, right, y);
+  for (const row of rows) {
+    ctx.fillText(row, right, y);
     y += px * 1.5;
   }
   // The tail is a count, never a cloud — THE CENSUS's rule, kept.
