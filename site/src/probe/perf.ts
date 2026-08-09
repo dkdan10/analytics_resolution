@@ -23,10 +23,12 @@
  */
 
 import { renderTo } from "../render";
+import { opsToken, type StackOps } from "../modes/operations";
 import type { ModeId } from "../modes";
 import {
   cold,
   beatsOf,
+  configsOf,
   emit,
   forceResidency,
   FRAME_BUDGET_MS,
@@ -111,9 +113,26 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
 
   const target = makeTarget();
   const base = schedule.duration;
+
+  /**
+   * THE STACK IS TIMED AT ITS DENSEST CONFIGURATION, NEVER AT ITS DEFAULT.
+   *
+   * Its default is bare stone — every operation off, by the artist's ruling —
+   * which is the cheapest frame in the whole piece. Timing it there would report
+   * a hand that costs nothing and say nothing about the frame a presenter can
+   * actually build, and the acceptance criterion is explicitly about the densest
+   * configuration shipped. So the perf probe asks for ALL RENDERINGS: seven
+   * operations composited at once, which is the most this view can ever be asked
+   * to draw. Every other hand ignores the argument and is timed exactly as it
+   * was before session 6.
+   */
+  const dense = (m: ModeId): StackOps => {
+    const cs = configsOf(m);
+    return cs[cs.length - 1]!.ops;
+  };
   // Same warm-up as the purity probe: a first-use cost charged to one beat is
   // not that beat's cost.
-  warmUp((t, m) => renderTo(target, t, data, schedule, inscriptions, m),
+  warmUp((t, m) => renderTo(target, t, data, schedule, inscriptions, m, false, dense(m)),
          chosen, base, modes);
 
   // What the record makes available to a hand at this beat. The draw-op counts
@@ -133,13 +152,15 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
 
       cold();
       for (let i = 0; i < WARMUP; i++) {
-        renderTo(target, t0 + i * STEP, data, schedule, inscriptions, mode as ModeId);
+        renderTo(target, t0 + i * STEP, data, schedule, inscriptions, mode as ModeId,
+                 false, dense(mode as ModeId));
       }
       const ms: number[] = [];
       for (let i = 0; i < frames; i++) {
         const t = t0 + (WARMUP + i) * STEP;
         const a = performance.now();
-        renderTo(target, t, data, schedule, inscriptions, mode as ModeId);
+        renderTo(target, t, data, schedule, inscriptions, mode as ModeId,
+                 false, dense(mode as ModeId));
         ms.push(performance.now() - a);
       }
       const q4 = quantiles(ms);
@@ -147,7 +168,7 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
       // Counted separately, so the Proxy never taxes the timing.
       const { proxy, counts } = countingCtx(target.ctx);
       renderTo({ ...target, ctx: proxy }, t0 + WARMUP * STEP, data, schedule,
-               inscriptions, mode as ModeId);
+               inscriptions, mode as ModeId, false, dense(mode as ModeId));
       const drawOps = (counts.arc ?? 0) + (counts.fill ?? 0) + (counts.stroke ?? 0)
         + (counts.fillText ?? 0) + (counts.drawImage ?? 0) + (counts.fillRect ?? 0);
 
@@ -161,6 +182,10 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
 
       rows.push({
         mode,
+        // Which operations were applied. `-` for the six hands that ignore the
+        // configuration; for THE STACK this is every one of them, so the row is
+        // the worst frame the view can produce rather than its default.
+        ops: mode === "stack" ? opsToken(dense(mode as ModeId)) : "-",
         beat: beat.id,
         t: Number(t0.toFixed(4)),
         frames,
