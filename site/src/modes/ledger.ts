@@ -132,6 +132,13 @@ function windowValues(w: WindowFile | null): Map<string, string> {
 const LEAGUE_ARC_INNER = 152;
 const LEAGUE_ARC_OUTER = 212;
 
+/** How fast the published names accumulate across the act: the count shown at
+ *  phase p is `ceil(p × names × LEAGUE_ACCUM_K)`, so the last heading arrives
+ *  at phase `(names − 1) / (names × LEAGUE_ACCUM_K)` — after the field's
+ *  arrival, the hand's one late event inside the window. Exported for the talk
+ *  rail's LEDGER interior (THE SECOND SCORE): one definition, two readers. */
+export const LEAGUE_ACCUM_K = 1.4;
+
 function leagueBoxes(names: string[]): Box[] {
   const perArc = Math.ceil(names.length / 2);
   return names.map((text, i) => {
@@ -718,7 +725,7 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
   // point in the piece is very nearly empty: the derived measures occupy exactly
   // the space the geometry vacated. Two arcs, because one cannot hold all the
   // phrases without them running off the floor.
-  const shown = Math.min(names.length, Math.ceil(st.phase * names.length * 1.4));
+  const shown = Math.min(names.length, Math.ceil(st.phase * names.length * LEAGUE_ACCUM_K));
   // Both arcs sit inside the mid-range band, which by Act V is very nearly
   // empty - `mid_share` says how nearly. The names occupy that emptiness, and
   // the spoken register reads these SAME boxes so it does not speak through them.

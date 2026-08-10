@@ -28,6 +28,7 @@ import {
   secondsFor,
   seekAct,
   seekTo,
+  WINDOW_BEATS,
   WINDOW_YEAR,
   type Act,
   type Schedule,
@@ -86,10 +87,12 @@ function bindTalkKeys(
   cycleMode: () => void,
   stack: StackKeys,
 ): void {
-  const beats = Navigator.starts(schedule).filter((s) => {
-    const w = schedule.byYear.get(WINDOW_YEAR);
-    return w ? s >= w.start && s < w.start + w.duration : false;
-  });
+  // The four SHARED beats, straight from the one definition. Deliberately not
+  // the rail's stop list: under THE SECOND SCORE the rail's window interior
+  // follows the pinned hand, and `6`–`9` must NOT — the keys are the
+  // presenter's muscle memory and the score depends on them staying put.
+  const w = schedule.byYear.get(WINDOW_YEAR);
+  const beats = w ? WINDOW_BEATS.map((b) => w.start + b.from * w.duration) : [];
   window.addEventListener("keydown", (e) => {
     if (e.repeat) return;
     // A key pressed while a rail control has focus belongs to that control:
@@ -284,7 +287,6 @@ async function main(): Promise<void> {
     clock = tc;
     if (wantsNav) {
       document.body.classList.remove("exhibit");
-      const starts = Navigator.starts(schedule);
       nav = new Navigator(document.getElementById("nav")!, schedule, data.seasons, {
         seek: (s) => tc.seek(s),
         togglePause: () => tc.togglePause(),
@@ -297,6 +299,9 @@ async function main(): Promise<void> {
           modeOverride
             ? MODE_TITLES[modeOverride]
             : `${MODE_TITLES[modeAt(tc.seconds, schedule, null)]} (rotating)`,
+        // THE SECOND SCORE reads the pin itself: the rail's window interior
+        // and the step-button stops both follow it.
+        pinned: () => modeOverride,
         // Steps through the hands and then back to letting the loop rotate,
         // so the gallery behaviour is always one click away. Same function the
         // H key calls.
@@ -310,6 +315,10 @@ async function main(): Promise<void> {
         allRenderings: stackKeys.all,
         nudgeSegment: (dir) => {
           const now = ((tc.seconds % schedule.duration) + schedule.duration) % schedule.duration;
+          // Recomputed per press, never captured: the stop list follows the
+          // pinned hand (THE SECOND SCORE), and a press costs arithmetic on a
+          // handful of numbers.
+          const starts = Navigator.starts(schedule, data, modeOverride);
           // Step by segment INDEX, never by elapsed seconds. A seek leaves the
           // clock running, so any time-window test makes each press depend on
           // how long ago the last one was: presses more than the window apart

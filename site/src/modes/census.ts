@@ -477,6 +477,12 @@ function drawReceipt(f: Frame, season: Season, taxonomy: string, words: Filed[])
  * magnitude. It used to be a short block in a gutter, which is to say the
  * strongest content in the census set in the smallest type on screen.
  */
+
+/** The seventh beat's headline — exported so the talk rail's CENSUS interior
+ *  (THE SECOND SCORE) names the beat with the hand's own words rather than a
+ *  second copy that can drift. One definition, two readers. */
+export const MACHINE_SAW_TITLE = "BODY POSITIONS THE MACHINE SAW";
+
 function strikeMachineSaw(f: Frame, k: number): void {
   const { ctx, view, data, remains } = f;
   const w = data.window;
@@ -489,7 +495,7 @@ function strikeMachineSaw(f: Frame, k: number): void {
   const figure = view.s(STRIKE_MAX_TENTHS * MACHINE_SAW_SCALE);
   strike(ctx, grown(inv.body_positions), view.sx(0), view.sy(230), figure,
          remains * CENSUS_WORD_ALPHA * k);
-  drawSlug(ctx, view, ["BODY POSITIONS THE MACHINE SAW"], { x: 0, y: 230 },
+  drawSlug(ctx, view, [MACHINE_SAW_TITLE], { x: 0, y: 230 },
            remains * k, "aside", figure * 0.75);
   drawSlug(ctx, view, [
     `${grown(inv.moments)} MOMENTS · ${grown(inv.miles_run)} MILES · ${grown(inv.touches)} TOUCHES`,

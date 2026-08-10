@@ -76,6 +76,13 @@ export interface BloomTiming {
   duration: number;
 }
 
+/** Where trace `i` of `n` ignites, as a fraction of the act's phase. One
+ *  definition, two readers — the drawing below and the talk rail's PLATE
+ *  interior (THE SECOND SCORE) — the same discipline as `WINDOW_BEATS`. */
+export function ignitePhase(i: number, n: number): number {
+  return (i / Math.max(1, n)) * SPREAD;
+}
+
 /**
  * How far a given trace has drawn itself, 0..1, and how lit it is.
  * Pure function of the act's phase - no animation state anywhere.
@@ -83,7 +90,7 @@ export interface BloomTiming {
 function traceState(i: number, n: number, timing: BloomTiming): { drawn: number; alpha: number } {
   const { phase, duration } = timing;
   const t = phase * duration;
-  const igniteAt = (i / Math.max(1, n)) * duration * SPREAD;
+  const igniteAt = ignitePhase(i, n) * duration;
   const u = t - igniteAt;
   if (u < 0 || u > LIFE_S) return { drawn: 0, alpha: 0 };
 

@@ -10,7 +10,10 @@
  * the record's own resolution changes.
  */
 
+import { ignitePhase } from "./bloom";
 import { factExternal, type FactsFile, type Loaded, type Season } from "./data";
+import { MACHINE_SAW_TITLE } from "./modes/census";
+import { LEAGUE_ACCUM_K } from "./modes/ledger";
 import {
   ALL_OPS,
   has,
@@ -19,7 +22,18 @@ import {
   type Operation,
   type StackOps,
 } from "./modes/operations";
-import { ACT_TITLES, CUT_YEAR, stateAt, WINDOW_BEATS, WINDOW_YEAR, type Act, type Schedule } from "./timeline";
+import { SHELL_PHASE } from "./modes/plate";
+import type { ModeId } from "./modes/types";
+import {
+  ACT_TITLES,
+  ARRIVAL_TAIL,
+  CUT_YEAR,
+  stateAt,
+  WINDOW_BEATS,
+  WINDOW_YEAR,
+  type Act,
+  type Schedule,
+} from "./timeline";
 
 export interface Transport {
   seek(seconds: number): void;
@@ -29,6 +43,9 @@ export interface Transport {
   position(): number;
   /** Which hand is drawing right now. */
   mode(): string;
+  /** The pinned hand's id, or null while the loop rotates. THE SECOND SCORE
+   *  reads this: the rail's window interior belongs to the pinned hand. */
+  pinned(): ModeId | null;
   /** Step to the next hand, pinning it; wraps back to letting the loop rotate. */
   cycleMode(): void;
   /** THE STACK's operation mask, and whether the panel that drives it applies. */
@@ -82,6 +99,92 @@ function definitionOf(data: Loaded, op: Operation): string {
   return block?.[key] ?? `${file}.json has not been generated`;
 }
 
+/** One subordinate stop inside the window's row: a seek target with the span
+ *  it opens. `at`/`end` are absolute seconds in the loop. */
+export interface WindowStop {
+  title: string;
+  at: number;
+  end: number;
+}
+
+/**
+ * THE SECOND SCORE (the second audit's Codex report §4.2; artist ruling
+ * 2026-08-10): the rail's
+ * window row keeps its shared span, and keys `6`–`9` keep the four shared
+ * beats in every hand — but the SUBORDINATE stops are the pinned hand's actual
+ * interior, because the rail asserting one four-beat interior for all seven
+ * views was the presenter's map disagreeing with the hand's actual score.
+ *
+ * Every stop is DERIVED from the same constants the hands read — never a typed
+ * `t`:
+ * - CENSUS: seven equal filings — the artifact's own taxonomy column names in
+ *   the record's column order (`census.ts` files `columns[floor(phase×7)]`),
+ *   then the machine-saw beat under the hand's own headline.
+ * - PLATE: the trace rhythm — the gestures ignite on `bloom.ts:ignitePhase`,
+ *   the last at `(n−1)/n` of the spread, and the record's last file strikes at
+ *   `SHELL_PHASE`.
+ * - FIELD: arrival, then the one unchanged image it holds from `ARRIVAL_TAIL`
+ *   to the close — the rail does not invent interior events the hand does not
+ *   have.
+ * - LEDGER: arrival, then its one late event — the last published heading,
+ *   at the phase `LEAGUE_ACCUM_K` puts it.
+ * - MEASURE and HAND keep the shared four beats: theirs genuinely are the
+ *   window's beats. THE STACK and the released (rotating) rail keep the shared
+ *   act map — releasing the pin restores it.
+ */
+export function windowSubStops(
+  pinned: ModeId | null,
+  schedule: Schedule,
+  data: Loaded,
+): WindowStop[] {
+  const w = schedule.byYear.get(WINDOW_YEAR);
+  if (!w) return [];
+  const at = (phase: number): number => w.start + phase * w.duration;
+  const span = (stops: { title: string; from: number }[]): WindowStop[] =>
+    stops.map((s, i) => ({
+      title: s.title,
+      at: at(s.from),
+      end: at(stops[i + 1]?.from ?? 1),
+    }));
+
+  if (pinned === "census" && data.window) {
+    const columns = Object.keys(data.taxonomyColumns);
+    const beats = columns.length + 1;
+    return span([
+      ...columns.map((c, k) => ({
+        title: data.taxonomyColumns[c] ?? c,
+        from: k / beats,
+      })),
+      { title: MACHINE_SAW_TITLE, from: columns.length / beats },
+    ]);
+  }
+  if (pinned === "plate" && data.traces) {
+    // In time order: the shell begins striking BEFORE the last gesture
+    // ignites — the plate hands itself from the corpus's last trace to the
+    // record's last file with no dead interval, and the rail says so.
+    const n = data.traces.traces.length;
+    return span([
+      { title: "the gestures, one at a time", from: 0 },
+      { title: "the record's last file", from: SHELL_PHASE },
+      { title: "the last gesture", from: ignitePhase(n - 1, n) },
+    ]);
+  }
+  if (pinned === "field") {
+    return span([
+      { title: "arrival", from: 0 },
+      { title: "one image, held", from: ARRIVAL_TAIL },
+    ]);
+  }
+  if (pinned === "ledger") {
+    const names = factExternal<unknown[]>(data.facts, "published_instead").length;
+    return span([
+      { title: "arrival", from: 0 },
+      { title: "the last published heading", from: (names - 1) / (names * LEAGUE_ACCUM_K) },
+    ]);
+  }
+  return WINDOW_BEATS.map((b) => ({ title: b.title, at: at(b.from), end: at(b.to) }));
+}
+
 export class Navigator {
   private rows: Row[] = [];
   private current: Row | null = null;
@@ -102,12 +205,18 @@ export class Navigator {
    *  at exactly the point in the run they are furthest from the start. */
   private list!: HTMLElement;
 
+  /** THE SECOND SCORE's region: the window's sub-stops, rebuilt only when the
+   *  pinned hand changes — the rail's touch-DOM-only-on-change discipline. */
+  private windowBox: HTMLElement | null = null;
+  private windowRows: Row[] = [];
+  private shownPin: ModeId | null | undefined = undefined;
+
   constructor(
     root: HTMLElement,
     private schedule: Schedule,
     seasons: Season[],
     private transport: Transport,
-    data: Loaded,
+    private data: Loaded,
   ) {
     const facts: FactsFile = data.facts;
     root.hidden = false;
@@ -277,16 +386,13 @@ export class Navigator {
       // The window is dilated far past any other season and moves through
       // distinct beats, so it gets the only sub-list in the rail: a presenter
       // should be able to reach "the instant" directly rather than scrubbing.
+      // THE SECOND SCORE: the sub-list is a region of its own, rebuilt when
+      // the pinned hand changes — its rows are the pinned hand's actual
+      // interior, and releasing the pin restores the shared map.
       if (seg.year === WINDOW_YEAR) {
-        for (const b of WINDOW_BEATS) {
-          const at = seg.start + b.from * seg.duration;
-          this.rows.push({
-            el: this.addSeg(b.title, `${fmt(b.to * seg.duration - b.from * seg.duration)}`,
-              null, at, "beat"),
-            year: null,
-            start: at,
-          });
-        }
+        this.windowBox = document.createElement("div");
+        this.list.append(this.windowBox);
+        this.buildWindowStops(this.transport.pinned());
       }
     }
     this.addRow("Coda", null, schedule.lastEnds, "act");
@@ -420,6 +526,21 @@ export class Navigator {
     this.allBtn.classList.toggle("on", ops === ALL_OPS);
   }
 
+  /** Rebuild the window's sub-stop rows for the pinned hand (or the shared
+   *  map when released). Only `update()` calls this, and only on a pin
+   *  change, so the rail's DOM is untouched while nothing moved. */
+  private buildWindowStops(pin: ModeId | null): void {
+    if (!this.windowBox) return;
+    this.shownPin = pin;
+    if (this.current && this.windowRows.includes(this.current)) this.current = null;
+    this.windowBox.textContent = "";
+    this.windowRows = [];
+    for (const s of windowSubStops(pin, this.schedule, this.data)) {
+      const el = this.addSeg(s.title, fmt(s.end - s.at), null, s.at, "beat", this.windowBox);
+      this.windowRows.push({ el, year: null, start: s.at });
+    }
+  }
+
   private addRow(label: string, _x: null, _start: number, cls: string): void {
     const el = document.createElement("div");
     el.className = cls;
@@ -442,6 +563,7 @@ export class Navigator {
     mark: string | null,
     start: number,
     cls: string,
+    parent: HTMLElement | null = null,
   ): HTMLElement {
     const el = document.createElement("button");
     el.type = "button";
@@ -458,7 +580,7 @@ export class Navigator {
     el.append(left, right);
     el.setAttribute("aria-label", `${label}${share ? `, ${share}` : ""}, at ${fmt(start)}`);
     el.addEventListener("click", () => this.transport.seek(start));
-    this.list.append(el);
+    (parent ?? this.list).append(el);
     return el;
   }
 
@@ -501,8 +623,20 @@ export class Navigator {
 
     this.syncStack();
 
+    // THE SECOND SCORE: the window's interior follows the pinned hand. The
+    // rows are rebuilt only when the pin actually moved.
+    const pin = this.transport.pinned();
+    if (pin !== this.shownPin) this.buildWindowStops(pin);
+
+    // The current row: the latest stop at or before the playhead, a sub-stop
+    // winning a tie with its own season row — the sub-list is the finer map.
     let row: Row | null = null;
-    for (const r of this.rows) if (r.start <= time) row = r;
+    for (const r of this.rows) {
+      if (r.start <= time && (row === null || r.start > row.start)) row = r;
+    }
+    for (const r of this.windowRows) {
+      if (r.start <= time && (row === null || r.start >= row.start)) row = r;
+    }
     if (row !== this.current) {
       this.current?.el.classList.remove("current");
       row?.el.classList.add("current");
@@ -518,13 +652,24 @@ export class Navigator {
    * The window's beats are stops in their own right: it runs many times the
    * length of any other season (`secondsFor` in timeline.ts), and a presenter
    * who can only step over it in one jump cannot get to "the instant" at all.
+   *
+   * THE SECOND SCORE: given `data` and the pinned hand, the window's interior
+   * stops are that hand's own (`windowSubStops`), so the step buttons walk
+   * the same score the rail shows. Without `data` the shared four beats
+   * stand, which is also what every hand without its own interior gets.
    */
-  static starts(schedule: Schedule): number[] {
+  static starts(schedule: Schedule, data?: Loaded, pinned: ModeId | null = null): number[] {
     const stops = [0, ...schedule.segments.map((s) => s.start), schedule.lastEnds];
     const window = schedule.byYear.get(WINDOW_YEAR);
     if (window) {
-      for (const b of WINDOW_BEATS) {
-        if (b.from > 0) stops.push(window.start + b.from * window.duration);
+      if (data) {
+        for (const s of windowSubStops(pinned, schedule, data)) {
+          if (s.at > window.start) stops.push(s.at);
+        }
+      } else {
+        for (const b of WINDOW_BEATS) {
+          if (b.from > 0) stops.push(window.start + b.from * window.duration);
+        }
       }
     }
     return [...new Set(stops)].sort((a, b) => a - b);

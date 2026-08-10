@@ -13,6 +13,11 @@ import { terminalShell } from "./shared";
 import { drawQuarrel } from "./stack";
 import type { Frame } from "./types";
 
+/** Where in the window's phase the terminal shell strikes. Exported for the
+ *  talk rail's PLATE interior (THE SECOND SCORE) — one definition, two
+ *  readers, the `WINDOW_BEATS` discipline. Paired with `bloom.ts:SPREAD`. */
+export const SHELL_PHASE = 0.9;
+
 export function drawPlateHand(f: Frame): void {
   const { ctx, view, st, data, inscriptions, remains } = f;
   const year = st.year!;
@@ -55,7 +60,7 @@ export function drawPlateHand(f: Frame): void {
       // The shell arrives while the last gesture is still fading — the plate
       // hands itself from the corpus's last trace to the record's last file
       // with no dead interval between them. Paired with `bloom.ts:SPREAD`.
-      const closing = Math.max(0, Math.min(1, (st.phase - 0.90) / 0.05));
+      const closing = Math.max(0, Math.min(1, (st.phase - SHELL_PHASE) / 0.05));
       drawSlug(
         ctx,
         view,
