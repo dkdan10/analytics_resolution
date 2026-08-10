@@ -483,6 +483,65 @@ function drawReceipt(f: Frame, season: Season, taxonomy: string, words: Filed[])
  *  second copy that can drift. One definition, two readers. */
 export const MACHINE_SAW_TITLE = "BODY POSITIONS THE MACHINE SAW";
 
+// --- TIME BELONGS TO THE COUNT (session 17, the three-instrument vote) -------
+//
+// The window's census stops used to split the act evenly, so the smallest
+// filing held the plate exactly as long as the largest — a plateau for the
+// small filings and a sprint for the one that carries the hand's whole
+// argument. The beats are now DERIVED from the record: each
+// filing gets a floor of CENSUS_FILING_MIN_S seconds, the remainder divides in
+// proportion to each taxonomy's own category count
+// (`vocabulary.taxonomies`), and MACHINE SAW is protected at the equal-split
+// span it always had — its beat's boundaries are unchanged to the digit, so
+// the seventh stop's frames are byte-stable across this change. Time belongs
+// to the count; nothing here is a judgment about which filing matters.
+//
+// ONE definition, TWO readers: the hand files by this table and the talk
+// rail's CENSUS interior lists it (the WINDOW_BEATS discipline).
+
+/** A pacing floor, not a material: the shortest a filing may hold the plate,
+ *  in window seconds — below this a two-category filing becomes a flash. */
+const CENSUS_FILING_MIN_S = 6;
+
+export interface CensusStop {
+  /** The classification key this stop files, or null for MACHINE SAW. */
+  taxonomy: string | null;
+  title: string;
+  /** Window-phase fractions, 0..1. */
+  from: number;
+  to: number;
+}
+
+export function censusStops(
+  season: Season,
+  taxonomyColumns: Record<string, string>,
+  durationSeconds: number,
+): CensusStop[] {
+  const columns = Object.keys(taxonomyColumns);
+  const sawSeconds = durationSeconds / (columns.length + 1);
+  const counts = columns.map(
+    (c) => season.vocabulary.taxonomies[taxonomyColumns[c] ?? c] ?? 0,
+  );
+  const total = counts.reduce((a, b) => a + b, 0) || 1;
+  const spare = Math.max(
+    0, durationSeconds - sawSeconds - CENSUS_FILING_MIN_S * columns.length,
+  );
+  const out: CensusStop[] = [];
+  let at = 0;
+  columns.forEach((c, k) => {
+    const secs = CENSUS_FILING_MIN_S + (spare * counts[k]!) / total;
+    out.push({
+      taxonomy: c,
+      title: taxonomyColumns[c] ?? c,
+      from: at / durationSeconds,
+      to: (at + secs) / durationSeconds,
+    });
+    at += secs;
+  });
+  out.push({ taxonomy: null, title: MACHINE_SAW_TITLE, from: at / durationSeconds, to: 1 });
+  return out;
+}
+
 function strikeMachineSaw(f: Frame, k: number): void {
   const { ctx, view, data, remains } = f;
   const w = data.window;
@@ -527,18 +586,26 @@ export function drawCensusHand(f: Frame): void {
   const elapsed = st.phase * (schedule.byYear.get(st.year!)?.duration ?? 0);
 
   // The window season files all six in sequence and then a seventh; every other
-  // season files the one the pipeline's schedule assigns it.
+  // season files the one the pipeline's schedule assigns it. The window's
+  // stops come from the derived table above — time belongs to the count.
   const columns = Object.keys(data.taxonomyColumns);
-  const windowBeats = columns.length + 1;
   const isWindow = st.act === 3 && data.window !== null;
-  const beat = isWindow ? Math.min(windowBeats - 1, Math.floor(st.phase * windowBeats)) : -1;
-  const taxonomy = isWindow ? (columns[beat] ?? columns[0]!) : (season.active_taxonomy ?? columns[0]!);
-  const machineSaw = isWindow && beat === columns.length;
+  const stop = isWindow
+    ? (() => {
+        const stops = censusStops(season, data.taxonomyColumns,
+          schedule.byYear.get(st.year!)?.duration ?? 1);
+        return stops.find((s) => st.phase < s.to) ?? stops[stops.length - 1]!;
+      })()
+    : null;
+  const taxonomy = stop
+    ? (stop.taxonomy ?? columns[0]!)
+    : (season.active_taxonomy ?? columns[0]!);
+  const machineSaw = stop !== null && stop.taxonomy === null;
 
   // Inside the window each beat fills on its own clock, so the count settles
   // once per taxonomy rather than once per season.
-  const arrived = isWindow
-    ? Math.min(1, Math.max(0, st.phase * windowBeats - beat))
+  const arrived = stop
+    ? Math.min(1, Math.max(0, (st.phase - stop.from) / (stop.to - stop.from)))
     : st.arrived;
 
   // The league's own region names, in the league's own order, out of the

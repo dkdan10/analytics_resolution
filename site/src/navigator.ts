@@ -12,7 +12,7 @@
 
 import { ignitePhase } from "./bloom";
 import { factExternal, type FactsFile, type Loaded, type Season } from "./data";
-import { MACHINE_SAW_TITLE } from "./modes/census";
+import { censusStops } from "./modes/census";
 import { LEAGUE_ACCUM_K } from "./modes/ledger";
 import {
   ALL_OPS,
@@ -127,9 +127,10 @@ export interface WindowStop {
  *
  * Every stop is DERIVED from the same constants the hands read — never a typed
  * `t`:
- * - CENSUS: seven equal filings — the artifact's own taxonomy column names in
- *   the record's column order (`census.ts` files `columns[floor(phase×7)]`),
- *   then the machine-saw beat under the hand's own headline.
+ * - CENSUS: the derived stop table (`census.ts:censusStops` — a floor per
+ *   filing, the remainder proportional to each taxonomy's own category
+ *   count, MACHINE SAW protected at the equal-split span), the artifact's
+ *   own column names in the record's column order.
  * - PLATE: the trace rhythm — the gestures ignite on `bloom.ts:ignitePhase`,
  *   the last at `(n−1)/n` of the spread, and the record's last file strikes at
  *   `SHELL_PHASE`.
@@ -158,15 +159,14 @@ export function windowSubStops(
     }));
 
   if (pinned === "census" && data.window) {
-    const columns = Object.keys(data.taxonomyColumns);
-    const beats = columns.length + 1;
-    return span([
-      ...columns.map((c, k) => ({
-        title: data.taxonomyColumns[c] ?? c,
-        from: k / beats,
-      })),
-      { title: MACHINE_SAW_TITLE, from: columns.length / beats },
-    ]);
+    // TIME BELONGS TO THE COUNT (session 17): the rail lists the hand's own
+    // derived stop table — one definition, two readers, so the presenter's
+    // map and the filing cannot disagree about where a beat begins.
+    const season = data.byYear.get(WINDOW_YEAR);
+    if (season) {
+      return span(censusStops(season, data.taxonomyColumns, w.duration)
+        .map((s) => ({ title: s.title, from: s.from })));
+    }
   }
   if (pinned === "plate" && data.traces) {
     // In time order: the shell begins striking BEFORE the last gesture
