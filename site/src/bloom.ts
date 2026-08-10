@@ -74,6 +74,10 @@ export interface BloomTiming {
   phase: number;
   /** Seconds Act III lasts, so ignition can be spread across it. */
   duration: number;
+  /** 0..1 multiplier on every trace's ink — THE PLATE's yield while the game
+   *  phase holds the plate (session 15): two clocks on one surface otherwise,
+   *  an index-spread schedule against a date-anchored game. Default 1. */
+  dim?: number;
 }
 
 /** Where trace `i` of `n` ignites, as a fraction of the act's phase. One
@@ -117,8 +121,11 @@ export function drawBloom(
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
+  const dim = timing.dim ?? 1;
   traces.forEach((tr, i) => {
-    const { drawn, alpha } = traceState(i, traces.length, timing);
+    const state = traceState(i, traces.length, timing);
+    const drawn = state.drawn;
+    const alpha = state.alpha * dim;
     if (alpha <= 0.001 || drawn <= 0) return;
 
     const pts = tr.points;

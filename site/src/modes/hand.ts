@@ -68,6 +68,13 @@
  * deliberate departure: a stroke crossing an earlier stroke must cover it, or
  * the canvas is a glow instead of a painting.
  *
+ * ONE DOCUMENTED EXCEPTION INSIDE THE EXCEPTION (session 15): THE WASH — the
+ * four scales' dried ground — blits `lighter` inside its own save/restore
+ * (src/wash.ts). The wash is not paint; it is the ground the strokes dry
+ * into, and a ground that occluded the drops beneath it would invert the
+ * record-keeps-endpoints reading. The composite op is set and restored
+ * entirely inside wash.ts, so this hand's own regime is untouched around it.
+ *
  * PURE, AND NOW ACTUALLY SO
  *
  * This file used to keep one module-level canvas and extend it as the playhead
@@ -92,10 +99,21 @@
  */
 
 import { factNum, type PaintFile, type Slate, type Strokes, type WindowFile } from "../data";
+import {
+  drawGameEvents,
+  GAME_PREFIX_STEPS,
+  GAME_WET_S,
+  gameClock,
+  gameTotalFrames,
+  possessionFrames,
+  strokeSpans,
+  timeFrac,
+} from "../game";
 import { drawSlug } from "../inscription";
 import { BONE_RGB, ZONE_RGB } from "../palette";
 import { COURT, type View } from "../plate";
 import { prefixSurface } from "../prefix";
+import { dayCells, drawWashCells, drawWashFold, gridCells } from "../wash";
 // One implementation of the league's map, checked against the Python one
 // through a committed fixture. See site/src/zone.ts.
 import { zoneAt } from "../zone";
@@ -109,6 +127,7 @@ import {
   DROP_MIN_R,
   FILAMENT_ALPHA_CAP,
   FILAMENT_ALPHA_K,
+  GAME_DRIED,
   KEPT_OVER_PAINT,
   POOL_ALPHA_CAP,
   POOL_ALPHA_K,
@@ -267,18 +286,38 @@ const [BEAT_ONE, BEAT_NIGHT, BEAT_SEASON, BEAT_CLOSE] = WINDOW_BEATS;
  */
 const KEPT_CREST = 0.85;
 
-/** How much of the season beat the night's finished material takes to recede
- *  under the arriving season — the outgoing-sheet idiom at the solo/tutti
- *  boundary. A pacing constant, not a material. */
-const NIGHT_RECEDE = 0.08;
+/**
+ * WHERE THE SHARED NIGHT BEAT SPLITS INTO THE GAME AND THE NIGHT (session 15,
+ * THE FOUR SCALES). `WINDOW_BEATS` is untouched — MEASURE, CENSUS, the keys
+ * and the probes all keep the four shared boundaries — and this hand
+ * subdivides its own interior with one file-local anchor: the first half of
+ * the night beat is THE GAME (the full found game laying on its own clock),
+ * the second half THE NIGHT (the slate). A phase anchor like KEPT_CREST, not
+ * a material; first value flagged in the session-15 packet.
+ */
+const GAME_SPLIT = 0.5;
+const GAME_AT = BEAT_NIGHT.from + GAME_SPLIT * (BEAT_NIGHT.to - BEAT_NIGHT.from);
 
-/** Where the window is, as the four states the schedule already names. The rail
- *  lists the same four and a presenter stepping to "THE NIGHT" must land
- *  where this hand agrees the night begins - one definition, two readers. */
-interface Window3 {
-  /** 0..1 through the opening beat, where ONE possession is laid. */
-  opening: number;
-  /** 0..1 through the night beat — the Dec 5 slate's own clock. */
+/** The five real stops of this hand's window interior, exported for the rail
+ *  (THE SECOND SCORE) — one definition, two readers, the `WINDOW_BEATS`
+ *  discipline. Titles are copy, proposed in the session-15 packet. */
+export const HAND_PHASES = [
+  { id: "one", title: "one", from: 0, to: BEAT_ONE.to },
+  { id: "game", title: "the game", from: BEAT_NIGHT.from, to: GAME_AT },
+  { id: "night", title: "the night", from: GAME_AT, to: BEAT_NIGHT.to },
+  { id: "season", title: "the season", from: BEAT_SEASON.from, to: BEAT_SEASON.to },
+  { id: "close", title: "the close", from: BEAT_CLOSE.from, to: BEAT_CLOSE.to },
+] as const;
+
+/** Where the window is, as the five states this hand's interior actually
+ *  holds. The rail lists the same five through HAND_PHASES, so a presenter
+ *  stepping to "THE NIGHT" lands where this hand agrees the night begins. */
+interface Window5 {
+  /** 0..1 through the opening phase, where ONE possession plays at true rate. */
+  one: number;
+  /** 0..1 through the game phase — the found game's own eased clock. */
+  game: number;
+  /** 0..1 through the night phase — the Dec 5 slate's own clock. */
   night: number;
   /** 0..1 through the season beat, before the authored easing. */
   seasonU: number;
@@ -290,15 +329,17 @@ interface Window3 {
   wash: number;
 }
 
-function windowAt(phase: number, span: number): Window3 {
+function windowAt(phase: number, span: number): Window5 {
   const p = Math.min(1, Math.max(0, phase));
   const seasonU = Math.max(0, Math.min(1,
     (p - BEAT_SEASON.from) / (BEAT_SEASON.to - BEAT_SEASON.from)));
   const keptFrom = BEAT_SEASON.from + KEPT_CREST * (BEAT_SEASON.to - BEAT_SEASON.from);
   return {
-    opening: Math.min(1, p / BEAT_ONE.to),
+    one: Math.min(1, p / BEAT_ONE.to),
+    game: Math.max(0, Math.min(1,
+      (p - BEAT_NIGHT.from) / (GAME_AT - BEAT_NIGHT.from))),
     night: Math.max(0, Math.min(1,
-      (p - BEAT_NIGHT.from) / (BEAT_NIGHT.to - BEAT_NIGHT.from))),
+      (p - GAME_AT) / (BEAT_NIGHT.to - GAME_AT))),
     seasonU,
     // The whole real calendar, compressed through the register's one authored
     // easing: `span + 1` inclusive days, so the beat opens empty and closes
@@ -320,7 +361,11 @@ function smooth(x: number): number {
  * One stroke, one body, five measured seconds.
  *
  * `drawn` is how much of it has been laid so far, which is what makes the
- * gesture read as a gesture rather than as a shape that appears.
+ * gesture read as a gesture rather than as a shape that appears. `fromDrawn`
+ * (session 15) starts the walk mid-stroke — THE GAME's nested possession is a
+ * TIME-clip of a longer record, and a clip that drew a stroke's whole
+ * pre-history would show minutes the clip does not claim. Default 0 draws
+ * exactly what every existing caller drew.
  */
 export function paintStroke(
   ctx: CanvasRenderingContext2D,
@@ -329,14 +374,16 @@ export function paintStroke(
   i: number,
   drawn: number,
   r: Regimes,
+  fromDrawn = 0,
 ): void {
   const first = s.first[i]!;
   const n = s.count[i]!;
   if (n < 2) return;
   const upto = Math.max(2, Math.ceil(n * Math.min(1, Math.max(0, drawn))));
   const ball = s.kind[i] === 1;
+  const fromK = Math.max(1, 1 + Math.floor(n * Math.min(1, Math.max(0, fromDrawn))));
 
-  for (let k = 1; k < upto; k++) {
+  for (let k = fromK; k < upto; k++) {
     const a = first + k - 1;
     const b = first + k;
     const dt = s.dt[b]!;
@@ -602,24 +649,9 @@ export function drawHandHand(f: Frame): void {
     bakeWindowDrops(ctx, view, m, w, Math.floor(upto / DROP_STEP) * DROP_STEP, upto);
     ctx.restore();
 
-    // THE NIGHT's own endings: the slate date's calipers-as-drops, layering
-    // through the beat and receding as the season beat's calendar takes over
-    // (it will re-arrive them, in order, mid-crescendo — the solo repeated
-    // inside the tutti). Day bounds come from the artifact's own day key,
-    // never typed here.
-    const sf = data.slateFile;
-    if (sf && win!.night > 0) {
-      const from = sf.day > 0 ? cum[sf.day - 1]! : 0;
-      const to = cum[Math.min(span, sf.day)]!;
-      const nightUpto = from + Math.round((to - from) * Math.min(1, win!.night * 1.1));
-      const recede = 1 - Math.min(1, win!.seasonU / NIGHT_RECEDE);
-      if (recede > 0 && nightUpto > from) {
-        ctx.save();
-        ctx.globalAlpha = remains * recede;
-        bakeWindowDrops(ctx, view, m, w, from, nightUpto);
-        ctx.restore();
-      }
-    }
+    // (THE NIGHT's calipers-as-drops over-pass moved BELOW the game surface
+    // draw — session 15: the record's endpoints must read over the motion
+    // ground, not under it. See the block after the strokes.)
   } else {
     // THE PREVIOUS SHEET RECEDES UNDER THE NEW RECORD (session 8, audit O2).
     // The drop layer drew only the current year, so the plate bared to the
@@ -676,18 +708,131 @@ export function drawHandHand(f: Frame): void {
       v50: paint.speed_ft_s.p50,
       v90: paint.speed_ft_s.p90,
     };
+
+    // THE WASH — the four scales' dried ground, beneath every stroke. It
+    // clears WITH the feed material at the close (the session-15 packet's
+    // recommended ruling): the drops alone survive, so "the record keeps
+    // endpoints" stays literal on the final frames.
+    const washFile = data.wash();
+    const gf = data.gameFile;
+    const wmeta = w ? w.wash : null;
+    if (washFile && wmeta && gf) {
+      const ground = remains * (1 - win.wash);
+      if (win.seasonU > 0 || win.dayFrac > 0) {
+        // The season: per-day rasters fold beneath the accelerating calendar,
+        // the night's own day pre-seeded and SKIPPED in the sweep (no double
+        // add). The handoff from the night phase is exact by construction —
+        // the fold's ground opens as the seed's own conversion.
+        drawWashFold(ctx, view, dpr, washFile, wmeta, gf.day, win.dayFrac, ground);
+      } else if (win.game > 0) {
+        // The game's own ground rising through its phase, then the night's
+        // raster crossing over it — subset -> superset BY MEASURE: the same
+        // tone curve against the same corpus total, so the crossfade only
+        // ever brightens a cell.
+        const nightIn = smooth(win.night);
+        if (nightIn < 1) {
+          drawWashCells(ctx, view, dpr, `game|${assetId(gf)}`,
+            gridCells(gf.game_grid.grid, wmeta), wmeta.positions_total, wmeta,
+            ground * smooth(win.game) * (1 - nightIn));
+        }
+        if (nightIn > 0) {
+          const night = dayCells(washFile, wmeta, gf.day);
+          if (night) {
+            drawWashCells(ctx, view, dpr, `night|${assetId(washFile)}`,
+              night, wmeta.positions_total, wmeta, ground * nightIn);
+          }
+        }
+      }
+    }
+
+    // THE GAME — the second scale. The found game lays whole on its own
+    // eased clock through the game phase, with the paint's own physics: wet
+    // at the edge, drying to GAME_DRIED behind it, cached in prefix steps
+    // over the game's own frames (dim applied at blit, never in the key).
+    const gm = data.game();
+    if (gm && gf) {
+      const total = gameTotalFrames(gf);
+      const pos = possessionFrames(gf);
+      const gameFrame = win.game > 0 ? gameClock(win.game) * total : 0;
+      const gEnv = remains * (1 - win.wash);
+      const sp = strokeSpans(gm, gf);
+      const wetFrames = GAME_WET_S * gf.hz;
+      const stepFrames = Math.ceil(total / GAME_PREFIX_STEPS);
+      const gSteps = Math.floor(gameFrame / stepFrames);
+      const bakedGame = prefixSurface(
+        `hand.game|${assetId(gm)}|${geom}`, gSteps, dw, dh, dpr, stepFrames,
+        (c, a, b) => {
+          for (let i = 0; i < gm.n; i++) {
+            const end = sp.start[i]! + sp.dur[i]!;
+            if (end >= a && end < b) {
+              paintStroke(c, view, gm as unknown as Strokes, i, 1, r);
+            }
+          }
+        },
+      );
+      if (bakedGame) blit(ctx, bakedGame, view, gEnv * GAME_DRIED);
+
+      if (gameFrame > 0) {
+        // The live edge: every stroke not both fully baked and fully dried,
+        // at its own wetness — full ink at the edge, drying behind it.
+        const bakedBefore = gSteps * stepFrames;
+        ctx.save();
+        for (let i = 0; i < gm.n; i++) {
+          const at0 = sp.start[i]!;
+          if (at0 >= gameFrame) continue;
+          const end = at0 + sp.dur[i]!;
+          const age = gameFrame - end;
+          if (end < bakedBefore && age >= wetFrames) continue;
+          const wetness = Math.max(0, 1 - Math.max(0, age) / wetFrames);
+          ctx.globalAlpha = gEnv * (GAME_DRIED + (1 - GAME_DRIED) * wetness);
+          paintStroke(ctx, view, gm as unknown as Strokes, i,
+            timeFrac(gm, i, gameFrame - at0), r);
+        }
+        ctx.restore();
+      }
+
+      // ONE — the nested possession: the game artifact time-clipped to the
+      // declared span, every body and the ball at TRUE RATE from the
+      // window's open, the paint's physics. Once the game phase's clock
+      // reaches these frames the walk above draws the same records and each
+      // clip stroke leaves this layer — replaced by itself, record for
+      // record, no double-deposit and no recede.
+      const oneFrames = st.phase * secondsFor(WINDOW_YEAR) * gf.hz;
+      const clipUpto = Math.min(pos.f1, pos.f0 + oneFrames);
+      ctx.save();
+      ctx.globalAlpha = gEnv;
+      for (let i = 0; i < gm.n; i++) {
+        const at0 = sp.start[i]!;
+        if (at0 < gameFrame || at0 >= clipUpto) continue;
+        const end = at0 + sp.dur[i]!;
+        if (end <= pos.f0) continue;
+        // A TIME-clip on both sides: a stroke that began before the
+        // possession draws only from the possession's own first frame.
+        const drawn = timeFrac(gm, i, clipUpto - at0);
+        if (drawn > 0) {
+          paintStroke(ctx, view, gm as unknown as Strokes, i, drawn, r,
+            timeFrac(gm, i, pos.f0 - at0));
+        }
+      }
+      ctx.restore();
+
+      // The measured annotations: pass beads and shot anchors riding the WET
+      // EDGE — each dries away with the motion it marked (the filed record's
+      // drops are what persists on this hand; THE PLATE keeps every mark).
+      // The possession's own annotations hold until the walk re-lays them.
+      drawGameEvents(ctx, view, gf, gameFrame, gEnv,
+        { from: pos.f0, to: clipUpto }, gameFrame - wetFrames);
+    }
+
     const offsets = paint.day_offsets;
     const last = offsets[offsets.length - 1] ?? 0;
     const cum = cumulativeByDay(s, s.day, s.n, (d) => offsets[d] ?? 0, last);
-    // The opening beat lays ONE possession, slowly, because a single gesture is
-    // the only thing at this scale a viewer can actually follow. Since the
-    // crescendo the beat is genuinely singular: the day-exclusive arrival
-    // (`arrivedThrough`) opens the season beat empty, so nothing else is
-    // resident until the calendar takes over — the old day-inclusive read
-    // quietly parked day zero's whole population under this ramp.
-    const opener = firstCanvasStrokes(s);
-    const byDay = arrivedThrough(cum, (win.dayFrac / (span + 1)) * (last + 1));
-    const laid = Math.max(Math.round(opener * win.opening), byDay);
+    // The paint arrives with the season's calendar alone (session 15): the
+    // opening beat's material is now the game artifact's possession above —
+    // the paint's own first canvas no longer doubles it. The day-exclusive
+    // arrival opens the season beat empty, so nothing is resident until the
+    // calendar takes over.
+    const laid = arrivedThrough(cum, (win.dayFrac / (span + 1)) * (last + 1));
 
     const steps = Math.floor(laid / STROKE_STEP);
     const baked = prefixSurface(
@@ -709,19 +854,45 @@ export function drawHandHand(f: Frame): void {
 
     // THE NIGHT: the slate — every trackable body of the Dec 5 games at the
     // found span of maximum simultaneous play, moving at true rate (one
-    // second of beat is one second of night), laid with the paint's own
-    // physics. It holds finished through the beat's tail and recedes as the
-    // season's calendar takes over. The viewer is meant to fail to watch it:
-    // one possession at this scale is followable — the opening beat proves
+    // second of phase is one second of night), laid with the paint's own
+    // physics. It PERSISTS once settled (session 15: its settling is
+    // content, and the old recede was the reset the artist rejects) — the
+    // close's wash is the one clearing, through the same `wet` multiplier
+    // the paint already carries. The viewer is meant to fail to watch it:
+    // one possession at this scale is followable — the opening phase proves
     // that deliberately — and five games at once is the machine's ordinary
     // Saturday night.
     const sl = data.slate();
     const sf = data.slateFile;
     if (sl && sf && win.night > 0) {
-      const nightSeconds = Math.max(0, st.phase - BEAT_NIGHT.from)
+      const nightSeconds = Math.max(0, st.phase - GAME_AT)
         * secondsFor(WINDOW_YEAR);
-      const recede = 1 - Math.min(1, win.seasonU / NIGHT_RECEDE);
-      drawSlate(ctx, view, sl, nightSeconds * sf.span.hz, wet * recede, r);
+      drawSlate(ctx, view, sl, nightSeconds * sf.span.hz, wet, r);
+    }
+
+    // THE NIGHT's own endings: the slate date's calipers-as-drops, layering
+    // through the night phase's sub-ramp — drawn ABOVE the game's dried
+    // surface, because the record's endpoints must read over the motion
+    // ground, not under it. NO RECEDE (session 15: the old NIGHT_RECEDE fade
+    // was the "preemptive reset" the four scales reject). The season's own
+    // prefix re-lays these records byte-exactly as its calendar reaches
+    // them, so the over-pass retires by INDEX SUBTRACTION — the range below
+    // is empty by arithmetic once the calendar passes the slate's day —
+    // never by an alpha fade of filed records. Day bounds come from the
+    // artifact's own day key.
+    if (m && w && sf && win.night > 0) {
+      const mcum = cumulativeByDay(m, m.day, m.n, (d) => d, span);
+      const nfrom = sf.day > 0 ? mcum[sf.day - 1]! : 0;
+      const nto = mcum[Math.min(span, sf.day)]!;
+      const nightUpto = nfrom
+        + Math.round((nto - nfrom) * Math.min(1, win.night * 1.1));
+      const from2 = Math.max(nfrom, arrivedThrough(mcum, win.dayFrac));
+      if (nightUpto > from2) {
+        ctx.save();
+        ctx.globalAlpha = remains;
+        bakeWindowDrops(ctx, view, m, w, from2, nightUpto);
+        ctx.restore();
+      }
     }
 
     // THE CREST: the kept points come up over the paint as the accelerated
@@ -749,7 +920,7 @@ export function drawHandHand(f: Frame): void {
   // from the figures it quotes and drawn verbatim - the piece never composes it.
   if (inWindow && w?.bias.scope && win) {
     drawSlug(ctx, view, [w.bias.scope], { x: 0, y: -30 },
-      remains * win.opening * (1 - win.wash) * 0.42);
+      remains * win.one * (1 - win.wash) * 0.42);
   }
 
   if (!inWindow && st.year === WINDOW_YEAR + 1) {

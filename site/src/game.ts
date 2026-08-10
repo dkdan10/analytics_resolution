@@ -35,6 +35,29 @@ import {
 import type { View } from "./plate";
 import type { Game, GameEvent, GameFile } from "./data";
 
+/** The game surfaces accumulate in this many prefix steps across the whole
+ *  game — one cache granularity for both consumers (hand and plate), a
+ *  composition constant like STROKE_STEP, not a material. */
+export const GAME_PREFIX_STEPS = 40;
+
+/** How long a finished game stroke stays wet — bright at full ink — before
+ *  it dries to GAME_DRIED. Seconds of the game's own feed; one pacing
+ *  constant for both consumers. */
+export const GAME_WET_S = 2;
+
+/** Artifact identity for cache keys — the hand's own WeakMap idiom, exported
+ *  so both surfaces key the same decoded object the same way. */
+const ids = new WeakMap<object, number>();
+let nextId = 1;
+export function gameAssetId(o: object): number {
+  let v = ids.get(o);
+  if (v === undefined) {
+    v = nextId++;
+    ids.set(o, v);
+  }
+  return v;
+}
+
 /** Cumulative frame base per period, so period-relative starts recover the
  *  game's own order. A pure derivation of game.json:periods. */
 const bases = new WeakMap<object, Map<number, number>>();
@@ -63,6 +86,24 @@ export function gameTotalFrames(gf: GameFile): number {
 export function gameClock(u: number): number {
   const c = Math.min(1, Math.max(0, u));
   return (Math.exp(GAME_CLOCK_K * c) - 1) / (Math.exp(GAME_CLOCK_K) - 1);
+}
+
+/** Frames inside a stroke → the vertex fraction its measured dts have
+ *  reached — the slate's own walk (hand.ts:drawSlate), shared so every
+ *  consumer draws one pace. A vertex-count fraction is NOT this: control
+ *  points are not uniform in time, and a fraction of the count would rush
+ *  the slow stretches and drag the fast ones. */
+export function timeFrac(game: Game, i: number, frames: number): number {
+  if (frames <= 0) return 0;
+  const first = game.first[i]!;
+  const n = game.count[i]!;
+  let k = 1;
+  let cum = 0;
+  while (k < n && cum + game.dt[first + k]! <= frames) {
+    cum += game.dt[first + k]!;
+    k++;
+  }
+  return Math.min(1, k / n);
 }
 
 interface Spans {
@@ -130,11 +171,14 @@ export function plateStroke(
   i: number,
   drawn: number,
   alpha: number,
+  fromDrawn = 0,
 ): void {
   const first = game.first[i]!;
   const n = game.count[i]!;
   if (n < 2) return;
   const upto = Math.max(2, Math.ceil(n * Math.min(1, Math.max(0, drawn))));
+  const from = Math.min(upto - 2,
+    Math.max(0, Math.floor(n * Math.min(1, Math.max(0, fromDrawn)))));
   const ball = game.kind[i] === 1;
   // The ball as bright as a trace at full height; bodies at the approach dim —
   // the traces' own register, no new ink invented for the plate.
@@ -148,8 +192,8 @@ export function plateStroke(
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.beginPath();
-  ctx.moveTo(view.sx(game.x[first]!), view.sy(game.y[first]!));
-  for (let v = first + 1; v < first + upto; v++) {
+  ctx.moveTo(view.sx(game.x[first + from]!), view.sy(game.y[first + from]!));
+  for (let v = first + from + 1; v < first + upto; v++) {
     ctx.lineTo(view.sx(game.x[v]!), view.sy(game.y[v]!));
   }
   ctx.stroke();
@@ -158,22 +202,36 @@ export function plateStroke(
 
 /** Every event the clock has reached, punctuated: a pass is one bone bead at
  *  the frame the ball reached its receiver; a shot is the bloom's own anchor
- *  idiom — the dot the record kept, held brighter than the line around it. */
+ *  idiom — the dot the record kept, held brighter than the line around it.
+ *  `clip` additionally admits events inside an absolute-frame window the
+ *  walk has not reached yet — the nested possession's own annotations, which
+ *  the game's clock later replaces record-for-record. `sinceFrame` narrows
+ *  the punctuation to the wet edge: THE HAND lets an annotation dry away
+ *  with the motion it marked (the filed record's drops are what persists
+ *  there), while THE PLATE — ALL the information, the artist's want — omits
+ *  it and keeps every mark. */
 export function drawGameEvents(
   ctx: CanvasRenderingContext2D,
   view: View,
   gf: GameFile,
   uptoFrame: number,
   alpha: number,
+  clip?: { from: number; to: number },
+  sinceFrame?: number,
 ): void {
   if (alpha <= 0.002) return;
   const b = frameBases(gf);
   const at = (e: GameEvent): number => (b.get(e.p) ?? 0) + e.f;
+  const due = (e: GameEvent): boolean => {
+    const f = at(e);
+    if (clip !== undefined && f >= clip.from && f <= clip.to && f > uptoFrame) return true;
+    return f <= uptoFrame && (sinceFrame === undefined || f > sinceFrame);
+  };
   ctx.save();
   const passR = Math.max(1, view.s(PASS_MARK_R));
   ctx.fillStyle = boneOf(Math.min(1, PASS_MARK_ALPHA * alpha));
   for (const e of gf.events.passes) {
-    if (at(e) > uptoFrame) continue;
+    if (!due(e)) continue;
     ctx.beginPath();
     ctx.arc(view.sx(e.x), view.sy(e.y), passR, 0, Math.PI * 2);
     ctx.fill();
@@ -181,7 +239,7 @@ export function drawGameEvents(
   const anchorR = Math.max(TRACE_ANCHOR_MIN_PX, view.scale * TRACE_ANCHOR_SCALE);
   ctx.fillStyle = boneOf(Math.min(1, TRACE_ANCHOR_ALPHA * alpha));
   for (const e of gf.events.shots) {
-    if (at(e) > uptoFrame) continue;
+    if (!due(e)) continue;
     ctx.beginPath();
     ctx.arc(view.sx(e.x), view.sy(e.y), anchorR, 0, Math.PI * 2);
     ctx.fill();

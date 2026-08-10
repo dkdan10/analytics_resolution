@@ -22,6 +22,7 @@ import {
   type Operation,
   type StackOps,
 } from "./modes/operations";
+import { HAND_PHASES } from "./modes/hand";
 import { SHELL_PHASE } from "./modes/plate";
 import type { ModeId } from "./modes/types";
 import {
@@ -190,6 +191,12 @@ export function windowSubStops(
       { title: "arrival", from: 0 },
       { title: "the last published heading", from: (names - 1) / (names * LEAGUE_ACCUM_K) },
     ]);
+  }
+  if (pinned === "hand" && data.gameFile) {
+    // THE FOUR SCALES (session 15): the hand's interior holds five real stops
+    // — the shared night beat splits into the game and the night at the
+    // hand's own exported anchor. One definition, two readers.
+    return span(HAND_PHASES.map((p) => ({ title: p.title, from: p.from })));
   }
   return WINDOW_BEATS.map((b) => ({ title: b.title, at: at(b.from), end: at(b.to) }));
 }

@@ -298,8 +298,8 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   the dried ground's ceiling: how strongly the wash sits under the wet strokes at full arrival. Higher and the ground competes with the followable line; lower and thirty nights of bodies read as a stain.
 - **GAME_CLOCK_K** — **3.5**  
   the easing of the game phase's clock over the found game's own frames: frame(u) = (e^(k·u) − 1)/(e^k − 1) of the whole game, SEASON_CLOCK_K's curve one scale down. The feed underneath is measured; only the easing is authored. Material because it decides which strokes exist on a mid-phase frame. A rival ~7.3 (opening at the possession's true rate) is packet-flagged, undecided.
-- **GAME_DRIED** — **0.45**  
-  how far a game stroke dims once the wet edge has passed it — the drying, distinct from the wash beneath. 1 leaves the whole game as bright as its newest gesture and the eye loses the edge; too low and the game exists only at its leading seconds.
+- **GAME_DRIED** — **0.12**  
+  how far a game stroke dims once the wet edge has passed it — the drying, distinct from the wash beneath. 1 leaves the whole game as bright as its newest gesture and the eye loses the edge; too low and the game exists only at its leading seconds. The plan's first value was 0.45, and the first frames falsified it: a whole game's strokes at that ink saturate into a solid zone-coloured poster that buries the filed record beneath — the measured correction is the session-15 packet's to ratify.
 - **PASS_MARK_R** — **2.5**  
   a pass bead's radius in court tenths at view scale: the measured instant the ball reached its receiver, punctuated without being narrated. Larger and ~580 beads become the drawing; smaller and the annotation the artist asked for is invisible.
 - **PASS_MARK_ALPHA** — **0.5**  

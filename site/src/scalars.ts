@@ -1394,13 +1394,17 @@ export const SCALARS = {
   },
   GAME_DRIED: {
     class: "authored",
-    value: 0.45,
+    value: 0.12,
     material: true,
     controls:
       "how far a game stroke dims once the wet edge has passed it — the " +
       "drying, distinct from the wash beneath. 1 leaves the whole game as " +
       "bright as its newest gesture and the eye loses the edge; too low and " +
-      "the game exists only at its leading seconds.",
+      "the game exists only at its leading seconds. The plan's first value " +
+      "was 0.45, and the first frames falsified it: a whole game's strokes " +
+      "at that ink saturate into a solid zone-coloured poster that buries " +
+      "the filed record beneath — the measured correction is the session-15 " +
+      "packet's to ratify.",
   },
   PASS_MARK_R: {
     class: "authored",
