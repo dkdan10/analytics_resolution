@@ -129,6 +129,15 @@ const MARK_LAYERS = [
   //   derived. It feeds six of the seven views through one `drawSeasonField`
   //   call, so a literal written here is a literal in every hand at once.
   /^modes\/fieldlayer\.ts$/,
+  // Session 15's two, added in the commit that CREATES them — the same
+  // discipline, before the first material literal either one holds.
+  //
+  // game.ts — THE GAME's timing, plate idiom and event punctuation: line
+  //   widths, bead radii and anchor alphas all reach material sinks.
+  // wash.ts — THE WASH's tone, splat and lighter blits: the dried ground's
+  //   entire materiality lives here.
+  /^game\.ts$/,
+  /^wash\.ts$/,
 ];
 
 /** Sinks. A literal on a line that reaches one of these changes a mark. */

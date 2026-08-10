@@ -2275,6 +2275,7 @@ def reduce_all():
         "wash": {
             "path": "wash.bin",
             "day0": day0,
+            "days_played": len(wash_dates),
             # Window-day index of each raster, in the raster order of the file.
             "days": [
                 (datetime.date.fromisoformat(d) - datetime.date.fromisoformat(day0)).days

@@ -109,6 +109,11 @@
       "file": "modes/operations.ts",
       "text": "vocabulary.covering_90pct",
       "why": "the NAME of a key in seasons.json, printed in THE STACK's rail so an operation declares the artifact it reads. The digits are part of an identifier the pipeline chose, not a quantity this file is asserting - the VALUE behind it is read from the artifact at run time and never appears in source. Same standing as a season label, which check-numbers already masks as an identifier."
+    },
+    {
+      "file": "data.ts",
+      "contains": "<u4",
+      "why": "the wash's dtype token - byte-layout syntax like the struct codes in VERTEX_LAYOUT, not a quantity; the digit is the word size the decoder speaks, asserted against window.json:wash."
     }
   ],
   "comments": [
@@ -171,6 +176,11 @@
       "file": "probe/perf.ts",
       "contains": "16.7",
       "why": "the frame budget in ms at 60 Hz. The instrument's own yardstick."
+    },
+    {
+      "file": "marks.ts",
+      "text": "811",
+      "why": "the digits of a git commit id (e811cab) cited in prose - an identifier, not a measurement. First flagged when THE GAME shipped and 811 became an artifact value (a period-relative frame in game.json, session 15)."
     }
   ],
   "words": [

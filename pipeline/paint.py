@@ -275,7 +275,7 @@ def runs_of(path, breaks):
     return out
 
 
-def stroke_from(path, eps_tenths):
+def stroke_from(path, eps_tenths, split_over=None):
     """A continuous full-rate run -> control points carrying arc, duration, zone.
 
     Arc is summed over EVERY measured step between two kept vertices, never over
@@ -288,7 +288,15 @@ def stroke_from(path, eps_tenths):
     segment can no longer span two zones, so the zone read at a vertex is the
     zone of the whole span that ends there.
 
-    Returns (vertices, {zone: frames}, forced) or None.
+    `split_over` (session 15): with the default None a span longer than
+    MAX_VERTEX_FRAMES refuses the whole run - byte-identical to every artifact
+    shipped before the kwarg existed. Set to a frame count, an over-long span
+    is instead SPLIT at real measured frames of the path itself (a game-length
+    stroke may hold a body standing still for minutes, which is a fact about
+    the game, not a broken run); arc stays a sum along the measured line
+    because every inserted vertex is a frame the feed recorded.
+
+    Returns (vertices, {zone: frames}, forced, quantized_frames) or None.
     """
     if len(path) < 3:
         return None
@@ -308,6 +316,13 @@ def stroke_from(path, eps_tenths):
     idx = sorted(keep)
     if len(idx) < 2:
         return None
+    if split_over is not None:
+        widened = []
+        for k, i in enumerate(idx):
+            if k:
+                widened.extend(range(idx[k - 1] + split_over, i, split_over))
+            widened.append(i)
+        idx = widened
 
     out = []
     zone_frames = Counter()

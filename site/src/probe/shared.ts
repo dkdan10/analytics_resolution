@@ -18,6 +18,7 @@ import { clearLedgerCaches } from "../modes/ledger";
 import { makeView } from "../plate";
 import type { Target } from "../render";
 import { clearAtlas } from "../textatlas";
+import { clearWashes } from "../wash";
 import {
   ACT0_SECONDS,
   CODA_SECONDS,
@@ -95,6 +96,9 @@ export function cold(): void {
   // THE CENSUS's string ruler: a word's width in COURT TENTHS, measured once
   // per string at a fixed nominal size. Same trap as the line above.
   clearCensusCaches();
+  // THE WASH's lanes (session 15): the fold's accumulator and its front/delta
+  // surfaces. Same trap again — an unregistered lane is a false PURE.
+  clearWashes();
 }
 
 export interface Beat {
@@ -228,6 +232,10 @@ export async function forceResidency(
     // a lazily-fetched binary joins this list in the same commit as its
     // loader, or the probe hashes an empty night against a full one).
     ["slate", () => data.slate()],
+    // The four scales (session 15): the game and the wash, same rule, same
+    // commit as their loaders.
+    ["game", () => data.game()],
+    ["wash", () => data.wash()],
   ];
   const resident: string[] = [];
   const missing: string[] = [];

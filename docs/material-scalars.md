@@ -4,9 +4,9 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**135 scalars**, 95 of them material: 2 measured, 3 geometry, 130 authored.
+**141 scalars**, 101 of them material: 2 measured, 3 geometry, 136 authored.
 
-A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts`, `prefix.ts`, `inscription.ts`, `modes/ledger.ts`, `modes/census.ts`, `palette.ts`, `modes/stack.ts`, `modes/operations.ts`, `modes/fieldlayer.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
+A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts`, `prefix.ts`, `inscription.ts`, `modes/ledger.ts`, `modes/census.ts`, `palette.ts`, `modes/stack.ts`, `modes/operations.ts`, `modes/fieldlayer.ts`, `game.ts`, `wash.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
 ## measured
 
@@ -143,7 +143,7 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
 - **DROP_ALPHA** — **0.19**  
   how wet one drop is, outside the window - and it is CONSTANT, which is this layer's whole material argument. THE FIELD varies brightness at a fixed size and adds light; this varies size at a fixed opacity and COVERS. At the same size and a varying opacity the two hands would be the same picture with a different caption.
 - **KEPT_OVER_PAINT** — **0.55**  
-  how strongly the kept coordinates come back up over the painting through THE INSTANT. Five seconds of body were recorded and one point was filed, and this is that point asserting itself over the gesture it stands for. Nothing new is drawn at all: it is the same layer composited a second time, above instead of below.
+  how strongly the kept coordinates come back up over the painting at the season beat's crest (hand.ts:KEPT_CREST — THE INSTANT, which this line used to name, was cut by the crescendo ruling). Five seconds of body were recorded and one point was filed, and this is that point asserting itself over the gesture it stands for. Nothing new is drawn at all: it is the same layer composited a second time, above instead of below.
 - **SPLOTCH_VISIBLE** — **0.004**  
   below this opacity a splotch is skipped — it would deposit less than one 8-bit level.
 - **CALIPER_SERIF** — **3.2**  
@@ -292,3 +292,15 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   the quarrel hairline's ink — the segment between the two instruments' claims about where one shot happened, JOIN THE INSTRUMENTS' only mark. Serifless on purpose: it is not a measurement between bodies, it is a distance between claims, and the caliper's serifs stay on the caliper. The ONE authored alpha the operation holds — the confession struck beside the flood rides at the same weight, and the budget of segments drawn at once is a count (stack.ts), not a material.
 - **SEASON_CLOCK_K** — **3.5**  
   the easing of the season beat's clock over the window's REAL calendar (the crescendo, session 14): day(u) = (e^(k·u) − 1)/(e^k − 1) of the 89 inclusive days. The calendar underneath is measured — which marks arrive on which day, and the four days nobody played stay dead at speed — and only this easing is authored. Material because it decides which marks exist on a mid-beat frame, the REVEAL_CURVE reasoning. At this value the beat opens near the night's own pace and closes about e^k (~33×) faster; smaller flattens the crescendo toward a constant rate, larger makes the closing weeks a blur.
+- **WASH_TONE_K** — **400**  
+  the wash's tone curve: how fast a cell's share of the corpus's tracked positions saturates toward full brightness, 1 − e^(−k·share) — the residence's own idiom at the wash's grain. Every scale reads the SAME curve against the SAME corpus total, which is what makes each handoff subset→superset by measure. Lower and a single game's ground vanishes under the season's; higher and the season flattens to a uniform glow.
+- **WASH_ALPHA** — **0.3**  
+  the dried ground's ceiling: how strongly the wash sits under the wet strokes at full arrival. Higher and the ground competes with the followable line; lower and thirty nights of bodies read as a stain.
+- **GAME_CLOCK_K** — **3.5**  
+  the easing of the game phase's clock over the found game's own frames: frame(u) = (e^(k·u) − 1)/(e^k − 1) of the whole game, SEASON_CLOCK_K's curve one scale down. The feed underneath is measured; only the easing is authored. Material because it decides which strokes exist on a mid-phase frame. A rival ~7.3 (opening at the possession's true rate) is packet-flagged, undecided.
+- **GAME_DRIED** — **0.45**  
+  how far a game stroke dims once the wet edge has passed it — the drying, distinct from the wash beneath. 1 leaves the whole game as bright as its newest gesture and the eye loses the edge; too low and the game exists only at its leading seconds.
+- **PASS_MARK_R** — **2.5**  
+  a pass bead's radius in court tenths at view scale: the measured instant the ball reached its receiver, punctuated without being narrated. Larger and ~580 beads become the drawing; smaller and the annotation the artist asked for is invisible.
+- **PASS_MARK_ALPHA** — **0.5**  
+  a pass bead's ink against the stroke it sits on. The bead is bone — an annotation of the record, not a zone claim — so only its weight is authored here.

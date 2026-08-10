@@ -243,6 +243,184 @@ def m_slate_overrun(d):
     p.write_bytes(bytes(buf))
 
 
+def m_zero_game(d):
+    _zero(d, "game_strokes.bin")
+
+
+def m_truncate_game(d):
+    _truncate(d, "game_index.bin",
+              _load(d, "game.json")["files"]["game_index"]["bytes_per_record"])
+
+
+def m_game_widen(d):
+    """Identity returning to the game: an extra byte appended to every index
+    record with the declaration updated to agree with itself. Only the PINNED
+    layout in qa.py refuses it."""
+    gj = _load(d, "game.json")
+    ib = gj["files"]["game_index"]
+    size = struct.calcsize(ib["record"])
+    p = d / "game_index.bin"
+    buf = p.read_bytes()
+    out = bytearray()
+    for i in range(len(buf) // size):
+        out += buf[i * size:(i + 1) * size] + b"\x07"
+    p.write_bytes(bytes(out))
+    ib["record"] = ib["record"] + "B"
+    ib["bytes_per_record"] = size + 1
+    ib["bytes"] = len(out)
+    _save(d, "game.json", gj)
+
+
+def m_game_overrun(d):
+    """One path's start pushed past its own period's frame count: every byte
+    stays well formed and only the period arithmetic can notice."""
+    gj = _load(d, "game.json")
+    rec = gj["files"]["game_index"]["record"]
+    p = d / "game_index.bin"
+    buf = bytearray(p.read_bytes())
+    first, count, start, period, kind, body = struct.unpack_from(rec, buf, 0)
+    frames = {q["period"]: q["frames"] for q in gj["periods"]}[period]
+    struct.pack_into(rec, buf, 0, first, count, min(0xFFFF, frames + 1000),
+                     period, kind, body)
+    p.write_bytes(bytes(buf))
+
+
+def m_game_dt_burst(d):
+    """The split guard bypassed: one span's dt raised past the limit, another
+    lowered by the same amount so the painted-frames total still reconciles."""
+    gj = _load(d, "game.json")
+    vrec = gj["files"]["game_strokes"]["record"]
+    size = struct.calcsize(vrec)
+    p = d / "game_strokes.bin"
+    buf = bytearray(p.read_bytes())
+    found = []
+    for i in range(len(buf) // size):
+        x, y, dt, arc = struct.unpack_from(vrec, buf, i * size)
+        if dt > 0:
+            found.append((i, x, y, dt, arc))
+        if len(found) == 2:
+            break
+    (i0, x0, y0, dt0, a0), (i1, x1, y1, dt1, a1) = found
+    # The burst must clear the guard's ceiling on its own; the second span
+    # gives back what it can so the reconciliation drifts as little as the
+    # bytes allow (a collateral failure is fine, a missed burst is not).
+    bump = 300
+    struct.pack_into(vrec, buf, i0 * size, x0, y0, dt0 + bump, a0)
+    struct.pack_into(vrec, buf, i1 * size, x1, y1, max(0, dt1 - bump), a1)
+    p.write_bytes(bytes(buf))
+
+
+def m_game_slot_clash(d):
+    """One period's slot claimed by a second body over the same frames: two
+    index rows of one period forced onto one slot at one start."""
+    gj = _load(d, "game.json")
+    rec = gj["files"]["game_index"]["record"]
+    size = struct.calcsize(rec)
+    p = d / "game_index.bin"
+    buf = bytearray(p.read_bytes())
+    rows = [list(struct.unpack_from(rec, buf, i * size))
+            for i in range(len(buf) // size)]
+    a = next(i for i, r in enumerate(rows) if r[5] != 255)
+    b = next(i for i, r in enumerate(rows)
+             if i != a and r[5] != 255 and r[3] == rows[a][3]
+             and r[5] != rows[a][5])
+    rows[b][2] = rows[a][2]
+    rows[b][5] = rows[a][5]
+    struct.pack_into(rec, buf, b * size, *rows[b])
+    p.write_bytes(bytes(buf))
+
+
+def m_game_event_miscount(d):
+    """The events block's declared shot count drifts from its own list."""
+    gj = _load(d, "game.json")
+    gj["events"]["n_shots"] += 1
+    _save(d, "game.json", gj)
+
+
+def m_game_possession_drift(d):
+    """The possession clip slides off its own shot by seven frames."""
+    gj = _load(d, "game.json")
+    gj["possession"]["f0"] += 7
+    gj["possession"]["f1"] += 7
+    _save(d, "game.json", gj)
+
+
+def m_game_selection_drift(d):
+    """The chosen game is no longer its own argmax: a rival's count inflated
+    past it with everything else left agreeing."""
+    gj = _load(d, "game.json")
+    counts = gj["selection"]["counts"]
+    rival = next(k for k in sorted(counts) if k != gj["selection"]["chosen"])
+    counts[rival] = gj["selection"]["corroborated"] + 5
+    _save(d, "game.json", gj)
+
+
+def m_game_outgrows_night(d):
+    """One cell of the game's own grid inflated past its night's raster, with
+    the grid total updated to agree with itself."""
+    gj = _load(d, "game.json")
+    gg = gj["game_grid"]
+    k = sorted(gg["grid"])[0]
+    gg["grid"][k] += 1_000_000
+    gg["total"] += 1_000_000
+    _save(d, "game.json", gj)
+
+
+def m_zero_wash(d):
+    _zero(d, "wash.bin")
+
+
+def m_truncate_wash(d):
+    """One raster shaved off the end, declaration untouched."""
+    wj = _load(d, "window.json")
+    ws = wj["wash"]
+    p = d / "wash.bin"
+    p.write_bytes(p.read_bytes()[:-(ws["rows"] * ws["cols"] * 4)])
+
+
+def m_wash_day_extra(d):
+    """A dead day quietly gains a raster, with every declaration updated to
+    agree with itself - only the pinned day count refuses it."""
+    wj = _load(d, "window.json")
+    ws = wj["wash"]
+    per = ws["rows"] * ws["cols"]
+    have = set(ws["days"])
+    dead = next(x for x in range(0, 89) if x not in have)
+    at = sorted(have | {dead}).index(dead)
+    p = d / "wash.bin"
+    buf = p.read_bytes()
+    raster = struct.pack("<I", 1) * per
+    p.write_bytes(buf[:at * per * 4] + raster + buf[at * per * 4:])
+    ws["days"].insert(at, dead)
+    ws["days_played"] += 1
+    ws["bytes"] += per * 4
+    ws["positions_total"] += per
+    _save(d, "window.json", wj)
+
+
+def m_wash_thin(d):
+    """The night's raster quietly emptied - the extreme thinning - with the
+    declared total updated to agree; the game it contains now overflows it,
+    which only the cross-artifact subset gate can notice (the wash's own sum
+    check stays green by construction, and the emptiness check lives in a
+    group this case deliberately does not run)."""
+    wj = _load(d, "window.json")
+    ws = wj["wash"]
+    gj = _load(d, "game.json")
+    per = ws["rows"] * ws["cols"]
+    off = ws["days"].index(gj["day"]) * per * 4
+    p = d / "wash.bin"
+    buf = bytearray(p.read_bytes())
+    removed = 0
+    for c in range(per):
+        v = int.from_bytes(buf[off + 4 * c:off + 4 * c + 4], "little")
+        removed += v
+        buf[off + 4 * c:off + 4 * c + 4] = (0).to_bytes(4, "little")
+    p.write_bytes(bytes(buf))
+    ws["positions_total"] -= removed
+    _save(d, "window.json", wj)
+
+
 def m_quarrel_scope(d):
     """The wall text drifts from the artifact it rides in: the scope line's
     population figure is quietly incremented."""
@@ -1538,6 +1716,61 @@ CASES = [
          "agree with itself - only the PINNED layout refuses it"),
     Case("slate-overrun", ["slate"], "every slate path fits inside the found span",
          m_slate_overrun, "one path pushed past the span the night declares"),
+
+    # --- session 15: THE GAME and THE WASH, the four scales' artifacts --------
+    Case("delete-game", ["inventory"], "every required artifact is present",
+         _delete("game_strokes.bin"), "the game's strokes, deleted whole"),
+    Case("zero-game", ["game"],
+         "the shipped bytes reproduce the game's own declared arc",
+         m_zero_game,
+         "equal-length zeros: every path collapses to the origin and the summary "
+         "no longer describes the bytes"),
+    Case("truncate-game", ["game"], "game_index.bin holds the path count it declares",
+         m_truncate_game, "one path shaved off the end"),
+    Case("game-widen", ["game"],
+         "the game index record is period timing, a kind and a slot, nothing else",
+         m_game_widen,
+         "identity returning as a seventh field, with the declaration updated to "
+         "agree with itself - only the PINNED layout refuses it"),
+    Case("game-overrun", ["game"], "every game path fits inside its own period",
+         m_game_overrun, "one path pushed past its period's own frame count"),
+    Case("game-dt-burst", ["game"], "no span outlives the split guard",
+         m_game_dt_burst,
+         "the split guard bypassed with the painted-frames total left agreeing"),
+    Case("game-slot-clash", ["game"], "no period's slot is two bodies at once",
+         m_game_slot_clash,
+         "two bodies filed under one period's slot over the same frames"),
+    Case("game-event-miscount", ["game"], "the events block counts its own lists",
+         m_game_event_miscount, "a declared event count drifting from its list"),
+    Case("game-possession-drift", ["game"],
+         "the possession is a time-clip ending at its own shot",
+         m_game_possession_drift,
+         "the nested possession sliding off the release it claims to end at"),
+    Case("game-selection-drift", ["game"],
+         "the chosen game is the selection's own unique argmax",
+         m_game_selection_drift,
+         "the disclosed selection no longer selecting the shipped game"),
+    Case("game-outgrows-night", ["game"], "the game's cells never exceed its night's",
+         m_game_outgrows_night,
+         "the nesting broken upward: the game claiming more of a cell than the "
+         "night that contains it"),
+    Case("delete-wash", ["inventory"], "every required artifact is present",
+         _delete("wash.bin"), "the dried ground, deleted whole"),
+    Case("zero-wash", ["window"], "the wash's positions are the sum of its own cells",
+         m_zero_wash,
+         "equal-length zeros: every raster empties and the declared total no "
+         "longer describes the bytes"),
+    Case("truncate-wash", ["window"], "wash.bin holds the raster count it declares",
+         m_truncate_wash, "one game day shaved off the end"),
+    Case("wash-day-extra", ["window"],
+         "the wash's days are the corpus's own game days, once each, in order",
+         m_wash_day_extra,
+         "a dead day quietly gaining a raster with every declaration updated - "
+         "only the pinned day count refuses it"),
+    Case("wash-thin", ["game"], "the game's cells never exceed its night's",
+         m_wash_thin,
+         "the nesting broken downward: the night thinned under the game it "
+         "contains, caught only by the cross-artifact subset gate"),
 ]
 
 BY_NAME = {c.name: c for c in CASES}

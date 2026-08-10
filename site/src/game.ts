@@ -1,0 +1,197 @@
+/**
+ * THE GAME — the second of the four scales, drawn (session 15).
+ *
+ * One found archive (`game.json` + the two binaries), every body and the
+ * ball, laid on the game's own clock. This module owns the TIMING arithmetic
+ * (period bases, absolute stroke spans, the eased clock), the PLATE idiom
+ * (bone — bodies fainter and thinner, the ball at the traces' own weights)
+ * and the measured event punctuation (shot anchors in the bloom's idiom,
+ * pass beads at PASS_MARK_R). THE HAND's zone-hue paint physics is NOT
+ * reimplemented here: hand.ts walks the same spans through `walkGame` and
+ * supplies its own `paintStroke` — one implementation of the paint, two
+ * consumers, the project's own zone.ts rule.
+ *
+ * Nothing here reads `t` or caches a surface: the walkers are pure functions
+ * of (artifact, uptoFrame), and every cached quantity is a WeakMap-keyed
+ * derivation of the immutable decoded artifact (the scatter-order idiom).
+ * Prefix caching lives at the call sites through prefix.ts.
+ */
+
+import { BONE_RGB } from "./palette";
+import {
+  GAME_CLOCK_K,
+  PASS_MARK_ALPHA,
+  PASS_MARK_R,
+  TRACE_ANCHOR_ALPHA,
+  TRACE_ANCHOR_MIN_PX,
+  TRACE_ANCHOR_SCALE,
+  TRACE_APPROACH_DIM,
+  TRACE_LIT_FLOOR,
+  TRACE_LIT_RANGE,
+  TRACE_W_APPROACH,
+  TRACE_W_IN_FLIGHT,
+  TRACE_W_SCALE,
+} from "./scalars";
+import type { View } from "./plate";
+import type { Game, GameEvent, GameFile } from "./data";
+
+/** Cumulative frame base per period, so period-relative starts recover the
+ *  game's own order. A pure derivation of game.json:periods. */
+const bases = new WeakMap<object, Map<number, number>>();
+export function frameBases(gf: GameFile): Map<number, number> {
+  let m = bases.get(gf);
+  if (!m) {
+    m = new Map();
+    let at = 0;
+    for (const p of gf.periods) {
+      m.set(p.period, at);
+      at += p.frames;
+    }
+    bases.set(gf, m);
+  }
+  return m;
+}
+
+export function gameTotalFrames(gf: GameFile): number {
+  let n = 0;
+  for (const p of gf.periods) n += p.frames;
+  return n;
+}
+
+/** The game phase's eased clock: u ∈ [0,1] → fraction of the game's frames.
+ *  SEASON_CLOCK_K's curve one scale down, with its own authored K. */
+export function gameClock(u: number): number {
+  const c = Math.min(1, Math.max(0, u));
+  return (Math.exp(GAME_CLOCK_K * c) - 1) / (Math.exp(GAME_CLOCK_K) - 1);
+}
+
+interface Spans {
+  /** Absolute start frame per stroke (period base + period-relative start). */
+  start: Float64Array;
+  /** Painted duration per stroke — the sum of its vertex dts. */
+  dur: Float64Array;
+}
+
+const spans = new WeakMap<object, Spans>();
+export function strokeSpans(game: Game, gf: GameFile): Spans {
+  let s = spans.get(game);
+  if (!s) {
+    const b = frameBases(gf);
+    const start = new Float64Array(game.n);
+    const dur = new Float64Array(game.n);
+    for (let i = 0; i < game.n; i++) {
+      start[i] = (b.get(game.period[i]!) ?? 0) + game.start[i]!;
+      let d = 0;
+      const first = game.first[i]!;
+      const last = first + game.count[i]!;
+      for (let v = first; v < last; v++) d += game.dt[v]!;
+      dur[i] = d;
+    }
+    s = { start, dur };
+    spans.set(game, s);
+  }
+  return s;
+}
+
+/**
+ * Visit every stroke the clock has reached, in index order (the shipped
+ * order, which carries no derive-order structure). `drawn` is the fraction
+ * of the stroke's own painted frames; `age` is frames since it finished
+ * (0 while still wet at the edge).
+ */
+export function walkGame(
+  game: Game,
+  gf: GameFile,
+  fromFrame: number,
+  uptoFrame: number,
+  visit: (i: number, drawn: number, age: number) => void,
+): void {
+  const s = strokeSpans(game, gf);
+  for (let i = 0; i < game.n; i++) {
+    const st = s.start[i]!;
+    if (st >= uptoFrame || st < fromFrame) continue;
+    const d = s.dur[i]!;
+    const drawn = d > 0 ? Math.min(1, (uptoFrame - st) / d) : 1;
+    visit(i, drawn, Math.max(0, uptoFrame - (st + d)));
+  }
+}
+
+const boneOf = (alpha: number): string => `rgba(${BONE_RGB}, ${alpha})`;
+
+/**
+ * The PLATE idiom: one stroke in bone. Bodies faint and thin (the traces'
+ * approach weights), the ball at their in-flight weights — ALL the
+ * information, drawn at the register the plate already speaks.
+ */
+export function plateStroke(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  game: Game,
+  i: number,
+  drawn: number,
+  alpha: number,
+): void {
+  const first = game.first[i]!;
+  const n = game.count[i]!;
+  if (n < 2) return;
+  const upto = Math.max(2, Math.ceil(n * Math.min(1, Math.max(0, drawn))));
+  const ball = game.kind[i] === 1;
+  // The ball as bright as a trace at full height; bodies at the approach dim —
+  // the traces' own register, no new ink invented for the plate.
+  const lit = ball ? TRACE_LIT_FLOOR + TRACE_LIT_RANGE
+    : TRACE_LIT_FLOOR * TRACE_APPROACH_DIM;
+  const wpx = Math.max(1, view.scale * TRACE_W_SCALE)
+    * (ball ? TRACE_W_IN_FLIGHT : TRACE_W_APPROACH);
+  ctx.save();
+  ctx.strokeStyle = boneOf(Math.min(1, lit * alpha));
+  ctx.lineWidth = wpx;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(view.sx(game.x[first]!), view.sy(game.y[first]!));
+  for (let v = first + 1; v < first + upto; v++) {
+    ctx.lineTo(view.sx(game.x[v]!), view.sy(game.y[v]!));
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Every event the clock has reached, punctuated: a pass is one bone bead at
+ *  the frame the ball reached its receiver; a shot is the bloom's own anchor
+ *  idiom — the dot the record kept, held brighter than the line around it. */
+export function drawGameEvents(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  gf: GameFile,
+  uptoFrame: number,
+  alpha: number,
+): void {
+  if (alpha <= 0.002) return;
+  const b = frameBases(gf);
+  const at = (e: GameEvent): number => (b.get(e.p) ?? 0) + e.f;
+  ctx.save();
+  const passR = Math.max(1, view.s(PASS_MARK_R));
+  ctx.fillStyle = boneOf(Math.min(1, PASS_MARK_ALPHA * alpha));
+  for (const e of gf.events.passes) {
+    if (at(e) > uptoFrame) continue;
+    ctx.beginPath();
+    ctx.arc(view.sx(e.x), view.sy(e.y), passR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const anchorR = Math.max(TRACE_ANCHOR_MIN_PX, view.scale * TRACE_ANCHOR_SCALE);
+  ctx.fillStyle = boneOf(Math.min(1, TRACE_ANCHOR_ALPHA * alpha));
+  for (const e of gf.events.shots) {
+    if (at(e) > uptoFrame) continue;
+    ctx.beginPath();
+    ctx.arc(view.sx(e.x), view.sy(e.y), anchorR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** The declared possession as absolute frame bounds — "one" is literally a
+ *  time-clip of this artifact. */
+export function possessionFrames(gf: GameFile): { f0: number; f1: number } {
+  const base = frameBases(gf).get(gf.possession.p) ?? 0;
+  return { f0: base + gf.possession.f0, f1: base + gf.possession.f1 };
+}

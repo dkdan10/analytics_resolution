@@ -306,6 +306,29 @@ SLATE_VERTEX_LAYOUT = ("<hhHH", 8)
 # The slate is the misnamed ten: the archive count is pinned against
 # window.json's own misnamed_archives list where the group runs.
 
+# THE GAME's layouts (session 15), pinned for the slate's own reason: the
+# index is period-relative timing, a kind and a per-period anonymous slot and
+# NOTHING else - no player, no game id, no event, no clock - and only a pinned
+# layout refuses identity returning as an extra field with the declaration
+# updated to agree with itself. The vertex is the paint's own record.
+GAME_INDEX_LAYOUT = ("<IHHBBB", 11)
+GAME_VERTEX_LAYOUT = ("<hhHH", 8)
+BALL_SLOT_GAME = 255
+# A game stroke's span guard: window.py splits at paint.py:MAX_VERTEX_FRAMES
+# with real measured frames; a dt above it means the split guard was bypassed.
+GAME_DT_MAX = 250
+
+# THE WASH's raster geometry (session 15), pinned rather than read from the
+# artifact: 1-ft cells of the shot frame, x -25..25, y -5..42, uint32 LE - the
+# same lattice the ball occupancy grid lives on. The day count is the corpus's
+# own game days, measured 2026-08-10 from the 632 filings; pinned so a raster
+# quietly appearing or vanishing cannot re-describe itself.
+WASH_COLS = 51
+WASH_ROWS = 48
+WASH_X0, WASH_Y0 = -25, -5
+WASH_CELL_BYTES = 4
+EXPECTED_WASH_DAYS = 85
+
 # The tracking court in the plate's own frame, derived from the hoop positions
 # rather than restated: 94 x 50 ft, the hoop 5.25 ft in from the baseline and
 # centred between the sidelines, coordinates in tenths.
@@ -411,6 +434,8 @@ DECODER_SOURCES = {
     "measure": ("site/src/data.ts", r"MEASURE_REC"),
     "quarrel": ("site/src/data.ts", r"QUARREL_REC"),
     "slate": ("site/src/data.ts", r"SLATE_REC"),
+    "game": ("site/src/data.ts", r"GAME_REC"),
+    "wash": ("site/src/data.ts", r"WASH_CELL"),
     "point": ("site/src/field.ts", r"REC"),
 }
 # A WAIVER names a mismatch that is known, owned and dated. It keeps the check
@@ -613,6 +638,20 @@ REQUIRED_ARTIFACTS = [
     Artifact("slate.json", "json"),
     Artifact("slate_strokes.bin", "bin"),
     Artifact("slate_index.bin", "bin"),
+    # THE GAME (session 15): fetched - the game phase of the four scales draws
+    # it - so it ships. One archive, found by the disclosed corroboration
+    # argmax, every body and the ball with the paint's treatment; the matchup
+    # is re-derivable and ships in the selection block (identity-spectrum
+    # ratification flagged in session-15's packet), bodies carry only
+    # per-period first-appearance slots, and the pinned index layout keeps
+    # everything else out.
+    Artifact("game.json", "json"),
+    Artifact("game_strokes.bin", "bin"),
+    Artifact("game_index.bin", "bin"),
+    # THE WASH (session 15): fetched - the dried ground under all four scales -
+    # so it ships. One body-occupancy raster per game day, uint32 counts on the
+    # 1-ft lattice; a cell is a count of tracked positions, nothing else.
+    Artifact("wash.bin", "bin"),
     # Ships identity on purpose - names, games, matchups - and that is the
     # accepted tracking-publication decision recorded in CLAUDE.md, not an
     # oversight. group_traces gates it as shipped.
@@ -707,6 +746,24 @@ def decode_slate(vbuf, ibuf):
     paths = [struct.unpack_from(irec, ibuf, i * isz) for i in range(len(ibuf) // isz)]
     verts = [struct.unpack_from(vrec, vbuf, i * vsz) for i in range(len(vbuf) // vsz)]
     return paths, verts, (len(ibuf) % isz, len(vbuf) % vsz)
+
+
+def decode_game(vbuf, ibuf):
+    """THE GAME's bytes through the PINNED layouts - the slate's own reason."""
+    irec, isz = GAME_INDEX_LAYOUT
+    vrec, vsz = GAME_VERTEX_LAYOUT
+    paths = [struct.unpack_from(irec, ibuf, i * isz) for i in range(len(ibuf) // isz)]
+    verts = [struct.unpack_from(vrec, vbuf, i * vsz) for i in range(len(vbuf) // vsz)]
+    return paths, verts, (len(ibuf) % isz, len(vbuf) % vsz)
+
+
+def decode_wash(buf):
+    """THE WASH's rasters through the pinned geometry: [day][row][col] uint32."""
+    per_day = WASH_ROWS * WASH_COLS
+    cells = np.frombuffer(buf, dtype="<u4")
+    days = len(cells) // per_day
+    return cells[:days * per_day].reshape(days, WASH_ROWS, WASH_COLS), \
+        len(buf) % (per_day * WASH_CELL_BYTES)
 
 
 def zone_at_np(x, y):
@@ -1718,6 +1775,7 @@ def group_window(g, ctx):
     _window_bias(g, w, seasons, m)
     _window_contest(g, w, m)
     _window_occupancy(g, w)
+    _window_wash(g, ctx, w)
 
     # The window's figures must not leak into the other twenty-nine seasons.
     g.check("window fields confined to 2015-16",
@@ -2327,6 +2385,50 @@ def _window_contest(g, w, m):
            f"{100 * gr['changed_share']:.1f}% of shots into a different published category")
 
 
+def _window_wash(g, ctx, w):
+    """THE WASH: the dried ground of the four scales, decoded from the bytes.
+
+    Geometry pinned, never read from the artifact; the day count pinned against
+    the measured corpus so a raster cannot quietly appear or vanish with the
+    declaration updated to agree with itself.
+    """
+    ws = w.get("wash")
+    if ws is None:
+        g.fail("window.json carries the wash", "no wash block")
+        return
+    g.check("the wash geometry is the pinned lattice",
+            [ws["rows"], ws["cols"], ws["x0"], ws["y0"], ws["dtype"]],
+            [WASH_ROWS, WASH_COLS, WASH_X0, WASH_Y0, "<u4"])
+    g.check("the wash's day zero is the corpus's own opening",
+            ws["day0"], w["corpus"]["date_first"])
+    days = ws["days"]
+    g.check("the wash's days are the corpus's own game days, once each, in order",
+            [ws["days_played"], len(days), len(days) == len(set(days)),
+             days == sorted(days)],
+            [EXPECTED_WASH_DAYS, EXPECTED_WASH_DAYS, True, True])
+    span = _span_days(w["corpus"]["date_first"], w["corpus"]["date_last"])
+    g.check("every wash day sits inside the window",
+            [d for d in days if not 0 <= d < span], [])
+
+    buf = ctx.raw(g, "wash.bin")
+    if buf is None:
+        return
+    rasters, ragged = decode_wash(buf)
+    g.check("wash.bin is a whole number of rasters", ragged, 0)
+    g.check("wash.bin holds the raster count it declares",
+            [int(rasters.shape[0]), len(buf)], [len(days), ws["bytes"]])
+    g.check("the wash's positions are the sum of its own cells",
+            int(rasters.sum()), ws["positions_total"])
+    g.check("no wash day is empty",
+            [days[i] for i in range(rasters.shape[0]) if not rasters[i].any()], [])
+    s = ctx.json(g, "slate.json")
+    if s is not None:
+        g.check("the night's raster is filed at the slate's own day",
+                s["day"] in days, True)
+    g.info(f"{len(days)} game-day rasters, {ws['positions_total']:,} tracked "
+           f"positions, densest day {int(rasters.sum(axis=(1, 2)).max()):,}")
+
+
 def _window_occupancy(g, w):
     occ = w["occupancy"]
     g.holds("occupancy bands sum to 1", abs(sum(b["share"] for b in occ["bands"]) - 1.0) < 1e-3)
@@ -2421,6 +2523,10 @@ WINDOW_SCHEMA = {
     "occupancy": {"bands": [{"lo_ft": (int, float), "hi_ft": (int, float, type(None)),
                              "frames": int, "share": float}],
                   "frames_total": int, "grid": dict},
+    "wash": {"path": str, "day0": str, "days_played": int, "days": list,
+             "rows": int, "cols": int, "x0": int, "y0": int, "cell_ft": int,
+             "dtype": str, "order": str, "bytes": int, "positions_total": int,
+             "fold": str, "note": str},
     "inventory": {"moments": int, "body_positions": int, "miles_run": float,
                   "hours_tracked": float, "shots_measured": int, "touches": int,
                   "touches_alt_radius": int, "passes": int, "drives": int,
@@ -3059,6 +3165,200 @@ def group_slate(g, ctx):
            f"fully live, {s['span']['games_present']} present")
 
 
+# --- group: the game ---------------------------------------------------------
+
+
+def group_game(g, ctx):
+    """THE GAME: one found archive at full length, decoded from the bytes.
+
+    The slate's discipline applied to the second scale: layouts pinned here,
+    everything quantitative recomputed from the shipped bytes, and the
+    events/possession blocks held consistent with each other so the renderer's
+    "one" phase is literally a time-clip of this artifact.
+    """
+    gj = ctx.json(g, "game.json")
+    if gj is None:
+        return
+    g.section("The game: one archive at the record's own scale")
+
+    sel = gj["selection"]
+    g.check("the selection compares the night's ten and only the night's ten",
+            len(sel["counts"]), 10)
+    w = ctx.json(g, "window.json")
+    if w is not None:
+        g.check("the ten compared are the corpus's own misnamed archives",
+                sorted(sel["counts"]), sorted(w["corpus"]["misnamed_archives"]))
+        g.check("the game's day zero is the corpus's own opening",
+                gj["day0"], w["corpus"]["date_first"])
+    ranked = sorted(sel["counts"].items(), key=lambda kv: (-kv[1], kv[0]))
+    g.check("the chosen game is the selection's own unique argmax",
+            [sel["chosen"], sel["corroborated"], ranked[0][1] == ranked[1][1]],
+            [ranked[0][0], ranked[0][1], False])
+    g.check("the selection margin is the argmax's own",
+            sel["margin"], ranked[0][1] - ranked[1][1])
+    g.check("the game's day offset is its date's distance from day zero",
+            gj["day"],
+            (_date.fromisoformat(gj["date"]) - _date.fromisoformat(gj["day0"])).days)
+
+    g.check("the game index record is period timing, a kind and a slot, nothing else",
+            [gj["files"]["game_index"]["record"],
+             gj["files"]["game_index"]["bytes_per_record"]],
+            list(GAME_INDEX_LAYOUT))
+    g.check("the game vertex is the paint's own record",
+            [gj["files"]["game_strokes"]["record"],
+             gj["files"]["game_strokes"]["bytes_per_record"]],
+            list(GAME_VERTEX_LAYOUT))
+
+    # No body identity. The matchup ships by flagged ruling; a body never does.
+    text = json.dumps(gj).lower()
+    g.check("the game names no body, no event and no wall clock",
+            [k for k in ("player", "playerid", "player_id", "event_id",
+                         "eventid", "utc") if k in text], [])
+
+    vbuf = ctx.raw(g, "game_strokes.bin")
+    ibuf = ctx.raw(g, "game_index.bin")
+    if vbuf is None or ibuf is None:
+        return
+    paths, verts, (iragged, vragged) = decode_game(vbuf, ibuf)
+    g.check("game_index.bin is a whole number of records", iragged, 0)
+    g.check("game_strokes.bin is a whole number of records", vragged, 0)
+    g.check("game_index.bin holds the path count it declares",
+            [len(paths), gj["files"]["game_index"]["records"]],
+            [gj["paths"]] * 2)
+    g.check("game_strokes.bin holds the vertex count it declares",
+            [len(verts), gj["files"]["game_strokes"]["records"]],
+            [gj["vertices"]] * 2)
+    if not paths or not verts:
+        return
+
+    at = 0
+    broken = []
+    for i, (first, count, _s2, _p, _k, _b) in enumerate(paths):
+        if first != at or count < 2:
+            broken.append(i)
+        at = first + count
+    g.check("the index partitions the vertex array with no path under two vertices",
+            broken, [])
+    g.check("the index ends exactly at the last vertex", at, len(verts))
+
+    period_frames = {p["period"]: p["frames"] for p in gj["periods"]}
+    g.check("every path's period is a declared period",
+            sorted({p[3] for p in paths} - set(period_frames)), [])
+    g.check("every kind is a body or the ball, and the ball is slot 255",
+            [i for i, (_f, _c, _s2, _p, k, b) in enumerate(paths)
+             if k not in (0, 1) or (k == 1) != (b == BALL_SLOT_GAME)], [])
+
+    opens = [i for i, (first, _c, _s2, _p, _k, _b) in enumerate(paths)
+             if verts[first][2] != 0 or verts[first][3] != 0]
+    g.check("every path opens with dt = 0 and arc = 0", opens, [])
+
+    dt_max = max(v[2] for v in verts)
+    g.check("no span outlives the split guard",
+            [dt_max <= GAME_DT_MAX, gj["dt_max"]], [True, dt_max])
+
+    overrun = [i for i, (first, count, start, p, _k, _b) in enumerate(paths)
+               if start + sum(v[2] for v in verts[first:first + count])
+               > period_frames[p]]
+    g.check("every game path fits inside its own period", overrun, [])
+
+    # Slot honesty: one slot is one body, so two strokes of one period's slot
+    # may never cover the same frames.
+    by_slot = {}
+    for first, count, start, p, k, b in paths:
+        if b == BALL_SLOT_GAME:
+            continue
+        end = start + sum(v[2] for v in verts[first:first + count])
+        by_slot.setdefault((p, b), []).append((start, end))
+    overlapped = []
+    for key, spans in by_slot.items():
+        spans.sort()
+        for (a0, a1), (b0, _b1) in zip(spans, spans[1:]):
+            if b0 < a1:
+                overlapped.append(key)
+                break
+    g.check("no period's slot is two bodies at once", overlapped, [])
+
+    bent, fastest = [], 0.0
+    for i, (first, count, _s2, _p, _k, _b) in enumerate(paths):
+        for j in range(first + 1, first + count):
+            x0, y0 = verts[j - 1][0], verts[j - 1][1]
+            x1, y1, dt, arc = verts[j]
+            chord = math.hypot(x1 - x0, y1 - y0) / 10.0
+            if chord > arc / 10.0 + QUANTUM_FT:
+                bent.append(i)
+                break
+            if dt:
+                fastest = max(fastest, (arc / 10.0) / (dt / gj["hz"]))
+    g.check("no chord outruns its own arc beyond the storage quantum", bent, [])
+    g.holds("no game span implies an impossible speed",
+            fastest <= MAX_PAINT_SPEED_FT_S,
+            f"fastest {fastest:.1f} ft/s <= {MAX_PAINT_SPEED_FT_S}")
+
+    g.check("the shipped bytes reproduce the game's own declared arc",
+            sum(v[3] for v in verts), gj["arc_tenths_total"])
+    g.check("the shipped bytes reproduce the game's own painted frames",
+            sum(v[2] for v in verts), gj["painted_frames"])
+    g.check("vertices off the plate box match the declared count",
+            sum(1 for x, y, _dt, _a in verts
+                if not (-250 <= x <= 250 and -50 <= y <= 420)),
+            gj["off_plate_vertices"])
+
+    # The events block counts its own lists, sits inside the declared periods,
+    # and the shots are exactly the selection's corroborated population.
+    ev = gj["events"]
+    g.check("the events block counts its own lists",
+            [ev["n_shots"], ev["n_passes"], len(ev["shots"]), len(ev["passes"])],
+            [len(ev["shots"]), len(ev["passes"]), sel["corroborated"], ev["n_passes"]])
+    stray = [e for e in ev["shots"] + ev["passes"]
+             if e["p"] not in period_frames or not 0 <= e["f"] < period_frames[e["p"]]]
+    g.check("every event sits inside its own period", stray, [])
+
+    ca = gj["carriers"]
+    g.check("the carrier spans are the touch chain's own count",
+            len(ca["spans"]), ca["n_touch"])
+    badspan = [s for s in ca["spans"]
+               if s["p"] not in period_frames
+               or not 0 <= s["f0"] <= s["f1"] < period_frames[s["p"]]]
+    g.check("every carrier span sits inside its own period", badspan, [])
+
+    po = gj["possession"]
+    g.check("the possession is a time-clip ending at its own shot",
+            [po["f1"] - po["f0"] + 1, po["p"],
+             ev["shots"][po["shot"]]["f"], ev["shots"][po["shot"]]["p"]],
+            [po["frames"], po["p"], po["f1"], po["p"]])
+    g.holds("the possession sits inside its period",
+            po["p"] in period_frames and 0 <= po["f0"] < po["f1"] < period_frames[po["p"]],
+            f"period {po['p']}, frames {po['f0']}..{po['f1']}")
+
+    # The game's own occupancy against its night: subset by measure, cell-wise,
+    # because the wash's fold is the grid's fold.
+    gg = gj["game_grid"]
+    g.check("the game grid's total is the sum of its own cells",
+            sum(gg["grid"].values()), gg["total"])
+    if w is not None and "wash" in w:
+        wbuf = ctx.raw(g, "wash.bin")
+        if wbuf is not None:
+            rasters, _ragged = decode_wash(wbuf)
+            days = w["wash"]["days"]
+            if gj["day"] in days:
+                night = rasters[days.index(gj["day"])]
+                exceed = []
+                for k, v in gg["grid"].items():
+                    gx, gy = (int(p) for p in k.split(","))
+                    if not (WASH_X0 <= gx < WASH_X0 + WASH_COLS
+                            and WASH_Y0 <= gy < WASH_Y0 + WASH_ROWS) \
+                            or v > int(night[gy - WASH_Y0, gx - WASH_X0]):
+                        exceed.append(k)
+                g.check("the game's cells never exceed its night's", exceed, [])
+            else:
+                g.fail("the game's day has a wash raster", f"day {gj['day']} not in wash days")
+
+    g.info(f"{len(paths)} paths, {len(verts)} vertices over {len(period_frames)} "
+           f"periods; {ev['n_shots']} shots, {ev['n_passes']} passes, "
+           f"{ca['n_touch']} carrier spans; fold segments "
+           f"{gj['fold']['segments']} ({gj['fold']['segments_alt']} at the alternate)")
+
+
 # --- group: traces -----------------------------------------------------------
 
 
@@ -3203,7 +3503,8 @@ def _decoder_parity(g, ctx):
     p = ctx.json(g, "paint.json")
     w = ctx.json(g, "window.json")
     s = ctx.json(g, "slate.json")
-    if p is None or w is None or s is None:
+    gj = ctx.json(g, "game.json")
+    if p is None or w is None or s is None or gj is None:
         return
     want = {
         "vertex": p["files"]["vertices"]["bytes_per_record"],
@@ -3211,6 +3512,8 @@ def _decoder_parity(g, ctx):
         "measure": w["measures_bin"]["bytes_per_record"],
         "quarrel": w["quarrel_bin"]["bytes_per_record"],
         "slate": s["files"]["slate_index"]["bytes_per_record"],
+        "game": gj["files"]["game_index"]["bytes_per_record"],
+        "wash": WASH_CELL_BYTES,
         "point": POINT_DTYPE.itemsize,
     }
     import re  # noqa: PLC0415
@@ -3337,6 +3640,15 @@ MEMORY_CLAIMS = [
     Claim("**{} games** simultaneously in live play", "slate",
           "span.games_fully_live"),
 
+    # --- THE FOUR SCALES (session 15): the game and the wash ------------------
+    Claim("**{} corroborated shots** against the runner-up's", "game",
+          "selection.corroborated"),
+    Claim("`game_strokes.bin` carries **{} vertices**", "game", "vertices", "comma"),
+    Claim("one raster per game day — **{}** of the 89", "window",
+          "wash.days_played"),
+    Claim("**{}** tracked positions in the wash", "window",
+          "wash.positions_total", "comma"),
+
     # --- the paint ----------------------------------------------------------
     Claim("lifts **{} strokes**", "paint", "strokes", "comma"),
     Claim("**{}** corroborated possessions", "paint", "canvases", "comma"),
@@ -3431,7 +3743,7 @@ def _memory_value(g, ctx, claim):
         return e["value"] if e else None
     else:
         obj = ctx.json(g, {"window": "window.json", "paint": "paint.json",
-                           "slate": "slate.json"}[claim.source])
+                           "slate": "slate.json", "game": "game.json"}[claim.source])
 
     for part in claim.path.split("."):
         if not isinstance(obj, dict) or part not in obj:
@@ -3671,6 +3983,7 @@ GROUPS = {
     "window": group_window,
     "paint": group_paint,
     "slate": group_slate,
+    "game": group_game,
     "traces": group_traces,
     "palette": group_palette,
     "inventory": group_inventory,
@@ -3734,6 +4047,8 @@ SLOW_CHECKS = [
     ["checks/check_offsets.py"],
     ["checks/check_strokes.py", "--slow"],
     ["checks/check_movement.py"],
+    ["checks/check_game_events.py"],
+    ["checks/check_wash.py"],
 ]
 
 

@@ -615,11 +615,13 @@ export const SCALARS = {
     value: 0.55,
     material: true,
     controls:
-      "how strongly the kept coordinates come back up over the painting through " +
-      "THE INSTANT. Five seconds of body were recorded and one point was filed, " +
-      "and this is that point asserting itself over the gesture it stands for. " +
-      "Nothing new is drawn at all: it is the same layer composited a second " +
-      "time, above instead of below.",
+      "how strongly the kept coordinates come back up over the painting at " +
+      "the season beat's crest (hand.ts:KEPT_CREST — THE INSTANT, which this " +
+      "line used to name, was cut by the crescendo ruling). Five seconds of " +
+      "body were recorded and one point was filed, and this is that point " +
+      "asserting itself over the gesture it stands for. Nothing new is drawn " +
+      "at all: it is the same layer composited a second time, above instead " +
+      "of below.",
   },
   SPLOTCH_VISIBLE: {
     class: "authored",
@@ -1355,6 +1357,70 @@ export const SCALARS = {
       "e^k (~33×) faster; smaller flattens the crescendo toward a constant " +
       "rate, larger makes the closing weeks a blur.",
   },
+
+  // --- THE FOUR SCALES (session 15): the game and the wash -------------------
+  WASH_TONE_K: {
+    class: "authored",
+    value: 400,
+    material: true,
+    controls:
+      "the wash's tone curve: how fast a cell's share of the corpus's tracked " +
+      "positions saturates toward full brightness, 1 − e^(−k·share) — the " +
+      "residence's own idiom at the wash's grain. Every scale reads the SAME " +
+      "curve against the SAME corpus total, which is what makes each handoff " +
+      "subset→superset by measure. Lower and a single game's ground vanishes " +
+      "under the season's; higher and the season flattens to a uniform glow.",
+  },
+  WASH_ALPHA: {
+    class: "authored",
+    value: 0.3,
+    material: true,
+    controls:
+      "the dried ground's ceiling: how strongly the wash sits under the wet " +
+      "strokes at full arrival. Higher and the ground competes with the " +
+      "followable line; lower and thirty nights of bodies read as a stain.",
+  },
+  GAME_CLOCK_K: {
+    class: "authored",
+    value: 3.5,
+    material: true,
+    controls:
+      "the easing of the game phase's clock over the found game's own frames: " +
+      "frame(u) = (e^(k·u) − 1)/(e^k − 1) of the whole game, SEASON_CLOCK_K's " +
+      "curve one scale down. The feed underneath is measured; only the easing " +
+      "is authored. Material because it decides which strokes exist on a " +
+      "mid-phase frame. A rival ~7.3 (opening at the possession's true rate) " +
+      "is packet-flagged, undecided.",
+  },
+  GAME_DRIED: {
+    class: "authored",
+    value: 0.45,
+    material: true,
+    controls:
+      "how far a game stroke dims once the wet edge has passed it — the " +
+      "drying, distinct from the wash beneath. 1 leaves the whole game as " +
+      "bright as its newest gesture and the eye loses the edge; too low and " +
+      "the game exists only at its leading seconds.",
+  },
+  PASS_MARK_R: {
+    class: "authored",
+    value: 2.5,
+    material: true,
+    controls:
+      "a pass bead's radius in court tenths at view scale: the measured " +
+      "instant the ball reached its receiver, punctuated without being " +
+      "narrated. Larger and ~580 beads become the drawing; smaller and the " +
+      "annotation the artist asked for is invisible.",
+  },
+  PASS_MARK_ALPHA: {
+    class: "authored",
+    value: 0.5,
+    material: true,
+    controls:
+      "a pass bead's ink against the stroke it sits on. The bead is bone — " +
+      "an annotation of the record, not a zone claim — so only its weight is " +
+      "authored here.",
+  },
 } as const satisfies Record<string, Entry>;
 
 // --- the values, for the renderers ------------------------------------------
@@ -1508,3 +1574,9 @@ export const STACK_GUTTER_ROW_ALPHA: number = SCALARS.STACK_GUTTER_ROW_ALPHA.val
 export const STACK_GUTTER_SUB_ALPHA: number = SCALARS.STACK_GUTTER_SUB_ALPHA.value;
 export const QUARREL_ALPHA: number = SCALARS.QUARREL_ALPHA.value;
 export const SEASON_CLOCK_K: number = SCALARS.SEASON_CLOCK_K.value;
+export const WASH_TONE_K: number = SCALARS.WASH_TONE_K.value;
+export const WASH_ALPHA: number = SCALARS.WASH_ALPHA.value;
+export const GAME_CLOCK_K: number = SCALARS.GAME_CLOCK_K.value;
+export const GAME_DRIED: number = SCALARS.GAME_DRIED.value;
+export const PASS_MARK_R: number = SCALARS.PASS_MARK_R.value;
+export const PASS_MARK_ALPHA: number = SCALARS.PASS_MARK_ALPHA.value;

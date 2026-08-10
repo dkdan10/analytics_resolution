@@ -405,6 +405,28 @@ export interface WindowFile {
     frames_total: number;
     grid: Record<string, number>;
   };
+  /** THE WASH (session 15): one body-occupancy raster per game day, the dried
+   *  ground of the four scales. A cell is a count of tracked positions on the
+   *  1-ft lattice, nothing else; clients fold the days — there is deliberately
+   *  no corpus-wide second grid. */
+  wash: {
+    path: string;
+    day0: string | null;
+    days_played: number;
+    /** Window-day index of each raster, in the raster order of the file. */
+    days: number[];
+    rows: number;
+    cols: number;
+    x0: number;
+    y0: number;
+    cell_ft: number;
+    dtype: string;
+    order: string;
+    bytes: number;
+    positions_total: number;
+    fold: string;
+    note: string;
+  };
   inventory: {
     moments: number;
     body_positions: number;
@@ -757,6 +779,175 @@ export function decodeSlate(vbuf: ArrayBuffer, ibuf: ArrayBuffer, s: SlateFile):
   return { n: np, first, count, start, kind, x, y, dt, arc };
 }
 
+/** THE GAME's summary (`game.json`): one archive found by the disclosed
+ *  corroboration argmax, every body and the ball at the paint's treatment.
+ *  The matchup is re-derivable and ships in the selection block (flagged
+ *  identity-spectrum ruling); no body is ever named — a stroke carries a
+ *  per-period first-appearance slot, the ball at pipeline/game.py:BALL_BODY. */
+export interface GameFile {
+  date: string;
+  /** Calendar days since the window opened — the measures' own day scale. */
+  day: number;
+  day0: string;
+  archive: string;
+  hz: number;
+  mode_ms: number;
+  selection: {
+    rule: string;
+    counts: Record<string, number>;
+    chosen: string;
+    corroborated: number;
+    margin: number;
+  };
+  /** Period order and frame extents — what recovers the game's own order from
+   *  the index's period-relative starts. */
+  periods: { period: number; frames: number }[];
+  paths: number;
+  vertices: number;
+  painted_frames: number;
+  arc_tenths_total: number;
+  off_plate_vertices: number;
+  off_plate_share: number;
+  dt_max: number;
+  bodies_per_period: Record<string, number>;
+  fold: {
+    rule: string;
+    hysteresis_ft: number;
+    segments: number;
+    hysteresis_alt_ft: number;
+    segments_alt: number;
+  };
+  events: {
+    shots: GameEvent[];
+    passes: GameEvent[];
+    n_shots: number;
+    n_passes: number;
+    pass_rule: string;
+  };
+  carriers: {
+    spans: { p: number; f0: number; f1: number }[];
+    n_touch: number;
+    note: string;
+  };
+  possession: {
+    p: number;
+    f0: number;
+    f1: number;
+    frames: number;
+    residual: number;
+    /** Index into events.shots — the release the clip ends at. */
+    shot: number;
+    rule: string;
+  };
+  game_grid: { grid: Record<string, number>; total: number; fold: string };
+  files: { game_strokes: BinaryFile; game_index: BinaryFile };
+}
+
+/** One measured annotation on the game: period-relative frame and the folded
+ *  position. Shots additionally carry made and the corroboration residual. */
+export interface GameEvent {
+  p: number;
+  f: number;
+  x: number;
+  y: number;
+  made?: number | null;
+  residual?: number;
+}
+
+/** The game decoded: the paint's vertex under a period-relative index. */
+export interface Game {
+  n: number;
+  first: Uint32Array;
+  count: Uint16Array;
+  /** Frames from the period's first tracked moment (uint16 — a whole game of
+   *  wall clock does not fit; a period always does). */
+  start: Uint16Array;
+  period: Uint8Array;
+  /** 1 = the ball, 0 = a body. */
+  kind: Uint8Array;
+  /** Per-period first-appearance slot; the ball files at
+   *  pipeline/game.py:BALL_BODY, and `kind` is the way to ask. */
+  body: Uint8Array;
+  x: Int16Array;
+  y: Int16Array;
+  dt: Uint16Array;
+  arc: Uint16Array;
+}
+
+const GAME_REC = 11;
+const GAME_LAYOUT = "<IHHBBB";
+
+export function decodeGame(vbuf: ArrayBuffer, ibuf: ArrayBuffer, gf: GameFile): Game {
+  assertLayout("the game's vertices", gf.files.game_strokes, vbuf, VERTEX_LAYOUT, VERTEX_REC);
+  assertLayout("the game's index", gf.files.game_index, ibuf, GAME_LAYOUT, GAME_REC);
+  const nv = gf.files.game_strokes.records;
+  const np = gf.files.game_index.records;
+  const vd = new DataView(vbuf);
+  const id = new DataView(ibuf);
+  const x = new Int16Array(nv);
+  const y = new Int16Array(nv);
+  const dt = new Uint16Array(nv);
+  const arc = new Uint16Array(nv);
+  for (let i = 0; i < nv; i++) {
+    const o = i * VERTEX_REC;
+    x[i] = vd.getInt16(o, true);
+    y[i] = vd.getInt16(o + 2, true);
+    dt[i] = vd.getUint16(o + 4, true);
+    arc[i] = vd.getUint16(o + 6, true);
+  }
+  const first = new Uint32Array(np);
+  const count = new Uint16Array(np);
+  const start = new Uint16Array(np);
+  const period = new Uint8Array(np);
+  const kind = new Uint8Array(np);
+  const body = new Uint8Array(np);
+  for (let i = 0; i < np; i++) {
+    const o = i * GAME_REC;
+    first[i] = id.getUint32(o, true);
+    count[i] = id.getUint16(o + 4, true);
+    start[i] = id.getUint16(o + 6, true);
+    period[i] = id.getUint8(o + 8);
+    kind[i] = id.getUint8(o + 9);
+    body[i] = id.getUint8(o + 10);
+    const last = first[i]! + count[i]!;
+    if (last > nv) {
+      throw new Error(`${gf.files.game_index.path}: path ${i} runs to vertex ${last} of ${nv}`);
+    }
+  }
+  return { n: np, first, count, start, period, kind, body, x, y, dt, arc };
+}
+
+/** THE WASH decoded: [day][row][col] uint32 counts, day order as declared. */
+export interface Wash {
+  days: number;
+  rows: number;
+  cols: number;
+  /** Row-major per day: cell (d, r, c) at data[(d * rows + r) * cols + c]. */
+  data: Uint32Array;
+}
+
+const WASH_CELL = 4;
+const WASH_DTYPE = "<u4";
+
+export function decodeWash(buf: ArrayBuffer, w: WindowFile): Wash {
+  const ws = w.wash;
+  const per = ws.rows * ws.cols * WASH_CELL;
+  const said: string[] = [];
+  if (buf.byteLength !== ws.days.length * per) {
+    said.push(`holds ${buf.byteLength} B, the declaration says ${ws.days.length * per}`);
+  }
+  if (ws.dtype !== WASH_DTYPE) {
+    said.push(`dtype ${ws.dtype}, this reader speaks ${WASH_DTYPE}`);
+  }
+  if (said.length) throw new Error(`the wash (${ws.path}): ${said.join("; ")}`);
+  return {
+    days: ws.days.length,
+    rows: ws.rows,
+    cols: ws.cols,
+    data: new Uint32Array(buf),
+  };
+}
+
 export function decodeQuarrel(buf: ArrayBuffer, w: WindowFile): Quarrel {
   assertLayout("the quarrel", w.quarrel_bin, buf, QUARREL_LAYOUT, QUARREL_REC);
   const n = w.quarrel_bin.records;
@@ -849,6 +1040,15 @@ export interface Loaded {
    *  draws its day-keyed material without them and gains the bodies a frame
    *  or two later. */
   slate(): Slate | null;
+  /** THE GAME's summary — the found archive of the four scales; null if the
+   *  game stage has not been run. */
+  gameFile: GameFile | null;
+  /** The game's paths, fetched on demand like the strokes. */
+  game(): Game | null;
+  /** THE WASH — one body-occupancy raster per game day, fetched on demand.
+   *  The scales dry into it; the piece renders without it and gains the
+   *  ground a frame or two later. */
+  wash(): Wash | null;
   /** Every lazily-fetched asset that failed for good, with why. A failure
    *  latches rather than being retried from the animation loop, so this is a
    *  finite list and the probes assert it is empty before believing a row. */
@@ -1027,6 +1227,27 @@ export async function load(): Promise<Loaded> {
   });
   const fetchSlate = (): Slate | null => (slateFile ? slateLoader.get() : null);
 
+  let gameFile: GameFile | null = null;
+  try {
+    gameFile = await getJSON<GameFile>("game.json");
+  } catch {
+    gameFile = null;
+  }
+
+  const gameLoader = lazy("the game", async (): Promise<Game> => {
+    const [v, i] = await Promise.all([
+      getBinary("game_strokes.bin"),
+      getBinary("game_index.bin"),
+    ]);
+    return decodeGame(v, i, gameFile!);
+  });
+  const fetchGame = (): Game | null => (gameFile ? gameLoader.get() : null);
+
+  const washLoader = lazy("the wash",
+    () => getBinary("wash.bin").then((b) => decodeWash(b, windowFile!)));
+  const fetchWash = (): Wash | null =>
+    (windowFile && windowFile.wash ? washLoader.get() : null);
+
   return {
     seasons,
     facts,
@@ -1042,6 +1263,9 @@ export async function load(): Promise<Loaded> {
     strokes: fetchStrokes,
     slateFile,
     slate: fetchSlate,
+    gameFile,
+    game: fetchGame,
+    wash: fetchWash,
     assetErrors: () => {
       const all: [string, string | null][] = [
         ...[...pointLoaders].map(([y, l]) => [`points/${y}`, l.error()] as [string, string | null]),
@@ -1049,6 +1273,8 @@ export async function load(): Promise<Loaded> {
         ["measures", measureLoader.error()],
         ["quarrel", quarrelLoader.error()],
         ["slate", slateLoader.error()],
+        ["game", gameLoader.error()],
+        ["wash", washLoader.error()],
       ];
       return all.filter(([, e]) => e !== null).map(([n, e]) => `${n}: ${e}`);
     },

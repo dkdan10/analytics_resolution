@@ -3,6 +3,9 @@
   "_why": "The explicit, reviewed list of artifacts the site deploy may serve. site/scripts/sync-data.mjs copies ONLY these and fails loudly on anything else under data/processed/, so a new artifact is published by decision rather than by appearing. The source of truth is REQUIRED_ARTIFACTS in pipeline/qa.py, whose `public` column carries the rationale per row; this file is generated from it and gated against it, so the Python and Node halves cannot drift. Regenerate with: python3 pipeline/qa.py --write-deploy-allowlist",
   "public": [
     "facts.json",
+    "game.json",
+    "game_index.bin",
+    "game_strokes.bin",
     "paint.json",
     "paint_index.bin",
     "paint_strokes.bin",
@@ -73,6 +76,7 @@
     "slate_strokes.bin",
     "sportvu_probe.json",
     "traces.json",
+    "wash.bin",
     "window.json",
     "window_measures.bin"
   ],
