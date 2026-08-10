@@ -93,6 +93,15 @@
         background: rgba(232, 226, 214, 0.45);
       }
       #clock { margin: 0 16px 3px; font-size: 10px; color: rgba(232, 226, 214, 0.32); }
+      /* The presenter's readout: exact t, the next boundary, and the fermata
+         while it acts. Tabular figures so the countdown does not shimmer. */
+      #readout {
+        margin: 0 16px 3px;
+        font-size: 10px;
+        color: rgba(232, 226, 214, 0.45);
+        font-variant-numeric: tabular-nums;
+      }
+      #readout.fermata { color: var(--bone); letter-spacing: 0.1em; }
       #hand {
         display: block;
         width: calc(100% - 32px);
@@ -108,6 +117,25 @@
         cursor: pointer;
       }
       #hand:hover { color: var(--bone); }
+
+      /* The copy-frame helper: one press, the frame's citation on the
+         clipboard, in the piece's own mode@t grammar. */
+      #cite {
+        display: block;
+        width: calc(100% - 32px);
+        margin: 0 16px 10px;
+        padding: 3px 0;
+        text-align: left;
+        background: transparent;
+        border: 0;
+        font-family: var(--mono);
+        font-size: 9px;
+        letter-spacing: 0.14em;
+        color: rgba(232, 226, 214, 0.35);
+        cursor: pointer;
+      }
+      #cite:hover { color: var(--bone); }
+      #cite:active { color: var(--bone); letter-spacing: 0.18em; }
 
       /* The keys, said where the presenter is already looking. */
       #keys {
@@ -184,19 +212,25 @@
         letter-spacing: 0.02em;
         padding-left: 15px;
       }
-      .op-reads { color: rgba(232, 226, 214, 0.36); margin-top: 2px; }
+      .op-reads { color: rgba(232, 226, 214, 0.42); margin-top: 2px; }
       /* The record's own sentence, not this piece's. Some of these definitions
          are a paragraph, so they are clamped with an ellipsis rather than cut
          mid-word — a sentence sliced through the middle of a clause reads as a
          rendering fault, and the whole point of the line is that the artifact
-         speaks for itself. The full text is one hover away in the title. */
+         speaks for itself. The full text is one hover away in the title.
+         Session 13's readability pass (artist ruling): a definition the panel
+         exists to speak was set at the rail's faintest ink and one point below
+         its body size — readable ink and three lines now, still subordinate to
+         the operation's own name. */
       .op-def {
-        color: rgba(232, 226, 214, 0.2);
+        color: rgba(232, 226, 214, 0.34);
+        font-size: 10px;
+        line-height: 1.5;
         margin-top: 1px;
         display: -webkit-box;
         -webkit-box-orient: vertical;
-        -webkit-line-clamp: 2;
-        line-clamp: 2;
+        -webkit-line-clamp: 3;
+        line-clamp: 3;
         overflow: hidden;
       }
       /* Applied, but with nothing to apply itself to. Shown rather than hidden:

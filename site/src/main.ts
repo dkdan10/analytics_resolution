@@ -302,6 +302,19 @@ async function main(): Promise<void> {
         // THE SECOND SCORE reads the pin itself: the rail's window interior
         // and the step-button stops both follow it.
         pinned: () => modeOverride,
+        inFermata: () => tc.inFermata,
+        // The frame's citation, in the grammar the shots harness and every
+        // session's evidence speak: `mode@t`, the mode being whichever hand
+        // is actually drawing, plus the `?ops=` token exactly when the
+        // address bar would carry one (stack pinned, operations applied).
+        citation: () => {
+          const t = ((tc.seconds % schedule.duration) + schedule.duration) % schedule.duration;
+          const mode = modeAt(tc.seconds, schedule, modeOverride);
+          const at = t.toFixed(2).replace(/\.?0+$/, "");
+          const opsPart =
+            modeOverride === "stack" && ops !== NO_OPS ? ` ?ops=${opsToken(ops)}` : "";
+          return `${mode}@${at}${opsPart}`;
+        },
         // Steps through the hands and then back to letting the loop rotate,
         // so the gallery behaviour is always one click away. Same function the
         // H key calls.

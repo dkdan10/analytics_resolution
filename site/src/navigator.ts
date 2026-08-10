@@ -46,6 +46,13 @@ export interface Transport {
   /** The pinned hand's id, or null while the loop rotates. THE SECOND SCORE
    *  reads this: the rail's window interior belongs to the pinned hand. */
   pinned(): ModeId | null;
+  /** Whether the fermata is drawing the drift to a stop — shown, because a
+   *  piece that is stopping on purpose must not read as a piece that hung. */
+  inFermata(): boolean;
+  /** The frame's citation in the piece's own grammar — `mode@t`, plus the
+   *  `?ops=` token while THE STACK is pinned with operations applied. The
+   *  same grammar the shots harness and every session's evidence speak. */
+  citation(): string;
   /** Step to the next hand, pinning it; wraps back to letting the loop rotate. */
   cycleMode(): void;
   /** THE STACK's operation mask, and whether the panel that drives it applies. */
@@ -60,6 +67,8 @@ interface Row {
   /** null for Act 0, which has no season. */
   year: number | null;
   start: number;
+  /** What the row is called, for the next-boundary readout. */
+  label: string;
 }
 
 function fmt(seconds: number): string {
@@ -211,6 +220,12 @@ export class Navigator {
   private windowRows: Row[] = [];
   private shownPin: ModeId | null | undefined = undefined;
 
+  /** The chrome pass's three read-only surfaces, each written on change only. */
+  private readoutEl!: HTMLElement;
+  private keysEl!: HTMLElement;
+  private shownStackKeys = false;
+  private shownFermata = false;
+
   constructor(
     root: HTMLElement,
     private schedule: Schedule,
@@ -314,6 +329,14 @@ export class Navigator {
     this.clockEl.id = "clock";
     head.append(this.clockEl);
 
+    // The presenter's readout: the exact t under the playhead, what boundary
+    // comes next and how far away it is — and the fermata, said while it acts.
+    // The piece's own citation grammar speaks in exact seconds, so the rail
+    // should too rather than leaving the presenter to eyeball a 3px bar.
+    this.readoutEl = document.createElement("div");
+    this.readoutEl.id = "readout";
+    head.append(this.readoutEl);
+
     // Which hand is drawing. Click or press to pin one, through to hand it back
     // to the loop - the same record, rendered several ways, is the argument.
     const handBtn = document.createElement("button");
@@ -326,16 +349,31 @@ export class Navigator {
     this.handEl = handBtn;
     head.append(handBtn);
 
+    // The copy-frame helper: one press puts the frame on the clipboard in the
+    // piece's own citation grammar — `mode@t`, with the `?ops=` token while
+    // THE STACK is pinned — the same words the shots harness and every
+    // session's evidence use, so a talk can cite the frame it is on. A real
+    // button (the clipboard wants a user gesture anyway); fire-and-forget, no
+    // async state held.
+    const cite = document.createElement("button");
+    cite.type = "button";
+    cite.id = "cite";
+    cite.textContent = "⧉ CITE THIS FRAME";
+    cite.title = "copy the frame's citation — the piece's mode@t grammar";
+    cite.setAttribute("aria-label", "copy this frame's citation to the clipboard");
+    cite.addEventListener("click", () => {
+      void navigator.clipboard?.writeText(this.transport.citation());
+    });
+    head.append(cite);
+
     // The keys exist and nothing said so. A presenter who has to be told the
-    // shortcuts out of band does not have them.
-    const keys = document.createElement("div");
-    keys.id = "keys";
-    for (const line of KEY_HINTS) {
-      const p = document.createElement("p");
-      p.textContent = line;
-      keys.append(p);
-    }
-    head.append(keys);
+    // shortcuts out of band does not have them. CONTEXTUAL: only keys that are
+    // live are said — THE STACK's letters appear exactly while THE STACK is
+    // pinned, the same gating the keys themselves obey in main.ts.
+    this.keysEl = document.createElement("div");
+    this.keysEl.id = "keys";
+    this.buildKeys(false);
+    head.append(this.keysEl);
 
     // OUTSIDE the head, and this is V-09's lesson rather than a layout taste.
     // The head is `flex: 0 0 auto`, so anything put in it takes its full height
@@ -355,10 +393,12 @@ export class Navigator {
     // Same key the plate reads, so the rail cannot disagree with the slug.
     const founded = factExternal<number>(facts, "league_founded");
     this.addRow("Counts", null, 0, "act");
+    const countsLabel = `${founded} — ${seasons[0]?.year ?? ""}`;
     this.rows.push({
-      el: this.addSeg(`${founded} — ${seasons[0]?.year ?? ""}`, "no coordinates", null, 0, ""),
+      el: this.addSeg(countsLabel, "no coordinates", null, 0, ""),
       year: null,
       start: 0,
+      label: countsLabel,
     });
 
     const byYear = new Map(seasons.map((s) => [s.year, s]));
@@ -380,8 +420,9 @@ export class Navigator {
         mark = "▲";
         cls = "cut";
       }
-      const el = this.addSeg(season?.season ?? String(seg.year), share, mark, seg.start, cls);
-      this.rows.push({ el, year: seg.year, start: seg.start });
+      const segLabel = season?.season ?? String(seg.year);
+      const el = this.addSeg(segLabel, share, mark, seg.start, cls);
+      this.rows.push({ el, year: seg.year, start: seg.start, label: segLabel });
 
       // The window is dilated far past any other season and moves through
       // distinct beats, so it gets the only sub-list in the rail: a presenter
@@ -400,6 +441,7 @@ export class Navigator {
       el: this.addSeg("the plate empties", "", null, schedule.lastEnds, ""),
       year: null,
       start: schedule.lastEnds,
+      label: "the plate empties",
     });
   }
 
@@ -537,7 +579,26 @@ export class Navigator {
     this.windowRows = [];
     for (const s of windowSubStops(pin, this.schedule, this.data)) {
       const el = this.addSeg(s.title, fmt(s.end - s.at), null, s.at, "beat", this.windowBox);
-      this.windowRows.push({ el, year: null, start: s.at });
+      this.windowRows.push({ el, year: null, start: s.at, label: s.title });
+    }
+  }
+
+  /** The key hints, rebuilt only when what is live changes: THE STACK's
+   *  letters are said exactly while THE STACK is pinned — the same gating the
+   *  keys themselves obey in main.ts, extended to the saying of them. */
+  private buildKeys(stackPinned: boolean): void {
+    this.shownStackKeys = stackPinned;
+    this.keysEl.textContent = "";
+    const lines = [...KEY_HINTS];
+    if (stackPinned) {
+      lines.push(
+        `${OPERATIONS.map((o) => o.key.toUpperCase()).join(" ")} OPERATIONS · A ALL`,
+      );
+    }
+    for (const line of lines) {
+      const p = document.createElement("p");
+      p.textContent = line;
+      this.keysEl.append(p);
     }
   }
 
@@ -627,6 +688,33 @@ export class Navigator {
     // rows are rebuilt only when the pin actually moved.
     const pin = this.transport.pinned();
     if (pin !== this.shownPin) this.buildWindowStops(pin);
+
+    // The contextual key hints follow THE STACK's pin the same way.
+    const stackOn = this.transport.isStack();
+    if (stackOn !== this.shownStackKeys) this.buildKeys(stackOn);
+
+    // The readout: exact t, the next boundary and its distance — or the
+    // fermata, named while it draws the drift to a stop. The next boundary
+    // comes from the same rows the rail shows, sub-stops included, so the
+    // countdown and the list can never disagree.
+    const fermata = this.transport.inFermata();
+    if (fermata !== this.shownFermata) {
+      this.shownFermata = fermata;
+      this.readoutEl.classList.toggle("fermata", fermata);
+    }
+    let coming: Row | null = null;
+    for (const r of this.rows) {
+      if (r.start > time && (coming === null || r.start < coming.start)) coming = r;
+    }
+    for (const r of this.windowRows) {
+      if (r.start > time && (coming === null || r.start <= coming.start)) coming = r;
+    }
+    const nextAt = coming ? coming.start : this.schedule.duration;
+    const nextLabel = coming ? coming.label : "the loop turns over";
+    const readout = fermata
+      ? `t ${time.toFixed(1)} · FERMATA`
+      : `t ${time.toFixed(1)} · ${nextLabel} in ${(nextAt - time).toFixed(1)}s`;
+    if (this.readoutEl.textContent !== readout) this.readoutEl.textContent = readout;
 
     // The current row: the latest stop at or before the playhead, a sub-stop
     // winning a tie with its own season row — the sub-list is the finer map.
