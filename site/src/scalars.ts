@@ -490,6 +490,19 @@ export const SCALARS = {
     material: true,
     controls: "how much of DRIP reaches opacity rather than width when ink is split between the two.",
   },
+  ONE_INK: {
+    class: "authored",
+    value: 3,
+    material: true,
+    controls:
+      "ink multiplier on THE HAND's possession clip through the ONE beat, fading " +
+      "out across the game phase as the walk re-lays the same records. DRIP is " +
+      "tuned for thousands of strokes and a LONE possession at that flow sits " +
+      "within ~20/255 of the plate's black (third audit F1: the beat's argument " +
+      "was not on screen). This KNOWINGLY bends the one-conserved-DRIP rule for " +
+      "exactly one beat, and says so here; the capped segment ceiling still " +
+      "applies above it.",
+  },
   BEAD_CAP: {
     class: "authored",
     value: 24,
@@ -1450,6 +1463,7 @@ export const REVEAL_STEPS: number = SCALARS.REVEAL_STEPS.value;
 export const REVEAL_CURVE: number = SCALARS.REVEAL_CURVE.value;
 export const RESIDENCE_TONE_K: number = SCALARS.RESIDENCE_TONE_K.value;
 export const RESIDENCE_ALPHA: number = SCALARS.RESIDENCE_ALPHA.value;
+export const ONE_INK: number = SCALARS.ONE_INK.value;
 
 export const RIM_FT: number = SCALARS.RIM_FT.value;
 export const TRACE_LIT_FLOOR: number = SCALARS.TRACE_LIT_FLOOR.value;

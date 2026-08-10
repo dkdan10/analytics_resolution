@@ -96,8 +96,8 @@ function publishedInstead(data: Loaded): string[] {
  * bare in every act, which is the honest state of them. Every figure resolves
  * to a key in window.json — none is written here.
  */
-function windowValues(w: WindowFile | null): Map<string, string> {
-  const out = new Map<string, string>();
+function windowValues(w: WindowFile | null): Map<string, string[]> {
+  const out = new Map<string, string[]>();
   if (!w) return out;
   const inv = w.inventory;
   const widest = w.contest.buckets[w.contest.buckets.length - 1];
@@ -105,16 +105,20 @@ function windowValues(w: WindowFile | null): Map<string, string> {
     // A recovered-set proportion, so it is shown as one: the share carries the
     // scope tag the pipeline templated from its own coverage figure, and the
     // reader is never handed it as if it described the season (audit F-12).
-    const scope = w.bias.scope ? ` · ${w.bias.scope}` : "";
+    // TWO LINES since session 16 (third audit D-09): the tagged value was the
+    // row's widest string and stood struck through its neighbour's value for
+    // the whole close — the two honesty-load-bearing strings destroying each
+    // other. The share leads; the scope stands beneath it.
+    const share = `${(100 * widest.share).toFixed(1)}% ${widest.name.toUpperCase()}`;
     out.set("CLOSEST DEFENDER",
-      `${(100 * widest.share).toFixed(1)}% ${widest.name.toUpperCase()}${scope}`);
+      w.bias.scope ? [share, `· ${w.bias.scope}`] : [share]);
   }
-  out.set("SPEED & DISTANCE", `${inv.miles_run.toLocaleString()} MI`);
-  if (inv.per_game.drives !== null) out.set("DRIVES", `${inv.per_game.drives}/GAME`);
-  if (inv.per_game.touches !== null) out.set("TOUCHES", `${inv.per_game.touches}/GAME`);
-  if (inv.per_game.passes !== null) out.set("PASSING", `${inv.per_game.passes}/GAME`);
+  out.set("SPEED & DISTANCE", [`${inv.miles_run.toLocaleString()} MI`]);
+  if (inv.per_game.drives !== null) out.set("DRIVES", [`${inv.per_game.drives}/GAME`]);
+  if (inv.per_game.touches !== null) out.set("TOUCHES", [`${inv.per_game.touches}/GAME`]);
+  if (inv.per_game.passes !== null) out.set("PASSING", [`${inv.per_game.passes}/GAME`]);
   if (inv.mean_seconds_per_touch !== null) {
-    out.set("POSSESSIONS", `${inv.mean_seconds_per_touch}S/TOUCH`);
+    out.set("POSSESSIONS", [`${inv.mean_seconds_per_touch}S/TOUCH`]);
   }
   return out;
 }
@@ -741,12 +745,18 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
     ctx.globalAlpha = remains * LEAGUE_NAME_ALPHA * arriving;
     ctx.drawImage(lab.canvas, x - lab.width / 2, y - lab.height / 2, lab.width, lab.height);
 
-    // The value, when there is one to show, struck beneath its own name.
+    // The value, when there is one to show, struck beneath its own name —
+    // line by line, so a scope-tagged value stacks instead of running wide
+    // into its neighbour's figure (third audit D-09).
     const v = values.get(text);
     if (v) {
-      const vl = label(v, px * LEAGUE_VALUE_SCALE, dpr);
       ctx.globalAlpha = remains * LEAGUE_VALUE_ALPHA * arriving;
-      ctx.drawImage(vl.canvas, x - vl.width / 2, y + lab.height * 0.75, vl.width, vl.height);
+      let vy = y + lab.height * 0.75;
+      for (const line of v) {
+        const vl = label(line, px * LEAGUE_VALUE_SCALE, dpr);
+        ctx.drawImage(vl.canvas, x - vl.width / 2, vy, vl.width, vl.height);
+        vy += vl.height;
+      }
     }
   }
   ctx.restore();

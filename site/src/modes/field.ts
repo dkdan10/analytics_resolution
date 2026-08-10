@@ -13,6 +13,7 @@
  */
 
 import { drawInscriptions, drawSlug } from "../inscription";
+import { SEASON_SECONDS, secondsFor } from "../timeline";
 import type { Frame } from "./types";
 import { drawSeasonField } from "./fieldlayer";
 
@@ -33,8 +34,17 @@ export function drawFieldHand(f: Frame): void {
   drawSeasonField(f, { coloured: true, dim: remains, residence: true, reveal: true });
 
   // Whose categories these are, named on the plate rather than only on a wall.
-  if (st.phase < 0.34) {
-    const fade = Math.min(1, st.phase * 8) * Math.min(1, (0.34 - st.phase) * 8) * remains;
+  // Clocked in SECONDS, not phase (third audit, FIELD improvement 3): the
+  // attribution held a few seconds in an ordinary season but nearly a minute in the dilated
+  // window — the longest-lived sentence in the piece, over the act with the
+  // most competing material. The spans below reproduce the judged ordinary-
+  // season timing exactly (byte-identical there) and give the window the same
+  // few seconds; a viewer entering mid-window catches it next season.
+  const sIn = st.phase * secondsFor(st.year!);
+  const spanS = 0.34 * SEASON_SECONDS;
+  const rampS = SEASON_SECONDS / 8;
+  if (sIn < spanS) {
+    const fade = Math.min(1, sIn / rampS) * Math.min(1, (spanS - sIn) / rampS) * remains;
     drawSlug(ctx, view, ["COLOURED BY THE NBA'S OWN ZONES"], { x: 0, y: 400 }, fade);
   }
 }

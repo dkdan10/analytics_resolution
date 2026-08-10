@@ -4,7 +4,7 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**141 scalars**, 101 of them material: 2 measured, 3 geometry, 136 authored.
+**142 scalars**, 102 of them material: 2 measured, 3 geometry, 137 authored.
 
 A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts`, `prefix.ts`, `inscription.ts`, `modes/ledger.ts`, `modes/census.ts`, `palette.ts`, `modes/stack.ts`, `modes/operations.ts`, `modes/fieldlayer.ts`, `game.ts`, `wash.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
@@ -114,6 +114,8 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   opacity ceiling on one filament segment, so the slowest bodies cannot go fully opaque.
 - **FILAMENT_ALPHA_K** — **0.5**  
   how much of DRIP reaches opacity rather than width when ink is split between the two.
+- **ONE_INK** — **3**  
+  ink multiplier on THE HAND's possession clip through the ONE beat, fading out across the game phase as the walk re-lays the same records. DRIP is tuned for thousands of strokes and a LONE possession at that flow sits within ~20/255 of the plate's black (third audit F1: the beat's argument was not on screen). This KNOWINGLY bends the one-conserved-DRIP rule for exactly one beat, and says so here; the capped segment ceiling still applies above it.
 - **BEAD_CAP** — **24**  
   the most beads one broken segment may lay. A bound on work, not on physics: past it the beads are closer than a pixel anyway.
 - **POOL_EXCESS_K** — **0.5**  

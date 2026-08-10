@@ -127,6 +127,7 @@ import {
   DROP_MIN_R,
   FILAMENT_ALPHA_CAP,
   FILAMENT_ALPHA_K,
+  ONE_INK,
   GAME_DRIED,
   KEPT_OVER_PAINT,
   POOL_ALPHA_CAP,
@@ -375,6 +376,7 @@ export function paintStroke(
   drawn: number,
   r: Regimes,
   fromDrawn = 0,
+  ink = 1,
 ): void {
   const first = s.first[i]!;
   const n = s.count[i]!;
@@ -394,7 +396,12 @@ export function paintStroke(
     // 25 Hz before simplification, so this is unaffected by how few control
     // points survived.
     const v = arcT / 10 / (dt / 25);
-    const { rad, alpha } = filament(v, r);
+    const seg = filament(v, r);
+    // `ink` is ONE_INK's beat-local envelope (default 1 everywhere else): a
+    // lone possession at the conserved flow sat within a hair of the plate's
+    // black. The segment ceiling still caps it.
+    const rad = seg.rad;
+    const alpha = Math.min(FILAMENT_ALPHA_CAP, seg.alpha * ink);
 
     const x0 = view.sx(s.x[a]!);
     const y0 = view.sy(s.y[a]!);
@@ -805,6 +812,11 @@ export function drawHandHand(f: Frame): void {
       // record, no double-deposit and no recede.
       const oneFrames = st.phase * secondsFor(WINDOW_YEAR) * gf.hz;
       const clipUpto = Math.min(pos.f1, pos.f0 + oneFrames);
+      // ONE_INK: the beat-local envelope (third audit F1 / §1(d) #4). Full
+      // through the ONE beat, fading out across the game phase as the eased
+      // walk re-lays the same records at the conserved flow — no pop at the
+      // handover, and no boosted segment survives past the beat it argues.
+      const oneInk = 1 + (ONE_INK - 1) * (1 - win.game);
       ctx.save();
       ctx.globalAlpha = gEnv;
       for (let i = 0; i < gm.n; i++) {
@@ -817,7 +829,7 @@ export function drawHandHand(f: Frame): void {
         const drawn = timeFrac(gm, i, clipUpto - at0);
         if (drawn > 0) {
           paintStroke(ctx, view, gm as unknown as Strokes, i, drawn, r,
-            timeFrac(gm, i, pos.f0 - at0));
+            timeFrac(gm, i, pos.f0 - at0), oneInk);
         }
       }
       ctx.restore();
@@ -924,9 +936,14 @@ export function drawHandHand(f: Frame): void {
   // MEASURE and THE LEDGER disclose that; this hand presents the same subset as
   // a picture of 2015-16 and said nothing. The line is templated by the pipeline
   // from the figures it quotes and drawn verbatim - the piece never composes it.
+  // REBOUND to the layer it qualifies (third audit D-17): the disclosure
+  // scopes the DROPS, which persist through the close — so its alpha no longer
+  // carries (1 - wash), and it stands beside the drops at the close's end when they
+  // most resemble a picture of the season. Anchored at the top of the plate,
+  // outside the orange mass that made it illegible at the crest.
   if (inWindow && w?.bias.scope && win) {
-    drawSlug(ctx, view, [w.bias.scope], { x: 0, y: -30 },
-      remains * win.one * (1 - win.wash) * 0.42);
+    drawSlug(ctx, view, [w.bias.scope], { x: 0, y: 370 },
+      remains * win.one * 0.42);
   }
 
   if (!inWindow && st.year === WINDOW_YEAR + 1) {

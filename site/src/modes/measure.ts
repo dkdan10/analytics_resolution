@@ -374,14 +374,35 @@ function beatOne(f: Frame, w: WindowFile, k: number): void {
   ring(ctx, view, p[2]!, p[3]!, a * HERO_RING_ALPHA);
   caliper(ctx, view, p[0]!, p[1]!, p[2]!, p[3]!, a * HERO_ALPHA);
 
-  // The number changing as the defender closes, struck at the midpoint.
+  // The number changing as the defender closes — struck along the caliper's
+  // PERPENDICULAR, pushed out just far enough that it can never cross the
+  // defender's ring (third audit D-16: the terminal state of a Very Tight
+  // measure held over a third of the beat with the numeral through the ring's stroke).
+  // For a long caliper the offsets reduce to the composition's own 14 and 22.
   const dist = Math.hypot(p[2]! - p[0]!, p[3]! - p[1]!) / 10;
-  strikeFigure(ctx, view, struck(dist), "",
-    (p[0]! + p[2]!) / 2, (p[1]! + p[3]!) / 2 + 14, a * 0.75, 15);
+  const mx = (p[0]! + p[2]!) / 2;
+  const my = (p[1]! + p[3]!) / 2;
+  const clen = Math.hypot(p[2]! - p[0]!, p[3]! - p[1]!);
+  let ux = 0;
+  let uy = 1;
+  if (clen > 0) {
+    ux = -(p[3]! - p[1]!) / clen;
+    uy = (p[2]! - p[0]!) / clen;
+    if (uy < 0) {
+      ux = -ux;
+      uy = -uy;
+    }
+  }
+  const half = clen / 2;
+  const ringClear = DEFENDER_RING_R + 6;
+  const clear = Math.sqrt(Math.max(0, ringClear * ringClear - half * half));
+  const off = Math.max(14, clear);
+  strikeFigure(ctx, view, struck(dist), "", mx + ux * off, my + uy * off, a * 0.75, 15);
 
   if (t >= 1) {
+    const offName = Math.max(22, clear);
     strikeFigure(ctx, view, "", h.bucket_name.toUpperCase(),
-      (p[0]! + p[2]!) / 2, (p[1]! + p[3]!) / 2 - 22, a * 0.6, 15);
+      mx - ux * offName, my - uy * offName, a * 0.6, 15);
   }
 
   // `voice`: what a caliper IS, said once, over the one shot that shows it.
