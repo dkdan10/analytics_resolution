@@ -867,11 +867,25 @@ def measure_occupancy(frames):
     Folded onto the plate's own halfcourt frame, so dwell and attempts can be
     read in the same bands. Available only here, because this is the only
     period with a ball to follow.
+
+    THE WASH's half (session 15): every tracked body as well, folded toward its
+    OWN nearer hoop - the ball grid's rule applied per body - on the same 1-ft
+    lattice. Counted whether or not the moment carries a ball, because the
+    bodies are tracked whether or not the ball is.
     """
     bands = [0] * len(OCCUPANCY_BANDS)
     grid = Counter()
     total = 0
+    body_grid = Counter()
+    body_total = 0
     for f in frames:
+        for row in f[4]:
+            bhoop = (HOOP_RIGHT_X if abs(row[2] - HOOP_RIGHT_X) < abs(row[2] - HOOP_LEFT_X)
+                     else HOOP_LEFT_X)
+            bfx, bfy = to_shot_frame(row[2], row[3], bhoop)
+            if abs(bfx) <= HALFCOURT_X_TENTHS and -50 <= bfy <= HALFCOURT_Y_TENTHS:
+                body_grid[(int(bfx // 10), int(bfy // 10))] += 1
+                body_total += 1
         ball = f[3]
         if ball is None:
             continue
@@ -887,7 +901,8 @@ def measure_occupancy(frames):
             # 1-ft bins, the same lattice aggregate.py grids attempts on.
             grid[(int(fx // 10), int(fy // 10))] += 1
         total += 1
-    return {"bands": bands, "total": total, "grid": grid}
+    return {"bands": bands, "total": total, "grid": grid,
+            "body_grid": body_grid, "body_total": body_total}
 
 
 # --- one game ----------------------------------------------------------------
@@ -1146,6 +1161,10 @@ def derive_game(archive_path, anchors_by_game, label):
         "occupancy_bands": occupancy["bands"],
         "occupancy_total": occupancy["total"],
         "occupancy_grid": {f"{k[0]},{k[1]}": v for k, v in occupancy["grid"].items()},
+        # THE WASH's per-game half: exactly two keys, so the session-15
+        # determinism tripwire can state its own pass condition.
+        "body_grid": {f"{k[0]},{k[1]}": v for k, v in occupancy["body_grid"].items()},
+        "body_total": occupancy["body_total"],
         "measures": measures,
     }
 
@@ -1310,6 +1329,13 @@ QUARREL_BYTES = 9
 # copies cannot drift apart silently.
 QUARREL_PLATE_X = (-250, 250)
 QUARREL_PLATE_Y = (-50, 420)
+
+# THE WASH's raster box, in 1-ft bins of the shot frame (bin b covers
+# [10b, 10b+10) tenths): x -25..25, y -5..42 - exactly the cells the ball
+# occupancy grid can produce under the same bounds check, so the dense raster
+# is the sparse grid's own domain and nothing is clipped by the layout.
+WASH_X0, WASH_X1 = -25, 25
+WASH_Y0, WASH_Y1 = -5, 42
 
 # The caliper's field ceiling, in tenths of a foot.
 #
@@ -1577,6 +1603,8 @@ def reduce_all():
     occupancy_bands = [0] * len(OCCUPANCY_BANDS)
     occupancy_total = 0
     occupancy_grid = Counter()
+    wash_by_date = {}
+    wash_positions = 0
     approach_sum = [0.0] * (int(2.0 * HZ) + 1)
     approach_n = [0] * (int(2.0 * HZ) + 1)
     bucket_counts = [0] * len(DEFENDER_BUCKETS)
@@ -1694,6 +1722,17 @@ def reduce_all():
         for k, v in g["occupancy_grid"].items():
             occupancy_grid[k] += v
 
+        # Hard key, deliberately: a per-game artifact without the body
+        # occupancy predates THE WASH, and folding it would ship rasters whose
+        # days silently undercount the games that sat in them. Re-derive; do
+        # not let a stale intermediate pass as a thin day.
+        if "body_grid" not in g:
+            die(f"{p.name} carries no body occupancy - re-run the derive stage")
+        day_grid = wash_by_date.setdefault(g["date"], Counter())
+        for k, v in g["body_grid"].items():
+            day_grid[k] += v
+            wash_positions += v
+
         for m in g["measures"]:
             residuals.append(m["residual"])
             b = m["bucket"]
@@ -1767,6 +1806,23 @@ def reduce_all():
             q_off_plate += 1
         qblob += struct.pack(QUARREL_REC, fx, fy, bxi, byi, min(255, d.days))
     (PROCESSED_DIR / "quarrel.bin").write_bytes(bytes(qblob))
+
+    # THE WASH, packed: one dense body-occupancy raster per day the corpus
+    # played, uint32 LE, row-major y then x on the shot frame's own 1-ft
+    # lattice. Chronological by day and only chronological. There is
+    # deliberately NO corpus-wide second grid: a sum a client can take is a
+    # sum this stage does not have to prove twice, so the total ships as a
+    # number and qa.py recomputes it from these bytes.
+    wash_dates = sorted(wash_by_date)
+    wash_cols = WASH_X1 - WASH_X0 + 1
+    wash_rows = WASH_Y1 - WASH_Y0 + 1
+    wblob = bytearray()
+    for wdate in wash_dates:
+        day_grid = wash_by_date[wdate]
+        for yb in range(WASH_Y0, WASH_Y1 + 1):
+            for xb in range(WASH_X0, WASH_X1 + 1):
+                wblob += struct.pack("<I", day_grid.get(f"{xb},{yb}", 0))
+    (PROCESSED_DIR / "wash.bin").write_bytes(bytes(wblob))
 
     residuals.sort()
     n = len(residuals)
@@ -2212,6 +2268,32 @@ def reduce_all():
             ],
             "frames_total": occupancy_total,
             "grid": dict(sorted(occupancy_grid.items())),
+        },
+        # THE WASH (session 15): the four scales' dried ground. One raster per
+        # game day; the renderer folds them, and the fold's subset->superset
+        # ordering is BY MEASURE because every scale sums the same cells.
+        "wash": {
+            "path": "wash.bin",
+            "day0": day0,
+            # Window-day index of each raster, in the raster order of the file.
+            "days": [
+                (datetime.date.fromisoformat(d) - datetime.date.fromisoformat(day0)).days
+                for d in wash_dates
+            ],
+            "rows": wash_rows,
+            "cols": wash_cols,
+            "x0": WASH_X0,
+            "y0": WASH_Y0,
+            "cell_ft": 1,
+            "dtype": "<u4",
+            "order": "row-major y then x, days chronological",
+            "bytes": len(wblob),
+            "positions_total": wash_positions,
+            "fold": ("each body toward its own nearer hoop - the ball grid's "
+                     "own rule, applied per body"),
+            "note": ("per-game-day body-occupancy rasters; a cell is a count "
+                     "of tracked positions, nothing else - no identity, no "
+                     "order within a day, no clock"),
         },
         # THE FEED'S OWN TIMING, shipped because a constant derived from it
         # should be checkable against it. Everything downstream segments at
