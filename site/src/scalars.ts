@@ -244,6 +244,47 @@ export const SCALARS = {
       "lower it and the window's ground goes back to bare stone.",
   },
 
+  // --- the wet day — the window fold's visible front (session 17) ----------
+  //
+  // THE WET DAY (fourth audit, both blind runs independently, ruled
+  // 2026-08-10): the window's season fold is honest but sub-liminal — a
+  // single day's ink, spread over the whole court, lands below the
+  // per-second visibility threshold at every instant of the beat.
+  // So the live calendar day's records draw WET: each lands at an EXCESS above
+  // its folded tone increment and dries back to exactly that increment as the
+  // calendar advances. The excess is a multiple of the increment already
+  // present — never a second copy of the mark, never a new coordinate, never
+  // an authored order — so the front is the record's own filing made visible,
+  // and the drying is day-grained because the artifact ships no intra-day
+  // chronology. The front anneals to zero before the close's flood: the
+  // pre-flood frame is byte-identical to the fold without it.
+  WINDOW_WET_GAIN: {
+    class: "authored",
+    value: 3,
+    material: true,
+    controls:
+      "how far above its folded tone a record lands while its day is wet — " +
+      "the excess is this multiple of the record's own fold increment, " +
+      "drying back to exactly that increment. At 0 the front vanishes and " +
+      "the season beat returns to its sub-liminal fold; low and the front " +
+      "sinks under the finished game web; high and the live day outshines " +
+      "the accumulated season it is filing into. Probe-chosen in session 17: " +
+      "the smallest value whose front sustains the ledger-interior " +
+      "visibility class at a median-sized day.",
+  },
+  WINDOW_WET_DAYS: {
+    class: "authored",
+    value: 1,
+    material: true,
+    controls:
+      "how many trailing calendar days stay visibly wet behind the live one " +
+      "— the drying ladder's depth, linear per day at the artifact's own " +
+      "day grain. At 0 only the live day glows and sparse days flicker the " +
+      "front out between arrivals; more and the front widens into a band " +
+      "that trails the calendar, at one extra trailing-day refold per day " +
+      "crossing.",
+  },
+
   // --- bloom.ts — Act III's traces -----------------------------------------
   RIM_FT: {
     class: "geometry",
@@ -1463,6 +1504,8 @@ export const REVEAL_STEPS: number = SCALARS.REVEAL_STEPS.value;
 export const REVEAL_CURVE: number = SCALARS.REVEAL_CURVE.value;
 export const RESIDENCE_TONE_K: number = SCALARS.RESIDENCE_TONE_K.value;
 export const RESIDENCE_ALPHA: number = SCALARS.RESIDENCE_ALPHA.value;
+export const WINDOW_WET_GAIN: number = SCALARS.WINDOW_WET_GAIN.value;
+export const WINDOW_WET_DAYS: number = SCALARS.WINDOW_WET_DAYS.value;
 export const ONE_INK: number = SCALARS.ONE_INK.value;
 
 export const RIM_FT: number = SCALARS.RIM_FT.value;

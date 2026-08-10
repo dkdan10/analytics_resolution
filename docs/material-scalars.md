@@ -4,7 +4,7 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**142 scalars**, 102 of them material: 2 measured, 3 geometry, 137 authored.
+**144 scalars**, 104 of them material: 2 measured, 3 geometry, 139 authored.
 
 A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts`, `prefix.ts`, `inscription.ts`, `modes/ledger.ts`, `modes/census.ts`, `palette.ts`, `modes/stack.ts`, `modes/operations.ts`, `modes/fieldlayer.ts`, `game.ts`, `wash.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
@@ -52,6 +52,10 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   how fast a cell's share of the ball's measured time saturates toward full glow. Lower and only the densest corridors of the ball's traffic survive the tone curve while the mid-floor sinks to nothing; higher and the whole window ground flattens toward one undifferentiated sheet, which is atmosphere — rule 3's exact failure for this layer.
 - **RESIDENCE_ALPHA** — **0.35**  
   how much of the stone's light is the ball's time, under the shots' endings — the whole-layer weight the beat envelope multiplies. The residence may never outshine the record it contextualises: raise it and the dwelling starts to compete with the endings for the plate; lower it and the window's ground goes back to bare stone.
+- **WINDOW_WET_GAIN** — **3**  
+  how far above its folded tone a record lands while its day is wet — the excess is this multiple of the record's own fold increment, drying back to exactly that increment. At 0 the front vanishes and the season beat returns to its sub-liminal fold; low and the front sinks under the finished game web; high and the live day outshines the accumulated season it is filing into. Probe-chosen in session 17: the smallest value whose front sustains the ledger-interior visibility class at a median-sized day.
+- **WINDOW_WET_DAYS** — **1**  
+  how many trailing calendar days stay visibly wet behind the live one — the drying ladder's depth, linear per day at the artifact's own day grain. At 0 only the live day glows and sparse days flicker the front out between arrivals; more and the front widens into a band that trails the calendar, at one extra trailing-day refold per day crossing.
 - **TRACE_LIT_FLOOR** — **0.1**  
   how lit a trace is at floor level, before the ball's height adds any.
 - **TRACE_LIT_RANGE** — **0.62**  

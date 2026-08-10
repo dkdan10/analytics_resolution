@@ -34,6 +34,8 @@ import {
   SPLAT_SPACING_K,
   TONE_CEILING,
   TONE_K,
+  WINDOW_WET_DAYS,
+  WINDOW_WET_GAIN,
 } from "./scalars";
 
 /** Bytes per record in points/season_YYYY.bin — must match POINT_DTYPE. */
@@ -1003,6 +1005,219 @@ function windowFoldLayer(
 }
 
 /**
+ * THE WET DAY (session 17, the fourth audit's convergent proposal, ruled
+ * 2026-08-10). The fold above is honest but sub-liminal: a single day's ink,
+ * spread across the whole court, sits below the per-second visibility
+ * threshold for the entire season beat. So the live calendar day's arrived
+ * records — plus the trailing WINDOW_WET_DAYS — draw at an EXCESS above their
+ * folded tone, drying back to exactly that tone:
+ *
+ *   wet(r) = WINDOW_WET_GAIN · Δr · decay(age) · anneal(d0)
+ *
+ * where Δr is the record's own fold increment (the same tone arithmetic the
+ * fold splats), decay is linear per day of age at the artifact's own day grain
+ * (no intra-day chronology ships, so none is drawn: a day ages as a unit), and
+ * anneal takes the front to zero at the same day grain before the calendar
+ * exhausts — the last day draws no wet, so the pre-flood frame equals the bare
+ * fold byte-for-byte and the flood branch never sees wet. Continuity by
+ * construction: a record lands at Δ·(1+GAIN·decay·anneal) and dries TO Δ,
+ * never through it — the excess is a multiple of the increment already in the
+ * fold, not a second copy of the mark.
+ *
+ * Two surfaces, both existing idioms. The live day is an incremental fold
+ * (the Reveal contract: persistent acc + putImageData mirror, backwards
+ * rebuilds from zero); the trailing days are a Delta-style refold-from-zero
+ * once per day crossing (~a day's records, the crossfade-batch class). Decay
+ * is baked into the trail canvas per day; anneal rides the blit alpha — both
+ * pure functions of d0, so every drawn byte is a pure function of
+ * (geometry, palette, pin, asset, d0, arrived prefix). Cleared by
+ * `clearLayers`, which `cold()` calls.
+ */
+
+interface WetLive {
+  key: string;
+  d0: number;
+  /** Absolute fold positions [liveStart, applied) folded into img. */
+  applied: number;
+  acc: Float32Array;
+  img: ImageData;
+  canvas: HTMLCanvasElement;
+  layer: Layer | null;
+  w: number;
+  h: number;
+}
+
+const wetLives = new Map<string, WetLive>();
+
+interface WetTrail {
+  key: string;
+  /** Which live day's trailing band is folded into `img`; -1 before the first. */
+  d0: number;
+  img: ImageData;
+  canvas: HTMLCanvasElement;
+  layer: Layer | null;
+  w: number;
+  h: number;
+}
+
+const wetTrails = new Map<string, WetTrail>();
+
+/** One wet record: its fold increment at GAIN·decay, through the same splat
+ *  the fold itself used. */
+function splatWet(
+  acc: Float32Array,
+  img: Uint8ClampedArray,
+  w: number,
+  h: number,
+  view: View,
+  dpr: number,
+  sp: Splat,
+  dayPts: DayPoints,
+  plan: DayFoldPlan,
+  j: number,
+  gain: number,
+  bone: number[],
+  zoneRGB: number[][],
+  coloured: boolean,
+): void {
+  const i = plan.order[j]!;
+  const before = plan.cumBefore[j]!;
+  const after = before + dayPts.count[i]!;
+  const a =
+    (gain * (tone(after / dayPts.total, 1) - tone(before / dayPts.total, 1))) / sp.overlap;
+  const rgb = coloured ? (zoneRGB[dayPts.zone[i]!] ?? bone) : bone;
+  splatCell(acc, w, h, view, dpr, sp, dayPts.x[i]!, dayPts.y[i]!, a, rgb, img);
+}
+
+/** The front's fade-out, at the day grain the aging keeps: 1 deep in the
+ *  season, stepping to exactly 0 on the calendar's last day — so the final
+ *  day's frames are the bare fold, byte-for-byte, before the flood swaps in
+ *  the finished layer. Derived from the wet ladder's own depth; no scalar. */
+function wetAnneal(d0: number, windowLast: number): number {
+  return Math.min(1, Math.max(0, (windowLast - d0) / (WINDOW_WET_DAYS + 1)));
+}
+
+function wetLiveLayer(
+  year: number,
+  dayPts: DayPoints,
+  plan: DayFoldPlan,
+  coloured: boolean,
+  view: View,
+  dpr: number,
+  d0: number,
+  liveStart: number,
+  prefix: number,
+): Layer | null {
+  if (prefix <= liveStart) return null;
+  const key = `wetlive|${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${plan.pinKey}|a${foldAssetId(dayPts)}`;
+  const w = Math.max(1, Math.round(view.width * dpr));
+  const h = Math.max(1, Math.round(view.height * dpr));
+
+  let r = wetLives.get(key);
+  if (r && (r.w !== w || r.h !== h)) r = undefined;
+  // A new day or a backwards scrub rebuilds from zero: the fold has no inverse,
+  // and a day's front carries only its own arrived records.
+  if (r && (r.d0 !== d0 || r.applied > prefix)) {
+    r.d0 = d0;
+    r.applied = liveStart;
+    r.layer = null;
+    r.acc.fill(0);
+    r.img.data.fill(0);
+  }
+  if (!r) {
+    const img = new ImageData(w, h);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    r = {
+      key, d0, applied: liveStart,
+      acc: new Float32Array(w * h * 3), img, canvas, layer: null, w, h,
+    };
+  }
+
+  if (r.applied < prefix || r.layer === null) {
+    const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
+    const zoneRGB = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
+    const sp = splatOf(view, dpr);
+    for (let j = Math.max(r.applied, liveStart); j < prefix; j++) {
+      splatWet(r.acc, r.img.data, w, h, view, dpr, sp, dayPts, plan, j,
+        WINDOW_WET_GAIN, bone, zoneRGB, coloured);
+    }
+    r.applied = prefix;
+    r.canvas.getContext("2d")!.putImageData(r.img, 0, 0);
+    r.layer = { canvas: r.canvas, key: `${key}|d${d0}|c${prefix}` };
+  }
+
+  wetLives.set(key, r);
+  // At most two palettes of one live day; eviction costs a rebuild.
+  if (wetLives.size > 2) {
+    const oldest = wetLives.keys().next().value;
+    if (oldest !== undefined && oldest !== key) wetLives.delete(oldest);
+  }
+  return r.layer;
+}
+
+function wetTrailLayer(
+  year: number,
+  dayPts: DayPoints,
+  plan: DayFoldPlan,
+  coloured: boolean,
+  view: View,
+  dpr: number,
+  d0: number,
+): Layer | null {
+  if (WINDOW_WET_DAYS <= 0 || d0 <= 0) return null;
+  const key = `wettrail|${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${plan.pinKey}|a${foldAssetId(dayPts)}`;
+  const w = Math.max(1, Math.round(view.width * dpr));
+  const h = Math.max(1, Math.round(view.height * dpr));
+
+  let r = wetTrails.get(key);
+  if (r && (r.w !== w || r.h !== h)) r = undefined;
+  if (!r) {
+    const img = new ImageData(w, h);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    r = { key, d0: -1, img, canvas, layer: null, w, h };
+  }
+
+  if (r.d0 !== d0 || r.layer === null) {
+    // Refold from zero on every day crossing: a trailing band is at most a
+    // few days' records, nothing worth advancing in place. Decay per day is
+    // baked here — constant while d0 holds — so the blit needs one alpha.
+    r.img.data.fill(0);
+    const acc = accOf(w * h * 3);
+    const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
+    const zoneRGB = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
+    const sp = splatOf(view, dpr);
+    for (let age = 1; age <= WINDOW_WET_DAYS; age++) {
+      const d = d0 - age;
+      if (d < 0) continue;
+      // The seed day's range is empty by construction (its records fold at
+      // the night), and so are the dead days': bCum simply holds no records
+      // there — the front honestly skips what the calendar did not file.
+      const from = plan.seedCount + plan.bCum[d]!;
+      const to = plan.seedCount + plan.bCum[d + 1]!;
+      const decay = 1 - age / (WINDOW_WET_DAYS + 1);
+      for (let j = from; j < to; j++) {
+        splatWet(acc, r.img.data, w, h, view, dpr, sp, dayPts, plan, j,
+          WINDOW_WET_GAIN * decay, bone, zoneRGB, coloured);
+      }
+    }
+    r.d0 = d0;
+    r.canvas.getContext("2d")!.putImageData(r.img, 0, 0);
+    r.layer = { canvas: r.canvas, key: `${key}|d${d0}` };
+  }
+
+  wetTrails.set(key, r);
+  if (wetTrails.size > 2) {
+    const oldest = wetTrails.keys().next().value;
+    if (oldest !== undefined && oldest !== key) wetTrails.delete(oldest);
+  }
+  return r.layer;
+}
+
+/**
  * Draw the window season's base on its own calendar. The finished layer is
  * baked at the window's OPENING frame (the reveal's own staging idiom), so the
  * close-flood is a blit swap whose cold cost sat at an attributable boundary;
@@ -1034,6 +1249,22 @@ export function drawWindowReveal(
   const prefix = foldPrefix(plan, clock, windowLast);
   if (prefix <= 0) return;
   drawLayer(ctx, windowFoldLayer(year, dayPts, plan, coloured, view, dpr, prefix), view, dim);
+
+  // THE WET DAY: the front rides the same clock as the fold it excites. Off
+  // during the seed's rise (dayFrac 0 — one and the night stay byte-identical)
+  // and annealed to nothing before the flood (the close never sees wet).
+  if (clock.dayFrac > 0) {
+    const d0 = Math.min(windowLast, Math.floor(clock.dayFrac));
+    const anneal = wetAnneal(d0, windowLast);
+    if (anneal > 0) {
+      const trail = wetTrailLayer(year, dayPts, plan, coloured, view, dpr, d0);
+      if (trail) drawLayer(ctx, trail, view, dim * anneal);
+      const liveStart = plan.seedCount + plan.bCum[d0]!;
+      const live = wetLiveLayer(
+        year, dayPts, plan, coloured, view, dpr, d0, liveStart, prefix);
+      if (live) drawLayer(ctx, live, view, dim * anneal);
+    }
+  }
 }
 
 export function clearLayers(): void {
@@ -1041,6 +1272,8 @@ export function clearLayers(): void {
   reveals.clear();
   deltas.clear();
   windowFolds.clear();
+  wetLives.clear();
+  wetTrails.clear();
   residence = null;
 }
 
