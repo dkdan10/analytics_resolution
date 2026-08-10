@@ -558,7 +558,7 @@ export function drawLedgerHand(f: Frame): void {
 
   // The marks recede: here the description is the subject, and the dot is what
   // the description is about.
-  drawSeasonField(f, { dim: remains * 0.42 });
+  drawSeasonField(f, { dim: remains * 0.42, reveal: true });
 
   // The labels still address the fixed-seed sample, and must. At full density a
   // label would live a fraction of a frame - the arrival window advances far

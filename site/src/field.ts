@@ -218,12 +218,37 @@ function splatCell(
   }
 }
 
+/**
+ * Scratch for the bakes — reused, not reallocated, and that is a measured GC
+ * repair, not an optimisation taste: each bake used to allocate a ~44 MB
+ * float accumulator and a ~15 MB ImageData and drop both, and the major GC
+ * collecting them landed as a frame several times the budget in the middle
+ * of a season (measured this session at census@after-the-cut, with the pause
+ * moving between runs — the classic signature). Both buffers are fully
+ * overwritten
+ * before every read — the accumulator by `fill(0)` and the fold, the image by
+ * the quantize loop writing every pixel — so no byte survives from one bake
+ * to the next and the output stays a pure function of the bake's inputs.
+ * `clearLayers` drops them; holding them is the memory side of the trade the
+ * layer cache already accepts.
+ */
+let scratchAcc: Float32Array | null = null;
+let scratchImg: ImageData | null = null;
+
+function accOf(len: number): Float32Array {
+  if (!scratchAcc || scratchAcc.length !== len) scratchAcc = new Float32Array(len);
+  else scratchAcc.fill(0);
+  return scratchAcc;
+}
+
 /** Quantize a float accumulation once, onto a fresh canvas — the single point
  *  where the field becomes 8-bit. Every surface this produces is written in
  *  one `putImageData` burst and never drawn on again (the prefix.ts
  *  discipline; the bytes are a pure function of `acc`). */
 function quantize(acc: Float32Array, w: number, h: number): HTMLCanvasElement {
-  const img = new ImageData(w, h);
+  const img = scratchImg && scratchImg.width === w && scratchImg.height === h
+    ? scratchImg
+    : (scratchImg = new ImageData(w, h));
   const data = img.data;
   const px = w * h;
   for (let p = 0, o = 0, q = 0; p < px; p++, o += 4, q += 3) {
@@ -293,7 +318,7 @@ export function bakeLayer(
   // channel level for all but the densest coordinates, so summing into an
   // ImageData directly rounds almost every shot in the record away to nothing -
   // which is exactly the failure this whole approach exists to avoid.
-  const acc = new Float32Array(w * h * 3);
+  const acc = accOf(w * h * 3);
 
   const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
   const zoneRGB = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
@@ -356,18 +381,19 @@ export function drawDeveloping(
   if (p <= 0 || dim <= 0.002) return;
   const upper = Math.min(DEVELOP_STATES, Math.floor(p) + 1);
   const frac = p - (upper - 1);
-  // Each state's weight is tested BEFORE its bake is asked for: drawLayer
-  // would skip the blit at this alpha anyway, so the guard changes no pixel —
-  // it only stops a zero-weight argument from cold-baking a state nobody
-  // draws. Measured this session: at the top of the ladder (frac exactly 1,
-  // every tail frame) the lower term's bake ran once at weight 0 and cost a
-  // full-plate bake in the middle of the timed window.
-  if (upper > 1 && (1 - frac) * dim > 0.002) {
+  // The lower state is skipped exactly when its weight is zero — `frac` is 1
+  // only at the ladder's top, where the finished state draws alone. drawLayer
+  // would skip the blit anyway, so no pixel depends on this; what it stops is
+  // the zero-weight ARGUMENT cold-baking a state nobody ever draws (measured
+  // this session: a full-plate bake on the first tail frame, at alpha 0). An
+  // alpha-threshold guard was tried here and reverted: it deferred REAL bakes
+  // from a hand's first frame to the first frame their alpha cleared the
+  // blit's own floor, which moved the cost from a season's opening — where
+  // cold work belongs — to its middle.
+  if (upper > 1 && frac < 1) {
     drawLayer(ctx, bake(exposureStrength(upper - 1)), view, (1 - frac) * dim);
   }
-  if (frac * dim > 0.002) {
-    drawLayer(ctx, bake(exposureStrength(upper)), view, frac * dim);
-  }
+  drawLayer(ctx, bake(exposureStrength(upper)), view, frac * dim);
 }
 
 /**

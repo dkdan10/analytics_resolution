@@ -274,7 +274,7 @@ function drawAbsent(f: Frame): void {
   const { ctx, view, st, remains } = f;
   // Nothing is being measured here, so the field keeps most of its strength -
   // the absence is the subject and the marks are what is absent from.
-  drawSeasonField(f, { dim: remains * 0.8 });
+  drawSeasonField(f, { dim: remains * 0.8, reveal: true });
   const held = Math.min(1, st.phase * 3) * Math.min(1, (1 - st.phase) * 3);
   drawSlug(ctx, view, ["THE RECORD DOES NOT SAY WHO WAS NEAR"], { x: 0, y: 300 },
     remains * held * 0.55);
@@ -283,7 +283,7 @@ function drawAbsent(f: Frame): void {
 /** Act II: the names arrive; the values cannot be made by anyone outside. */
 function drawNamesOnly(f: Frame, w: WindowFile | null): void {
   const { ctx, view, st, remains } = f;
-  drawSeasonField(f, { dim: remains * 0.55 });
+  drawSeasonField(f, { dim: remains * 0.55, reveal: true });
 
   const names = w ? w.contest.buckets.map((b) => b.name) : [];
   const shown = Math.ceil(st.phase * names.length * 1.5);
@@ -309,7 +309,7 @@ function drawOrphaned(f: Frame, w: WindowFile | null): void {
   // the thing to be seen in them is four figures standing over four measures
   // with nothing inside them; at full strength the late-era rim blazes and the
   // empty calipers cannot be found at all.
-  drawSeasonField(f, { dim: remains * 0.4 });
+  drawSeasonField(f, { dim: remains * 0.4, reveal: true });
   if (!w) return;
 
   const buckets = w.contest.buckets;
@@ -623,7 +623,7 @@ export function drawMeasureHand(f: Frame): void {
   if (st.act === 3 && w) {
     // The field recedes almost entirely: for the whole of the window's dilated
     // segment the caliper is the subject and the dots are only where it lands.
-    drawSeasonField(f, { dim: remains * 0.3 });
+    drawSeasonField(f, { dim: remains * 0.3, reveal: true });
     const m = data.measures();
     const p = st.phase;
     if (p < BEAT.one[1]) beatOne(f, w, win(p, BEAT.one));

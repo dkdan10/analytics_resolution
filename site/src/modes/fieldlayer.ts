@@ -30,9 +30,18 @@ export interface FieldOpts {
   /** THE PER-MARK ARRIVAL (session 9, stage B): the arriving season's cells
    *  surface individually in the record's own emphasis order — descending
    *  filed count — instead of developing as one image. THE PLATE and THE
-   *  FIELD only (the hands the artist named); the dimmed text hands keep
-   *  stage A's development pending S2's measured budget decision. Recession
-   *  keeps A's develop-out in every hand, as ratified. */
+   *  FIELD (the hands the artist named), and since S2 LEDGER and MEASURE:
+   *  they share the plate's bone reveal surface (same cache key), and the
+   *  measured budget said yes — no new surfaces, every probed frame inside
+   *  budget. THE CENSUS stays on stage A BY MEASUREMENT: with the reveal it
+   *  showed a deterministic over-budget stall on the frame after the first
+   *  mid-season step crossing at after-the-cut, an order of magnitude past
+   *  the same crossing in every other hand (mechanism unattributed; the
+   *  measured figures are in the session-9 handoff) — so the hand that
+   *  already documents its own withPrevious exception keeps one more. THE
+   *  STACK's locate base is deliberately left on stage A — a talk-mode
+   *  instrument, outside the named scope. Recession keeps A's develop-out in
+   *  every hand, as ratified. */
   reveal?: boolean;
 }
 
