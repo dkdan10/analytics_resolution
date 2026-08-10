@@ -31,7 +31,6 @@
 import {
   factExternal,
   factNum,
-  type DefenderBucket,
   type HeroShot,
   type Measures,
   type WindowFile,
@@ -40,8 +39,6 @@ import { drawSlug } from "../inscription";
 import { BONE_RGB, INSCRIPTION_FAMILY } from "../palette";
 import type { View } from "../plate";
 import {
-  BUCKET_LABEL_ALPHA,
-  BUCKET_NAME_TENTHS,
   CALIPER_SERIF,
   CALIPER_SERIF_CLOSE,
   CALIPER_SERIF_FLOOD,
@@ -53,16 +50,12 @@ import {
   HERO_ALPHA,
   HERO_PATH_ALPHA,
   HERO_RING_ALPHA,
-  HERO_TAIL,
-  INSTANT_BAND_HALF_W,
-  INSTANT_CUT_ALPHA,
-  INSTANT_LINE_ALPHA,
   NAMES_ONLY_ALPHA,
-  SLUG_MIN_PX,
 } from "../scalars";
 import { label } from "../textatlas";
 import { WINDOW_BEATS } from "../timeline";
 import { drawSeasonField } from "./fieldlayer";
+import { arrivedThrough, cumulativeByDay, seasonClock } from "./shared";
 import type { Frame } from "./types";
 
 /** The four beats of Act III. Defined in timeline.ts, because the rail lists
@@ -345,71 +338,116 @@ function drawOrphaned(f: Frame, w: WindowFile | null): void {
 
 // --- Act III, four beats -----------------------------------------------------
 
-/** ONE — four shots, each with its caliper closing in real geometry. */
+/** ONE — a single shot, its caliper closing in real geometry. SINGULAR by the
+ *  crescendo ruling: the beat is one measure made watchable, and the crowd it
+ *  used to share the beat with (one hero per category) belongs to the flood
+ *  now. The first hero is the mechanical choice — flagged in the session-14
+ *  packet, one line to change. */
 function beatOne(f: Frame, w: WindowFile, k: number): void {
   const { ctx, view, remains } = f;
-  const heroes = w.contest.heroes;
-  if (!heroes.length) return;
+  const h: HeroShot | undefined = w.contest.heroes[0];
+  if (!h) return;
 
   const a = fade(k) * remains;
-  // Each hero runs in its own quarter of the beat, so the four categories are
-  // shown one at a time rather than as a crowd.
-  heroes.forEach((h: HeroShot, i: number) => {
-    const span = 1 / heroes.length;
-    const local = (k - i * span) / span;
-    if (local < 0 || local > 1.35) return;
-    const t = Math.min(1, local);
-    const frames = h.track.filter((p): p is number[] => p !== null);
-    if (!frames.length) return;
-    const idx = Math.min(frames.length - 1, Math.floor(t * (frames.length - 1)));
-    const p = frames[idx]!;
-    const alpha = a * (local > 1 ? Math.max(0, 1 - (local - 1) / HERO_TAIL) : 1);
+  // The closing takes most of the beat; the finished measure holds the rest,
+  // so the one number the beat makes is on the plate long enough to be read.
+  const t = Math.min(1, k / 0.62);
+  const frames = h.track.filter((p): p is number[] => p !== null);
+  if (!frames.length) return;
+  const idx = Math.min(frames.length - 1, Math.floor(t * (frames.length - 1)));
+  const p = frames[idx]!;
 
-    // The path the defender has already covered, so the closing is legible.
-    ctx.save();
-    ctx.strokeStyle = `rgba(${BONE_RGB}, ${alpha * HERO_PATH_ALPHA})`;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    frames.slice(0, idx + 1).forEach((q, j) => {
-      const px = view.sx(q[2]!);
-      const py = view.sy(q[3]!);
-      if (j === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    });
-    ctx.stroke();
-    ctx.restore();
-
-    ring(ctx, view, p[2]!, p[3]!, alpha * HERO_RING_ALPHA);
-    caliper(ctx, view, p[0]!, p[1]!, p[2]!, p[3]!, alpha * HERO_ALPHA);
-
-    // The number changing as the defender closes, struck at the midpoint.
-    const dist = Math.hypot(p[2]! - p[0]!, p[3]! - p[1]!) / 10;
-    strikeFigure(ctx, view, struck(dist), "",
-      (p[0]! + p[2]!) / 2, (p[1]! + p[3]!) / 2 + 14, alpha * 0.75, 15);
-
-    if (t >= 1) {
-      strikeFigure(ctx, view, "", h.bucket_name.toUpperCase(),
-        (p[0]! + p[2]!) / 2, (p[1]! + p[3]!) / 2 - 22, alpha * 0.6, 15);
-    }
+  // The path the defender has already covered, so the closing is legible.
+  ctx.save();
+  ctx.strokeStyle = `rgba(${BONE_RGB}, ${a * HERO_PATH_ALPHA})`;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  frames.slice(0, idx + 1).forEach((q, j) => {
+    const px = view.sx(q[2]!);
+    const py = view.sy(q[3]!);
+    if (j === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
   });
+  ctx.stroke();
+  ctx.restore();
+
+  ring(ctx, view, p[2]!, p[3]!, a * HERO_RING_ALPHA);
+  caliper(ctx, view, p[0]!, p[1]!, p[2]!, p[3]!, a * HERO_ALPHA);
+
+  // The number changing as the defender closes, struck at the midpoint.
+  const dist = Math.hypot(p[2]! - p[0]!, p[3]! - p[1]!) / 10;
+  strikeFigure(ctx, view, struck(dist), "",
+    (p[0]! + p[2]!) / 2, (p[1]! + p[3]!) / 2 + 14, a * 0.75, 15);
+
+  if (t >= 1) {
+    strikeFigure(ctx, view, "", h.bucket_name.toUpperCase(),
+      (p[0]! + p[2]!) / 2, (p[1]! + p[3]!) / 2 - 22, a * 0.6, 15);
+  }
 
   // `voice`: what a caliper IS, said once, over the one shot that shows it.
   drawSlug(ctx, view, ["ONE SHOT · THE DISTANCE AT THE MOMENT THE BALL LEAVES THE HAND"],
     { x: 0, y: 330 }, a * 0.45, "voice");
 }
 
-/** MANY — the rate climbs from one to all of them, in calendar order. */
-function beatMany(f: Frame, w: WindowFile, k: number, m: Measures | null): void {
+/** THE NIGHT — the slate date's measures, layering. The same manufacture the
+ *  opening beat showed once, made every few seconds somewhere in the league
+ *  for one real evening. The day bound comes from the slate artifact's own
+ *  key, never typed here. */
+function beatNight(f: Frame, w: WindowFile, k: number, m: Measures | null): void {
+  const { ctx, view, remains } = f;
+  const sf = f.data.slateFile;
+  if (!m || !m.n || !sf) return;
+  const a = fade(k) * remains;
+
+  const span = m.day[m.n - 1]!;
+  const cum = cumulativeByDay(m, m.day, m.n, (d) => d, span);
+  const from = sf.day > 0 ? cum[Math.min(span, sf.day - 1)]! : 0;
+  const to = cum[Math.min(span, sf.day)]!;
+  const upto = from + Math.round((to - from) * Math.min(1, k * 1.1));
+
+  const lo = Math.max(from, upto - CALIPER_BUDGET);
+  for (let i = lo; i < upto; i++) {
+    const age = (upto - i) / Math.max(1, upto - lo);
+    const fresh = (1 - age) * (1 - age);
+    const alpha = a * (FLOOD_ALPHA_BASE + FLOOD_ALPHA_FRESH * fresh);
+    caliper(ctx, view, m.x[i]!, m.y[i]!, m.dx[i]!, m.dy[i]!, alpha, CALIPER_SERIF_FLOOD);
+  }
+
+  // The night's own date, from the record's day byte — the same stamp the
+  // season beat sweeps.
+  const day0 = w.measures_bin.day0;
+  if (day0 && upto > from) {
+    const d = new Date(`${day0}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + (m.day[Math.min(upto, m.n) - 1] ?? 0));
+    drawSlug(ctx, view, [d.toISOString().slice(0, 10)], { x: 0, y: 360 }, a * 0.5);
+  }
+
+  // The count confesses the night's own scale; both figures are the
+  // artifact's, composed at runtime like the season beat's counter.
+  const drawn = Math.min(CALIPER_BUDGET, upto - from);
+  drawSlug(ctx, view, [
+    `${drawn.toLocaleString()} DRAWN OF ${(upto - from).toLocaleString()} MEASURED THAT NIGHT`,
+    `${sf.span.archives} GAMES · ONE EVENING`,
+  ], { x: 0, y: 330 }, a * 0.45);
+}
+
+/** THE SEASON — every measure the corpus holds, accelerating into the flood.
+ *
+ *  The volume beat the cut ruling made this hand about: the whole recovered
+ *  set arrives on its REAL calendar, compressed through the register's one
+ *  authored easing (`seasonClock`), so the beat opens near the night's own
+ *  pace and closes with weeks passing in a second — the machine's scale
+ *  performed rather than stated. The four dead days stay dead at speed. */
+function beatSeason(f: Frame, w: WindowFile, k: number, m: Measures | null): void {
   const { ctx, view, remains } = f;
   const a = fade(k) * remains;
-  const measured = w.recovery.measured;
 
-  // Exponential ramp: one, a few, a few dozen, hundreds, thousands, all of
-  // them. The eye is given a countable number for long enough to count it.
-  const reached = Math.max(1, Math.round(Math.pow(measured, Math.min(1, k * 1.12))));
-
+  let reached = 0;
   if (m && m.n) {
-    const upto = Math.min(m.n, Math.round((reached / measured) * m.n));
+    const span = m.day[m.n - 1]!;
+    const cum = cumulativeByDay(m, m.day, m.n, (d) => d, span);
+    const upto = arrivedThrough(cum, seasonClock(k) * (span + 1));
+    reached = upto;
     const from = Math.max(0, upto - CALIPER_BUDGET);
     for (let i = from; i < upto; i++) {
       // Sharply weighted to the newest, so the eye follows the writing edge
@@ -419,16 +457,15 @@ function beatMany(f: Frame, w: WindowFile, k: number, m: Measures | null): void 
       const alpha = a * (FLOOD_ALPHA_BASE + FLOOD_ALPHA_FRESH * fresh);
       caliper(ctx, view, m.x[i]!, m.y[i]!, m.dx[i]!, m.dy[i]!, alpha, CALIPER_SERIF_FLOOD);
     }
-  }
 
-  // The date the leading edge has reached — the corpus traversed as a calendar.
-  const day0 = w.measures_bin.day0;
-  if (day0 && m && m.n) {
-    const upto = Math.min(m.n - 1, Math.round((reached / measured) * m.n));
-    const d = new Date(`${day0}T00:00:00Z`);
-    d.setUTCDate(d.getUTCDate() + (m.day[upto] ?? 0));
-    const stamp = d.toISOString().slice(0, 10);
-    drawSlug(ctx, view, [stamp], { x: 0, y: 360 }, a * 0.5);
+    // The date the leading edge has reached — the corpus traversed as its own
+    // calendar, now at the crescendo's pace.
+    const day0 = w.measures_bin.day0;
+    if (day0 && upto > 0) {
+      const d = new Date(`${day0}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + (m.day[upto - 1] ?? 0));
+      drawSlug(ctx, view, [d.toISOString().slice(0, 10)], { x: 0, y: 360 }, a * 0.5);
+    }
   }
 
   const drawn = Math.min(CALIPER_BUDGET, reached);
@@ -442,8 +479,9 @@ function beatMany(f: Frame, w: WindowFile, k: number, m: Measures | null): void 
     ...w.bias.disclosure,
   ], { x: 0, y: 330 }, a * 0.45);
 
-  // The figures assemble as the flood fills, and settle.
-  const settle = Math.max(0, (k - 0.55) / 0.45);
+  // The figures assemble at the crest, where the calendar is at its fastest —
+  // the published statistic condensing out of the flood.
+  const settle = Math.max(0, (k - 0.85) / 0.15);
   if (settle > 0) {
     w.contest.buckets.forEach((b, i) => {
       const slot = figureSlot(i, w.contest.buckets.length);
@@ -453,116 +491,14 @@ function beatMany(f: Frame, w: WindowFile, k: number, m: Measures | null): void 
   }
 }
 
-/**
- * THE INSTANT — a continuous quantity, sampled once, divided into four boxes.
- *
- * The measured approach curve runs out from the hoop and shortens toward the
- * release; when it stops, the three boundaries are cut into it and the four
- * category names are struck between them. That single image is the whole
- * argument: the number is not found, it is made.
- */
-function beatInstant(f: Frame, w: WindowFile, k: number): void {
-  const { ctx, view, remains } = f;
-  const a = fade(k) * remains;
-  const curve = w.contest.approach_curve_ft.filter((v): v is number => v !== null);
-  if (!curve.length) return;
-
-  // HOW LONG THE APPROACH RUNS BEFORE THE BOXES ARE CUT.
-  //
-  // This used to be more than half the beat, and it was the piece's longest dead
-  // interval: measured on the shipped frames, from its start until the cut began
-  // the plate held ONE hairline and ONE numeral, for a stretch measured in tens
-  // of seconds, against beats either side carrying the whole flood. The approach is
-  // a real measurement and it should be watchable, but watching a line shorten
-  // is not nineteen seconds of subject. The cut - a continuous quantity being
-  // divided into four boxes - is what this beat is FOR, so it gets most of it.
-  const RUN_ENDS = 0.22;
-  const run = Math.min(1, Math.max(0, k) / RUN_ENDS);
-  const idx = Math.min(curve.length - 1, Math.max(0, Math.floor(run * (curve.length - 1))));
-  const dist = curve[idx]!;
-
-  // A hairline out from the hoop along the centreline; its length is the mean
-  // closest-defender distance at that instant before release.
-  const y0 = 0;
-  const y1 = dist * 10;
-  ctx.save();
-  ctx.strokeStyle = `rgba(${BONE_RGB}, ${a * INSTANT_LINE_ALPHA})`;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(view.sx(0), view.sy(y0));
-  ctx.lineTo(view.sx(0), view.sy(y1));
-  ctx.stroke();
-  ctx.restore();
-
-  const secs = w.contest.approach_seconds_before_release * (1 - run);
-  strikeFigure(ctx, view, struck(dist), `${secs.toFixed(1)} S BEFORE RELEASE`,
-    0, y1 + 26, a * 0.8, 20);
-
-  // Once it stops, the boundaries are cut and the boxes named.
-  const cut = Math.max(0, (k - RUN_ENDS) / (1 - RUN_ENDS));
-  if (cut > 0) {
-    const buckets: DefenderBucket[] = w.contest.buckets;
-    // THE BOXES ARE DRAWN AS BOXES (audit V-06).
-    //
-    // The boundaries used to be ticks a foot and a half either side of the
-    // centreline, with the category names crammed against them at the size of a
-    // scatter label - so the one image this piece calls its whole argument read
-    // as a small ladder near the hoop rather than as a continuous quantity being
-    // divided. The VERTICAL axis is untouched and stays true to the floor: a
-    // boundary is drawn at the distance it actually is, in court tenths. Only
-    // the horizontal extent grows, and it carries no measurement at all - it is
-    // how wide the band is, and a band has to be wide enough to be a band.
-    ctx.save();
-    ctx.strokeStyle = `rgba(${BONE_RGB}, ${a * cut * INSTANT_CUT_ALPHA})`;
-    ctx.lineWidth = 1;
-    buckets.forEach((b) => {
-      if (b.hi_ft === null) return;
-      const ty = b.hi_ft * 10;
-      ctx.beginPath();
-      ctx.moveTo(view.sx(-INSTANT_BAND_HALF_W), view.sy(ty));
-      ctx.lineTo(view.sx(INSTANT_BAND_HALF_W), view.sy(ty));
-      ctx.stroke();
-    });
-    ctx.restore();
-
-    // EACH BOX CARRIES ITS OWN NAME AND ITS OWN SHARE, and this is the one beat
-    // where the figures leave the annulus.
-    //
-    // They are ON the ring through the flood before this and back on it at the
-    // close after it, because the ring is where they are orphaned in Acts IV-V.
-    // Here they are not orphaned - here they are being MADE, and a share drawn
-    // a third of the floor away from the band it belongs to is the reader's
-    // problem to solve rather than the picture's to state. Drawing both was
-    // tried first and the ring's figures land squarely on the band names.
-    buckets.forEach((b) => {
-      const lo = b.lo_ft * 10;
-      const hi = b.hi_ft === null ? Math.max(y1, lo + 60) : b.hi_ft * 10;
-      const mid = (lo + hi) / 2;
-      // Clear of the centreline, which the measured hairline runs along.
-      const inset = INSTANT_BAND_HALF_W * 0.55;
-      const lab = label(b.name.toUpperCase(), Math.max(SLUG_MIN_PX, view.s(BUCKET_NAME_TENTHS)),
-        f.dpr);
-      ctx.save();
-      ctx.globalAlpha = a * cut * BUCKET_LABEL_ALPHA;
-      ctx.drawImage(lab.canvas, view.sx(-inset) - lab.width / 2, view.sy(mid) - lab.height / 2,
-        lab.width, lab.height);
-      ctx.restore();
-      strikeFigure(ctx, view, struck(100 * b.share), "", inset, mid, a * cut * 0.7, 18);
-    });
-
-    // What the definition is worth, in the piece's own terms.
-    const g = w.contest.gather_rule;
-    if (g.changed_share !== null) {
-      // `voice`: the piece's thesis, over the image of it - a continuous
-      // quantity being cut into four boxes at an instant nobody will name.
-      drawSlug(ctx, view, [
-        "THE LEAGUE DOES NOT PUBLISH WHICH INSTANT IT MEANS",
-        `READ AT THE GATHER INSTEAD, ${struck(100 * g.changed_share)}% CHANGE CATEGORY`,
-        ...(w.bias.scope ? [w.bias.scope] : []),
-      ], { x: 0, y: 330 }, a * cut * 0.5, "voice");
-    }
-  }
-}
+// THE INSTANT left the plate by the crescendo's first ruling (2026-08-10,
+// findings.md "Three rulings — the crescendo"): the approach-hairline
+// band-cut drawing and `THE LEAGUE DOES NOT PUBLISH WHICH INSTANT IT MEANS`
+// are cut — the reasoning is volume, not doubt. The gather-vs-release
+// finding survives as presenter narration (docs/paper/presenter-score.md,
+// Movement III) with its keyed figures intact, and the `gather_rule` and
+// `approach_curve_ft` keys stay shipped in window.json, undrawn, like the
+// rest of the unshown inventory.
 
 /**
  * THE CLOSE — the corpus's last archive. Everything goes but the figures.
@@ -627,8 +563,8 @@ export function drawMeasureHand(f: Frame): void {
     const m = data.measures();
     const p = st.phase;
     if (p < BEAT.one[1]) beatOne(f, w, win(p, BEAT.one));
-    else if (p < BEAT.many[1]) beatMany(f, w, win(p, BEAT.many), m);
-    else if (p < BEAT.instant[1]) beatInstant(f, w, win(p, BEAT.instant));
+    else if (p < BEAT.night[1]) beatNight(f, w, win(p, BEAT.night), m);
+    else if (p < BEAT.season[1]) beatSeason(f, w, win(p, BEAT.season), m);
     else beatClose(f, w, win(p, BEAT.close), m);
     return;
   }

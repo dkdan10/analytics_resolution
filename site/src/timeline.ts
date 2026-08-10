@@ -54,16 +54,27 @@ const WINDOW_SECONDS = 150;
 export const WINDOW_YEAR = 2015;
 
 /**
- * The window's four beats, as fractions of its phase.
+ * The window's four beats, as fractions of its phase — THE CRESCENDO
+ * (artist rulings, 2026-08-10; findings.md "Three rulings — the crescendo").
  *
- * Kept here rather than inside the hand that draws them, because the rail lists
- * them too and a presenter stepping to "THE INSTANT" must land where the hand
- * agrees the instant begins. One definition, two readers.
+ * A scale crescendo: one possession, then one night — the Dec 5 slate, the
+ * misnamed games the archive nearly lost — then the whole season
+ * accelerating over its real calendar, then the close unchanged. THE INSTANT
+ * is cut by ruling: the reasoning is volume, not doubt, and the
+ * gather-vs-release finding survives as presenter narration with its keyed
+ * figures, undrawn.
+ *
+ * Kept here rather than inside the hands that draw them, because the rail
+ * lists them too and a presenter stepping to "THE NIGHT" must land where the
+ * hands agree the night begins. One definition, two readers.
+ *
+ * Names and fractions are AUTHORED SCORE and are proposed copy — flagged in
+ * the session-14 packet for the artist's ruling, like every beat title.
  */
 export const WINDOW_BEATS = [
-  { id: "one", title: "one", from: 0.0, to: 0.2 },
-  { id: "many", title: "many", from: 0.2, to: 0.587 },
-  { id: "instant", title: "the instant", from: 0.587, to: 0.813 },
+  { id: "one", title: "one", from: 0.0, to: 0.1 },
+  { id: "night", title: "the night", from: 0.1, to: 0.28 },
+  { id: "season", title: "the season", from: 0.28, to: 0.813 },
   { id: "close", title: "the close", from: 0.813, to: 1.0 },
 ] as const;
 

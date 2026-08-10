@@ -48,15 +48,18 @@ export interface FieldOpts {
 /**
  * The residence's whole-layer envelope — THE ONLY THING `t` DRIVES.
  *
- * Rise through "many", hold through "the instant", washed by "the close", with
- * the beat edges read from `WINDOW_BEATS` so the rail and this layer cannot
- * disagree about where a beat begins. Never cell-by-cell: the grid is an
- * aggregate with no chronology, and animating cells would author an order the
- * source never measured. A pure function of phase — scrubbing backwards
- * rebuilds it, nothing is remembered.
+ * Since the crescendo: rise through "one" and "the night", held through "the
+ * season", washed by "the close" — the ground where the ball lived is
+ * complete before the accelerating record floods over it, which is the
+ * reading the re-score wants (the passage under the endings, then the
+ * endings at the machine's pace). Beat edges read from `WINDOW_BEATS` so the
+ * rail and this layer cannot disagree about where a beat begins. Never
+ * cell-by-cell: the grid is an aggregate with no chronology, and animating
+ * cells would author an order the source never measured. A pure function of
+ * phase — scrubbing backwards rebuilds it, nothing is remembered.
  */
 function residenceEnvelope(phase: number): number {
-  const riseTo = WINDOW_BEATS.find((b) => b.id === "many")!.to;
+  const riseTo = WINDOW_BEATS.find((b) => b.id === "night")!.to;
   const washFrom = WINDOW_BEATS.find((b) => b.id === "close")!.from;
   if (phase < riseTo) return developed(phase / riseTo);
   if (phase < washFrom) return 1;

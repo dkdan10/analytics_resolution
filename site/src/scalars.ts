@@ -696,12 +696,6 @@ export const SCALARS = {
     material: true,
     controls: "the ground the defender has already covered, faint enough that the closing reads as the subject.",
   },
-  HERO_TAIL: {
-    class: "authored",
-    value: 0.35,
-    material: true,
-    controls: "how long a hero shot fades out over, as a fraction of its own quarter of the beat.",
-  },
   FLOOD_ALPHA_BASE: {
     class: "authored",
     value: 0.045,
@@ -722,20 +716,11 @@ export const SCALARS = {
     material: true,
     controls: "the calipers' strength over the closing beat, as the plate is emptied.",
   },
-  INSTANT_LINE_ALPHA: {
-    class: "authored",
-    value: 0.7,
-    material: true,
-    controls:
-      "the hairline out from the hoop whose length IS the mean closest-defender " +
-      "distance — the continuous quantity, before it is cut into four boxes.",
-  },
-  INSTANT_CUT_ALPHA: {
-    class: "authored",
-    value: 0.6,
-    material: true,
-    controls: "the three boundaries struck across that hairline: the moment the number is made.",
-  },
+  // THE INSTANT's scalars (INSTANT_LINE_ALPHA, INSTANT_CUT_ALPHA,
+  // INSTANT_BAND_HALF_W, BUCKET_NAME_TENTHS, BUCKET_LABEL_ALPHA, HERO_TAIL)
+  // left the register with the beat they controlled — the crescendo's cut
+  // ruling, 2026-08-10. An entry whose `controls` line names a drawing that no
+  // longer exists is a disclosure lying about the piece.
   // Typography inside a mark layer. Declared here because these two modules
   // are in the check's scope and every draw-affecting number in them should be
   // findable in one place - but `material: false` says what they are: the type
@@ -754,12 +739,6 @@ export const SCALARS = {
     controls:
       "Act II's four category names, struck with no figures beside them - the " +
       "league has begun publishing the measure and nobody outside can make it.",
-  },
-  BUCKET_LABEL_ALPHA: {
-    class: "authored",
-    value: 0.55,
-    material: false,
-    controls: "the four category names beside the boundaries, as the boxes are cut.",
   },
   // --- modes/ledger.ts — the scatter, and the register above it ------------
   SCATTER_TENTHS: {
@@ -1140,29 +1119,6 @@ export const SCALARS = {
       "the line beneath it, naming how many categories in how many taxonomies. " +
       "Subordinate, because it describes the machine rather than counting shots.",
   },
-  INSTANT_BAND_HALF_W: {
-    class: "authored",
-    value: 90,
-    material: true,
-    controls:
-      "how far either side of the centreline a category boundary is drawn, in " +
-      "court tenths - how wide the four boxes are. It carries NO measurement: " +
-      "the boundary's DISTANCE from the hoop is the measured axis and is " +
-      "untouched by this. At the foot and a half it used to be, the one image " +
-      "this piece calls its whole argument read as a small ladder near the rim " +
-      "instead of as a continuous quantity being divided (audit V-06).",
-  },
-  BUCKET_NAME_TENTHS: {
-    class: "authored",
-    value: 6.6,
-    material: false,
-    controls:
-      "the size of a category name inside its own band, in court tenths. It was " +
-      "set at the size of a label on a datapoint, against a tick, and could not " +
-      "be read; it now matches the statement rank the rest of the piece speaks " +
-      "at. Typography, not grain.",
-  },
-
   // --- inscription.ts — how loudly the plate is allowed to speak (V-08) -----
   //
   // `drawSlug` is the only way the piece says anything in words, and until now
@@ -1383,6 +1339,22 @@ export const SCALARS = {
       "beside the flood rides at the same weight, and the budget of segments " +
       "drawn at once is a count (stack.ts), not a material.",
   },
+
+  SEASON_CLOCK_K: {
+    class: "authored",
+    value: 3.5,
+    material: true,
+    controls:
+      "the easing of the season beat's clock over the window's REAL calendar " +
+      "(the crescendo, session 14): day(u) = (e^(k·u) − 1)/(e^k − 1) of the " +
+      "89 inclusive days. The calendar underneath is measured — which marks " +
+      "arrive on which day, and the four days nobody played stay dead at " +
+      "speed — and only this easing is authored. Material because it decides " +
+      "which marks exist on a mid-beat frame, the REVEAL_CURVE reasoning. At " +
+      "this value the beat opens near the night's own pace and closes about " +
+      "e^k (~33×) faster; smaller flattens the crescendo toward a constant " +
+      "rate, larger makes the closing weeks a blur.",
+  },
 } as const satisfies Record<string, Entry>;
 
 // --- the values, for the renderers ------------------------------------------
@@ -1468,15 +1440,11 @@ export const DEFENDER_RING_R: number = SCALARS.DEFENDER_RING_R.value;
 export const HERO_ALPHA: number = SCALARS.HERO_ALPHA.value;
 export const HERO_RING_ALPHA: number = SCALARS.HERO_RING_ALPHA.value;
 export const HERO_PATH_ALPHA: number = SCALARS.HERO_PATH_ALPHA.value;
-export const HERO_TAIL: number = SCALARS.HERO_TAIL.value;
 export const FLOOD_ALPHA_BASE: number = SCALARS.FLOOD_ALPHA_BASE.value;
 export const FLOOD_ALPHA_FRESH: number = SCALARS.FLOOD_ALPHA_FRESH.value;
 export const CLOSE_ALPHA: number = SCALARS.CLOSE_ALPHA.value;
-export const INSTANT_LINE_ALPHA: number = SCALARS.INSTANT_LINE_ALPHA.value;
-export const INSTANT_CUT_ALPHA: number = SCALARS.INSTANT_CUT_ALPHA.value;
 export const FIGURE_SUB_ALPHA: number = SCALARS.FIGURE_SUB_ALPHA.value;
 export const NAMES_ONLY_ALPHA: number = SCALARS.NAMES_ONLY_ALPHA.value;
-export const BUCKET_LABEL_ALPHA: number = SCALARS.BUCKET_LABEL_ALPHA.value;
 export const SCATTER_TENTHS: number = SCALARS.SCATTER_TENTHS.value;
 export const SCATTER_MIN_PX: number = SCALARS.SCATTER_MIN_PX.value;
 export const SCATTER_ALPHA: number = SCALARS.SCATTER_ALPHA.value;
@@ -1515,8 +1483,6 @@ export const CENSUS_ROW_ALPHA: number = SCALARS.CENSUS_ROW_ALPHA.value;
 export const CENSUS_SUB_ALPHA: number = SCALARS.CENSUS_SUB_ALPHA.value;
 export const ENGRAVING_ALPHA: number = SCALARS.ENGRAVING_ALPHA.value;
 export const ENGRAVING_FAINT_ALPHA: number = SCALARS.ENGRAVING_FAINT_ALPHA.value;
-export const INSTANT_BAND_HALF_W: number = SCALARS.INSTANT_BAND_HALF_W.value;
-export const BUCKET_NAME_TENTHS: number = SCALARS.BUCKET_NAME_TENTHS.value;
 
 export const SLUG_VOICE_TENTHS: number = SCALARS.SLUG_VOICE_TENTHS.value;
 export const SLUG_STATEMENT_TENTHS: number = SCALARS.SLUG_STATEMENT_TENTHS.value;
@@ -1541,3 +1507,4 @@ export const STACK_GUTTER_PAD_TENTHS: number = SCALARS.STACK_GUTTER_PAD_TENTHS.v
 export const STACK_GUTTER_ROW_ALPHA: number = SCALARS.STACK_GUTTER_ROW_ALPHA.value;
 export const STACK_GUTTER_SUB_ALPHA: number = SCALARS.STACK_GUTTER_SUB_ALPHA.value;
 export const QUARREL_ALPHA: number = SCALARS.QUARREL_ALPHA.value;
+export const SEASON_CLOCK_K: number = SCALARS.SEASON_CLOCK_K.value;

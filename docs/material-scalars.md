@@ -4,7 +4,7 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**140 scalars**, 98 of them material: 2 measured, 3 geometry, 135 authored.
+**135 scalars**, 95 of them material: 2 measured, 3 geometry, 130 authored.
 
 A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts`, `prefix.ts`, `inscription.ts`, `modes/ledger.ts`, `modes/census.ts`, `palette.ts`, `modes/stack.ts`, `modes/operations.ts`, `modes/fieldlayer.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
@@ -160,24 +160,16 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   the defender ring's strength against its caliper.
 - **HERO_PATH_ALPHA** — **0.16**  
   the ground the defender has already covered, faint enough that the closing reads as the subject.
-- **HERO_TAIL** — **0.35**  
-  how long a hero shot fades out over, as a fraction of its own quarter of the beat.
 - **FLOOD_ALPHA_BASE** — **0.045**  
   the strength of an accumulated caliper behind the flood's leading edge — low enough that the eye follows the writing rather than swimming in the tangle.
 - **FLOOD_ALPHA_FRESH** — **0.34**  
   the extra strength of the newest caliper at the flood's edge.
 - **CLOSE_ALPHA** — **0.25**  
   the calipers' strength over the closing beat, as the plate is emptied.
-- **INSTANT_LINE_ALPHA** — **0.7**  
-  the hairline out from the hoop whose length IS the mean closest-defender distance — the continuous quantity, before it is cut into four boxes.
-- **INSTANT_CUT_ALPHA** — **0.6**  
-  the three boundaries struck across that hairline: the moment the number is made.
 - **FIGURE_SUB_ALPHA** — **0.55** *(not material)*  
   the small caption under a struck figure, against the figure itself.
 - **NAMES_ONLY_ALPHA** — **0.5** *(not material)*  
   Act II's four category names, struck with no figures beside them - the league has begun publishing the measure and nobody outside can make it.
-- **BUCKET_LABEL_ALPHA** — **0.55** *(not material)*  
-  the four category names beside the boundaries, as the boxes are cut.
 - **SCATTER_TENTHS** — **4.75** *(not material)*  
   the size of a label on a datapoint, in court tenths. NUMERICALLY WHAT IT HAS ALWAYS BEEN - it was written as a multiple of the viewport's scale, which happens to come to the same thing and hid the fact that a label is half a foot tall on the floor. Expressed in court units so it cannot drift from the marks it annotates.
 - **SCATTER_MIN_PX** — **8** *(not material)*  
@@ -254,10 +246,6 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   a tally row's ink - the receipt column in the gallery, and every row of the full apparatus behind the rail. Above the headings it sits under, because the rows are the content and the heading only says what kind.
 - **CENSUS_SUB_ALPHA** — **0.45** *(not material)*  
   the line beneath it, naming how many categories in how many taxonomies. Subordinate, because it describes the machine rather than counting shots.
-- **INSTANT_BAND_HALF_W** — **90**  
-  how far either side of the centreline a category boundary is drawn, in court tenths - how wide the four boxes are. It carries NO measurement: the boundary's DISTANCE from the hoop is the measured axis and is untouched by this. At the foot and a half it used to be, the one image this piece calls its whole argument read as a small ladder near the rim instead of as a continuous quantity being divided (audit V-06).
-- **BUCKET_NAME_TENTHS** — **6.6** *(not material)*  
-  the size of a category name inside its own band, in court tenths. It was set at the size of a label on a datapoint, against a tick, and could not be read; it now matches the statement rank the rest of the piece speaks at. Typography, not grain.
 - **SLUG_VOICE_TENTHS** — **9** *(not material)*  
   the four sentences the piece is ABOUT - the prelude's, the one that names what a caliper measures, the one that says the league will not name the instant, and the one that says the record keeps only endpoints. At most one is ever on the plate, and it is the loudest thing on it.
 - **SLUG_STATEMENT_TENTHS** — **6.6** *(not material)*  
@@ -302,3 +290,5 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   the margin's subordinate lines — the record's own column name above the tally, and the tick-and-a-count tail below it.
 - **QUARREL_ALPHA** — **0.45**  
   the quarrel hairline's ink — the segment between the two instruments' claims about where one shot happened, JOIN THE INSTRUMENTS' only mark. Serifless on purpose: it is not a measurement between bodies, it is a distance between claims, and the caliper's serifs stay on the caliper. The ONE authored alpha the operation holds — the confession struck beside the flood rides at the same weight, and the budget of segments drawn at once is a count (stack.ts), not a material.
+- **SEASON_CLOCK_K** — **3.5**  
+  the easing of the season beat's clock over the window's REAL calendar (the crescendo, session 14): day(u) = (e^(k·u) − 1)/(e^k − 1) of the 89 inclusive days. The calendar underneath is measured — which marks arrive on which day, and the four days nobody played stay dead at speed — and only this easing is authored. Material because it decides which marks exist on a mid-beat frame, the REVEAL_CURVE reasoning. At this value the beat opens near the night's own pace and closes about e^k (~33×) faster; smaller flattens the crescendo toward a constant rate, larger makes the closing weeks a blur.

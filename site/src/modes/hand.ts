@@ -91,7 +91,7 @@
  * measurement rather than an easing curve.
  */
 
-import { factNum, type PaintFile, type Strokes, type WindowFile } from "../data";
+import { factNum, type PaintFile, type Slate, type Strokes, type WindowFile } from "../data";
 import { drawSlug } from "../inscription";
 import { BONE_RGB, ZONE_RGB } from "../palette";
 import { COURT, type View } from "../plate";
@@ -122,8 +122,9 @@ import {
   SPLOTCH_MIN_R,
   SPLOTCH_VISIBLE,
 } from "../scalars";
-import { WINDOW_BEATS, WINDOW_YEAR } from "../timeline";
+import { secondsFor, WINDOW_BEATS, WINDOW_YEAR } from "../timeline";
 import { pinCoordOf } from "./fieldlayer";
+import { arrivedThrough, cumulativeByDay, seasonClock } from "./shared";
 import type { Frame } from "./types";
 
 const ZONE = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
@@ -208,18 +209,10 @@ function assetId(o: object): number {
 }
 
 // --- the calendar both layers arrive on --------------------------------------
-
-/**
- * How many marks have arrived by each day of the window.
- *
- * Both binaries carry a `day` and neither counts the same thing: the calipers
- * count days since the window opened, the strokes index the corpus's own
- * game-days. `paint.json:day_offsets` is the map between them, so this reduces
- * both to one cumulative table on the window's calendar and the two layers
- * share a clock. Derived from the asset and cached against it — a derived
- * cache, which the fifth rule allows; nothing here is accumulated.
- */
-const cumulative = new WeakMap<object, Int32Array>();
+// `cumulativeByDay` and `arrivedThrough` live in modes/shared.ts since the
+// crescendo: THE MEASURE paces its flood on the same table and the same clock,
+// and two implementations of one calendar would be the drift this project is
+// built against.
 
 /**
  * The order the drops of a season land in — and why it is not the file's.
@@ -259,44 +252,39 @@ function scatterOrder(owner: object, n: number): Int32Array {
   return out;
 }
 
-function cumulativeByDay(owner: object, days: ArrayLike<number>, n: number,
-                        offsetOf: (d: number) => number, span: number): Int32Array {
-  const have = cumulative.get(owner);
-  if (have) return have;
-  const out = new Int32Array(span + 1);
-  for (let i = 0; i < n; i++) {
-    const o = offsetOf(days[i]!);
-    if (o >= 0 && o <= span) out[o] = out[o]! + 1;
-  }
-  for (let d = 1; d <= span; d++) out[d] = out[d]! + out[d - 1]!;
-  cumulative.set(owner, out);
-  return out;
-}
-
-/** How many marks have landed by a fractional day, interpolated inside a day so
- *  arrival is continuous while its RATE stays the record's own. */
-function arrivedByDay(cum: Int32Array, dayFrac: number): number {
-  const span = cum.length - 1;
-  const d = Math.max(0, Math.min(span, dayFrac));
-  const lo = Math.floor(d);
-  const hi = Math.min(span, lo + 1);
-  const a = cum[lo]!;
-  return Math.round(a + (cum[hi]! - a) * (d - lo));
-}
-
 // --- the beats ---------------------------------------------------------------
 
-const [BEAT_ONE, , BEAT_INSTANT, BEAT_CLOSE] = WINDOW_BEATS;
+const [BEAT_ONE, BEAT_NIGHT, BEAT_SEASON, BEAT_CLOSE] = WINDOW_BEATS;
+
+/**
+ * WHERE THE FILED RECORD RE-ASSERTS ITSELF, as a fraction of the season beat.
+ *
+ * The crescendo's crest: the kept points come up over the paint as the
+ * accelerated calendar enters its fastest passage, so the coordinate asserts
+ * itself exactly where the machine's pace has outrun a viewer's. A phase
+ * anchor like `plate.ts:SHELL_PHASE`, not a material; first value flagged in
+ * the session-14 packet.
+ */
+const KEPT_CREST = 0.85;
+
+/** How much of the season beat the night's finished material takes to recede
+ *  under the arriving season — the outgoing-sheet idiom at the solo/tutti
+ *  boundary. A pacing constant, not a material. */
+const NIGHT_RECEDE = 0.08;
 
 /** Where the window is, as the four states the schedule already names. The rail
- *  lists the same four and a presenter stepping to "THE INSTANT" must land
- *  where this hand agrees the instant begins - one definition, two readers. */
+ *  lists the same four and a presenter stepping to "THE NIGHT" must land
+ *  where this hand agrees the night begins - one definition, two readers. */
 interface Window3 {
   /** 0..1 through the opening beat, where ONE possession is laid. */
   opening: number;
-  /** The day of the window arrival has reached, fractional. */
+  /** 0..1 through the night beat — the Dec 5 slate's own clock. */
+  night: number;
+  /** 0..1 through the season beat, before the authored easing. */
+  seasonU: number;
+  /** The fractional calendar day the accelerating season has reached. */
   dayFrac: number;
-  /** 0..1 as the kept points come up over the paint through the instant. */
+  /** 0..1 as the kept points come up over the paint at the season's crest. */
   kept: number;
   /** 0..1 as the paint is taken back off the plate over the close. */
   wash: number;
@@ -304,15 +292,19 @@ interface Window3 {
 
 function windowAt(phase: number, span: number): Window3 {
   const p = Math.min(1, Math.max(0, phase));
-  const opening = Math.min(1, p / BEAT_ONE.to);
-  // The calendar sweeps from the end of the opening beat to the end of the
-  // instant, so the painting is still arriving through the beat the piece is
-  // built toward and has stopped before the plate is cleared.
-  const sweep = (p - BEAT_ONE.to) / (BEAT_INSTANT.to - BEAT_ONE.to);
+  const seasonU = Math.max(0, Math.min(1,
+    (p - BEAT_SEASON.from) / (BEAT_SEASON.to - BEAT_SEASON.from)));
+  const keptFrom = BEAT_SEASON.from + KEPT_CREST * (BEAT_SEASON.to - BEAT_SEASON.from);
   return {
-    opening,
-    dayFrac: Math.max(0, Math.min(1, sweep)) * span,
-    kept: smooth((p - BEAT_INSTANT.from) / (BEAT_INSTANT.to - BEAT_INSTANT.from)),
+    opening: Math.min(1, p / BEAT_ONE.to),
+    night: Math.max(0, Math.min(1,
+      (p - BEAT_NIGHT.from) / (BEAT_NIGHT.to - BEAT_NIGHT.from))),
+    seasonU,
+    // The whole real calendar, compressed through the register's one authored
+    // easing: `span + 1` inclusive days, so the beat opens empty and closes
+    // complete, and the four dead days stay dead at speed.
+    dayFrac: seasonClock(seasonU) * (span + 1),
+    kept: smooth((p - keptFrom) / (BEAT_CLOSE.from - keptFrom)),
     wash: smooth((p - BEAT_CLOSE.from) / (BEAT_CLOSE.to - BEAT_CLOSE.from)),
   };
 }
@@ -406,6 +398,37 @@ export function paintStroke(
       }
     }
   }
+}
+
+/**
+ * THE SLATE, drawn. Progress is a pure function of the beat's own seconds:
+ * each path begins at its span-local start offset and advances vertex by
+ * vertex as its measured dt elapses, so one second of beat is one second of
+ * night and nothing is eased or compressed. The marks are the paint's own —
+ * `paintStroke` with the same measured regimes — because the slate is the
+ * same instrument reading the same kind of motion; only the population is
+ * the night's. Redrawn live each frame: the night's whole vertex population
+ * is small (`slate.json:vertices`), and nothing is cached or remembered.
+ */
+function drawSlate(ctx: CanvasRenderingContext2D, view: View, sl: Slate,
+                   elapsedFrames: number, alpha: number, r: Regimes): void {
+  if (elapsedFrames <= 0 || alpha <= 0.002) return;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, alpha);
+  for (let i = 0; i < sl.n; i++) {
+    const rel = elapsedFrames - sl.start[i]!;
+    if (rel <= 0) continue;
+    const first = sl.first[i]!;
+    const n = sl.count[i]!;
+    let k = 1;
+    let cumDt = 0;
+    while (k < n && cumDt + sl.dt[first + k]! <= rel) {
+      cumDt += sl.dt[first + k]!;
+      k++;
+    }
+    paintStroke(ctx, view, sl as unknown as Strokes, i, k / n, r);
+  }
+  ctx.restore();
 }
 
 // --- the drops ---------------------------------------------------------------
@@ -562,9 +585,10 @@ export function drawHandHand(f: Frame): void {
   let dropSurface: HTMLCanvasElement | null = null;
   if (inWindow && m && m.n && w) {
     // Paced by the day the shot was actually recorded on, so the flood runs as
-    // the corpus did rather than as a fixed rate over an index.
+    // the corpus did rather than as a fixed rate over an index — and since the
+    // crescendo, through the register's one authored easing of that calendar.
     const cum = cumulativeByDay(m, m.day, m.n, (d) => d, span);
-    const upto = arrivedByDay(cum, win!.dayFrac);
+    const upto = arrivedThrough(cum, win!.dayFrac);
     dropSurface = prefixSurface(
       `hand.window|${assetId(m)}|${geom}`,
       Math.floor(upto / DROP_STEP), dw, dh, dpr, DROP_STEP,
@@ -577,6 +601,25 @@ export function drawHandHand(f: Frame): void {
     ctx.globalAlpha = remains;
     bakeWindowDrops(ctx, view, m, w, Math.floor(upto / DROP_STEP) * DROP_STEP, upto);
     ctx.restore();
+
+    // THE NIGHT's own endings: the slate date's calipers-as-drops, layering
+    // through the beat and receding as the season beat's calendar takes over
+    // (it will re-arrive them, in order, mid-crescendo — the solo repeated
+    // inside the tutti). Day bounds come from the artifact's own day key,
+    // never typed here.
+    const sf = data.slateFile;
+    if (sf && win!.night > 0) {
+      const from = sf.day > 0 ? cum[sf.day - 1]! : 0;
+      const to = cum[Math.min(span, sf.day)]!;
+      const nightUpto = from + Math.round((to - from) * Math.min(1, win!.night * 1.1));
+      const recede = 1 - Math.min(1, win!.seasonU / NIGHT_RECEDE);
+      if (recede > 0 && nightUpto > from) {
+        ctx.save();
+        ctx.globalAlpha = remains * recede;
+        bakeWindowDrops(ctx, view, m, w, from, nightUpto);
+        ctx.restore();
+      }
+    }
   } else {
     // THE PREVIOUS SHEET RECEDES UNDER THE NEW RECORD (session 8, audit O2).
     // The drop layer drew only the current year, so the plate bared to the
@@ -637,10 +680,13 @@ export function drawHandHand(f: Frame): void {
     const last = offsets[offsets.length - 1] ?? 0;
     const cum = cumulativeByDay(s, s.day, s.n, (d) => offsets[d] ?? 0, last);
     // The opening beat lays ONE possession, slowly, because a single gesture is
-    // the only thing at this scale a viewer can actually follow. From there the
-    // calendar takes over and never goes back below it.
+    // the only thing at this scale a viewer can actually follow. Since the
+    // crescendo the beat is genuinely singular: the day-exclusive arrival
+    // (`arrivedThrough`) opens the season beat empty, so nothing else is
+    // resident until the calendar takes over — the old day-inclusive read
+    // quietly parked day zero's whole population under this ramp.
     const opener = firstCanvasStrokes(s);
-    const byDay = arrivedByDay(cum, (win.dayFrac / Math.max(1, span)) * last);
+    const byDay = arrivedThrough(cum, (win.dayFrac / (span + 1)) * (last + 1));
     const laid = Math.max(Math.round(opener * win.opening), byDay);
 
     const steps = Math.floor(laid / STROKE_STEP);
@@ -661,10 +707,29 @@ export function drawHandHand(f: Frame): void {
     }
     ctx.restore();
 
-    // THE INSTANT: the kept points come up over the paint. Five seconds of body
-    // were recorded and one coordinate was filed, and this is that coordinate
-    // asserting itself over the gesture it stands for. Nothing new is drawn -
-    // it is the same layer, composited again above instead of below.
+    // THE NIGHT: the slate — every trackable body of the Dec 5 games at the
+    // found span of maximum simultaneous play, moving at true rate (one
+    // second of beat is one second of night), laid with the paint's own
+    // physics. It holds finished through the beat's tail and recedes as the
+    // season's calendar takes over. The viewer is meant to fail to watch it:
+    // one possession at this scale is followable — the opening beat proves
+    // that deliberately — and five games at once is the machine's ordinary
+    // Saturday night.
+    const sl = data.slate();
+    const sf = data.slateFile;
+    if (sl && sf && win.night > 0) {
+      const nightSeconds = Math.max(0, st.phase - BEAT_NIGHT.from)
+        * secondsFor(WINDOW_YEAR);
+      const recede = 1 - Math.min(1, win.seasonU / NIGHT_RECEDE);
+      drawSlate(ctx, view, sl, nightSeconds * sf.span.hz, wet * recede, r);
+    }
+
+    // THE CREST: the kept points come up over the paint as the accelerated
+    // calendar enters its fastest passage. Five seconds of body were recorded
+    // and one coordinate was filed, and this is that coordinate asserting
+    // itself over the gesture it stands for — exactly where the machine's
+    // pace has outrun a viewer's. Nothing new is drawn - it is the same
+    // layer, composited again above instead of below.
     if (dropSurface && win.kept > 0) blit(ctx, dropSurface, view, remains * win.kept * KEPT_OVER_PAINT);
 
     if (win.wash > 0) {
