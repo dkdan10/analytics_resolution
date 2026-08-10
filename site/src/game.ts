@@ -160,6 +160,35 @@ export function walkGame(
 const boneOf = (alpha: number): string => `rgba(${BONE_RGB}, ${alpha})`;
 
 /**
+ * The stroke's vertex path, begun on the ctx — ONE walk for every consumer.
+ * `plateStroke` styles and strokes it; the entry yield mask (session 17)
+ * strokes the same path wider in `destination-out`, and sharing the walk is
+ * what guarantees the wake and the stroke cannot drift apart. Returns false
+ * when the stroke has no path to draw.
+ */
+export function strokePath(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  game: Game,
+  i: number,
+  drawn: number,
+  fromDrawn = 0,
+): boolean {
+  const first = game.first[i]!;
+  const n = game.count[i]!;
+  if (n < 2) return false;
+  const upto = Math.max(2, Math.ceil(n * Math.min(1, Math.max(0, drawn))));
+  const from = Math.min(upto - 2,
+    Math.max(0, Math.floor(n * Math.min(1, Math.max(0, fromDrawn)))));
+  ctx.beginPath();
+  ctx.moveTo(view.sx(game.x[first + from]!), view.sy(game.y[first + from]!));
+  for (let v = first + from + 1; v < first + upto; v++) {
+    ctx.lineTo(view.sx(game.x[v]!), view.sy(game.y[v]!));
+  }
+  return true;
+}
+
+/**
  * The PLATE idiom: one stroke in bone. Bodies faint and thin (the traces'
  * approach weights), the ball at their in-flight weights — ALL the
  * information, drawn at the register the plate already speaks.
@@ -173,12 +202,6 @@ export function plateStroke(
   alpha: number,
   fromDrawn = 0,
 ): void {
-  const first = game.first[i]!;
-  const n = game.count[i]!;
-  if (n < 2) return;
-  const upto = Math.max(2, Math.ceil(n * Math.min(1, Math.max(0, drawn))));
-  const from = Math.min(upto - 2,
-    Math.max(0, Math.floor(n * Math.min(1, Math.max(0, fromDrawn)))));
   const ball = game.kind[i] === 1;
   // The ball as bright as a trace at full height; bodies at the approach dim —
   // the traces' own register, no new ink invented for the plate.
@@ -191,12 +214,7 @@ export function plateStroke(
   ctx.lineWidth = wpx;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.beginPath();
-  ctx.moveTo(view.sx(game.x[first + from]!), view.sy(game.y[first + from]!));
-  for (let v = first + from + 1; v < first + upto; v++) {
-    ctx.lineTo(view.sx(game.x[v]!), view.sy(game.y[v]!));
-  }
-  ctx.stroke();
+  if (strokePath(ctx, view, game, i, drawn, fromDrawn)) ctx.stroke();
   ctx.restore();
 }
 

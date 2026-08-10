@@ -1303,6 +1303,15 @@ export function clearLayers(): void {
  *  cell past its index. The artifact's own grain, like `REC` above. */
 const CELL_TENTHS = 10;
 
+/** The residence's cell-splat radius in device pixels — the occupancy grain,
+ *  the scale at which the window already says "the game lived here". The
+ *  entry yield's wake (session 17) derives its stroke widths from this, so
+ *  the mask has no radius of its own to author. */
+export function residenceSplatRadius(view: View, dpr: number): number {
+  const spacing = view.s(CELL_TENTHS) * dpr;
+  return Math.max(SPLAT_MIN_PX, spacing * SPLAT_SPACING_K);
+}
+
 let residence: Layer | null = null;
 
 export interface Occupancy {
@@ -1320,7 +1329,7 @@ export function bakeResidence(occ: Occupancy, view: View, dpr: number): Layer {
   const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
 
   const spacing = view.s(CELL_TENTHS) * dpr;
-  const radius = Math.max(SPLAT_MIN_PX, spacing * SPLAT_SPACING_K);
+  const radius = residenceSplatRadius(view, dpr);
   const span = Math.ceil(radius);
   const inv = 1 / (radius * radius);
   const overlap = Math.max(

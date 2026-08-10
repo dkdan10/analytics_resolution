@@ -90,6 +90,18 @@ export type WindowBeat = (typeof WINDOW_BEATS)[number];
  */
 export const ARRIVAL_TAIL = 0.62;
 
+/**
+ * WHERE THE FILED RECORD RE-ASSERTS ITSELF, as a fraction of the window's
+ * season beat — the crescendo's crest, where the accelerated calendar enters
+ * its fastest passage. A phase anchor, not a material; first value flagged in
+ * the session-14 packet. PROMOTED HERE from hand.ts in session 17 (the
+ * fourth-audit numeral ruling): the window's 24·6 inscription now strikes at
+ * this same crest, and one definition serves both readers — the kept points
+ * coming up over the paint and the numeral striking into the season just
+ * built cannot drift apart.
+ */
+export const KEPT_CREST = 0.85;
+
 /** The season whose arrival is a cut rather than a drift: the record's rim
  *  blindness ends in one step, league-wide. Verified in the data, not chosen. */
 export const CUT_YEAR = 2010;

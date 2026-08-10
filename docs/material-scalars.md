@@ -4,7 +4,7 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**144 scalars**, 104 of them material: 2 measured, 3 geometry, 139 authored.
+**145 scalars**, 105 of them material: 2 measured, 3 geometry, 140 authored.
 
 A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts`, `prefix.ts`, `inscription.ts`, `modes/ledger.ts`, `modes/census.ts`, `palette.ts`, `modes/stack.ts`, `modes/operations.ts`, `modes/fieldlayer.ts`, `game.ts`, `wash.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
@@ -52,6 +52,8 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   how fast a cell's share of the ball's measured time saturates toward full glow. Lower and only the densest corridors of the ball's traffic survive the tone curve while the mid-floor sinks to nothing; higher and the whole window ground flattens toward one undifferentiated sheet, which is atmosphere — rule 3's exact failure for this layer.
 - **RESIDENCE_ALPHA** — **0.35**  
   how much of the stone's light is the ball's time, under the shots' endings — the whole-layer weight the beat envelope multiplies. The residence may never outshine the record it contextualises: raise it and the dwelling starts to compete with the endings for the plate; lower it and the window's ground goes back to bare stone.
+- **OLD_YIELD_STRENGTH** — **0.65**  
+  how much of the previous season's light the arriving bodies' wake takes down, per pass of the two-width penumbra (the core compounds both passes; below 1 the old marks always survive to a wash tone). At 0 the entry collision returns — the possession drawn into an undimmed prior field; at 1 the wake CLEARS the old season along the paths, which the entry ruling forbids: the transition must stay a recession, never a cut.
 - **WINDOW_WET_GAIN** — **3**  
   how far above its folded tone a record lands while its day is wet — the excess is this multiple of the record's own fold increment, drying back to exactly that increment. At 0 the front vanishes and the season beat returns to its sub-liminal fold; low and the front sinks under the finished game web; high and the live day outshines the accumulated season it is filing into. Probe-chosen in session 17: the smallest value whose front sustains the ledger-interior visibility class at a median-sized day.
 - **WINDOW_WET_DAYS** — **1**  
@@ -149,7 +151,7 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
 - **DROP_ALPHA** — **0.19**  
   how wet one drop is, outside the window - and it is CONSTANT, which is this layer's whole material argument. THE FIELD varies brightness at a fixed size and adds light; this varies size at a fixed opacity and COVERS. At the same size and a varying opacity the two hands would be the same picture with a different caption.
 - **KEPT_OVER_PAINT** — **0.55**  
-  how strongly the kept coordinates come back up over the painting at the season beat's crest (hand.ts:KEPT_CREST — THE INSTANT, which this line used to name, was cut by the crescendo ruling). Five seconds of body were recorded and one point was filed, and this is that point asserting itself over the gesture it stands for. Nothing new is drawn at all: it is the same layer composited a second time, above instead of below.
+  how strongly the kept coordinates come back up over the painting at the season beat's crest (timeline.ts:KEPT_CREST — THE INSTANT, which this line used to name, was cut by the crescendo ruling). Five seconds of body were recorded and one point was filed, and this is that point asserting itself over the gesture it stands for. Nothing new is drawn at all: it is the same layer composited a second time, above instead of below.
 - **SPLOTCH_VISIBLE** — **0.004**  
   below this opacity a splotch is skipped — it would deposit less than one 8-bit level.
 - **CALIPER_SERIF** — **3.2**  

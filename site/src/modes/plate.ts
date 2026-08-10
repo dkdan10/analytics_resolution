@@ -6,6 +6,7 @@
  */
 
 import { drawBloom } from "../bloom";
+import { residenceSplatRadius } from "../field";
 import {
   drawGameEvents,
   GAME_PREFIX_STEPS,
@@ -15,12 +16,13 @@ import {
   gameTotalFrames,
   plateStroke,
   possessionFrames,
+  strokePath,
   strokeSpans,
   timeFrac,
 } from "../game";
 import { drawInscriptions, drawSlug } from "../inscription";
 import { prefixSurface } from "../prefix";
-import { GAME_DRIED } from "../scalars";
+import { GAME_DRIED, OLD_YIELD_STRENGTH } from "../scalars";
 import { secondsFor } from "../timeline";
 import { drawSeasonField } from "./fieldlayer";
 import { HAND_PHASES } from "./hand";
@@ -32,6 +34,18 @@ import type { Frame } from "./types";
  *  talk rail's PLATE interior (THE SECOND SCORE) — one definition, two
  *  readers, the `WINDOW_BEATS` discipline. Paired with `bloom.ts:SPREAD`. */
 export const SHELL_PHASE = 0.9;
+
+/**
+ * The entry yield's fixed two-width penumbra: the wake erases at full
+ * OLD_YIELD_STRENGTH inside CORE_W times the residence's cell-splat radius,
+ * and at PENUMBRA_A of it out to PENUMBRA_W — an eased edge with no filters,
+ * per the approved session-17 design. The profile is the wake's shape, held
+ * constant like the strike beats; the STRENGTH is the one authored scalar,
+ * declared in the register.
+ */
+const YIELD_CORE_W = 2;
+const YIELD_PENUMBRA_W = 3.2;
+const YIELD_PENUMBRA_A = 0.35;
 
 export function drawPlateHand(f: Frame): void {
   const { ctx, view, dpr, st, data, inscriptions, remains } = f;
@@ -57,12 +71,75 @@ export function drawPlateHand(f: Frame): void {
   const fieldDim =
     (inWindow ? 1 - 0.55 * Math.min(1, st.phase * 4) * (1 - closeU) : 1) * remains;
 
+  // THE GAME'S SHARE's clock, computed BEFORE the field goes down: the entry
+  // yield mask (session 17) needs the same reach the strokes below will
+  // draw, and one computation serving both is what keeps the wake and the
+  // stroke from drifting apart.
+  const gf = data.gameFile;
+  const gm = st.act === 3 ? data.game() : null;
+  const p = st.phase;
+  const clock = gm && gf && st.act === 3
+    ? (() => {
+        const pGame = HAND_PHASES[1];
+        const total = gameTotalFrames(gf);
+        const gameU = Math.max(0, Math.min(1, (p - pGame.from) / (pGame.to - pGame.from)));
+        const gameFrame = gameU > 0 ? gameClock(gameU) * total : 0;
+        const sp = strokeSpans(gm, gf);
+        const pos = possessionFrames(gf);
+        const oneFrames = p * secondsFor(year) * gf.hz;
+        return {
+          total, gameFrame, sp, pos,
+          dryFrame: gameFrame + Math.max(0, p - pGame.to) * secondsFor(year) * gf.hz,
+          clipUpto: Math.min(pos.f1, pos.f0 + oneFrames),
+        };
+      })()
+    : null;
+
+  // THE OLD SEASON YIELDS TO THE BODY (session 17, the entry ruling): while
+  // the previous season is still receding, its layer dries locally along
+  // every body/ball vertex the clock has reached — the exact reach the
+  // stroke loop below draws, walked through the same `strokePath`. An
+  // accumulating patina in the wake, never a tracking spotlight: strength
+  // below 1, an eased two-width penumbra, widths derived from the
+  // residence's own cell-splat radius. Recomputed from scratch every frame —
+  // pure in t.
+  const yieldMask = clock && gm && st.arrived < 1
+    ? (mctx: CanvasRenderingContext2D): void => {
+        const R = residenceSplatRadius(view, dpr);
+        mctx.lineCap = "round";
+        mctx.lineJoin = "round";
+        const passes: Array<[number, number]> = [
+          [YIELD_PENUMBRA_W * R, OLD_YIELD_STRENGTH * YIELD_PENUMBRA_A],
+          [YIELD_CORE_W * R, OLD_YIELD_STRENGTH],
+        ];
+        for (const [wDev, strength] of passes) {
+          mctx.strokeStyle = `rgba(0, 0, 0, ${strength})`;
+          mctx.lineWidth = wDev / dpr;
+          for (let i = 0; i < gm.n; i++) {
+            const at0 = clock.sp.start[i]!;
+            const end = at0 + clock.sp.dur[i]!;
+            if (at0 < clock.gameFrame) {
+              if (strokePath(mctx, view, gm, i, timeFrac(gm, i, clock.gameFrame - at0))) {
+                mctx.stroke();
+              }
+            } else if (at0 < clock.clipUpto && end > clock.pos.f0) {
+              const drawn = timeFrac(gm, i, clock.clipUpto - at0);
+              if (drawn > 0 && strokePath(mctx, view, gm, i, drawn,
+                timeFrac(gm, i, clock.pos.f0 - at0))) {
+                mctx.stroke();
+              }
+            }
+          }
+        }
+      }
+    : undefined;
+
   // Every shot in the season — arriving mark by mark in the record's own
   // emphasis order (stage B), with the one it replaces receding beneath it so
   // the plate is never empty and the drift stays continuous.
   // In the window, THE RESIDENCE goes down beneath it all: where the ball
   // lived, under where the shots ended.
-  drawSeasonField(f, { dim: fieldDim, residence: true, reveal: true });
+  drawSeasonField(f, { dim: fieldDim, residence: true, reveal: true, yieldMask });
 
   // THE GAME'S SHARE (session 15 — the artist's strongest want: ALL the
   // information on the plate). The found game's every body and the ball, in
@@ -73,29 +150,21 @@ export function drawPlateHand(f: Frame): void {
   // the window, washed at the close. The ratified ball residence beneath is
   // untouched, and there is deliberately NO body wash on this plate — two
   // densities under one field would compete (rival flagged in the packet).
-  const gf = data.gameFile;
-  const gm = st.act === 3 ? data.game() : null;
   let tracesDim = 1;
-  if (gm && gf && st.act === 3) {
+  if (gm && gf && clock) {
     const pGame = HAND_PHASES[1];
     const pNight = HAND_PHASES[2];
-    const p = st.phase;
-    const gameU = Math.max(0, Math.min(1, (p - pGame.from) / (pGame.to - pGame.from)));
-    const total = gameTotalFrames(gf);
-    const gameFrame = gameU > 0 ? gameClock(gameU) * total : 0;
-    // THE DRYING CLOCK CONTINUES past the game's end (third audit D-02): the
-    // buzzer's stroke is not "just happening" for the rest of the window. Past
-    // the game phase it advances at TRUE RATE — one second of phase is one
-    // second of feed, the night's own convention — so every stroke settles to
-    // GAME_DRIED within GAME_WET_S of presentation time after the game ends.
-    // Only drying reads this clock; the drawn prefix and the clip keep
-    // `gameFrame`, so no stroke gains vertices it has not earned.
-    const dryFrame = gameFrame + Math.max(0, p - pGame.to) * secondsFor(year) * gf.hz;
+    const { total, gameFrame, sp, pos, dryFrame, clipUpto } = clock;
+    // THE DRYING CLOCK (`dryFrame`) CONTINUES past the game's end (third
+    // audit D-02): the buzzer's stroke is not "just happening" for the rest
+    // of the window. Past the game phase it advances at TRUE RATE — one
+    // second of phase is one second of feed, the night's own convention — so
+    // every stroke settles to GAME_DRIED within GAME_WET_S of presentation
+    // time after the game ends. Only drying reads that clock; the drawn
+    // prefix and the clip keep `gameFrame`, so no stroke gains vertices it
+    // has not earned. All computed once, above, where the yield mask shares
+    // them.
     const env = remains * (1 - closeU);
-    const sp = strokeSpans(gm, gf);
-    const pos = possessionFrames(gf);
-    const oneFrames = p * secondsFor(year) * gf.hz;
-    const clipUpto = Math.min(pos.f1, pos.f0 + oneFrames);
 
     const dw = Math.max(1, Math.round(view.width * dpr));
     const dh = Math.max(1, Math.round(view.height * dpr));

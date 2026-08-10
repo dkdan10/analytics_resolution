@@ -244,6 +244,34 @@ export const SCALARS = {
       "lower it and the window's ground goes back to bare stone.",
   },
 
+  // --- the entry yield — the old season under arriving bodies (session 17) -
+  //
+  // THE OLD SEASON YIELDS TO THE BODY (fourth audit, Codex's measured entry
+  // collision; the artist's entry ruling, 2026-08-10). At the window's entry
+  // the previous season's completed field outweighed the arriving possession
+  // by orders of magnitude at the one-frame test. The ruled repair keeps the
+  // no-clear recession and adds a LOCAL drying: the prior layer composites
+  // through a per-frame mask that erases part of it along every body/ball
+  // vertex the clock has reached — an accumulating patina in the strokes'
+  // own wake, never a tracking spotlight. Untouched old marks persist whole;
+  // the wake dries the ground toward wash-tone rather than clearing it. The
+  // wake's radius is DERIVED from the residence's cell-splat radius — the
+  // occupancy grain, the scale at which the window already says "the game
+  // lived here" — so only the strength is authored.
+  OLD_YIELD_STRENGTH: {
+    class: "authored",
+    value: 0.65,
+    material: true,
+    controls:
+      "how much of the previous season's light the arriving bodies' wake " +
+      "takes down, per pass of the two-width penumbra (the core compounds " +
+      "both passes; below 1 the old marks always survive to a wash tone). " +
+      "At 0 the entry collision returns — the possession drawn into an " +
+      "undimmed prior field; at 1 the wake CLEARS the old season along the " +
+      "paths, which the entry ruling forbids: the transition must stay a " +
+      "recession, never a cut.",
+  },
+
   // --- the wet day — the window fold's visible front (session 17) ----------
   //
   // THE WET DAY (fourth audit, both blind runs independently, ruled
@@ -670,7 +698,7 @@ export const SCALARS = {
     material: true,
     controls:
       "how strongly the kept coordinates come back up over the painting at " +
-      "the season beat's crest (hand.ts:KEPT_CREST — THE INSTANT, which this " +
+      "the season beat's crest (timeline.ts:KEPT_CREST — THE INSTANT, which this " +
       "line used to name, was cut by the crescendo ruling). Five seconds of " +
       "body were recorded and one point was filed, and this is that point " +
       "asserting itself over the gesture it stands for. Nothing new is drawn " +
@@ -1506,6 +1534,7 @@ export const RESIDENCE_TONE_K: number = SCALARS.RESIDENCE_TONE_K.value;
 export const RESIDENCE_ALPHA: number = SCALARS.RESIDENCE_ALPHA.value;
 export const WINDOW_WET_GAIN: number = SCALARS.WINDOW_WET_GAIN.value;
 export const WINDOW_WET_DAYS: number = SCALARS.WINDOW_WET_DAYS.value;
+export const OLD_YIELD_STRENGTH: number = SCALARS.OLD_YIELD_STRENGTH.value;
 export const ONE_INK: number = SCALARS.ONE_INK.value;
 
 export const RIM_FT: number = SCALARS.RIM_FT.value;

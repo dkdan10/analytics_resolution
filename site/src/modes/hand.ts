@@ -142,7 +142,7 @@ import {
   SPLOTCH_MIN_R,
   SPLOTCH_VISIBLE,
 } from "../scalars";
-import { secondsFor, WINDOW_BEATS, WINDOW_YEAR } from "../timeline";
+import { KEPT_CREST, secondsFor, WINDOW_BEATS, WINDOW_YEAR } from "../timeline";
 import { pinCoordOf } from "./fieldlayer";
 import { arrivedThrough, cumulativeByDay, seasonClock } from "./shared";
 import type { Frame } from "./types";
@@ -276,16 +276,9 @@ function scatterOrder(owner: object, n: number): Int32Array {
 
 const [BEAT_ONE, BEAT_NIGHT, BEAT_SEASON, BEAT_CLOSE] = WINDOW_BEATS;
 
-/**
- * WHERE THE FILED RECORD RE-ASSERTS ITSELF, as a fraction of the season beat.
- *
- * The crescendo's crest: the kept points come up over the paint as the
- * accelerated calendar enters its fastest passage, so the coordinate asserts
- * itself exactly where the machine's pace has outrun a viewer's. A phase
- * anchor like `plate.ts:SHELL_PHASE`, not a material; first value flagged in
- * the session-14 packet.
- */
-const KEPT_CREST = 0.85;
+// KEPT_CREST — the season beat's crest — lives in timeline.ts since session
+// 17: the window's 24·6 inscription strikes at the same anchor, and one
+// definition serves both readers (the WINDOW_BEATS discipline).
 
 /**
  * WHERE THE SHARED NIGHT BEAT SPLITS INTO THE GAME AND THE NIGHT (session 15,

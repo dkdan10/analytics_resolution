@@ -31,6 +31,18 @@ export interface FieldOpts {
    *  ground their registers, and a glow under their type would be one more
    *  thing to read around rather than the ground disagreeing with the marks. */
   residence?: boolean;
+  /** THE ENTRY YIELD MASK (session 17, the fourth audit's entry ruling —
+   *  PLATE only, the hand where the collision was measured and the only
+   *  reveal hand drawing the strokes). When present, the PREVIOUS season's
+   *  layer composites through a per-frame scratch: its exposure states drawn
+   *  in, then this callback erases along every body/ball vertex the clock
+   *  has reached (`destination-out`; the caller sets its own widths and
+   *  strengths), then ONE `lighter` blit — so the old field locally dries in
+   *  the strokes' wake while untouched marks persist whole and the no-clear
+   *  recession stands. Pure in t: the wake is the disc-union along a
+   *  monotone stroke prefix, recomputed from scratch every frame; nothing
+   *  survives between frames. */
+  yieldMask?: (ctx: CanvasRenderingContext2D) => void;
   /** THE PER-MARK ARRIVAL (session 9, stage B): the arriving season's cells
    *  surface individually in the record's own emphasis order — descending
    *  filed count — instead of developing as one image. THE PLATE and THE
@@ -69,9 +81,17 @@ export interface FieldOpts {
  * phase — scrubbing backwards rebuilds it, nothing is remembered.
  */
 function residenceEnvelope(phase: number): number {
-  const riseTo = WINDOW_BEATS.find((b) => b.id === "night")!.to;
+  const night = WINDOW_BEATS.find((b) => b.id === "night")!;
   const washFrom = WINDOW_BEATS.find((b) => b.id === "close")!.from;
-  if (phase < riseTo) return developed(phase / riseTo);
+  // DELAYED to the game phase (session 17, the fourth audit's entry ruling,
+  // Codex A11's measured reason: at the entry's one-frame test the residence
+  // was part of a ground outweighing the tracked figure by orders of
+  // magnitude). "One" opens on bare stone plus the possession alone; the
+  // dwelling rises with the game/night expansion — game start to night's
+  // end, derived from the shared beat table, no new scalar — and is complete
+  // before the season floods over it, as before.
+  if (phase < night.from) return 0;
+  if (phase < night.to) return developed((phase - night.from) / (night.to - night.from));
   if (phase < washFrom) return 1;
   return 1 - developed((phase - washFrom) / (1 - washFrom));
 }
@@ -80,11 +100,12 @@ function residenceEnvelope(phase: number): number {
  * THE WINDOW FOLD's clock (session 16, the re-clock ruling): where the base
  * sits on the window's own calendar, from the shared beat table and the same
  * `seasonClock` the drops keep — one clock in Act III, base and foreground
- * agreeing about what day it is. "One" opens on the residence with none of the
- * season's endings; the night's day rises through the game+night span as one
- * continuous arrival; the season beat folds the window's days; the close
- * floods the remainder and holds the finished layer. Null wherever the season
- * ships no calendar, and the shared arrival envelope stands.
+ * agreeing about what day it is. "One" opens with none of the season's
+ * endings (and, since session 17, none of the residence — the dwelling is
+ * delayed to the game phase); the night's day rises through the game+night
+ * span as one continuous arrival; the season beat folds the window's days;
+ * the close floods the remainder and holds the finished layer. Null wherever
+ * the season ships no calendar, and the shared arrival envelope stands.
  */
 function windowBaseClock(phase: number, season: Season): WindowFoldClock | null {
   const meta = season.points_by_day;
@@ -96,6 +117,21 @@ function windowBaseClock(phase: number, season: Season): WindowFoldClock | null 
   const rise = Math.min(1, Math.max(0, (phase - night.from) / (night.to - night.from)));
   const seasonU = Math.min(1, Math.max(0, (phase - seasonBeat.from) / (seasonBeat.to - seasonBeat.from)));
   return { rise, dayFrac: seasonClock(seasonU) * meta.window_days, flood: false };
+}
+
+/** Scratch for the entry yield's per-frame composite — reused, not
+ *  reallocated (the field's own accOf discipline). Never a cache: it is
+ *  cleared and fully redrawn inside the one frame that uses it, so no byte
+ *  survives to the next and purity needs nothing registered. */
+let yieldScratch: HTMLCanvasElement | null = null;
+
+function yieldScratchOf(w: number, h: number): HTMLCanvasElement {
+  if (!yieldScratch || yieldScratch.width !== w || yieldScratch.height !== h) {
+    yieldScratch = document.createElement("canvas");
+    yieldScratch.width = w;
+    yieldScratch.height = h;
+  }
+  return yieldScratch;
 }
 
 export function drawSeasonField(f: Frame, opts: FieldOpts): void {
@@ -133,9 +169,33 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
       // The pin is not part of the ladder: it occludes rather than adds, so it
       // keeps the linear fade the receding field used to share with it.
       const fading = (1 - st.arrived) * dim;
-      drawDeveloping(ctx, view, DEVELOP_STATES - ladder, dim, (strength) =>
-        bakeLayer(st.prev!, prevPts, coloured, view, dpr, pinCoordOf(prevSeason), strength),
-      );
+      const bakePrev = (strength: number) =>
+        bakeLayer(st.prev!, prevPts, coloured, view, dpr, pinCoordOf(prevSeason), strength);
+      if (opts.yieldMask && st.arrived < 1) {
+        // THE ENTRY YIELD: the receding layer draws into the scratch, the
+        // wake erases locally, one blit carries the result. `lighter` over
+        // transparent black premultiplies each develop state by its own
+        // alpha, so the blit adds exactly what the direct path would have —
+        // minus what the wake took down.
+        const w = Math.max(1, Math.round(view.width * dpr));
+        const h = Math.max(1, Math.round(view.height * dpr));
+        const scratch = yieldScratchOf(w, h);
+        const sctx = scratch.getContext("2d")!;
+        sctx.setTransform(1, 0, 0, 1, 0, 0);
+        sctx.clearRect(0, 0, w, h);
+        sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawDeveloping(sctx, view, DEVELOP_STATES - ladder, dim, bakePrev);
+        sctx.save();
+        sctx.globalCompositeOperation = "destination-out";
+        opts.yieldMask(sctx);
+        sctx.restore();
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        ctx.drawImage(scratch, 0, 0, view.width, view.height);
+        ctx.restore();
+      } else {
+        drawDeveloping(ctx, view, DEVELOP_STATES - ladder, dim, bakePrev);
+      }
       drawPin(ctx, view, pinFractionOf(prevSeason), pinCoordOf(prevSeason), {
         dpr, opacity: fading,
       });

@@ -27,7 +27,10 @@ import {
   STRIKE_SHADOW_K,
   STRIKE_SHADOW_MAX,
 } from "./scalars";
-import { ARRIVAL_TAIL, SEASON_SECONDS, type Schedule } from "./timeline";
+import {
+  ARRIVAL_TAIL, KEPT_CREST, SEASON_SECONDS, WINDOW_BEATS, WINDOW_YEAR,
+  type Schedule,
+} from "./timeline";
 
 /** Struck on the centreline, out in the middle the piece is about. */
 const STRIKE_AT = { x: 0, y: 200 };
@@ -46,10 +49,15 @@ const RING_R = 172;
  * audits' ruling), and DERIVED rather than typed: the strike is arrival's end
  * (ARRIVAL_TAIL of an ordinary season) and the migration ends at the season
  * boundary, so nothing here can drift away from the schedule it inhabits. For
- * the window season the same ordinary-season arc simply happens early — the
- * numeral completes its whole arc inside the act's first beat, resident on the
- * ring a few seconds later than under the old constants and long before the
- * instant.
+ * the window season the arc is different SINCE SESSION 17 (the fourth audit's
+ * numeral ruling — both blind runs measured 24·6 as the loudest object at the
+ * exact instant the found possession is smallest): the window's numeral WAITS,
+ * strikes at the season beat's crest (timeline.ts:KEPT_CREST — the same
+ * anchor THE HAND's kept points rise on), and migrates through the whole
+ * close, landing resident exactly at the season boundary — the ordinary
+ * seasons' own law, arrived at by the window's own clock. The possession
+ * enters decongested; the statistic strikes as a consequence of the season
+ * just built.
  *
  * What this costs, accepted with the commission: the numeral no longer
  * coexists centrally with mid-arrival marks — the marks finish, and the
@@ -58,7 +66,6 @@ const RING_R = 172;
 const STRIKE_IN = 0.8;
 const HOLD = 0.8;
 const STRIKE_DELAY = ARRIVAL_TAIL * SEASON_SECONDS;
-const MIGRATE = SEASON_SECONDS - STRIKE_DELAY - STRIKE_IN - HOLD;
 
 const FACE_SIZE = 34;
 /** Small enough that a numeral per season fits the annulus without touching. */
@@ -79,6 +86,9 @@ export interface Inscription {
    *  number cannot disagree with its own picture. */
   weight: number;
   strikeAt: number;
+  /** Seconds the migration takes — derived so residence lands exactly at the
+   *  season boundary whatever the strike's delay was. */
+  migrate: number;
   slot: { x: number; y: number };
   /** Where on the ring, in radians - the numeral lies tangent to it. */
   angle: number;
@@ -108,11 +118,18 @@ export const STRIKE_LETTER_SPACING = 0.08;
 
 export function buildInscriptions(seasons: Season[], schedule: Schedule): Inscription[] {
   const n = seasons.length;
+  const seasonBeat = WINDOW_BEATS.find((b) => b.id === "season")!;
+  const crestPhase = seasonBeat.from + KEPT_CREST * (seasonBeat.to - seasonBeat.from);
   return seasons.map((s, i) => {
     // Slots run across the semicircle in season order, so the ring reads as
     // time laid around the hole it is measuring.
     const a = Math.PI - (i + 0.5) * (Math.PI / n);
     const seg = schedule.byYear.get(s.year);
+    // The window's numeral waits for its season: it strikes at the beat's
+    // crest and migrates through the close, resident exactly at the boundary
+    // — the same law the ordinary delay produces, on the window's own clock.
+    const duration = seg?.duration ?? SEASON_SECONDS;
+    const delay = s.year === WINDOW_YEAR ? crestPhase * duration : STRIKE_DELAY;
     return {
       year: s.year,
       text: struckFigure(s.mid_share),
@@ -129,7 +146,8 @@ export function buildInscriptions(seasons: Season[], schedule: Schedule): Inscri
         ? `UNDER THE ${fmtFt(s.contemporaneous.line_ft)}-FT LINE THEN IN FORCE`
         : undefined,
       weight: s.mid_share,
-      strikeAt: (seg?.start ?? 0) + STRIKE_DELAY,
+      strikeAt: (seg?.start ?? 0) + delay,
+      migrate: duration - delay - STRIKE_IN - HOLD,
       slot: { x: RING_R * Math.cos(a), y: RING_R * Math.sin(a) },
       angle: a,
     };
@@ -161,7 +179,7 @@ function placementAt(ins: Inscription, t: number): Placement | null {
   if (u < STRIKE_IN + HOLD) {
     return { x: STRIKE_AT.x, y: STRIKE_AT.y, scale: 1, alpha: 1, settled: 0 };
   }
-  const p = easeInOut((u - STRIKE_IN - HOLD) / MIGRATE);
+  const p = easeInOut((u - STRIKE_IN - HOLD) / ins.migrate);
   return {
     x: STRIKE_AT.x + (ins.slot.x - STRIKE_AT.x) * p,
     y: STRIKE_AT.y + (ins.slot.y - STRIKE_AT.y) * p,
