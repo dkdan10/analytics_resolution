@@ -27,7 +27,7 @@ import {
   STRIKE_SHADOW_K,
   STRIKE_SHADOW_MAX,
 } from "./scalars";
-import type { Schedule } from "./timeline";
+import { ARRIVAL_TAIL, SEASON_SECONDS, type Schedule } from "./timeline";
 
 /** Struck on the centreline, out in the middle the piece is about. */
 const STRIKE_AT = { x: 0, y: 200 };
@@ -36,11 +36,29 @@ const STRIKE_AT = { x: 0, y: 200 };
  *  of its neighbours. */
 const RING_R = 172;
 
+/**
+ * THE NUMBER LEAVES LAST (session 8, the second audit's C2-P1, accepted by the
+ * artist). The season's frozen tail becomes the moment its measurement
+ * withdraws: the numeral strikes as the marks finish arriving, stands central
+ * through a short hold, and is the one thing moving through seconds that used
+ * to hold a single frame — settling resident on the ring exactly as the next
+ * season's marks land. Composition constants, not register entries (both
+ * audits' ruling), and DERIVED rather than typed: the strike is arrival's end
+ * (ARRIVAL_TAIL of an ordinary season) and the migration ends at the season
+ * boundary, so nothing here can drift away from the schedule it inhabits. For
+ * the window season the same ordinary-season arc simply happens early — the
+ * numeral completes its whole arc inside the act's first beat, resident on the
+ * ring a few seconds later than under the old constants and long before the
+ * instant.
+ *
+ * What this costs, accepted with the commission: the numeral no longer
+ * coexists centrally with mid-arrival marks — the marks finish, and the
+ * number answers.
+ */
 const STRIKE_IN = 0.8;
-const HOLD = 2.4;
-const MIGRATE = 2.6;
-/** A beat into the season, so the marks arrive first and the number answers. */
-const STRIKE_DELAY = 2.2;
+const HOLD = 0.8;
+const STRIKE_DELAY = ARRIVAL_TAIL * SEASON_SECONDS;
+const MIGRATE = SEASON_SECONDS - STRIKE_DELAY - STRIKE_IN - HOLD;
 
 const FACE_SIZE = 34;
 /** Small enough that a numeral per season fits the annulus without touching. */

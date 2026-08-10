@@ -32,7 +32,7 @@ export const ACT0_SECONDS = 24;
  * should not have to share the distinction with a loop boundary.
  */
 export const CODA_SECONDS = 7;
-const SEASON_SECONDS = 11;
+export const SEASON_SECONDS = 11;
 /**
  * The window dilates: the piece is slow exactly where the record is rich.
  *
