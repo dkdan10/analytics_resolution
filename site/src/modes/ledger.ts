@@ -769,8 +769,8 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
   // THE VALUES WITHDRAW (session 17): in the close each recomputed figure
   // departs on the reverse of the accumulation law that brought its name —
   // strict reverse arrival order, eased over exactly one name's spacing, so
-  // the last figure written is the first to leave and the twelve headings
-  // stand bare at wash 1 (Act V's exact standing state, from this same
+  // the last figure written is the first to leave and every heading stands
+  // bare at wash 1 (Act V's exact standing state, from this same
   // function). Per-NAME, never per-line: a scope tag departing separately
   // from its share would re-create D-09. Each departure is statable on the
   // fold's own calendar — value i completes leaving when the reverse clock
