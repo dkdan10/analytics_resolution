@@ -73,6 +73,46 @@ export function decodePoints(buf: ArrayBuffer): Points {
   return { n, x, y, hires, rest, zone, total };
 }
 
+/** Bytes per record in points_by_day/season_YYYY.bin — must match DAY_POINT_DTYPE. */
+const DAY_REC = 11;
+
+/** The window season's calendar: one count delta per (day, coordinate), filed
+ *  day-ascending with the reveal's own emphasis rule inside each day. Days sum
+ *  per coordinate to that season's points/season_YYYY.bin exactly (gated in
+ *  qa.py); the renderer trusts that identity and never re-derives it. */
+export interface DayPoints {
+  n: number;
+  day: Uint16Array;
+  x: Int16Array;
+  y: Int16Array;
+  count: Uint32Array;
+  zone: Uint8Array;
+  /** Every shot in the season's halfcourt, summed from the records. */
+  total: number;
+}
+
+export function decodePointsByDay(buf: ArrayBuffer): DayPoints {
+  const n = Math.floor(buf.byteLength / DAY_REC);
+  const dv = new DataView(buf);
+  const day = new Uint16Array(n);
+  const x = new Int16Array(n);
+  const y = new Int16Array(n);
+  const count = new Uint32Array(n);
+  const zone = new Uint8Array(n);
+  let total = 0;
+  for (let i = 0; i < n; i++) {
+    const o = i * DAY_REC;
+    day[i] = dv.getUint16(o, true);
+    x[i] = dv.getInt16(o + 2, true);
+    y[i] = dv.getInt16(o + 4, true);
+    const c = dv.getUint32(o + 6, true);
+    count[i] = c;
+    zone[i] = dv.getUint8(o + 10);
+    total += c;
+  }
+  return { n, day, x, y, count, zone, total };
+}
+
 /**
  * One tone curve for every season.
  *

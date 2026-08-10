@@ -1,6 +1,6 @@
 {
   "generated_by": "pipeline/aggregate.py",
-  "generated_at": "2026-08-10T04:12:13+00:00",
+  "generated_at": "2026-08-10T18:59:56+00:00",
   "provenance": {
     "shots_source": "stats.nba.com shotchartdetail, bulk archive github.com/shufinskiy/nba_data",
     "sportvu_source": "NBA/STATS SportVU public 2015-16 release, github.com/linouk23/NBA-Player-Movements + mirrors (github.com/sealneaward/nba-movement-data, HF dcayton/nba_tracking_data_15_16)",
@@ -14866,6 +14866,16 @@
       },
       "contemporaneous": null,
       "note": "THE WINDOW: public SportVU corpus 2015-10-27 .. 2016-01-23",
+      "points_by_day": {
+        "records": 175938,
+        "bytes": 1935318,
+        "day0": "2015-10-27",
+        "window_last_day": 88,
+        "window_days": 89,
+        "last_day": 169,
+        "days_present": 161,
+        "order": "day ascending; within a day, that day's filed count descending, then nearest rim - the reveal's emphasis rule per day; no intra-day chronology is read or shipped"
+      },
       "points": {
         "cells": 30671,
         "bytes": 429394

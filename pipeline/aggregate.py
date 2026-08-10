@@ -884,7 +884,12 @@ def aggregate_season(year):
     }
 
     points = build_points(year, half, row)
-    return row, sample, grid, points
+    # The window season also ships its calendar (the third audit's re-clock,
+    # ruled 2026-08-10). Identified by the window span's own first year rather
+    # than a second 2015 literal.
+    window_year = int(WINDOW_FALLBACK[0][:4])
+    points_by_day = build_points_by_day(year, half, row, points) if year == window_year else None
+    return row, sample, grid, points, points_by_day
 
 
 # One record per occupied coordinate, little-endian, 14 bytes.
@@ -948,6 +953,105 @@ def build_points(year, half, row):
     return rec
 
 
+# The window season only. One record per (day, occupied coordinate), 11 bytes,
+# little-endian. Commissioned by the third audit and ruled by the artist
+# 2026-08-10: the 2015-16 base reveal re-accumulates on the record's own
+# measured days instead of the authored emphasis-order arrival, and this is the
+# artifact that carries the calendar. `day` is days since the window's first
+# date (2015-10-27, the same anchor window.py's three dated binaries share) and
+# runs to the season's own end in April - day 88 is the window's last day, days
+# beyond it are the enclosure's remainder - which overflows the uint8 idiom
+# window.py uses, so uint16.
+DAY_POINT_DTYPE = np.dtype([
+    ("day", "<u2"),
+    ("x", "<i2"), ("y", "<i2"),
+    ("n", "<u4"),
+    ("zone", "u1"),
+])
+
+
+def build_points_by_day(year, half, row, points):
+    """The window season's shots on their own calendar, one delta per day.
+
+    Same lattice, same counts, same zone bytes as `build_points` - the sum over
+    days at any coordinate IS that coordinate's `points` record, verified here
+    per coordinate and gated again in qa.py. No intra-day chronology ships: the
+    record's clock/period columns are not read, so within one day the order is
+    the reveal's own emphasis rule (filed count descending, then nearest rim),
+    disclosed in the row's `order` sentence. The pin's cells ship like every
+    other - the renderer skips them; the pipeline never special-cases what the
+    plate decides.
+    """
+    w0, w1 = WINDOW_FALLBACK
+    day0 = datetime.datetime.strptime(w0, "%Y-%m-%d").date()
+    window_last = (datetime.datetime.strptime(w1, "%Y-%m-%d").date() - day0).days
+
+    date_strs = half.GAME_DATE.to_numpy()
+    uniq_dates, inverse = np.unique(date_strs, return_inverse=True)
+    day_of = np.array(
+        [(datetime.datetime.strptime(s, "%Y%m%d").date() - day0).days for s in uniq_dates],
+        dtype=np.int64,
+    )
+    day = day_of[inverse]
+    if int(day.min()) < 0:
+        die(f"{season_label(year)}: a shot precedes the window anchor {w0}")
+
+    x = half.LOC_X.to_numpy(np.int32)
+    y = half.LOC_Y.to_numpy(np.int32)
+    span_y = HALF_Y_MAX - HALF_Y_MIN + 1
+    key = ((x + 250) * span_y + (y - HALF_Y_MIN)).astype(np.int64)
+    size = (500 + 1) * span_y
+
+    uniq, cnt = np.unique(day * size + key, return_counts=True)
+    day_u = uniq // size
+    key_u = uniq % size
+    x_u = (key_u // span_y).astype(np.int64) - 250
+    y_u = (key_u % span_y).astype(np.int64) + HALF_Y_MIN
+
+    # One zone source: the coordinate's own byte from the points record, so the
+    # two artifacts cannot disagree even transiently.
+    pkey = (points["x"].astype(np.int64) + 250) * span_y + (points["y"].astype(np.int64) - HALF_Y_MIN)
+    zone_table = np.zeros(size, dtype=np.uint8)
+    zone_table[pkey] = points["zone"]
+
+    # The fold order ships in the bytes: day ascending, then the reveal's own
+    # emphasis rule within the day - that day's filed count descending, nearest
+    # rim, y, x (field.ts:revealOrder's tie-breaks, applied per day).
+    dist2 = x_u * x_u + y_u * y_u
+    order = np.lexsort((x_u, y_u, dist2, -cnt.astype(np.int64), day_u))
+
+    rec = np.zeros(len(uniq), dtype=DAY_POINT_DTYPE)
+    rec["day"] = day_u[order].astype(np.uint16)
+    rec["x"] = x_u[order].astype(np.int16)
+    rec["y"] = y_u[order].astype(np.int16)
+    rec["n"] = cnt[order].astype(np.uint32)
+    rec["zone"] = zone_table[key_u[order]]
+
+    # The acceptance identity, checked at the source before qa.py re-checks the
+    # shipped bytes: the sum over days per coordinate equals the points record.
+    per_cell = np.zeros(size, dtype=np.int64)
+    np.add.at(per_cell, key_u, cnt)
+    ptot = points["n_hires"].astype(np.int64) + points["n_rest"].astype(np.int64)
+    if not np.array_equal(per_cell[pkey], ptot) or int(per_cell.sum()) != int(ptot.sum()):
+        die(f"{season_label(year)}: points_by_day does not reconcile with points per coordinate")
+
+    row["points_by_day"] = {
+        "records": int(len(rec)),
+        "bytes": int(rec.nbytes),
+        "day0": w0,
+        "window_last_day": int(window_last),
+        "window_days": int(window_last) + 1,
+        "last_day": int(day_u.max()),
+        "days_present": int(len(np.unique(day_u))),
+        "order": (
+            "day ascending; within a day, that day's filed count descending, then "
+            "nearest rim - the reveal's emphasis rule per day; no intra-day "
+            "chronology is read or shipped"
+        ),
+    }
+    return rec
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--years", help="comma-separated season start years (default: all 30)")
@@ -959,7 +1063,7 @@ def main():
 
     rows = []
     for year in years:
-        row, sample, grid, points = aggregate_season(year)
+        row, sample, grid, points, points_by_day = aggregate_season(year)
         rows.append(row)
         write_json(PROCESSED_DIR / "samples" / f"season_{year}.json", sample, compact=True)
         write_json(PROCESSED_DIR / "grids" / f"season_{year}.json", grid, compact=True)
@@ -967,6 +1071,10 @@ def main():
         pts_path.parent.mkdir(parents=True, exist_ok=True)
         pts_path.write_bytes(points.tobytes())
         row["points"] = {"cells": int(len(points)), "bytes": int(points.nbytes)}
+        if points_by_day is not None:
+            pbd_path = PROCESSED_DIR / "points_by_day" / f"season_{year}.bin"
+            pbd_path.parent.mkdir(parents=True, exist_ok=True)
+            pbd_path.write_bytes(points_by_day.tobytes())
         res = row["resolution"]
         print(
             f"  {row['season']}  {row['attempts']:>7,} att  {row['n_games']:>5} games  "

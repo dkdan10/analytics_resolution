@@ -51,6 +51,7 @@ from common import (  # noqa: E402
     CORNER_Y,
     FREE_THROW_Y,
     HALF_Y_MAX,
+    HALF_Y_MIN,
     HALFCOURT_Y,
     LANE_HALF_W,
     PROCESSED_DIR,
@@ -68,6 +69,7 @@ require_env()
 import numpy as np  # noqa: E402
 
 from aggregate import (
+    DAY_POINT_DTYPE,
     POINT_DTYPE,
     SENTINEL_DUNK_FG,
     SENTINEL_LEAD,
@@ -437,6 +439,7 @@ DECODER_SOURCES = {
     "game": ("site/src/data.ts", r"GAME_REC"),
     "wash": ("site/src/data.ts", r"WASH_CELL"),
     "point": ("site/src/field.ts", r"REC"),
+    "day_point": ("site/src/field.ts", r"DAY_REC"),
 }
 # A WAIVER names a mismatch that is known, owned and dated. It keeps the check
 # real in BOTH directions: an un-waived mismatch fails, and a waiver whose
@@ -668,6 +671,16 @@ REQUIRED_ARTIFACTS = [
     # the shufinskiy mirror; and the work's argument - every shot renders -
     # cannot be made from a residue of itself. Reviewed, not defaulted.
     Artifact("points/season_{year}.bin", "bin", per_season=True),
+    # The window season's calendar for the same multiset: one per-day COUNT
+    # delta per (day, coordinate), summing exactly to points/season_2015.bin.
+    # PUBLIC because the piece fetches it (the third audit's re-clock, ruled by
+    # the artist 2026-08-10: the 2015-16 base accumulates on the record's own
+    # days). It adds a DAY to the per-coordinate counts - one step more dated
+    # than points/*.bin, far short of a per-shot row; the same shot dates are
+    # public per game via stats.nba.com, and the piece's argument - the one
+    # season whose true arrival order the record preserves is drawn in that
+    # order - cannot be made without the calendar. Reviewed, not defaulted.
+    Artifact("points_by_day/season_2015.bin", "bin"),
     # THE FIELD's hues and what they measurably separate by (audit V-03). NOT
     # served: nothing fetches it, and the piece cites no figure from it on
     # screen, which is the whole of the publish rule. The hues themselves live
@@ -693,6 +706,10 @@ DEPLOY_ALLOWLIST = Path(__file__).resolve().parent / "deploy_allowlist.json"
 
 def decode_points(buf):
     return np.frombuffer(buf, dtype=POINT_DTYPE)
+
+
+def decode_points_by_day(buf):
+    return np.frombuffer(buf, dtype=DAY_POINT_DTYPE)
 
 
 def _field_ceiling(rec, index):
@@ -1492,6 +1509,107 @@ def group_shot_artifacts(g, ctx):
         if sum(cls["TYPE"].values()) != row["attempts"] - row["shot_type_nulls"]:
             drift.append(f"{row['season']}: TYPE counts do not sum to attempts")
     g.check("census figures equal the struck figures", drift, [])
+
+    _points_by_day_gate(g, ctx, seasons)
+
+
+def _points_by_day_gate(g, ctx, seasons):
+    """The window season's calendar reconciles exactly with its points.
+
+    Three claims, three checks: the bytes are whole records filed in the fold
+    order the row discloses; the calendar is the window's own (day0 at the
+    window's first date, day 88 its last, the season's tail running to April);
+    and - the acceptance identity the artist's re-clock ruling requires - the
+    sum over days at every coordinate equals points/season_2015.bin at that
+    coordinate, with the same zone byte. The fold the renderer draws is only as
+    honest as this reconciliation, so it is exact, never approximate.
+    """
+    year = int(EXPECTED_WINDOW_DATES[0][:4])
+    row = seasons.get(year)
+    if row is None or "points_by_day" not in row:
+        g.fail("points_by_day is filed in its fold order, whole records",
+               f"season {year} carries no points_by_day block")
+        return
+    meta = row["points_by_day"]
+    buf = ctx.raw(g, "points_by_day/season_2015.bin")
+    if buf is None:
+        return
+
+    order_issues = []
+    if len(buf) % DAY_POINT_DTYPE.itemsize:
+        order_issues.append("points_by_day is not a whole number of records")
+        g.check("points_by_day is filed in its fold order, whole records",
+                order_issues, [])
+        return
+    rec = decode_points_by_day(buf)
+    day = rec["day"].astype(np.int64)
+    n = rec["n"].astype(np.int64)
+    if len(rec) != meta["records"]:
+        order_issues.append(f"{len(rec)} records != declared {meta['records']}")
+    if len(buf) != meta["bytes"]:
+        order_issues.append(f"{len(buf)} bytes != declared {meta['bytes']}")
+    if np.any(np.diff(day) < 0):
+        order_issues.append("days are not ascending")
+    same_day = np.diff(day) == 0
+    if np.any(n[1:][same_day] > n[:-1][same_day]):
+        order_issues.append("within a day, counts are not descending "
+                            "(the disclosed emphasis rule is broken)")
+    if np.any(n == 0):
+        order_issues.append("a record carries zero shots")
+    g.check("points_by_day is filed in its fold order, whole records",
+            order_issues, [])
+
+    cal_issues = []
+    d0 = _date.fromisoformat(EXPECTED_WINDOW_DATES[0])
+    d1 = _date.fromisoformat(EXPECTED_WINDOW_DATES[1])
+    if meta["day0"] != EXPECTED_WINDOW_DATES[0]:
+        cal_issues.append(f"day0 {meta['day0']} != window start {EXPECTED_WINDOW_DATES[0]}")
+    if meta["window_last_day"] != (d1 - d0).days:
+        cal_issues.append(f"window_last_day {meta['window_last_day']} != {(d1 - d0).days}")
+    if meta["window_days"] != (d1 - d0).days + 1:
+        cal_issues.append(f"window_days {meta['window_days']} != {(d1 - d0).days + 1}")
+    if len(rec) and int(day.max()) != meta["last_day"]:
+        cal_issues.append(f"last day in bytes {int(day.max())} != declared {meta['last_day']}")
+    if len(rec) and int(np.unique(day).size) != meta["days_present"]:
+        cal_issues.append(f"{int(np.unique(day).size)} distinct days != declared "
+                          f"{meta['days_present']}")
+    if meta["last_day"] < meta["window_last_day"]:
+        cal_issues.append("the season ends before the window does")
+    g.check("points_by_day carries the window's own calendar", cal_issues, [])
+
+    pb = ctx.raw(g, f"points/season_{year}.bin")
+    if pb is None or len(pb) % POINT_DTYPE.itemsize:
+        return
+    pts = decode_points(pb)
+    span_y = HALF_Y_MAX - HALF_Y_MIN + 1
+    size = (500 + 1) * span_y
+    dkey = (rec["x"].astype(np.int64) + 250) * span_y + (rec["y"].astype(np.int64) - HALF_Y_MIN)
+    pkey = (pts["x"].astype(np.int64) + 250) * span_y + (pts["y"].astype(np.int64) - HALF_Y_MIN)
+    per_cell = np.zeros(size, dtype=np.int64)
+    np.add.at(per_cell, dkey, n)
+    ptot = pts["n_hires"].astype(np.int64) + pts["n_rest"].astype(np.int64)
+    rec_issues = []
+    off = np.nonzero(per_cell[pkey] != ptot)[0]
+    if off.size:
+        i = int(off[0])
+        rec_issues.append(
+            f"{off.size} coordinates disagree; first at "
+            f"({int(pts['x'][i])},{int(pts['y'][i])}): days sum to "
+            f"{int(per_cell[pkey[i]])}, points file {int(ptot[i])}")
+    if int(per_cell.sum()) != int(ptot.sum()):
+        rec_issues.append(f"total {int(per_cell.sum())} != points total {int(ptot.sum())}")
+    stray = np.setdiff1d(dkey, pkey)
+    if stray.size:
+        rec_issues.append(f"{stray.size} day-coordinates fall on no points cell")
+    zone_table = np.zeros(size, dtype=np.uint8)
+    zone_table[pkey] = pts["zone"]
+    if np.any(zone_table[dkey] != rec["zone"]):
+        rec_issues.append("a day record's zone byte differs from the points cell's")
+    g.check("points_by_day reconciles with points/season_2015.bin per coordinate",
+            rec_issues, [])
+    g.info(f"points_by_day: {len(rec):,} records over {meta['days_present']} days, "
+           f"day 0..{meta['last_day']}; the window ends at day {meta['window_last_day']}; "
+           f"every coordinate's days sum to its points record exactly")
 
 
 def _zone_boundary_probe(xs, ys, filed):
@@ -3515,6 +3633,7 @@ def _decoder_parity(g, ctx):
         "game": gj["files"]["game_index"]["bytes_per_record"],
         "wash": WASH_CELL_BYTES,
         "point": POINT_DTYPE.itemsize,
+        "day_point": DAY_POINT_DTYPE.itemsize,
     }
     import re  # noqa: PLC0415
 
@@ -3675,6 +3794,12 @@ MEMORY_CLAIMS = [
     # this document that carries the project's newest content claim was the one
     # section unprotected by the mechanism that has caught every other drift.
     Claim("**{}** shots on `(0, 1)`", "season:2015", "resolution.rim_sentinel.n", "comma"),
+    # THE CALENDAR (session 16): the re-clock's artifact, stated where it is
+    # described so the figures cannot drift from the shipped bytes.
+    Claim("`points_by_day/season_2015.bin` — **{} records**", "season:2015",
+          "points_by_day.records", "comma"),
+    Claim("runs to the season's own day **{}**", "season:2015",
+          "points_by_day.last_day"),
     Claim("converting at **{}**", "season:2015", "resolution.rim_sentinel.fg_pct", "f2"),
     Claim("against **{}** for the rest of that season's rim", "season:2015",
           "resolution.rim_sentinel.fg_pct_off_sentinel", "f2"),

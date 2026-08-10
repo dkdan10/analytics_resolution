@@ -446,6 +446,68 @@ def m_truncate_points(d):
     _truncate(d, "points/season_2015.bin", POINT_DTYPE.itemsize)
 
 
+def m_zero_points_day(d):
+    _zero(d, "points_by_day/season_2015.bin")
+
+
+def m_points_day_one_shot(d):
+    """One extra shot on one day at one coordinate.
+
+    The exact per-coordinate reconciliation the 2026-08-10 re-clock ruling
+    requires must catch a single displaced unit, or it is not exact.
+    """
+    from aggregate import DAY_POINT_DTYPE  # noqa: PLC0415
+
+    p = d / "points_by_day" / "season_2015.bin"
+    raw = bytearray(p.read_bytes())
+    n_off = DAY_POINT_DTYPE.fields["n"][1]
+    (n,) = struct.unpack_from("<I", raw, n_off)
+    struct.pack_into("<I", raw, n_off, n + 1)
+    p.write_bytes(bytes(raw))
+
+
+def m_points_day_stray_day(d):
+    """The last record's day pushed past the season's own end."""
+    from aggregate import DAY_POINT_DTYPE  # noqa: PLC0415
+
+    p = d / "points_by_day" / "season_2015.bin"
+    raw = bytearray(p.read_bytes())
+    o = len(raw) - DAY_POINT_DTYPE.itemsize + DAY_POINT_DTYPE.fields["day"][1]
+    struct.pack_into("<H", raw, o, 400)
+    p.write_bytes(bytes(raw))
+
+
+def m_points_day_disorder(d):
+    """Two same-day records swapped against the disclosed emphasis order."""
+    from aggregate import DAY_POINT_DTYPE  # noqa: PLC0415
+
+    p = d / "points_by_day" / "season_2015.bin"
+    raw = bytearray(p.read_bytes())
+    rec = DAY_POINT_DTYPE.itemsize
+    day_off = DAY_POINT_DTYPE.fields["day"][1]
+    n_off = DAY_POINT_DTYPE.fields["n"][1]
+    i = 0
+    while True:
+        (d0,) = struct.unpack_from("<H", raw, i * rec + day_off)
+        (d1,) = struct.unpack_from("<H", raw, (i + 1) * rec + day_off)
+        (n0,) = struct.unpack_from("<I", raw, i * rec + n_off)
+        (n1,) = struct.unpack_from("<I", raw, (i + 1) * rec + n_off)
+        if d0 == d1 and n0 > n1:
+            break
+        i += 1
+    a = bytes(raw[i * rec:(i + 1) * rec])
+    b = bytes(raw[(i + 1) * rec:(i + 2) * rec])
+    raw[i * rec:(i + 1) * rec] = b
+    raw[(i + 1) * rec:(i + 2) * rec] = a
+    p.write_bytes(bytes(raw))
+
+
+def m_truncate_points_day(d):
+    from aggregate import DAY_POINT_DTYPE  # noqa: PLC0415
+
+    _truncate(d, "points_by_day/season_2015.bin", DAY_POINT_DTYPE.itemsize)
+
+
 def m_approach_999(d):
     """Every approach sample set to 999 ft. (audit)
 
@@ -1598,6 +1660,22 @@ CASES = [
     Case("zone-byte", ["shot_artifacts"],
          "every points cell's league label is its own region or a boundary of it",
          m_zone_byte, "Rule 4: a colour that is no longer a measurement"),
+    Case("zero-points-day", ["shot_artifacts"],
+         "points_by_day reconciles with points/season_2015.bin per coordinate",
+         m_zero_points_day, "the calendar zeroed while the season stands"),
+    Case("points-day-one-shot", ["shot_artifacts"],
+         "points_by_day reconciles with points/season_2015.bin per coordinate",
+         m_points_day_one_shot,
+         "the re-clock ruling's acceptance identity: one unit off, red"),
+    Case("points-day-stray-day", ["shot_artifacts"],
+         "points_by_day carries the window's own calendar",
+         m_points_day_stray_day, "a day the season never played"),
+    Case("points-day-disorder", ["shot_artifacts"],
+         "points_by_day is filed in its fold order, whole records",
+         m_points_day_disorder, "the disclosed emphasis order silently broken"),
+    Case("truncate-points-day", ["shot_artifacts"],
+         "points_by_day is filed in its fold order, whole records",
+         m_truncate_points_day, "a record lost off the season's tail"),
     Case("unknown-file", ["inventory"], "no unknown file has appeared under data/processed/",
          m_unknown_file, "the hook session 3's deploy allowlist hangs off"),
 

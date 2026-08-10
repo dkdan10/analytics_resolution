@@ -222,6 +222,10 @@ export async function forceResidency(
 }> {
   const wanted: [string, () => unknown][] = [
     ...data.seasons.map((s) => [`points/${s.year}`, () => data.points(s.year)] as [string, () => unknown]),
+    // The calendar (session 16): every season that declares one - today the
+    // window season alone - same rule, same commit as its loader.
+    ...data.seasons.filter((s) => s.points_by_day).map(
+      (s) => [`points_by_day/${s.year}`, () => data.pointsByDay(s.year)] as [string, () => unknown]),
     ["measures", () => data.measures()],
     ["strokes", () => data.strokes()],
     // The quarrel is lazy like the calipers, and a capture taken while its

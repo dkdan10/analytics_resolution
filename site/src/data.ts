@@ -7,7 +7,7 @@
 
 /** How finely the record could draw a given season. Measured, not assigned. */
 import type { TracesFile } from "./bloom";
-import { decodePoints, type Points } from "./field";
+import { decodePoints, decodePointsByDay, type DayPoints, type Points } from "./field";
 
 export type Regime =
   | "uniformly_blind"
@@ -232,6 +232,21 @@ export interface Season {
   active_taxonomy: string;
   contemporaneous: Contemporaneous | null;
   note: string | null;
+  /** Declared only by the window season: the shape of its shipped calendar
+   *  (`points_by_day/season_YYYY.bin`). A season without this block ships no
+   *  calendar and is never asked for one. */
+  points_by_day?: PointsByDayMeta;
+}
+
+export interface PointsByDayMeta {
+  records: number;
+  bytes: number;
+  day0: string;
+  window_last_day: number;
+  window_days: number;
+  last_day: number;
+  days_present: number;
+  order: string;
 }
 
 export interface SeasonsFile {
@@ -1015,6 +1030,11 @@ export interface Loaded {
    *  and gains it a frame or two later, rather than blocking the first paint on
    *  4 MB. */
   points(year: number): Points | null;
+  /** The window season's calendar for the same points: per-day count deltas,
+   *  the re-clock's artifact. Null for every season that ships no calendar and
+   *  while the fetch is in flight; the base falls back to the shared arrival
+   *  envelope rather than blocking. */
+  pointsByDay(year: number): DayPoints | null;
   corpus: Corpus | null;
   /** Act III's gestures; null if the bloom stage has not been run. */
   traces: TracesFile | null;
@@ -1187,6 +1207,22 @@ export async function load(): Promise<Loaded> {
     return l.get();
   };
 
+  // Only the window season ships a calendar; every other year answers null
+  // without fetching, so a caller probing the wrong season costs nothing. The
+  // seasons row's own points_by_day block is the door - self-describing, no
+  // year literal.
+  const dayPointLoaders = new Map<number, Lazy<DayPoints>>();
+  const fetchPointsByDay = (year: number): DayPoints | null => {
+    if (!seasons.find((s) => s.year === year)?.points_by_day) return null;
+    let l = dayPointLoaders.get(year);
+    if (!l) {
+      l = lazy(`points_by_day/season_${year}.bin`,
+        () => getBinary(`points_by_day/season_${year}.bin`).then(decodePointsByDay));
+      dayPointLoaders.set(year, l);
+    }
+    return l.get();
+  };
+
   let paintFile: PaintFile | null = null;
   try {
     paintFile = await getJSON<PaintFile>("paint.json");
@@ -1254,6 +1290,7 @@ export async function load(): Promise<Loaded> {
     byYear: new Map(seasons.map((s) => [s.year, s])),
     samples,
     points: fetchPoints,
+    pointsByDay: fetchPointsByDay,
     corpus,
     traces,
     window: windowFile,
@@ -1269,6 +1306,8 @@ export async function load(): Promise<Loaded> {
     assetErrors: () => {
       const all: [string, string | null][] = [
         ...[...pointLoaders].map(([y, l]) => [`points/${y}`, l.error()] as [string, string | null]),
+        ...[...dayPointLoaders].map(
+          ([y, l]) => [`points_by_day/${y}`, l.error()] as [string, string | null]),
         ["strokes", strokeLoader.error()],
         ["measures", measureLoader.error()],
         ["quarrel", quarrelLoader.error()],
