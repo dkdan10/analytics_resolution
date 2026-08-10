@@ -24,7 +24,7 @@ import {
 } from "./modes/operations";
 import { HAND_PHASES } from "./modes/hand";
 import { SHELL_PHASE } from "./modes/plate";
-import type { ModeId } from "./modes/types";
+import { MODE_IDS, MODE_TITLES, type ModeId } from "./modes/types";
 import {
   ACT_TITLES,
   ARRIVAL_TAIL,
@@ -56,6 +56,9 @@ export interface Transport {
   citation(): string;
   /** Step to the next hand, pinning it; wraps back to letting the loop rotate. */
   cycleMode(): void;
+  /** Pin one hand directly, or null to release to the rotation (session 17,
+   *  the rail trim): seven direct choices beside the cycle. */
+  pinMode(id: ModeId | null): void;
   /** THE STACK's operation mask, and whether the panel that drives it applies. */
   stack(): StackOps;
   isStack(): boolean;
@@ -86,7 +89,7 @@ const SCRUB_COARSE_S = 15;
 const KEY_HINTS = [
   "SPACE PAUSE · F FERMATA · H HAND",
   "0 START · 1-5 ACTS · 6-9 WINDOW BEATS",
-  "W WINDOW · , . SEASON · ←→ SCRUB",
+  "W WINDOW · X CUT · , . STOPS · ←→ SCRUB",
 ];
 
 /**
@@ -233,6 +236,27 @@ export class Navigator {
   private shownStackKeys = false;
   private shownFermata = false;
 
+  /** THE FEED's arriving-count line (session 17): written on change only,
+   *  gone once every requested asset is resident. */
+  private feedEl!: HTMLElement;
+  private shownPending = "";
+
+  /** The direct hand choices (session 17): seven buttons beside the cycle. */
+  private handBtns: { id: ModeId; el: HTMLButtonElement }[] = [];
+  private shownPinBtn: ModeId | null | undefined = undefined;
+
+  /** The scrub's score ticks (session 17): acts and the cut are fixed; the
+   *  window's sub-stops rebuild with the pin. */
+  private ticksEl!: HTMLElement;
+  private fixedTicks: { at: number; cls: string }[] = [];
+
+  /** The CITE button's transient copied-state (session 17): a CSS class and
+   *  a text swap, reverted on this timer — no state the canvas can see. */
+  private citeTimer: number | null = null;
+
+  /** The ops panel's subtitle, state-aware since session 17. */
+  private stackNote!: HTMLElement;
+
   constructor(
     root: HTMLElement,
     private schedule: Schedule,
@@ -298,6 +322,14 @@ export class Navigator {
     this.fill = document.createElement("div");
     this.fill.className = "fill";
     scrub.append(this.fill);
+    // THE SCORE'S TICKS (session 17, the rail trim): the acts, the cut and
+    // the pinned hand's window stops struck into the slider itself, so the
+    // scrub reads as the piece's own score rather than a bare strip.
+    // Positions are the same absolute seconds the rows carry.
+    this.ticksEl = document.createElement("div");
+    this.ticksEl.className = "ticks";
+    this.ticksEl.setAttribute("aria-hidden", "true");
+    scrub.append(this.ticksEl);
     scrub.addEventListener("keydown", (e) => {
       const now = this.wrapped(this.transport.position());
       const step = e.shiftKey ? SCRUB_COARSE_S : SCRUB_STEP_S;
@@ -344,6 +376,14 @@ export class Navigator {
     this.readoutEl.id = "readout";
     head.append(this.readoutEl);
 
+    // THE FEED (session 17, the rail trim): while lazily-fetched assets a
+    // frame has asked for are still arriving, the rail says so — a cold seek
+    // into the window reads as "the feed is arriving", not as a sparse
+    // record. Gone on completion; the exhibit has no rail and is untouched.
+    this.feedEl = document.createElement("div");
+    this.feedEl.id = "feed";
+    head.append(this.feedEl);
+
     // Which hand is drawing. Click or press to pin one, through to hand it back
     // to the loop - the same record, rendered several ways, is the argument.
     const handBtn = document.createElement("button");
@@ -355,6 +395,26 @@ export class Navigator {
     handBtn.addEventListener("click", () => this.transport.cycleMode());
     this.handEl = handBtn;
     head.append(handBtn);
+
+    // The direct choice (session 17, the rail trim): the seven hands, one
+    // press each, beside the cycle the muscle memory keeps. Pressing the
+    // pinned one releases it back to the rotation.
+    const hands = document.createElement("div");
+    hands.id = "hands";
+    for (const id of MODE_IDS) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "hand-pick";
+      b.textContent = MODE_TITLES[id].replace(/^the /, "").toUpperCase();
+      b.title = `pin ${MODE_TITLES[id]} — press again to release`;
+      b.setAttribute("aria-label", `pin ${MODE_TITLES[id]}; press again to release`);
+      b.addEventListener("click", () => {
+        this.transport.pinMode(this.transport.pinned() === id ? null : id);
+      });
+      this.handBtns.push({ id, el: b });
+      hands.append(b);
+    }
+    head.append(hands);
 
     // The copy-frame helper: one press puts the frame on the clipboard in the
     // piece's own citation grammar — `mode@t`, with the `?ops=` token while
@@ -370,6 +430,17 @@ export class Navigator {
     cite.setAttribute("aria-label", "copy this frame's citation to the clipboard");
     cite.addEventListener("click", () => {
       void navigator.clipboard?.writeText(this.transport.citation());
+      // Confirmation (session 17, the rail trim): a transient copied-state —
+      // CSS class and text swap, reverted on a timer. DOM only; nothing the
+      // canvas can see, so purity is untouched.
+      if (this.citeTimer !== null) window.clearTimeout(this.citeTimer);
+      cite.textContent = "✓ COPIED";
+      cite.classList.add("copied");
+      this.citeTimer = window.setTimeout(() => {
+        cite.textContent = "⧉ CITE THIS FRAME";
+        cite.classList.remove("copied");
+        this.citeTimer = null;
+      }, 600);
     });
     head.append(cite);
 
@@ -414,7 +485,9 @@ export class Navigator {
       if (seg.act !== act) {
         act = seg.act;
         this.addRow(ACT_TITLES[act], null, seg.start, "act");
+        this.fixedTicks.push({ at: seg.start, cls: "act" });
       }
+      if (seg.year === CUT_YEAR) this.fixedTicks.push({ at: seg.start, cls: "cut" });
       const season = byYear.get(seg.year);
       const share = season ? `${(100 * season.mid_share).toFixed(1)}%` : "";
       // A mark where the record's own resolution turns over, and on the window.
@@ -450,6 +523,25 @@ export class Navigator {
       start: schedule.lastEnds,
       label: "the plate empties",
     });
+    this.fixedTicks.push({ at: schedule.lastEnds, cls: "act" });
+    this.buildScrubTicks();
+  }
+
+  /** Strike the score into the slider: the fixed act and cut ticks, plus the
+   *  pinned hand's window stops — the same absolute seconds the rows carry,
+   *  so the slider and the list cannot disagree. Rebuilt only with the pin. */
+  private buildScrubTicks(): void {
+    this.ticksEl.textContent = "";
+    const ticks = [
+      ...this.fixedTicks,
+      ...this.windowRows.map((r) => ({ at: r.start, cls: "beat" })),
+    ];
+    for (const t of ticks) {
+      const el = document.createElement("i");
+      el.className = `tick ${t.cls}`;
+      el.style.left = `${(t.at / this.schedule.duration) * 100}%`;
+      this.ticksEl.append(el);
+    }
   }
 
   /**
@@ -486,6 +578,7 @@ export class Navigator {
     note.className = "stack-note";
     note.textContent = "nothing is applied until it is named";
     box.append(note);
+    this.stackNote = note;
 
     for (const op of OPERATIONS) {
       const el = document.createElement("button");
@@ -560,6 +653,13 @@ export class Navigator {
     const ops = this.transport.stack();
     if (ops === this.shownOps) return;
     this.shownOps = ops;
+    // The subtitle is state-aware (session 17): while anything is applied it
+    // counts, so the panel's own words never claim a bare plate over an
+    // operated one. The count and total both derive from the table.
+    const appliedCount = OPERATIONS.filter((o) => has(ops, o.id)).length;
+    this.stackNote.textContent = appliedCount > 0
+      ? `${appliedCount} OF ${OPERATIONS.length} APPLIED`
+      : "nothing is applied until it is named";
     for (const { op, el, glyph } of this.opBtns) {
       const applied = has(ops, op.id);
       glyph.textContent = applied ? "◼" : "◻";
@@ -588,6 +688,8 @@ export class Navigator {
       const el = this.addSeg(s.title, fmt(s.end - s.at), null, s.at, "beat", this.windowBox);
       this.windowRows.push({ el, year: null, start: s.at, label: s.title });
     }
+    // The slider's window ticks are these same stops; rebuild them together.
+    this.buildScrubTicks();
   }
 
   /** The key hints, rebuilt only when what is live changes: THE STACK's
@@ -696,6 +798,15 @@ export class Navigator {
     const pin = this.transport.pinned();
     if (pin !== this.shownPin) this.buildWindowStops(pin);
 
+    // The direct hand choices track the pin, written on change only.
+    if (pin !== this.shownPinBtn) {
+      this.shownPinBtn = pin;
+      for (const { id, el } of this.handBtns) {
+        el.classList.toggle("on", id === pin);
+        el.setAttribute("aria-pressed", String(id === pin));
+      }
+    }
+
     // The contextual key hints follow THE STACK's pin the same way.
     const stackOn = this.transport.isStack();
     if (stackOn !== this.shownStackKeys) this.buildKeys(stackOn);
@@ -722,6 +833,16 @@ export class Navigator {
       ? `t ${time.toFixed(1)} · FERMATA`
       : `t ${time.toFixed(1)} · ${nextLabel} in ${(nextAt - time).toFixed(1)}s`;
     if (this.readoutEl.textContent !== readout) this.readoutEl.textContent = readout;
+
+    // THE FEED: while requested assets are still arriving, say so; the line
+    // empties on completion. The count derives from the loaders, never typed.
+    const pending = this.data.pendingAssets();
+    const feed = pending.length > 0 ? `THE FEED · ${pending.length} ARRIVING` : "";
+    if (this.shownPending !== feed) {
+      this.shownPending = feed;
+      this.feedEl.textContent = feed;
+      this.feedEl.hidden = feed === "";
+    }
 
     // The current row: the latest stop at or before the playhead, a sub-stop
     // winning a tie with its own season row — the sub-list is the finer map.

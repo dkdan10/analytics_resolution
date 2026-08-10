@@ -1073,6 +1073,12 @@ export interface Loaded {
    *  latches rather than being retried from the animation loop, so this is a
    *  finite list and the probes assert it is empty before believing a row. */
   assetErrors(): string[];
+  /** Every lazily-fetched asset a frame has ASKED for that has not yet
+   *  arrived (session 17, THE FEED readout): the rail says the piece is
+   *  still filling rather than leaving a cold seek to read as a sparse
+   *  record. Probing NEVER fetches — only assets some draw call already
+   *  requested appear — and the list empties on completion. */
+  pendingAssets(): string[];
   provenance: Record<string, string>;
   /**
    * `seasons.json:definitions` — the pipeline's own sentence for each key it
@@ -1122,6 +1128,8 @@ async function getBinary(path: string): Promise<ArrayBuffer> {
 interface Lazy<T> {
   get(): T | null;
   error(): string | null;
+  /** True while a request is in flight. A probe, never a trigger. */
+  pending(): boolean;
 }
 
 function lazy<T>(name: string, fetcher: () => Promise<T>): Lazy<T> {
@@ -1147,6 +1155,7 @@ function lazy<T>(name: string, fetcher: () => Promise<T>): Lazy<T> {
       return null;
     },
     error: () => failure,
+    pending: () => inFlight,
   };
 }
 
@@ -1316,6 +1325,20 @@ export async function load(): Promise<Loaded> {
         ["wash", washLoader.error()],
       ];
       return all.filter(([, e]) => e !== null).map(([n, e]) => `${n}: ${e}`);
+    },
+    pendingAssets: () => {
+      const all: [string, boolean][] = [
+        ...[...pointLoaders].map(([y, l]) => [`points/${y}`, l.pending()] as [string, boolean]),
+        ...[...dayPointLoaders].map(
+          ([y, l]) => [`points_by_day/${y}`, l.pending()] as [string, boolean]),
+        ["strokes", strokeLoader.pending()],
+        ["measures", measureLoader.pending()],
+        ["quarrel", quarrelLoader.pending()],
+        ["slate", slateLoader.pending()],
+        ["game", gameLoader.pending()],
+        ["wash", washLoader.pending()],
+      ];
+      return all.filter(([, p]) => p).map(([n]) => n);
     },
     provenance: file.provenance,
     seasonDefinitions: file.definitions,

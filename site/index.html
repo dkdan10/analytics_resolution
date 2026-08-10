@@ -92,6 +92,18 @@
         inset: 6px auto 6px 0;
         background: rgba(232, 226, 214, 0.45);
       }
+      /* The score's ticks: acts and the cut fixed, the pinned hand's window
+         stops rebuilt with the pin — the same absolute seconds the rows show. */
+      #scrub .ticks { position: absolute; inset: 0; pointer-events: none; }
+      #scrub .tick {
+        position: absolute;
+        top: 4px;
+        bottom: 4px;
+        width: 1px;
+        background: rgba(232, 226, 214, 0.35);
+      }
+      #scrub .tick.beat { top: 6px; bottom: 6px; background: rgba(232, 226, 214, 0.22); }
+      #scrub .tick.cut { top: 2px; bottom: 2px; background: rgba(232, 226, 214, 0.8); }
       #clock { margin: 0 16px 3px; font-size: 10px; color: rgba(232, 226, 214, 0.32); }
       /* The presenter's readout: exact t, the next boundary, and the fermata
          while it acts. Tabular figures so the countdown does not shimmer. */
@@ -118,6 +130,26 @@
       }
       #hand:hover { color: var(--bone); }
 
+      /* The direct hand choices: seven small presses beside the cycle. */
+      #hands {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px 6px;
+        margin: 0 16px 10px;
+      }
+      .hand-pick {
+        padding: 1px 3px;
+        background: transparent;
+        border: 1px solid rgba(232, 226, 214, 0.12);
+        font-family: var(--mono);
+        font-size: 8px;
+        letter-spacing: 0.1em;
+        color: rgba(232, 226, 214, 0.4);
+        cursor: pointer;
+      }
+      .hand-pick:hover { color: var(--bone); border-color: rgba(232, 226, 214, 0.35); }
+      .hand-pick.on { color: var(--bone); background: rgba(232, 226, 214, 0.1); }
+
       /* The copy-frame helper: one press, the frame's citation on the
          clipboard, in the piece's own mode@t grammar. */
       #cite {
@@ -136,6 +168,16 @@
       }
       #cite:hover { color: var(--bone); }
       #cite:active { color: var(--bone); letter-spacing: 0.18em; }
+      #cite.copied { color: var(--bone); }
+
+      /* THE FEED's arriving-count line: present only while assets arrive. */
+      #feed {
+        margin: 0 16px 3px;
+        font-size: 10px;
+        color: rgba(232, 226, 214, 0.45);
+        font-variant-numeric: tabular-nums;
+      }
+      #feed[hidden] { display: none; }
 
       /* The keys, said where the presenter is already looking. */
       #keys {

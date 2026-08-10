@@ -25,7 +25,7 @@ import { clearAtlas } from "./textatlas";
 import {
   ACT0_SECONDS,
   buildSchedule,
-  secondsFor,
+  CUT_YEAR,
   seekAct,
   seekTo,
   WINDOW_BEATS,
@@ -86,6 +86,10 @@ function bindTalkKeys(
   schedule: Schedule,
   cycleMode: () => void,
   stack: StackKeys,
+  /** The prev/next STOP walk the transport buttons already use (session 17,
+   *  the rail trim): `,`/`.` step the same score the rail shows — sub-stops
+   *  included — instead of a fixed season-length jump. */
+  nudgeStop: (dir: -1 | 1) => void,
 ): void {
   // The four SHARED beats, straight from the one definition. Deliberately not
   // the rail's stop list: under THE SECOND SCORE the rail's window interior
@@ -137,13 +141,20 @@ function bindTalkKeys(
         clock.toggleFermata();
         break;
       case ".":
-        clock.nudge(secondsFor(2000));
+        nudgeStop(1);
         break;
       case ",":
-        clock.nudge(-secondsFor(2000));
+        nudgeStop(-1);
         break;
       case "w":
         clock.seek(seekTo(2015, schedule));
+        break;
+      // The one cut the piece allows, one key away (session 17, the rail
+      // trim). `x` — the cut mark; NOT `c`, which is THE STACK's CLASSIFY
+      // while the stack is pinned, and a key that changes meaning with the
+      // pin is a trap. Choice packet-flagged.
+      case "x":
+        clock.seek(seekTo(CUT_YEAR, schedule));
         break;
       case "0":
         clock.seek(0);
@@ -245,6 +256,19 @@ async function main(): Promise<void> {
       const i = modeOverride === null ? 0 : MODE_IDS.indexOf(modeOverride) + 1;
       modeOverride = i >= MODE_IDS.length ? null : MODE_IDS[i]!;
     };
+    // The prev/next STOP walk — ONE implementation for the transport buttons
+    // and the `,`/`.` keys (session 17). Recomputed per press, never
+    // captured: the stop list follows the pinned hand (THE SECOND SCORE).
+    // Step by segment INDEX, never by elapsed seconds — a seek leaves the
+    // clock running, and any time-window test makes each press depend on how
+    // long ago the last one was.
+    const nudgeStop = (dir: -1 | 1) => {
+      const now = ((tc.seconds % schedule.duration) + schedule.duration) % schedule.duration;
+      const starts = Navigator.starts(schedule, data, modeOverride);
+      let i = 0;
+      for (let k = 0; k < starts.length; k++) if (starts[k]! <= now + 0.01) i = k;
+      tc.seek(starts[i + dir] ?? (dir === 1 ? 0 : starts[starts.length - 1]!));
+    };
     /**
      * Keep the address bar naming the frame on screen.
      *
@@ -283,7 +307,7 @@ async function main(): Promise<void> {
         address();
       },
     };
-    bindTalkKeys(tc, schedule, cycleMode, stackKeys);
+    bindTalkKeys(tc, schedule, cycleMode, stackKeys, nudgeStop);
     clock = tc;
     if (wantsNav) {
       document.body.classList.remove("exhibit");
@@ -319,6 +343,12 @@ async function main(): Promise<void> {
         // so the gallery behaviour is always one click away. Same function the
         // H key calls.
         cycleMode,
+        // The direct choice (session 17, the rail trim): the seven hands as
+        // one press each, beside the cycle the muscle memory keeps. Null
+        // releases the pin back to the rotation.
+        pinMode: (id) => {
+          modeOverride = id;
+        },
         // THE STACK's operation panel. Same three functions the keyboard calls,
         // for the same reason the hand row and the H key share one: a rail and
         // a key that do the same thing must be the same code or they drift.
@@ -326,21 +356,7 @@ async function main(): Promise<void> {
         isStack: () => modeOverride === "stack",
         toggleOp: stackKeys.toggle,
         allRenderings: stackKeys.all,
-        nudgeSegment: (dir) => {
-          const now = ((tc.seconds % schedule.duration) + schedule.duration) % schedule.duration;
-          // Recomputed per press, never captured: the stop list follows the
-          // pinned hand (THE SECOND SCORE), and a press costs arithmetic on a
-          // handful of numbers.
-          const starts = Navigator.starts(schedule, data, modeOverride);
-          // Step by segment INDEX, never by elapsed seconds. A seek leaves the
-          // clock running, so any time-window test makes each press depend on
-          // how long ago the last one was: presses more than the window apart
-          // kept re-seeking to the segment you were already in, and rewinding
-          // only worked if you drummed the button.
-          let i = 0;
-          for (let k = 0; k < starts.length; k++) if (starts[k]! <= now + 0.01) i = k;
-          tc.seek(starts[i + dir] ?? (dir === 1 ? 0 : starts[starts.length - 1]!));
-        },
+        nudgeSegment: nudgeStop,
       }, data);
     }
   } else {
