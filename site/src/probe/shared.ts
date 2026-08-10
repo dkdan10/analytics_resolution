@@ -224,6 +224,10 @@ export async function forceResidency(
     // fetch is pending would compare an empty flood against a full one and
     // call the difference impurity. Resident before any hash, like the rest.
     ["quarrel", () => data.quarrel()],
+    // The slate too, for exactly the quarrel's reason (session 10's trap:
+    // a lazily-fetched binary joins this list in the same commit as its
+    // loader, or the probe hashes an empty night against a full one).
+    ["slate", () => data.slate()],
   ];
   const resident: string[] = [];
   const missing: string[] = [];

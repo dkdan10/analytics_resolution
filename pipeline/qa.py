@@ -86,6 +86,7 @@ from window import (  # noqa: E402
     MIN_OFFSET_VOTES,
     OFFSET_MIN_MARGIN,
     OFFSET_OVER_ZERO,
+    archive_date,
 )
 from paint import (  # noqa: E402
     COINCIDENCE_FRAMES,
@@ -295,6 +296,16 @@ QUARREL_QUANT_FT = math.hypot(0.05, 0.05) + 0.005
 QUARREL_OFF_PLATE_RECORDS = 138
 QUARREL_MAX_OFF_COURT_FT = 5.25
 
+# THE SLATE's layouts are PINNED here, not read from the artifact: the index
+# is a span offset and a folded path and nothing else - no player, no game, no
+# event, no clock - and only a pinned layout can refuse identity returning as
+# an extra field with the declaration updated to agree with itself (the
+# quarrel-widen lesson). The vertex is the paint's own record.
+SLATE_INDEX_LAYOUT = ("<IHHB", 9)
+SLATE_VERTEX_LAYOUT = ("<hhHH", 8)
+# The slate is the misnamed ten: the archive count is pinned against
+# window.json's own misnamed_archives list where the group runs.
+
 # The tracking court in the plate's own frame, derived from the hoop positions
 # rather than restated: 94 x 50 ft, the hoop 5.25 ft in from the baseline and
 # centred between the sidelines, coordinates in tenths.
@@ -399,6 +410,7 @@ DECODER_SOURCES = {
     "stroke": ("site/src/data.ts", r"STROKE_REC"),
     "measure": ("site/src/data.ts", r"MEASURE_REC"),
     "quarrel": ("site/src/data.ts", r"QUARREL_REC"),
+    "slate": ("site/src/data.ts", r"SLATE_REC"),
     "point": ("site/src/field.ts", r"REC"),
 }
 # A WAIVER names a mismatch that is known, owned and dated. It keeps the check
@@ -592,6 +604,15 @@ REQUIRED_ARTIFACTS = [
     Artifact("paint.json", "json"),
     Artifact("paint_strokes.bin", "bin"),
     Artifact("paint_index.bin", "bin"),
+    # THE SLATE: fetched - the night beat draws it - so it ships. One found
+    # 15-second span of the Dec 5 2015 slate, every trackable body's folded
+    # path, the paint's own treatment. No player, no game, no event, no clock;
+    # a path carries only a start offset inside the one anonymous span,
+    # because simultaneity is the artifact's subject, and the pinned index
+    # layout is the gate that keeps everything else out.
+    Artifact("slate.json", "json"),
+    Artifact("slate_strokes.bin", "bin"),
+    Artifact("slate_index.bin", "bin"),
     # Ships identity on purpose - names, games, matchups - and that is the
     # accepted tracking-publication decision recorded in CLAUDE.md, not an
     # oversight. group_traces gates it as shipped.
@@ -675,6 +696,17 @@ def decode_paint(vbuf, ibuf, files):
     strokes = [struct.unpack_from(srec, ibuf, i * ssz) for i in range(len(ibuf) // ssz)]
     verts = [struct.unpack_from(vrec, vbuf, i * vsz) for i in range(len(vbuf) // vsz)]
     return strokes, verts, (len(ibuf) % ssz, len(vbuf) % vsz)
+
+
+def decode_slate(vbuf, ibuf):
+    """The slate's bytes through the PINNED layouts - deliberately not the
+    artifact's own declaration, which the identity gate must be able to
+    contradict."""
+    irec, isz = SLATE_INDEX_LAYOUT
+    vrec, vsz = SLATE_VERTEX_LAYOUT
+    paths = [struct.unpack_from(irec, ibuf, i * isz) for i in range(len(ibuf) // isz)]
+    verts = [struct.unpack_from(vrec, vbuf, i * vsz) for i in range(len(vbuf) // vsz)]
+    return paths, verts, (len(ibuf) % isz, len(vbuf) % vsz)
 
 
 def zone_at_np(x, y):
@@ -2912,6 +2944,121 @@ def _paint_join_reconstruction():
     return len(rows), mismatched, orphaned, round(worst, 2)
 
 
+# --- group: the slate --------------------------------------------------------
+
+
+def group_slate(g, ctx):
+    """THE SLATE: one found span of the Dec 5 night, decoded from the bytes.
+
+    The layouts are pinned in this file, never read from the artifact, so the
+    identity rule - a span offset and a folded path, nothing else - is a gate
+    the artifact cannot argue with. Everything quantitative the artifact
+    declares about its own bytes is recomputed from them.
+    """
+    s = ctx.json(g, "slate.json")
+    if s is None:
+        return
+    g.section("The slate: one night at the record's own simultaneity")
+
+    g.check("the slate is the misnamed ten and says so",
+            s["span"]["archives"], 10)
+    w = ctx.json(g, "window.json")
+    if w is not None:
+        g.check("the slate's night is the corpus's own misnamed date",
+                sorted({archive_date(n) for n in w["corpus"]["misnamed_archives"]}),
+                [s["date"]])
+        g.check("the slate's day zero is the corpus's own opening",
+                s["day0"], w["corpus"]["date_first"])
+    g.check("the slate's day offset is its date's distance from day zero",
+            s["day"],
+            (_date.fromisoformat(s["date"]) - _date.fromisoformat(s["day0"])).days)
+
+    g.check("the slate index record is a span offset and a folded path, nothing else",
+            [s["files"]["slate_index"]["record"],
+             s["files"]["slate_index"]["bytes_per_record"]],
+            list(SLATE_INDEX_LAYOUT))
+    g.check("the slate vertex is the paint's own record",
+            [s["files"]["slate_strokes"]["record"],
+             s["files"]["slate_strokes"]["bytes_per_record"]],
+            list(SLATE_VERTEX_LAYOUT))
+
+    # No identity, asked of the whole artifact the way the paint's gate asks.
+    text = json.dumps(s).lower()
+    g.check("the slate names no player, game, event or clock",
+            [k for k in ("player", "game_id", "gameid", "event_id", "eventid",
+                         "playerid") if k in text], [])
+
+    vbuf = ctx.raw(g, "slate_strokes.bin")
+    ibuf = ctx.raw(g, "slate_index.bin")
+    if vbuf is None or ibuf is None:
+        return
+    paths, verts, (iragged, vragged) = decode_slate(vbuf, ibuf)
+    g.check("slate_index.bin is a whole number of records", iragged, 0)
+    g.check("slate_strokes.bin is a whole number of records", vragged, 0)
+    g.check("slate_index.bin holds the path count it declares",
+            [len(paths), s["files"]["slate_index"]["records"]],
+            [s["paths"]] * 2)
+    g.check("slate_strokes.bin holds the vertex count it declares",
+            [len(verts), s["files"]["slate_strokes"]["records"]],
+            [s["vertices"]] * 2)
+    if not paths or not verts:
+        return
+
+    # The index must partition the vertex array: no gaps, no overlap, no tail.
+    at = 0
+    broken = []
+    for i, (first, count, _start, _kind) in enumerate(paths):
+        if first != at or count < 2:
+            broken.append(i)
+        at = first + count
+    g.check("the index partitions the vertex array with no path under two vertices",
+            broken, [])
+    g.check("the index ends exactly at the last vertex", at, len(verts))
+    g.check("every kind is a body or the ball",
+            sorted({k for _, _, _, k in paths} - {0, 1}), [])
+    g.check("the ball is present", sum(1 for p in paths if p[3] == 1),
+            s["ball_paths"])
+
+    span_frames = s["span"]["seconds"] * s["span"]["hz"]
+    overrun = [i for i, (first, count, start, _k) in enumerate(paths)
+               if start + sum(v[2] for v in verts[first:first + count]) > span_frames]
+    g.check("every slate path fits inside the found span", overrun, [])
+
+    opens = [i for i, (first, count, _s2, _k) in enumerate(paths)
+             if verts[first][2] != 0 or verts[first][3] != 0]
+    g.check("every path opens with dt = 0 and arc = 0", opens, [])
+
+    # Geometry recomputed from the bytes: chord never exceeds arc beyond the
+    # storage quantum, and no span implies an impossible speed.
+    bent, fastest = [], 0.0
+    for i, (first, count, _s2, _k) in enumerate(paths):
+        for j in range(first + 1, first + count):
+            x0, y0 = verts[j - 1][0], verts[j - 1][1]
+            x1, y1, dt, arc = verts[j]
+            chord = math.hypot(x1 - x0, y1 - y0) / 10.0
+            if chord > arc / 10.0 + QUANTUM_FT:
+                bent.append(i)
+                break
+            if dt:
+                fastest = max(fastest, (arc / 10.0) / (dt / s["span"]["hz"]))
+    g.check("no chord outruns its own arc beyond the storage quantum", bent, [])
+    g.holds("no slate span implies an impossible speed",
+            fastest <= MAX_PAINT_SPEED_FT_S,
+            f"fastest {fastest:.1f} ft/s <= {MAX_PAINT_SPEED_FT_S}")
+
+    g.check("the shipped bytes reproduce the slate's own declared arc",
+            sum(v[3] for v in verts), s["arc_tenths_total"])
+    g.check("the shipped bytes reproduce the slate's own painted frames",
+            sum(v[2] for v in verts), s["painted_frames"])
+    g.check("vertices off the plate box match the declared count",
+            sum(1 for x, y, _dt, _a in verts
+                if not (-250 <= x <= 250 and -50 <= y <= 420)),
+            s["off_plate_vertices"])
+    g.info(f"{len(paths)} paths, {len(verts)} vertices over one "
+           f"{s['span']['seconds']} s span; {s['span']['games_fully_live']} games "
+           f"fully live, {s['span']['games_present']} present")
+
+
 # --- group: traces -----------------------------------------------------------
 
 
@@ -3055,13 +3202,15 @@ def _decoder_parity(g, ctx):
     """
     p = ctx.json(g, "paint.json")
     w = ctx.json(g, "window.json")
-    if p is None or w is None:
+    s = ctx.json(g, "slate.json")
+    if p is None or w is None or s is None:
         return
     want = {
         "vertex": p["files"]["vertices"]["bytes_per_record"],
         "stroke": p["files"]["index"]["bytes_per_record"],
         "measure": w["measures_bin"]["bytes_per_record"],
         "quarrel": w["quarrel_bin"]["bytes_per_record"],
+        "slate": s["files"]["slate_index"]["bytes_per_record"],
         "point": POINT_DTYPE.itemsize,
     }
     import re  # noqa: PLC0415
@@ -3515,6 +3664,7 @@ GROUPS = {
     "zone_parity": group_zone_parity,
     "window": group_window,
     "paint": group_paint,
+    "slate": group_slate,
     "traces": group_traces,
     "palette": group_palette,
     "inventory": group_inventory,

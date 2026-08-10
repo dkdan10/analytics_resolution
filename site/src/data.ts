@@ -681,6 +681,82 @@ export interface Quarrel {
 const QUARREL_REC = 9;
 const QUARREL_LAYOUT = "<hhhhB";
 
+/** THE SLATE's summary: one found span of the slate night (`slate.json:date`). */
+export interface SlateFile {
+  date: string;
+  /** Calendar days since the window opened — the measures' own day scale. */
+  day: number;
+  day0: string;
+  span: {
+    seconds: number;
+    hz: number;
+    start_utc: string;
+    games_fully_live: number;
+    games_present: number;
+    archives: number;
+  };
+  paths: number;
+  ball_paths: number;
+  vertices: number;
+  files: { slate_strokes: BinaryFile; slate_index: BinaryFile };
+}
+
+/** The slate decoded: every trackable body's folded path over the one span.
+ *  No player, no game, no event, no clock — a path carries only its start
+ *  offset inside the anonymous span, because simultaneity is the subject. */
+export interface Slate {
+  n: number;
+  first: Uint32Array;
+  count: Uint16Array;
+  /** Frames from the span's open — what keeps the bodies moving together. */
+  start: Uint16Array;
+  /** 1 = the ball, 0 = a body; the ball is the only lit row, as in the paint. */
+  kind: Uint8Array;
+  x: Int16Array;
+  y: Int16Array;
+  dt: Uint16Array;
+  arc: Uint16Array;
+}
+
+const SLATE_REC = 9;
+const SLATE_LAYOUT = "<IHHB";
+
+export function decodeSlate(vbuf: ArrayBuffer, ibuf: ArrayBuffer, s: SlateFile): Slate {
+  assertLayout("the slate's vertices", s.files.slate_strokes, vbuf, VERTEX_LAYOUT, VERTEX_REC);
+  assertLayout("the slate's index", s.files.slate_index, ibuf, SLATE_LAYOUT, SLATE_REC);
+  const nv = s.files.slate_strokes.records;
+  const np = s.files.slate_index.records;
+  const vd = new DataView(vbuf);
+  const id = new DataView(ibuf);
+  const x = new Int16Array(nv);
+  const y = new Int16Array(nv);
+  const dt = new Uint16Array(nv);
+  const arc = new Uint16Array(nv);
+  for (let i = 0; i < nv; i++) {
+    const o = i * VERTEX_REC;
+    x[i] = vd.getInt16(o, true);
+    y[i] = vd.getInt16(o + 2, true);
+    dt[i] = vd.getUint16(o + 4, true);
+    arc[i] = vd.getUint16(o + 6, true);
+  }
+  const first = new Uint32Array(np);
+  const count = new Uint16Array(np);
+  const start = new Uint16Array(np);
+  const kind = new Uint8Array(np);
+  for (let i = 0; i < np; i++) {
+    const o = i * SLATE_REC;
+    first[i] = id.getUint32(o, true);
+    count[i] = id.getUint16(o + 4, true);
+    start[i] = id.getUint16(o + 6, true);
+    kind[i] = id.getUint8(o + 8);
+    const last = first[i]! + count[i]!;
+    if (last > nv) {
+      throw new Error(`${s.files.slate_index.path}: path ${i} runs to vertex ${last} of ${nv}`);
+    }
+  }
+  return { n: np, first, count, start, kind, x, y, dt, arc };
+}
+
 export function decodeQuarrel(buf: ArrayBuffer, w: WindowFile): Quarrel {
   assertLayout("the quarrel", w.quarrel_bin, buf, QUARREL_LAYOUT, QUARREL_REC);
   const n = w.quarrel_bin.records;
@@ -766,6 +842,13 @@ export interface Loaded {
   /** The strokes themselves, fetched on demand. THE HAND draws splotches
    *  without them and gains the motion a frame or two later. */
   strokes(): Strokes | null;
+  /** THE SLATE's summary — the found span of the Dec 5 night; null if the
+   *  slate stage has not been run. */
+  slateFile: SlateFile | null;
+  /** The slate's paths, fetched on demand like the strokes. The night beat
+   *  draws its day-keyed material without them and gains the bodies a frame
+   *  or two later. */
+  slate(): Slate | null;
   /** Every lazily-fetched asset that failed for good, with why. A failure
    *  latches rather than being retried from the animation loop, so this is a
    *  finite list and the probes assert it is empty before believing a row. */
@@ -928,6 +1011,22 @@ export async function load(): Promise<Loaded> {
     () => getBinary("quarrel.bin").then((b) => decodeQuarrel(b, windowFile!)));
   const fetchQuarrel = (): Quarrel | null => (windowFile ? quarrelLoader.get() : null);
 
+  let slateFile: SlateFile | null = null;
+  try {
+    slateFile = await getJSON<SlateFile>("slate.json");
+  } catch {
+    slateFile = null;
+  }
+
+  const slateLoader = lazy("the slate", async (): Promise<Slate> => {
+    const [v, i] = await Promise.all([
+      getBinary("slate_strokes.bin"),
+      getBinary("slate_index.bin"),
+    ]);
+    return decodeSlate(v, i, slateFile!);
+  });
+  const fetchSlate = (): Slate | null => (slateFile ? slateLoader.get() : null);
+
   return {
     seasons,
     facts,
@@ -941,12 +1040,15 @@ export async function load(): Promise<Loaded> {
     quarrel: fetchQuarrel,
     paint: paintFile,
     strokes: fetchStrokes,
+    slateFile,
+    slate: fetchSlate,
     assetErrors: () => {
       const all: [string, string | null][] = [
         ...[...pointLoaders].map(([y, l]) => [`points/${y}`, l.error()] as [string, string | null]),
         ["strokes", strokeLoader.error()],
         ["measures", measureLoader.error()],
         ["quarrel", quarrelLoader.error()],
+        ["slate", slateLoader.error()],
       ];
       return all.filter(([, e]) => e !== null).map(([n, e]) => `${n}: ${e}`);
     },

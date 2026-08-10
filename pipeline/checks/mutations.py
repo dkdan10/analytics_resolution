@@ -200,6 +200,49 @@ def m_quarrel_off_plate(d):
     p.write_bytes(bytes(buf))
 
 
+def m_zero_slate(d):
+    _zero(d, "slate_strokes.bin")
+
+
+def m_truncate_slate(d):
+    _truncate(d, "slate_index.bin",
+              _load(d, "slate.json")["files"]["slate_index"]["bytes_per_record"])
+
+
+def m_slate_widen(d):
+    """Identity returning to the night: a game byte, say, appended to every
+    index record with the declaration updated to agree with itself. The
+    quarrel-widen lesson applied to the slate - only the PINNED layout in
+    qa.py refuses it."""
+    sj = _load(d, "slate.json")
+    ib = sj["files"]["slate_index"]
+    size = struct.calcsize(ib["record"])
+    p = d / "slate_index.bin"
+    buf = p.read_bytes()
+    out = bytearray()
+    for i in range(len(buf) // size):
+        out += buf[i * size:(i + 1) * size] + b"\x03"
+    p.write_bytes(bytes(out))
+    ib["record"] = ib["record"] + "B"
+    ib["bytes_per_record"] = size + 1
+    ib["bytes"] = len(out)
+    _save(d, "slate.json", sj)
+
+
+def m_slate_overrun(d):
+    """One path's start pushed past the found span: every byte stays well
+    formed and only the span arithmetic can notice the night has grown."""
+    sj = _load(d, "slate.json")
+    ib = sj["files"]["slate_index"]
+    rec, size = ib["record"], struct.calcsize(ib["record"])
+    p = d / "slate_index.bin"
+    buf = bytearray(p.read_bytes())
+    first, count, start, kind = struct.unpack_from(rec, buf, 0)
+    struct.pack_into(rec, buf, 0, first, count,
+                     start + sj["span"]["seconds"] * sj["span"]["hz"], kind)
+    p.write_bytes(bytes(buf))
+
+
 def m_quarrel_scope(d):
     """The wall text drifts from the artifact it rides in: the scope line's
     population figure is quietly incremented."""
@@ -1477,6 +1520,24 @@ CASES = [
     Case("quarrel-scope-drift", ["window"],
          "the quarrel's scope line quotes its own population and centre",
          m_quarrel_scope, "wall text drifting from the artifact it rides in"),
+
+    # --- session 14: THE SLATE, the night's artifact --------------------------
+    Case("delete-slate", ["inventory"], "every required artifact is present",
+         _delete("slate_strokes.bin"), "the night's paths, deleted whole"),
+    Case("zero-slate", ["slate"],
+         "the shipped bytes reproduce the slate's own declared arc",
+         m_zero_slate,
+         "equal-length zeros: every path collapses to the origin and the summary "
+         "no longer describes the bytes"),
+    Case("truncate-slate", ["slate"], "slate_index.bin holds the path count it declares",
+         m_truncate_slate, "one path shaved off the end"),
+    Case("slate-widen", ["slate"],
+         "the slate index record is a span offset and a folded path, nothing else",
+         m_slate_widen,
+         "identity returning as a fifth field, with the declaration updated to "
+         "agree with itself - only the PINNED layout refuses it"),
+    Case("slate-overrun", ["slate"], "every slate path fits inside the found span",
+         m_slate_overrun, "one path pushed past the span the night declares"),
 ]
 
 BY_NAME = {c.name: c for c in CASES}
