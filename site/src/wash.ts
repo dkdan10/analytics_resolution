@@ -265,11 +265,18 @@ export function drawWashFold(
     lanes.set(key, lane);
     evict(key);
   }
-  while (lane.applied < wantApplied) {
-    const day = order[lane.applied]!;
-    const at = meta.days.indexOf(day);
-    for (let i = 0; i < per; i++) lane.acc[i] = lane.acc[i]! + wash.data[at * per + i]!;
-    lane.applied++;
+  // Catch up in CELL SPACE first, then convert ONCE: during a multi-day
+  // catch-up (a cold jump, a backward rebuild) the intermediate fronts are
+  // never blitted, and converting per applied day was measured at ~7 s for a
+  // deep-season jump. One conversion of the final accumulator is the same
+  // arithmetic and the same pixels.
+  if (lane.applied < wantApplied) {
+    while (lane.applied < wantApplied) {
+      const day = order[lane.applied]!;
+      const at = meta.days.indexOf(day);
+      for (let i = 0; i < per; i++) lane.acc[i] = lane.acc[i]! + wash.data[at * per + i]!;
+      lane.applied++;
+    }
     const px = convert(lane.acc, total, meta, view, dpr);
     lane.front = toCanvas(px, view, dpr);
     lane.frontPx = px;
