@@ -299,6 +299,16 @@ export function drawPin(
   const cx = view.sx(coord[0]);
   const cy = view.sy(coord[1]);
 
+  // A non-finite centre or radius dies inside createRadialGradient with a
+  // message naming nothing — the third audit's D-06 crash signature. Name the
+  // inputs instead: the unreproducible race becomes an attributable report,
+  // and no mark the arithmetic did not earn is ever drawn in its place.
+  if (!Number.isFinite(cx) || !Number.isFinite(cy) || !Number.isFinite(r)) {
+    throw new Error(
+      `drawPin: non-finite geometry cx=${cx} cy=${cy} r=${r} arrived=${arrived} pinFraction=${pinFraction}`,
+    );
+  }
+
   ctx.save();
   ctx.globalAlpha = opacity;
   const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);

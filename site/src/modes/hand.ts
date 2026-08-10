@@ -754,6 +754,12 @@ export function drawHandHand(f: Frame): void {
       const total = gameTotalFrames(gf);
       const pos = possessionFrames(gf);
       const gameFrame = win.game > 0 ? gameClock(win.game) * total : 0;
+      // THE DRYING CLOCK CONTINUES past the game's end (third audit D-02),
+      // at TRUE RATE — the night's own convention — so the buzzer's strokes
+      // and beads settle to the dried register within GAME_WET_S of
+      // presentation time instead of standing "just painted" all window.
+      // Drawing thresholds keep `gameFrame`; only drying reads this.
+      const dryFrame = gameFrame + Math.max(0, st.phase - GAME_AT) * secondsFor(WINDOW_YEAR) * gf.hz;
       const gEnv = remains * (1 - win.wash);
       const sp = strokeSpans(gm, gf);
       const wetFrames = GAME_WET_S * gf.hz;
@@ -781,7 +787,7 @@ export function drawHandHand(f: Frame): void {
           const at0 = sp.start[i]!;
           if (at0 >= gameFrame) continue;
           const end = at0 + sp.dur[i]!;
-          const age = gameFrame - end;
+          const age = dryFrame - end;
           if (end < bakedBefore && age >= wetFrames) continue;
           const wetness = Math.max(0, 1 - Math.max(0, age) / wetFrames);
           ctx.globalAlpha = gEnv * (GAME_DRIED + (1 - GAME_DRIED) * wetness);
@@ -821,7 +827,7 @@ export function drawHandHand(f: Frame): void {
       // drops are what persists on this hand; THE PLATE keeps every mark).
       // The possession's own annotations hold until the walk re-lays them.
       drawGameEvents(ctx, view, gf, gameFrame, gEnv,
-        { from: pos.f0, to: clipUpto }, gameFrame - wetFrames);
+        { from: pos.f0, to: clipUpto }, dryFrame - wetFrames);
     }
 
     const offsets = paint.day_offsets;

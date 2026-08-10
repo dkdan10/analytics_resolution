@@ -91,13 +91,25 @@ for (const spec of shots) {
   // configuration produced the picture.
   const [where, t] = spec.split("@");
   const [mode, ops = ""] = where.split(":");
-  const dataUrl = await page.evaluate(async ({ mode, t, width, height, dpr, talk, ops, candidate }) => {
+  const take = () => page.evaluate(async ({ mode, t, width, height, dpr, talk, ops, candidate }) => {
     const png = await window.__shot({
       mode, t: Number(t), width, height, dpr, talk, ops,
       candidate: candidate ?? undefined,
     });
     return png;
   }, { mode, t, width, height, dpr, talk, ops, candidate });
+  let dataUrl;
+  try {
+    dataUrl = await take();
+  } catch (e) {
+    // The third audit's D-06: a 42-shot batch twice died on its FIRST frame
+    // with a non-finite drawPin gradient, then never again — a nondeterministic
+    // race, not a bad t. One retry distinguishes the two: a race passes on the
+    // second attempt (loudly, so the flake stays visible in the log), a real
+    // defect fails twice and still kills the run.
+    console.error(`shots: ${spec} threw once (${e}); retrying that frame`);
+    dataUrl = await take();
+  }
   const name = `${mode}${ops ? `-${ops}` : ""}${candidate ? `-cand-${candidate}` : ""}`
     + `-${String(t).replace(".", "_")}.png`;
   writeFileSync(join(outDir, name), Buffer.from(dataUrl.split(",")[1], "base64"));

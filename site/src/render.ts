@@ -86,10 +86,16 @@ function drawCutBeat(
   if (k <= 0.01) return;
   const pct = (s: { resolution: { ra_origin_share: number } }): string =>
     (100 * s.resolution.ra_origin_share).toFixed(1);
+  // ABOVE the arc's crown, not on the strike line (third audit D-04): the
+  // outgoing season's numeral holds and migrates through STRIKE_AT's band for
+  // the beat's first three seconds, and the piece's one cut must not have its
+  // cause statement overprinted by a migrating numeral. The band above the
+  // arc is unoccupied in both bounding seasons at every point of the beat,
+  // and the migration path (strike line down to the ring) can never reach it.
   drawSlug(ctx, view, [
     `${before.season}   ${pct(before)}% OF RIM SHOTS UNPLACED   ${regimeText(before.resolution.regime)}`,
     `${after.season}   ${pct(after)}%   ${regimeText(after.resolution.regime)}`,
-  ], { x: 0, y: 200 }, smoothstep(k));
+  ], { x: 0, y: 295 }, smoothstep(k));
 }
 
 export function renderTo(

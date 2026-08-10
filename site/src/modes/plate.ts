@@ -44,9 +44,18 @@ export function drawPlateHand(f: Frame): void {
   ctx.restore();
 
   // Act III dims the field slightly: the rest of the league is still only dots,
-  // and the gestures have to be the brightest thing the window holds.
+  // and the gestures have to be the brightest thing the window holds. The
+  // depth RELEASES across the close (third audit D-01): ordinary light comes
+  // back while the window's layers wash off, so the boundary at the window's
+  // exit is an ordinary season boundary and never a second cut — the piece's
+  // law is one cut, at the burst.
   const inWindow = st.act === 3 && data.traces !== null;
-  const fieldDim = (inWindow ? 1 - 0.55 * Math.min(1, st.phase * 4) : 1) * remains;
+  const pClose = HAND_PHASES[4];
+  const closeU = st.act === 3
+    ? Math.max(0, Math.min(1, (st.phase - pClose.from) / (pClose.to - pClose.from)))
+    : 0;
+  const fieldDim =
+    (inWindow ? 1 - 0.55 * Math.min(1, st.phase * 4) * (1 - closeU) : 1) * remains;
 
   // Every shot in the season — arriving mark by mark in the record's own
   // emphasis order (stage B), with the one it replaces receding beneath it so
@@ -70,12 +79,18 @@ export function drawPlateHand(f: Frame): void {
   if (gm && gf && st.act === 3) {
     const pGame = HAND_PHASES[1];
     const pNight = HAND_PHASES[2];
-    const pClose = HAND_PHASES[4];
     const p = st.phase;
     const gameU = Math.max(0, Math.min(1, (p - pGame.from) / (pGame.to - pGame.from)));
-    const closeU = Math.max(0, Math.min(1, (p - pClose.from) / (pClose.to - pClose.from)));
     const total = gameTotalFrames(gf);
     const gameFrame = gameU > 0 ? gameClock(gameU) * total : 0;
+    // THE DRYING CLOCK CONTINUES past the game's end (third audit D-02): the
+    // buzzer's stroke is not "just happening" for the rest of the window. Past
+    // the game phase it advances at TRUE RATE — one second of phase is one
+    // second of feed, the night's own convention — so every stroke settles to
+    // GAME_DRIED within GAME_WET_S of presentation time after the game ends.
+    // Only drying reads this clock; the drawn prefix and the clip keep
+    // `gameFrame`, so no stroke gains vertices it has not earned.
+    const dryFrame = gameFrame + Math.max(0, p - pGame.to) * secondsFor(year) * gf.hz;
     const env = remains * (1 - closeU);
     const sp = strokeSpans(gm, gf);
     const pos = possessionFrames(gf);
@@ -114,8 +129,9 @@ export function drawPlateHand(f: Frame): void {
       if (at0 < gameFrame) {
         if (end < bakedBefore) continue; // dried into the baked surface
         // The live tail dries exactly as the hand's does: full ink at the
-        // edge, settling to GAME_DRIED behind it.
-        const wetness = Math.max(0, 1 - Math.max(0, gameFrame - end) / wetFrames);
+        // edge, settling to GAME_DRIED behind it — on the drying clock, which
+        // keeps moving after the game's own clock stops.
+        const wetness = Math.max(0, 1 - Math.max(0, dryFrame - end) / wetFrames);
         plateStroke(ctx, view, gm, i, timeFrac(gm, i, gameFrame - at0),
           env * (GAME_DRIED + (1 - GAME_DRIED) * wetness));
       } else if (at0 < clipUpto && end > pos.f0) {
@@ -131,13 +147,18 @@ export function drawPlateHand(f: Frame): void {
     // the wet edge's and the possession's own at full, over it.
     drawGameEvents(ctx, view, gf, gameFrame, env * GAME_DRIED);
     drawGameEvents(ctx, view, gf, gameFrame, env,
-      { from: pos.f0, to: clipUpto }, gameFrame - wetFrames);
+      { from: pos.f0, to: clipUpto }, dryFrame - wetFrames);
 
     // The 32 curated traces YIELD while the game holds the plate: an
     // index-spread schedule and a date-anchored game are two clocks, and one
     // surface may not run both. The coexist rival is one constant away and is
-    // flagged in the session-15 packet.
-    tracesDim = p >= pGame.from && p < pNight.to ? 0 : 1;
+    // flagged in the session-15 packet. EASED at both edges over one second of
+    // the window (third audit D-05): a trace mid-flight at a yield boundary
+    // dims over a beat instead of popping in a frame; inside the span the
+    // yield still reaches exactly zero.
+    const yieldRamp = 1 / secondsFor(year);
+    tracesDim = Math.max(0, Math.min(1,
+      Math.max(pGame.from - p, p - pNight.to) / yieldRamp));
   }
 
   if (inWindow && data.traces) {
