@@ -39,6 +39,10 @@ export interface ShotRequest {
    *  picture of THE STACK is always a picture of bare stone, which is the one
    *  frame nobody needs a driver to imagine. */
   ops?: string;
+  /** A packet candidate (`types.ts:Frame.candidate`). This request field is
+   *  the ONLY door to it: main.ts parses no URL parameter into the frame, so
+   *  a candidate composition exists in captures and nowhere else. */
+  candidate?: string;
 }
 
 /**
@@ -69,7 +73,7 @@ export async function shotsProbe(env: Env): Promise<void> {
     renderTo(
       { ctx, view: makeView(r.width, r.height), dpr: r.dpr },
       r.t, env.data, env.schedule, inscriptions, mode, r.talk ?? false,
-      parseOps(r.ops ?? null),
+      parseOps(r.ops ?? null), r.candidate ?? null,
     );
     return ctx;
   };

@@ -220,6 +220,10 @@ export async function forceResidency(
     ...data.seasons.map((s) => [`points/${s.year}`, () => data.points(s.year)] as [string, () => unknown]),
     ["measures", () => data.measures()],
     ["strokes", () => data.strokes()],
+    // The quarrel is lazy like the calipers, and a capture taken while its
+    // fetch is pending would compare an empty flood against a full one and
+    // call the difference impurity. Resident before any hash, like the rest.
+    ["quarrel", () => data.quarrel()],
   ];
   const resident: string[] = [];
   const missing: string[] = [];

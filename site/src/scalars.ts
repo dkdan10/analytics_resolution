@@ -1367,6 +1367,19 @@ export const SCALARS = {
       "the margin's subordinate lines — the record's own column name above the " +
       "tally, and the tick-and-a-count tail below it.",
   },
+  QUARREL_ALPHA: {
+    class: "authored",
+    value: 0.45,
+    material: true,
+    controls:
+      "the quarrel hairline's ink — the segment between the two instruments' " +
+      "claims about where one shot happened, JOIN THE INSTRUMENTS' only mark. " +
+      "Serifless on purpose: it is not a measurement between bodies, it is a " +
+      "distance between claims, and the caliper's serifs stay on the caliper. " +
+      "The ONE authored alpha the operation holds — the confession struck " +
+      "beside the flood rides at the same weight, and the budget of segments " +
+      "drawn at once is a count (stack.ts), not a material.",
+  },
 } as const satisfies Record<string, Entry>;
 
 // --- the values, for the renderers ------------------------------------------
@@ -1524,3 +1537,4 @@ export const STACK_GUTTER_TENTHS: number = SCALARS.STACK_GUTTER_TENTHS.value;
 export const STACK_GUTTER_PAD_TENTHS: number = SCALARS.STACK_GUTTER_PAD_TENTHS.value;
 export const STACK_GUTTER_ROW_ALPHA: number = SCALARS.STACK_GUTTER_ROW_ALPHA.value;
 export const STACK_GUTTER_SUB_ALPHA: number = SCALARS.STACK_GUTTER_SUB_ALPHA.value;
+export const QUARREL_ALPHA: number = SCALARS.QUARREL_ALPHA.value;

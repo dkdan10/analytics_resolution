@@ -4,7 +4,7 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**139 scalars**, 97 of them material: 2 measured, 3 geometry, 134 authored.
+**140 scalars**, 98 of them material: 2 measured, 3 geometry, 135 authored.
 
 A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts`, `prefix.ts`, `inscription.ts`, `modes/ledger.ts`, `modes/census.ts`, `palette.ts`, `modes/stack.ts`, `modes/operations.ts`, `modes/fieldlayer.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
@@ -300,3 +300,5 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   a tally row's ink in the margin. Typography, not grain.
 - **STACK_GUTTER_SUB_ALPHA** — **0.3** *(not material)*  
   the margin's subordinate lines — the record's own column name above the tally, and the tick-and-a-count tail below it.
+- **QUARREL_ALPHA** — **0.45**  
+  the quarrel hairline's ink — the segment between the two instruments' claims about where one shot happened, JOIN THE INSTRUMENTS' only mark. Serifless on purpose: it is not a measurement between bodies, it is a distance between claims, and the caliper's serifs stay on the caliper. The ONE authored alpha the operation holds — the confession struck beside the flood rides at the same weight, and the budget of segments drawn at once is a count (stack.ts), not a material.

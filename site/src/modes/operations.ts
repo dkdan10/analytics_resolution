@@ -102,6 +102,23 @@ export const OPERATIONS = [
     reads: ["seasons[].classification", "seasons[].active_taxonomy"],
     definition: ["seasons", "vocabulary.covering_90pct"],
   },
+  {
+    id: "join",
+    key: "j",
+    title: "JOIN THE INSTRUMENTS",
+    does: "lays a hairline from each filed coordinate to the feed's ball at release — the archive's two words about where one shot happened",
+    reads: ["quarrel.bin", "window.json:quarrel_bin"],
+    definition: ["window", "quarrel"],
+    /** Both audits proposed this operation independently (THE QUARREL /
+     *  THE PARALLAX): the join that made CONNECT and MEASURE possible
+     *  re-numbered games by a voted integer — how many, and out of how many,
+     *  is `window.json:recovery.games_offset` against `corpus.games_parsed` —
+     *  and shipped its confession keys drawn by nothing. This is its honest
+     *  drawable, the per-shot disagreement the join measures, and like the
+     *  other two feed operations it can only be applied where the feed is
+     *  public. */
+    windowOnly: true,
+  },
 ] as const;
 
 export type Operation = (typeof OPERATIONS)[number];

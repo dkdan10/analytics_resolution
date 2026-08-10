@@ -112,6 +112,10 @@ export function renderTo(
    *  which is the view's own opening state, so a caller that does not care gets
    *  bare stone rather than an arbitrary selection. */
   stack: StackOps = NO_OPS,
+  /** A packet candidate for the shots probe only — see `types.ts:Frame`. No
+   *  gallery caller passes it; defaulted null so every existing caller is
+   *  byte-identical. */
+  candidate: string | null = null,
 ): void {
   const st = stateAt(t, schedule);
 
@@ -191,7 +195,7 @@ export function renderTo(
   // ground, the prelude, the era's arc.
   if (remains > 0.001) {
     drawHand(modeAt(t, schedule, modeOverride), {
-      ctx, view, dpr, st, data, schedule, inscriptions, remains, talk, stack,
+      ctx, view, dpr, st, data, schedule, inscriptions, remains, talk, stack, candidate,
     });
   }
 

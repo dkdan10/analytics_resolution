@@ -10,6 +10,7 @@ import { drawInscriptions, drawSlug } from "../inscription";
 import { secondsFor } from "../timeline";
 import { drawSeasonField } from "./fieldlayer";
 import { terminalShell } from "./shared";
+import { drawQuarrel } from "./stack";
 import type { Frame } from "./types";
 
 export function drawPlateHand(f: Frame): void {
@@ -37,6 +38,13 @@ export function drawPlateHand(f: Frame): void {
   if (inWindow && data.traces) {
     drawBloom(ctx, view, data.traces.traces, { phase: st.phase, duration: secondsFor(year) });
   }
+
+  // THE PACKET CANDIDATE, and nothing else. Reachable only through the shots
+  // probe's request field (`types.ts:Frame.candidate`) — no URL parameter
+  // feeds it, so the gallery and the talk cannot show this frame. Whether the
+  // quarrel lives here or stays in THE STACK's rail is the artist's call
+  // (session-10 packet); this exists so that call can be made from frames.
+  if (f.candidate === "quarrel" && inWindow) drawQuarrel(f);
 
   // The terminal beat. The public feed's last archive is a 32-byte shell: a file
   // that exists and holds nothing. Named, not dramatised — both the filename and

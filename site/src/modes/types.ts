@@ -68,6 +68,17 @@ export interface Frame {
    * layer order. Every hand but THE STACK ignores it.
    */
   stack: StackOps;
+  /**
+   * A PACKET CANDIDATE, never a gallery state. Populated only by the shots
+   * probe (`?probe=shots`, `scripts/shots.mjs --candidate ...`); `main.ts`
+   * parses no URL parameter into it, so no gallery or talk viewer can reach a
+   * candidate frame — which is what "captured for the artist's judgment, not
+   * wired" means mechanically. Same purity footing as `talk` and `stack`:
+   * passed in, never written to, nothing held between frames. Today the one
+   * value any hand reads is "quarrel" — THE PLATE's window composites the
+   * quarrel flood so the artist can judge the gallery question from frames.
+   */
+  candidate: string | null;
 }
 
 export type Hand = (f: Frame) => void;

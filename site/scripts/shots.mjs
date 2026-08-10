@@ -67,6 +67,9 @@ const height = Number(flags.height ?? 852);
 const dpr = Number(flags.dpr ?? 2);
 const port = Number(flags.port ?? 5173);
 const talk = Boolean(flags.talk);
+// A packet-candidate composition (see src/modes/types.ts:Frame.candidate).
+// Applies to every shot in the run; the filename says so.
+const candidate = flags.candidate ? String(flags.candidate) : null;
 
 const { chromium } = await import("playwright");
 await waitForServer(`http://localhost:${port}/`, 30_000);
@@ -88,11 +91,15 @@ for (const spec of shots) {
   // configuration produced the picture.
   const [where, t] = spec.split("@");
   const [mode, ops = ""] = where.split(":");
-  const dataUrl = await page.evaluate(async ({ mode, t, width, height, dpr, talk, ops }) => {
-    const png = await window.__shot({ mode, t: Number(t), width, height, dpr, talk, ops });
+  const dataUrl = await page.evaluate(async ({ mode, t, width, height, dpr, talk, ops, candidate }) => {
+    const png = await window.__shot({
+      mode, t: Number(t), width, height, dpr, talk, ops,
+      candidate: candidate ?? undefined,
+    });
     return png;
-  }, { mode, t, width, height, dpr, talk, ops });
-  const name = `${mode}${ops ? `-${ops}` : ""}-${String(t).replace(".", "_")}.png`;
+  }, { mode, t, width, height, dpr, talk, ops, candidate });
+  const name = `${mode}${ops ? `-${ops}` : ""}${candidate ? `-cand-${candidate}` : ""}`
+    + `-${String(t).replace(".", "_")}.png`;
   writeFileSync(join(outDir, name), Buffer.from(dataUrl.split(",")[1], "base64"));
   console.log(`shots: ${join(outDir, name).replace(`${REPO}/`, "")}`);
 }

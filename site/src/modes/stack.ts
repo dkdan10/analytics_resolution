@@ -77,6 +77,7 @@ import { drawInscriptions, drawSlug } from "../inscription";
 import { BONE_RGB, SLUG_FAMILY } from "../palette";
 import { COURT } from "../plate";
 import {
+  QUARREL_ALPHA,
   STACK_CALIPER_ALPHA,
   STACK_DISCLOSURE_INSET,
   STACK_FIELD_DIM,
@@ -139,7 +140,8 @@ export function drawStackHand(f: Frame): void {
     // control. Verified against THE HAND at its own opening beat: the same
     // possession is exactly this faint there, so the answer was never to
     // brighten the paint past what the record deposits.
-    const yielding = (has(ops, "connect") || has(ops, "measure")) && inWindow(f);
+    const yielding = (has(ops, "connect") || has(ops, "measure")
+      || has(ops, "join")) && inWindow(f);
     drawSeasonField(f, {
       coloured: has(ops, "classify"),
       dim: f.remains * STACK_FIELD_DIM * (yielding ? STACK_WINDOW_FIELD_DIM : 1),
@@ -159,6 +161,11 @@ export function drawStackHand(f: Frame): void {
 
   // 8. COUNT THE EVENT — a tick per category on the floor, the tally OUTSIDE it.
   if (has(ops, "count")) drawCount(f);
+
+  // 8b. JOIN THE INSTRUMENTS — the archive's two words about where, shot by
+  //     shot. Table order is layer order, so the eighth operation draws after
+  //     the seventh and before the disclosures, like every bit before it.
+  if (has(ops, "join") && inWindow(f)) drawQuarrel(f);
 
   // 9. Last, over everything.
   drawDisclosures(f, ops);
@@ -358,6 +365,67 @@ function drawCount(f: Frame): void {
 }
 
 /**
+ * JOIN THE INSTRUMENTS — the archive's two words about where, shot by shot.
+ *
+ * Both audits proposed this drawable independently. The record holds two NBA
+ * claims about the same shot in the same building on the same night: the
+ * coordinate a courtside scorer filed, and where the optical feed says the
+ * ball left the hand. The mark is the segment between them — SERIFLESS,
+ * because it is not a measurement between bodies, it is a distance between
+ * claims, and the caliper's serifs stay on the caliper. No figure per segment,
+ * no histogram, no legend: the disclosure is one pipeline-templated statement
+ * line (drawDisclosures), and the confession beside the flood carries the true
+ * counts the way THE MEASURE's flood confesses its own budget.
+ *
+ * THE FLOOD DISCIPLINE. Tens of thousands of segments cannot strike at once,
+ * so the flood keeps a leading edge: records enter in the order quarrel.bin is
+ * packed in — chronological, window.py's own sort, the same day order THE
+ * MEASURE's flood walks window_measures.bin in — and at most QUARREL_BUDGET
+ * are on the plate at once. `st.phase` is the window's own phase, so the entry
+ * fraction is a pure function of `t`: no held state, nothing accumulates, and
+ * a backward scrub rebuilds a smaller flood rather than remembering a larger
+ * one. No cache, deliberately — the flood is at most QUARREL_BUDGET lineTo calls
+ * from arrays data.ts already decoded, which is cheaper than any surface that
+ * would need registering in probe/shared.ts:cold().
+ */
+const QUARREL_BUDGET = 400;
+
+/** Exported for one caller besides this hand: THE PLATE's packet-candidate
+ *  composite (`plate.ts`), which only the shots probe can request — the
+ *  gallery question of where the quarrel lives is the artist's, judged from
+ *  captures, and nothing in the gallery path reaches it. */
+export function drawQuarrel(f: Frame): void {
+  const { ctx, view, st, data, remains } = f;
+  const w = data.window;
+  const q = data.quarrel();
+  if (!w || !q || !q.n) return;
+  const entered = Math.max(1, Math.min(q.n, Math.round(st.phase * q.n)));
+  const from = Math.max(0, entered - QUARREL_BUDGET);
+  const a = remains * QUARREL_ALPHA;
+  if (a <= 0.01) return;
+  ctx.save();
+  ctx.strokeStyle = `rgba(${BONE_RGB}, ${a})`;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = from; i < entered; i++) {
+    ctx.moveTo(view.sx(q.fx[i]!), view.sy(q.fy[i]!));
+    ctx.lineTo(view.sx(q.bx[i]!), view.sy(q.by[i]!));
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  // The true scale, confessed beside the flood — THE MEASURE's idiom: the
+  // drawn-against-entered fraction so the sample never implies it is
+  // everything, and the population's own count beside it. Every numeral is a
+  // count from the artifact or from this frame's arithmetic; none is typed.
+  const drawn = entered - from;
+  drawSlug(ctx, view, [
+    `${drawn.toLocaleString()} DRAWN OF ${entered.toLocaleString()} ENTERED`
+    + ` · ${q.n.toLocaleString()} DETECTED`,
+  ], { x: 0, y: 330 }, a, "aside");
+}
+
+/**
  * What an applied operation owes the viewer, on the plate.
  *
  * PROVENANCE IS IN THE RAIL (artist's ruling, 2026-08-09) and this is not that.
@@ -385,6 +453,12 @@ function drawDisclosures(f: Frame, ops: StackOps): void {
   // its own, so a re-run updates the wall text.
   const scope = has(ops, "measure") && inWindow(f) ? f.data.window?.bias.scope : null;
   if (scope) lines.push(scope);
+  // The quarrel's scope, in the bias sentence's idiom: TEMPLATED BY THE
+  // PIPELINE from the figures it quotes (`window.json:quarrel_bin.scope`), so
+  // the drawn material's population and its measured centre travel with it and
+  // a re-run updates the wall text. The site never composes its own.
+  const qScope = has(ops, "join") && inWindow(f) ? f.data.window?.quarrel_bin.scope : null;
+  if (qScope) lines.push(qScope);
   if (!lines.length) return;
   // `aside`: subordinate to the marks it describes. docs/build/typography-inventory.md.
   drawSlug(ctx, view, lines, { x: 0, y: COURT.y1 - STACK_DISCLOSURE_INSET },
