@@ -578,6 +578,33 @@ export function drawHandHand(f: Frame): void {
     bakeWindowDrops(ctx, view, m, w, Math.floor(upto / DROP_STEP) * DROP_STEP, upto);
     ctx.restore();
   } else {
+    // THE PREVIOUS SHEET RECEDES UNDER THE NEW RECORD (session 8, audit O2).
+    // The drop layer drew only the current year, so the plate bared to the
+    // engraving at every season turnover — unsanctioned mini-cuts in a piece
+    // whose one cut is 2010-11, and THE CENSUS documents its identical
+    // emptying where this hand had no sentence. Now the outgoing season's
+    // COMPLETED sheet fades beneath the incoming season's accumulating drops:
+    // the incoming side stays an accumulation (the thing the artist kept this
+    // hand for), only the outgoing is a fade, matching the pin's own linear
+    // recession. The sheet reuses the exact prefix key the season had while it
+    // was current, so crossing a boundary extends that surface by at most one
+    // step and scrubbing backwards rebuilds by the F-04 recursion. Scoped to
+    // the season branch: the boundary INTO the window is Act III's staged
+    // opening (bare plate, then one possession laid slowly), a deliberate
+    // exception recorded here rather than an omission.
+    if (st.prev !== null && st.arrived < 1) {
+      const prevSeason = data.byYear.get(st.prev);
+      const prevPts = data.points(st.prev);
+      if (prevSeason && prevPts) {
+        const prevPin = pinCoordOf(prevSeason);
+        const sheet = prefixSurface(
+          `hand.season|${st.prev}|${assetId(prevPts)}|${prevPin ? prevPin.join(",") : "none"}|${geom}`,
+          Math.ceil(prevPts.n / DROP_STEP), dw, dh, dpr, DROP_STEP,
+          (c, a, b) => bakeSeasonDrops(c, view, prevPts, prevPin, a, b),
+        );
+        if (sheet) blit(ctx, sheet, view, remains * (1 - st.arrived));
+      }
+    }
     const pts = data.points(year);
     if (pts) {
       const upto = Math.round(pts.n * Math.min(1, Math.max(0, st.arrived)));
