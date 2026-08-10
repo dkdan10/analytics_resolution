@@ -101,33 +101,65 @@ export function drawPlateHand(f: Frame): void {
   // stroke loop below draws, walked through the same `strokePath`. An
   // accumulating patina in the wake, never a tracking spotlight: strength
   // below 1, an eased two-width penumbra, widths derived from the
-  // residence's own cell-splat radius. Recomputed from scratch every frame —
-  // pure in t.
+  // residence's own cell-splat radius.
+  //
+  // THE WAKE'S DRIED MASS IS BAKED, NOT RESTROKED (perf, measured this
+  // session: restroking the whole web at wake widths twice per frame put
+  // plate's window-night mean at 31 ms and window-season at 61 ms). The
+  // finished strokes' wake accumulates in a `prefixSurface` mask — the
+  // plate.game surface's own steps, the F-04-clean recursion — drawn onto
+  // the scratch as ONE `destination-out` blit; only the live edge and the
+  // possession clip stroke per frame, the same handful the plate itself
+  // draws. Erasure compounding is a product of (1 − a) factors, so grouping
+  // the passes into a mask is the same arithmetic as stroking them
+  // sequentially; the mask's bytes are a pure function of (asset, geometry,
+  // step) and the purity probe's four histories judge exactly that.
   const yieldMask = clock && gm && st.arrived < 1
     ? (mctx: CanvasRenderingContext2D): void => {
         const R = residenceSplatRadius(view, dpr);
-        mctx.lineCap = "round";
-        mctx.lineJoin = "round";
         const passes: Array<[number, number]> = [
           [YIELD_PENUMBRA_W * R, OLD_YIELD_STRENGTH * YIELD_PENUMBRA_A],
           [YIELD_CORE_W * R, OLD_YIELD_STRENGTH],
         ];
-        for (const [wDev, strength] of passes) {
-          mctx.strokeStyle = `rgba(0, 0, 0, ${strength})`;
-          mctx.lineWidth = wDev / dpr;
-          for (let i = 0; i < gm.n; i++) {
-            const at0 = clock.sp.start[i]!;
-            const end = at0 + clock.sp.dur[i]!;
-            if (at0 < clock.gameFrame) {
-              if (strokePath(mctx, view, gm, i, timeFrac(gm, i, clock.gameFrame - at0))) {
-                mctx.stroke();
-              }
-            } else if (at0 < clock.clipUpto && end > clock.pos.f0) {
-              const drawn = timeFrac(gm, i, clock.clipUpto - at0);
-              if (drawn > 0 && strokePath(mctx, view, gm, i, drawn,
-                timeFrac(gm, i, clock.pos.f0 - at0))) {
-                mctx.stroke();
-              }
+        // Under destination-out only the source ALPHA erases; in the baked
+        // mask the same strokes accumulate that alpha with source-over.
+        const wakeStroke = (
+          c: CanvasRenderingContext2D, i: number, drawn: number, from = 0,
+        ): void => {
+          c.lineCap = "round";
+          c.lineJoin = "round";
+          for (const [wDev, strength] of passes) {
+            c.strokeStyle = `rgba(255, 255, 255, ${strength})`;
+            c.lineWidth = wDev / dpr;
+            if (strokePath(c, view, gm, i, drawn, from)) c.stroke();
+          }
+        };
+        const dw = Math.max(1, Math.round(view.width * dpr));
+        const dh = Math.max(1, Math.round(view.height * dpr));
+        const geom = `${Math.round(view.width)}x${Math.round(view.height)}|${dpr}`;
+        const stepFrames = Math.ceil(clock.total / GAME_PREFIX_STEPS);
+        const gSteps = Math.floor(clock.gameFrame / stepFrames);
+        const baked = prefixSurface(
+          `plate.wake|${gameAssetId(gm)}|${geom}`, gSteps, dw, dh, dpr, stepFrames,
+          (c, a, b) => {
+            for (let i = 0; i < gm.n; i++) {
+              const end = clock.sp.start[i]! + clock.sp.dur[i]!;
+              if (end >= a && end < b) wakeStroke(c, i, 1);
+            }
+          },
+        );
+        if (baked) mctx.drawImage(baked, 0, 0, view.width, view.height);
+        const bakedBefore = gSteps * stepFrames;
+        for (let i = 0; i < gm.n; i++) {
+          const at0 = clock.sp.start[i]!;
+          const end = at0 + clock.sp.dur[i]!;
+          if (at0 < clock.gameFrame) {
+            if (end < bakedBefore) continue; // dried into the baked mask
+            wakeStroke(mctx, i, timeFrac(gm, i, clock.gameFrame - at0));
+          } else if (at0 < clock.clipUpto && end > clock.pos.f0) {
+            const drawn = timeFrac(gm, i, clock.clipUpto - at0);
+            if (drawn > 0) {
+              wakeStroke(mctx, i, drawn, timeFrac(gm, i, clock.pos.f0 - at0));
             }
           }
         }
