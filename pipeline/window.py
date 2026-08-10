@@ -924,6 +924,7 @@ def derive_game(archive_path, anchors_by_game, label):
     corroborated = []
     reasons = Counter()
     disagreement = []
+    quarrel = []
     by_action_total = Counter()
     by_action_agree = Counter()
     joined = 0
@@ -1008,6 +1009,15 @@ def derive_game(archive_path, anchors_by_game, label):
         # archive, so it is counted here and shipped rather than thrown away as
         # a failure rate.
         disagreement.append(round(residual, 2))
+        # THE QUARREL'S OWN MATERIAL: the two endpoints the residual above is
+        # the distance between - the coordinate the scorer filed and where the
+        # feed's ball left the hand, in the shot frame. One entry per entry of
+        # disagreement_ft, same order, so the export's population IS the
+        # summary's population. The feed endpoint keeps two decimals of a tenth
+        # here (the reduce pack rounds it into tenths, the caliper's own
+        # precedent); the filed endpoint is the record's exact integers.
+        quarrel.append([anchor["loc_x"], anchor["loc_y"],
+                        round(sx, 2), round(sy, 2)])
         by_action_total[anchor["action"]] += 1
         if residual <= MAX_ANCHOR_RESIDUAL_FT:
             by_action_agree[anchor["action"]] += 1
@@ -1128,6 +1138,7 @@ def derive_game(archive_path, anchors_by_game, label):
         "corroborated": corroborated,
         "detected": detected,
         "disagreement_ft": disagreement,
+        "quarrel": quarrel,
         "by_action_total": dict(by_action_total),
         "by_action_agree": dict(by_action_agree),
         "movement": movement,
@@ -1279,6 +1290,26 @@ def load_anchors():
 # frame-level record never leaves this machine (CLAUDE.md data rights).
 MEASURE_REC = "<hhhhHBBB"  # x, y, dx, dy, dist_tenths, bucket, made, day
 MEASURE_BYTES = 13
+
+# Per-shot record in quarrel.bin: the archive's two words about WHERE - the
+# coordinate the scorer filed and where the optical feed's ball left the hand -
+# in the shot record's own frame, and nothing else. Two points per record; the
+# segment between them is the entire content. No residual field: it is the
+# distance between the two points, and shipping it twice would only oblige a
+# gate to prove the copy. No game, no event, no player, no action, no zone, no
+# date, no clock (the day byte is days into the window, the same convention
+# window_measures.bin already ships).
+QUARREL_REC = "<hhhhB"  # filed_x, filed_y, ball_x, ball_y, day
+QUARREL_BYTES = 9
+
+# The plate box the renderer draws inside, in the shot frame's tenths - the
+# same box qa.py holds as PLATE_X/PLATE_Y. The count of records with an
+# endpoint outside it is PUBLISHED rather than enforced (the record files
+# backcourt heaves and the feed follows the ball there); qa.py recomputes the
+# count from the shipped bytes against its own copy of the box, so the two
+# copies cannot drift apart silently.
+QUARREL_PLATE_X = (-250, 250)
+QUARREL_PLATE_Y = (-50, 420)
 
 # The caliper's field ceiling, in tenths of a foot.
 #
@@ -1558,6 +1589,7 @@ def reduce_all():
     gather_n = 0
     gather_delta_sum = 0.0
     dates = set()
+    quarrel_rows = []
 
     for p in paths:
         g = json.loads(p.read_text())
@@ -1623,6 +1655,13 @@ def reduce_all():
                 held_out_by[kind][1] += 1
                 held_out_by[kind][0] += 1 if ho.get("agree") else 0
         disagreement.extend(g.get("disagreement_ft", []))
+        # Hard key, deliberately: a per-game artifact without the quarrel's
+        # endpoints predates them, and folding it would ship an export whose
+        # population silently disagrees with the summary built two lines up.
+        if "quarrel" not in g:
+            die(f"{p.name} carries no quarrel endpoints - re-run the derive stage")
+        for fx, fy, bx, by in g["quarrel"]:
+            quarrel_rows.append((g["date"], fx, fy, bx, by))
         for k, v in g.get("by_action_total", {}).items():
             by_action_total[k] += v
         for k, v in g.get("by_action_agree", {}).items():
@@ -1704,6 +1743,30 @@ def reduce_all():
     bin_path = PROCESSED_DIR / "window_measures.bin"
     bin_path.parent.mkdir(parents=True, exist_ok=True)
     bin_path.write_bytes(bytes(blob))
+
+    # THE QUARREL, packed. Chronological and only chronological, the same rule
+    # (and the same stable-sort honesty) as the calipers above. The feed's
+    # endpoint is rounded into tenths HERE, at the pack: the disagreement
+    # summary below is computed from the full-precision residuals the derive
+    # stage measured, so the reference the parity gate reads is the measurement
+    # and not the storage - the caliper's own precedent. qa.py recomputes the
+    # residuals from these quantized bytes and reconciles them against the
+    # summary within the half-tenth-per-axis bound the quantization states.
+    quarrel_rows.sort(key=lambda r: r[0])
+    qblob = bytearray()
+    q_off_plate = 0
+    for date, fx, fy, bx, by in quarrel_rows:
+        d = datetime.date.fromisoformat(date) - datetime.date.fromisoformat(day0)
+        bxi, byi = int(round(bx)), int(round(by))
+        for v in (fx, fy, bxi, byi):
+            if not -32768 <= v <= 32767:
+                die(f"quarrel endpoint {v} tenths does not fit {QUARREL_REC}")
+        if not all(QUARREL_PLATE_X[0] <= x <= QUARREL_PLATE_X[1]
+                   and QUARREL_PLATE_Y[0] <= y <= QUARREL_PLATE_Y[1]
+                   for x, y in ((fx, fy), (bxi, byi))):
+            q_off_plate += 1
+        qblob += struct.pack(QUARREL_REC, fx, fy, bxi, byi, min(255, d.days))
+    (PROCESSED_DIR / "quarrel.bin").write_bytes(bytes(qblob))
 
     residuals.sort()
     n = len(residuals)
@@ -1917,6 +1980,26 @@ def reduce_all():
                 f"a release was found but landed more than {MAX_ANCHOR_RESIDUAL_FT} ft from the "
                 "filed coordinate; see `disagreement`, which counts these rather than discarding "
                 "them - most are the two records genuinely differing, not a detection failure"
+            ),
+            "quarrel": (
+                "per shot, the archive's two words about WHERE: the coordinate the scorer "
+                "filed and where the optical feed's ball left the hand, in the same frame, "
+                "joined at the game's calibrated event offset. quarrel.bin holds ONE RECORD "
+                "PER DETECTED SHOT - every shot for which a release was found in the feed "
+                "and the record filed a shot at the joined event id - which is exactly the "
+                "population `disagreement` summarises (quarrel_bin.records == "
+                "disagreement.n), NOT the recovered subset: recovery screens at "
+                f"{MAX_ANCHOR_RESIDUAL_FT:g} ft, so the far disagreements exist only here. "
+                "The feed endpoint is rounded into tenths at the pack; `disagreement` is "
+                "computed from the full-precision residuals first, so a reconciliation from "
+                "the shipped bytes holds to within the half tenth per axis the storage "
+                "states. The frame convention is verified against the record itself - the "
+                "mirrored alternative was scored and rejected by a wide margin, and matched "
+                "shots carry no systematic offset (the measurement is recorded at "
+                "to_shot_frame in pipeline/window.py and in docs/build/findings.md) - so "
+                "the segment is two instruments genuinely disagreeing about one event, not "
+                "a shared transform error. No game, no event, no player, no action, no "
+                "zone, no date and no clock leaves with it"
             ),
             "event_offset": (
                 "tracking eventId == shotdetail GAME_EVENT_ID holds for most games and fails "
@@ -2186,6 +2269,29 @@ def reduce_all():
             "fields": ("x, y, dx, dy (int16 tenths, hoop at origin); dist (uint16 tenths ft, "
                        "never clipped); bucket; made; day"),
             "day0": day0,
+        },
+        "quarrel_bin": {
+            "path": "quarrel.bin",
+            "record": QUARREL_REC,
+            "bytes_per_record": QUARREL_BYTES,
+            "records": len(quarrel_rows),
+            "bytes": len(qblob),
+            "fields": ("filed_x, filed_y (int16 tenths, hoop at origin - the record's own "
+                       "integers, exact); ball_x, ball_y (int16 tenths, the feed's ball at "
+                       "the detected release, rounded at the pack); day"),
+            "day0": day0,
+            "population": "detected",
+            # Published, not enforced: the record files backcourt heaves and the
+            # feed follows the ball there. qa.py recomputes this count from the
+            # shipped bytes against its own copy of the plate box.
+            "off_plate": q_off_plate,
+            # DISPLAY-BOUND, the bias sentence's idiom: every numeral is one of
+            # the measured values in this file, formatted, so the wall text
+            # cannot drift from the measurement and a re-run updates it.
+            "scope": (
+                f"DETECTED SET · {len(quarrel_rows):,} SHOTS BOTH INSTRUMENTS PLACED "
+                f"· MEDIAN {_pct(disagreement, 0.5)} FT APART"
+            ),
         },
         # A SECOND INSTRUMENT ON THE RECORD'S OWN REFUSAL. See
         # measure_sentinel_corroboration: everything else in this file measures

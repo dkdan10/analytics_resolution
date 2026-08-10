@@ -142,6 +142,73 @@ def m_truncate_measures(d):
     _truncate(d, "window_measures.bin", _load(d, "window.json")["measures_bin"]["bytes_per_record"])
 
 
+def m_zero_quarrel(d):
+    _zero(d, "quarrel.bin")
+
+
+def m_truncate_quarrel(d):
+    _truncate(d, "quarrel.bin", _load(d, "window.json")["quarrel_bin"]["bytes_per_record"])
+
+
+def m_quarrel_shift(d):
+    """Every feed endpoint dragged two feet along x. The filed endpoints stay
+    put and the file stays structurally valid; only the measurement moved, so
+    the recomputed residuals no longer reconcile with the summary. This is the
+    defect the parity reconciliation owns."""
+    qb = _load(d, "window.json")["quarrel_bin"]
+    rec, size = qb["record"], struct.calcsize(qb["record"])
+    p = d / "quarrel.bin"
+    buf = bytearray(p.read_bytes())
+    for i in range(len(buf) // size):
+        fx, fy, bx, by, day = struct.unpack_from(rec, buf, i * size)
+        struct.pack_into(rec, buf, i * size, fx, fy, min(32767, bx + 20), by, day)
+    p.write_bytes(bytes(buf))
+
+
+def m_quarrel_widen(d):
+    """The identity defect: a sixth field appended to every record - a player
+    byte, say - with the declaration updated to agree with itself. Everything
+    that reads the declared layout stays green by construction; the PINNED
+    layout in qa.py is what refuses it, which is the point."""
+    wj = _load(d, "window.json")
+    qb = wj["quarrel_bin"]
+    size = struct.calcsize(qb["record"])
+    p = d / "quarrel.bin"
+    buf = p.read_bytes()
+    out = bytearray()
+    for i in range(len(buf) // size):
+        out += buf[i * size:(i + 1) * size] + b"\x07"
+    p.write_bytes(bytes(out))
+    qb["record"] = qb["record"] + "B"
+    qb["bytes_per_record"] = size + 1
+    qb["bytes"] = len(out)
+    _save(d, "window.json", wj)
+
+
+def m_quarrel_off_plate(d):
+    """One on-plate filed endpoint nudged just outside the plate box - still on
+    the court's apron, so only the published off-plate count is now wrong."""
+    qb = _load(d, "window.json")["quarrel_bin"]
+    rec, size = qb["record"], struct.calcsize(qb["record"])
+    p = d / "quarrel.bin"
+    buf = bytearray(p.read_bytes())
+    for i in range(len(buf) // size):
+        fx, fy, bx, by, day = struct.unpack_from(rec, buf, i * size)
+        if all(-250 <= v <= 250 for v in (fx, bx)) and all(-50 <= v <= 420 for v in (fy, by)):
+            struct.pack_into(rec, buf, i * size, 255, fy, bx, by, day)
+            break
+    p.write_bytes(bytes(buf))
+
+
+def m_quarrel_scope(d):
+    """The wall text drifts from the artifact it rides in: the scope line's
+    population figure is quietly incremented."""
+    wj = _load(d, "window.json")
+    qb = wj["quarrel_bin"]
+    qb["scope"] = qb["scope"].replace(f"{qb['records']:,}", f"{qb['records'] + 1:,}")
+    _save(d, "window.json", wj)
+
+
 def m_truncate_strokes(d):
     _truncate(d, "paint_strokes.bin",
               _load(d, "paint.json")["files"]["vertices"]["bytes_per_record"])
@@ -1369,6 +1436,33 @@ CASES = [
     Case("allowlist-drop", ["deploy"], "the allowlist the site reads is the table the gate holds",
          m_allowlist_drop, "F-07: an artifact the piece fetches, silently unpublished",
          scope="repo"),
+
+    # --- session 10: THE QUARREL, the first artifact added under the allowlist
+    # mechanism, so its defects are also the mechanism's first test ------------
+    Case("delete-quarrel", ["inventory"], "every required artifact is present",
+         _delete("quarrel.bin"), "the export both audits asked for, deleted whole"),
+    Case("zero-quarrel", ["window"],
+         "the shipped bytes reproduce disagreement.median_ft within the storage quantum",
+         m_zero_quarrel,
+         "equal-length zeros: every segment collapses to the origin and the summary "
+         "no longer describes the bytes"),
+    Case("truncate-quarrel", ["window"], "quarrel.bin holds the record count it declares",
+         m_truncate_quarrel, "one record shaved off the end"),
+    Case("quarrel-shift", ["window"],
+         "the shipped bytes reproduce disagreement.median_ft within the storage quantum",
+         m_quarrel_shift,
+         "every feed endpoint dragged two feet: the file stays well-formed and only "
+         "the reconciliation with the full-precision summary can notice"),
+    Case("quarrel-widen", ["window"], "the quarrel record is two endpoints and a day, nothing else",
+         m_quarrel_widen,
+         "identity returning as a sixth field, with the declaration updated to agree "
+         "with itself - only the PINNED layout refuses it"),
+    Case("quarrel-off-plate", ["window"],
+         "records with an endpoint outside the plate box match the declared count",
+         m_quarrel_off_plate, "the published off-plate count silently understating"),
+    Case("quarrel-scope-drift", ["window"],
+         "the quarrel's scope line quotes its own population and centre",
+         m_quarrel_scope, "wall text drifting from the artifact it rides in"),
 ]
 
 BY_NAME = {c.name: c for c in CASES}

@@ -277,6 +277,24 @@ MEASURES_MAX_RECOMPUTED_FT = 51.85
 MEASURES_OFF_PLATE_RECORDS = 12
 MEASURES_MAX_OFF_COURT_FT = 3.4
 
+# quarrel.bin stores the feed's endpoint rounded into integer tenths, while the
+# disagreement summary it must reconcile with is computed from the
+# full-precision residuals BEFORE the pack (window.py states this where it
+# packs; the caliper's own precedent). Half a tenth per axis is the most the
+# rounding can move an endpoint, plus the summary's own two-decimal rounding.
+# Derived from that storage, not chosen - and the reconciliation below never
+# asks for more agreement than the storage can carry, which is what makes the
+# stated reason a gate instead of a tolerance that hides drift.
+QUARREL_QUANT_FT = math.hypot(0.05, 0.05) + 0.005
+
+# quarrel.bin is NOT clipped to the plate box: the record files backcourt
+# heaves and the feed follows the ball there, so the count with an endpoint off
+# the plate is pinned as a measurement (measured 2026-08-10 over the detected
+# population's shipped bytes), and the physical bound is the court plus the
+# apron the furthest endpoint was measured in.
+QUARREL_OFF_PLATE_RECORDS = 138
+QUARREL_MAX_OFF_COURT_FT = 5.25
+
 # The tracking court in the plate's own frame, derived from the hoop positions
 # rather than restated: 94 x 50 ft, the hoop 5.25 ft in from the baseline and
 # centred between the sidelines, coordinates in tenths.
@@ -380,6 +398,7 @@ DECODER_SOURCES = {
     "vertex": ("site/src/data.ts", r"VERTEX_REC"),
     "stroke": ("site/src/data.ts", r"STROKE_REC"),
     "measure": ("site/src/data.ts", r"MEASURE_REC"),
+    "quarrel": ("site/src/data.ts", r"QUARREL_REC"),
     "point": ("site/src/field.ts", r"REC"),
 }
 # A WAIVER names a mismatch that is known, owned and dated. It keeps the check
@@ -563,6 +582,13 @@ REQUIRED_ARTIFACTS = [
     # Archive names, hashes and sizes that nothing renders.
     Artifact("window_manifest.json", "json", public=False, stamp="fetched_at"),
     Artifact("window_measures.bin", "bin"),
+    # THE QUARREL: fetched - JOIN THE INSTRUMENTS draws it - so it ships. Per
+    # detected shot, the coordinate the scorer filed and the feed's ball at
+    # release: two public instruments' claims about one event, two points per
+    # record and nothing else. Identity was dropped on purpose (no game, event,
+    # player, action, zone, date or clock), and the pinned record layout below
+    # is the gate that keeps it dropped.
+    Artifact("quarrel.bin", "bin"),
     Artifact("paint.json", "json"),
     Artifact("paint_strokes.bin", "bin"),
     Artifact("paint_index.bin", "bin"),
@@ -626,6 +652,17 @@ def decode_measures(buf, spec):
     n = len(buf) // size
     cols = list(zip(*(struct.unpack_from(rec, buf, i * size) for i in range(n)))) if n else []
     keys = ("x", "y", "dx", "dy", "dist", "bucket", "made", "day")
+    out = {k: np.array(c) for k, c in zip(keys, cols)}
+    out["n"] = n
+    out["ragged"] = len(buf) % size
+    return out
+
+
+def decode_quarrel(buf, spec):
+    rec, size = spec["record"], struct.calcsize(spec["record"])
+    n = len(buf) // size
+    cols = list(zip(*(struct.unpack_from(rec, buf, i * size) for i in range(n)))) if n else []
+    keys = ("fx", "fy", "bx", "by", "day")
     out = {k: np.array(c) for k, c in zip(keys, cols)}
     out["n"] = n
     out["ragged"] = len(buf) % size
@@ -1645,6 +1682,7 @@ def group_window(g, ctx):
 
     _window_recovery(g, w, corp)
     m = _window_measures(g, ctx, w)
+    _window_quarrel(g, ctx, w)
     _window_bias(g, w, seasons, m)
     _window_contest(g, w, m)
     _window_occupancy(g, w)
@@ -1977,6 +2015,98 @@ def _window_measures(g, ctx, w):
     return m
 
 
+def _window_quarrel(g, ctx, w):
+    """quarrel.bin, decoded and reconciled with the summary it must never drift from.
+
+    The export is the DETECTED population - every shot both instruments spoke
+    about: a release found in the feed, a shot filed at the joined event id -
+    and window.json:disagreement is the same population at full precision, so
+    the reconciliation below is like-for-like by construction. NOT the
+    recovered subset: recovery screens at 6 ft, so the far disagreements exist
+    only here, and an export drawn from the recovered set would show a quarrel
+    with its fringe already adjudicated away.
+    """
+    qb = w.get("quarrel_bin")
+    buf = ctx.raw(g, "quarrel.bin")
+    if qb is None or buf is None:
+        return
+    # THE IDENTITY GATE. The layout is pinned here, not read from the artifact:
+    # a record that quietly grows a field - a player, a game, a clock - changes
+    # the stride and dies on this line, and widening it back requires editing
+    # this file, which is a reviewed diff.
+    g.check("the quarrel record is two endpoints and a day, nothing else",
+            [qb["record"], qb["bytes_per_record"]], ["<hhhhB", 9])
+    q = decode_quarrel(buf, qb)
+    g.check("quarrel.bin is a whole number of records", q["ragged"], 0)
+    g.check("quarrel.bin holds the record count it declares", q["n"], qb["records"])
+    g.check("quarrel.bin holds every detected shot - the disagreement summary's own population",
+            q["n"], w["disagreement"]["n"])
+    g.check("quarrel.bin declares the bytes it has", qb["bytes"], len(buf))
+    g.check("the quarrel names its population", qb["population"], "detected")
+    if not q["n"]:
+        return
+    span = _span_days(w["corpus"]["date_first"], w["corpus"]["date_last"])
+    g.check("no quarrel is filed outside the window's own span",
+            int(((q["day"] < 0) | (q["day"] >= span)).sum()), 0)
+    g.check("the quarrel's day zero is the corpus's own opening",
+            qb["day0"], w["corpus"]["date_first"])
+
+    # NOT clipped to the plate box, and the count off it is pinned as a
+    # measurement - recomputed from the bytes against BOTH the declared value
+    # (so the two copies of the box cannot drift) and the pinned one (so a
+    # regeneration that moves it is loud).
+    off_plate = (
+        (q["fx"] < PLATE_X[0]) | (q["fx"] > PLATE_X[1])
+        | (q["fy"] < PLATE_Y[0]) | (q["fy"] > PLATE_Y[1])
+        | (q["bx"] < PLATE_X[0]) | (q["bx"] > PLATE_X[1])
+        | (q["by"] < PLATE_Y[0]) | (q["by"] > PLATE_Y[1]))
+    g.check("records with an endpoint outside the plate box match the declared count",
+            int(off_plate.sum()), qb["off_plate"])
+    g.check("records with an endpoint outside the plate box match the measured count",
+            int(off_plate.sum()), QUARREL_OFF_PLATE_RECORDS)
+    off_court = 0.0
+    for cx, cy in ((q["fx"], q["fy"]), (q["bx"], q["by"])):
+        off_court = max(off_court, float(np.maximum(
+            np.maximum(COURT_BOX_X[0] - cx, cx - COURT_BOX_X[1]),
+            np.maximum(COURT_BOX_Y[0] - cy, cy - COURT_BOX_Y[1])).max()) / 10.0)
+    g.holds("no quarrel endpoint sits further off the court than the apron it was measured in",
+            off_court <= QUARREL_MAX_OFF_COURT_FT,
+            f"{off_court:.2f} <= {QUARREL_MAX_OFF_COURT_FT} ft")
+
+    # THE RECONCILIATION. The residual is deliberately NOT shipped - it is the
+    # distance between the two points - so it is recomputed here from the
+    # shipped bytes and held against every figure the summary publishes, to
+    # within what the storage can carry: the percentiles within the quantum,
+    # the shares within the share of records the quantum could move across each
+    # boundary (computed from the bytes themselves, so the tolerance is a
+    # measurement, not a knob).
+    r = np.round(np.hypot(q["bx"].astype(float) - q["fx"],
+                          q["by"].astype(float) - q["fy"]) / 10.0, 2)
+    d = w["disagreement"]
+    rs = np.sort(r)
+    for key, frac in (("median_ft", 0.5), ("p25_ft", 0.25),
+                      ("p75_ft", 0.75), ("p90_ft", 0.90)):
+        got = round(float(rs[min(q["n"] - 1, int(q["n"] * frac))]), 2)
+        g.holds(f"the shipped bytes reproduce disagreement.{key} within the storage quantum",
+                abs(got - d[key]) <= QUARREL_QUANT_FT,
+                f"{got} vs {d[key]} (quantum {QUARREL_QUANT_FT:.3f} ft)")
+    for key, thresh, above in (("within_3ft", 3.0, False), ("within_6ft", 6.0, False),
+                               ("beyond_15ft", 15.0, True)):
+        share = float((r > thresh).mean()) if above else float((r <= thresh).mean())
+        band = float((np.abs(r - thresh) <= QUARREL_QUANT_FT).mean())
+        g.holds(f"the shipped bytes reproduce disagreement.{key} within the boundary band",
+                abs(share - d[key]) <= band + 0.00005,
+                f"{share:.4f} vs {d[key]} (band {band:.4f})")
+    # The display-bound scope line quotes measured values; hold it to them, so
+    # the wall text cannot drift from the artifact it rides in.
+    g.holds("the quarrel's scope line quotes its own population and centre",
+            f"{q['n']:,}" in qb["scope"] and str(d["median_ft"]) in qb["scope"],
+            qb["scope"])
+    g.info(f"the quarrel ships {q['n']:,} detected shots in {qb['record']!r}; recomputed "
+           f"median {round(float(rs[q['n'] // 2]), 2)} ft against the summary's "
+           f"{d['median_ft']} ft, {int(off_plate.sum()):,} records reach off the plate box")
+
+
 def _window_bias(g, w, seasons, m):
     """What the instrument prefers, stated rather than carried.
 
@@ -2269,6 +2399,9 @@ WINDOW_SCHEMA = {
              "why": str, "scope": str, "disclosure": list},
     "measures_bin": {"records": int, "bytes": int, "bytes_per_record": int, "day0": str,
                      "record": str, "path": str},
+    "quarrel_bin": {"records": int, "bytes": int, "bytes_per_record": int, "day0": str,
+                    "record": str, "path": str, "off_plate": int, "population": str,
+                    "scope": str},
 }
 
 PAINT_SCHEMA = {
@@ -2928,6 +3061,7 @@ def _decoder_parity(g, ctx):
         "vertex": p["files"]["vertices"]["bytes_per_record"],
         "stroke": p["files"]["index"]["bytes_per_record"],
         "measure": w["measures_bin"]["bytes_per_record"],
+        "quarrel": w["quarrel_bin"]["bytes_per_record"],
         "point": POINT_DTYPE.itemsize,
     }
     import re  # noqa: PLC0415

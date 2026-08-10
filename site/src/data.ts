@@ -428,6 +428,26 @@ export interface WindowFile {
     bytes_per_record: number;
     day0: string | null;
   };
+  quarrel_bin: {
+    record: string;
+    path: string;
+    records: number;
+    bytes: number;
+    bytes_per_record: number;
+    day0: string | null;
+    /** Records with an endpoint outside the plate box — published, not
+     *  enforced: the record files backcourt heaves and the feed follows the
+     *  ball there. A renderer clips the drawing, never the data. */
+    off_plate: number;
+    /** "detected" — every shot both instruments spoke about, the disagreement
+     *  summary's own population. NOT the recovered subset, which is screened
+     *  at 6 ft and would show the quarrel with its fringe adjudicated away. */
+    population: string;
+    /** Display-bound, templated by the pipeline from the figures it quotes —
+     *  the bias sentence's idiom. The site draws it and never composes its
+     *  own, so a re-run updates the wall text. */
+    scope: string;
+  };
 }
 
 /**
@@ -641,6 +661,46 @@ export interface Measures {
 const MEASURE_REC = 13;
 const MEASURE_LAYOUT = "<hhhhHBBB";
 
+/** One shot, twice: the archive's two words about where it happened. */
+export interface Quarrel {
+  n: number;
+  /** The coordinate the scorer filed — the record's own integers, in the shot
+   *  frame (tenths, hoop at origin). */
+  fx: Int16Array;
+  fy: Int16Array;
+  /** Where the optical feed says the ball left the hand, same frame, rounded
+   *  into tenths at the pack. The segment between the two points is the entire
+   *  content; the residual is deliberately not stored (it is the distance
+   *  between them, and qa.py recomputes it from these bytes). */
+  bx: Int16Array;
+  by: Int16Array;
+  /** Days since the window opened — the flood runs as the corpus did. */
+  day: Uint8Array;
+}
+
+const QUARREL_REC = 9;
+const QUARREL_LAYOUT = "<hhhhB";
+
+export function decodeQuarrel(buf: ArrayBuffer, w: WindowFile): Quarrel {
+  assertLayout("the quarrel", w.quarrel_bin, buf, QUARREL_LAYOUT, QUARREL_REC);
+  const n = w.quarrel_bin.records;
+  const dv = new DataView(buf);
+  const fx = new Int16Array(n);
+  const fy = new Int16Array(n);
+  const bx = new Int16Array(n);
+  const by = new Int16Array(n);
+  const day = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    const o = i * QUARREL_REC;
+    fx[i] = dv.getInt16(o, true);
+    fy[i] = dv.getInt16(o + 2, true);
+    bx[i] = dv.getInt16(o + 4, true);
+    by[i] = dv.getInt16(o + 6, true);
+    day[i] = dv.getUint8(o + 8);
+  }
+  return { n, fx, fy, bx, by, day };
+}
+
 export function decodeMeasures(buf: ArrayBuffer, w: WindowFile): Measures {
   assertLayout("the window's calipers", w.measures_bin, buf, MEASURE_LAYOUT, MEASURE_REC);
   const n = w.measures_bin.records;
@@ -698,6 +758,9 @@ export interface Loaded {
   /** Every caliper, fetched on demand like the points — the piece renders
    *  without it and gains it a frame or two later. */
   measures(): Measures | null;
+  /** The quarrel — the two instruments' claims about where, per detected
+   *  shot — fetched on demand like the calipers. */
+  quarrel(): Quarrel | null;
   /** The paint stage's summary; null if it has not been run. */
   paint: PaintFile | null;
   /** The strokes themselves, fetched on demand. THE HAND draws splotches
@@ -861,6 +924,10 @@ export async function load(): Promise<Loaded> {
     () => getBinary("window_measures.bin").then((b) => decodeMeasures(b, windowFile!)));
   const fetchMeasures = (): Measures | null => (windowFile ? measureLoader.get() : null);
 
+  const quarrelLoader = lazy("the quarrel",
+    () => getBinary("quarrel.bin").then((b) => decodeQuarrel(b, windowFile!)));
+  const fetchQuarrel = (): Quarrel | null => (windowFile ? quarrelLoader.get() : null);
+
   return {
     seasons,
     facts,
@@ -871,6 +938,7 @@ export async function load(): Promise<Loaded> {
     traces,
     window: windowFile,
     measures: fetchMeasures,
+    quarrel: fetchQuarrel,
     paint: paintFile,
     strokes: fetchStrokes,
     assetErrors: () => {
@@ -878,6 +946,7 @@ export async function load(): Promise<Loaded> {
         ...[...pointLoaders].map(([y, l]) => [`points/${y}`, l.error()] as [string, string | null]),
         ["strokes", strokeLoader.error()],
         ["measures", measureLoader.error()],
+        ["quarrel", quarrelLoader.error()],
       ];
       return all.filter(([, e]) => e !== null).map(([n, e]) => `${n}: ${e}`);
     },
