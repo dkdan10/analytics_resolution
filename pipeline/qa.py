@@ -3265,7 +3265,7 @@ class Claim:
 
     def __init__(self, template, source, path, fmt="raw", doc=MEMORY_DOCS):
         self.template = template   # exact text, with a single {} for the value
-        self.source = source       # "window" | "paint" | "facts" | "season:YYYY" | "code"
+        self.source = source       # "window" | "paint" | "slate" | "facts" | "season:YYYY" | "code"
         self.path = path
         self.fmt = fmt
         # WHICH DOCUMENT HAS TO SAY IT. Defaults to CLAUDE.md because that is
@@ -3331,6 +3331,11 @@ MEMORY_CLAIMS = [
     # is added and was deliberately deleted instead, per the note below - a number a
     # document does not need is better deleted than pinned.
     Claim("(**{} defects**", "code", "MUTATION_CASES", doc="DEPLOY.md"),
+
+    # --- THE SLATE (session 14): the night's artifact -------------------------
+    Claim("`slate_index.bin` holds **{} paths**", "slate", "paths", "comma"),
+    Claim("**{} games** simultaneously in live play", "slate",
+          "span.games_fully_live"),
 
     # --- the paint ----------------------------------------------------------
     Claim("lifts **{} strokes**", "paint", "strokes", "comma"),
@@ -3425,7 +3430,8 @@ def _memory_value(g, ctx, claim):
         e = obj.get(claim.path)
         return e["value"] if e else None
     else:
-        obj = ctx.json(g, {"window": "window.json", "paint": "paint.json"}[claim.source])
+        obj = ctx.json(g, {"window": "window.json", "paint": "paint.json",
+                           "slate": "slate.json"}[claim.source])
 
     for part in claim.path.split("."):
         if not isinstance(obj, dict) or part not in obj:
