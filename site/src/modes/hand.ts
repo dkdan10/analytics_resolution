@@ -284,12 +284,16 @@ const [BEAT_ONE, BEAT_NIGHT, BEAT_SEASON, BEAT_CLOSE] = WINDOW_BEATS;
  * WHERE THE SHARED NIGHT BEAT SPLITS INTO THE GAME AND THE NIGHT (session 15,
  * THE FOUR SCALES). `WINDOW_BEATS` is untouched — MEASURE, CENSUS, the keys
  * and the probes all keep the four shared boundaries — and this hand
- * subdivides its own interior with one file-local anchor: the first half of
- * the night beat is THE GAME (the full found game laying on its own clock),
- * the second half THE NIGHT (the slate). A phase anchor like KEPT_CREST, not
- * a material; first value flagged in the session-15 packet.
+ * subdivides its own interior with one file-local anchor: the first stretch
+ * of the night beat is THE GAME (the full found game laying on its own
+ * clock), the rest THE NIGHT (the slate). A phase anchor like KEPT_CREST,
+ * not a material. AT 4/9 SINCE SESSION 17 (Codex A4, ruled with the rail
+ * trim): the slate is a true-rate artifact of a fixed span, and 4/9 of the
+ * shared beat gives the night sub-beat exactly that span — the slate's last
+ * frame lands on the season boundary instead of running past it into a beat
+ * named for something else.
  */
-const GAME_SPLIT = 0.5;
+const GAME_SPLIT = 4 / 9;
 const GAME_AT = BEAT_NIGHT.from + GAME_SPLIT * (BEAT_NIGHT.to - BEAT_NIGHT.from);
 
 /** The five real stops of this hand's window interior, exported for the rail
