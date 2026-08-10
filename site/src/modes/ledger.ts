@@ -46,9 +46,10 @@ import {
   TERM_TAIL_TENTHS,
   TERM_TIE_ALPHA,
 } from "../scalars";
-import { actOf, ARRIVAL_TAIL } from "../timeline";
+import { actOf, ARRIVAL_TAIL, WINDOW_BEATS } from "../timeline";
 import { label } from "../textatlas";
 import { drawSeasonField } from "./fieldlayer";
+import { seasonClock } from "./shared";
 import type { Frame } from "./types";
 
 /** How many labels the calmest season shows, and the vocabulary breadth that
@@ -561,6 +562,30 @@ export function ledgerUtterances(
   };
 }
 
+/**
+ * THE LEDGER CLOSES (session 17 — both fourth-audit runs and the third
+ * audit's pacing branch voted day-keyed; the artist ruled D6 for withdrawal).
+ * The close un-writes the register the way the season wrote it: the WRITING
+ * PHASE run backwards on the register's own easing —
+ * `pRem(closeU) = ARRIVAL_TAIL × (1 − seasonClock(closeU))` — so every
+ * departure is statable on the calendar the fold keeps, and strict reverse
+ * arrival order IS reverse calendar order. The naive 89-day unwind was
+ * measured and rejected: everything the ledger wrote arrived early in the
+ * calendar, which leaves most of the close silent — the exact quiet the
+ * three votes condemn. Draw-time only: the year-keyed utterance memo and
+ * every exported symbol are untouched (THE STACK is a second caller), and
+ * the close's first frame is byte-identical to the pre-close frame because
+ * `1 − seasonClock(0)` is exactly 1.
+ */
+function closeRemnant(f: Frame): number | null {
+  const { st } = f;
+  if (st.act !== 3) return null;
+  const close = WINDOW_BEATS.find((b) => b.id === "close")!;
+  const closeU = (st.phase - close.from) / (close.to - close.from);
+  if (closeU <= 0) return null;
+  return 1 - seasonClock(Math.min(1, closeU));
+}
+
 export function drawLedgerHand(f: Frame): void {
   const { st, data, remains } = f;
   const year = st.year!;
@@ -607,7 +632,16 @@ export function drawLedgerHand(f: Frame): void {
 
     // The scatter goes down FIRST and yields wherever a term is speaking, so
     // the big register has the local emptiness that makes it read.
-    drawLabels(f, sample, season, speaking);
+    // In the close the conveyor runs BACKWARDS through the whole sample on
+    // the raw mirrored easing — accelerando mirrored, motion every second of
+    // the close. Deliberately NOT re-wrapped in the arrival's smoothstep:
+    // its zero derivative at the boundary would hold the conveyor still for
+    // the close's first seconds, the exact dead air the three votes condemn
+    // (measured: two share8-zero seconds with it, none without). Value
+    // continuity at the boundary — the byte-identity that matters — needs
+    // only rem(0) = 1, which the raw easing gives exactly.
+    const rem = closeRemnant(f);
+    drawLabels(f, sample, season, speaking, rem === null ? st.arrived : rem);
     // The pile, named once. Labels stacked on a single point would be a
     // rendering bug; one line saying how many shots the record declined to
     // place is the fact itself.
@@ -621,8 +655,16 @@ export function drawLedgerHand(f: Frame): void {
   if (st.act === 3 || st.act === 5) drawPublishedInstead(f, st.act === 3);
 }
 
-function drawLabels(f: Frame, sample: Sample, season: Season, live: Box[]): void {
-  const { ctx, view, dpr, st, remains } = f;
+function drawLabels(
+  f: Frame,
+  sample: Sample,
+  season: Season,
+  live: Box[],
+  /** How far through the sample the writing edge stands — `st.arrived` while
+   *  the season writes, the close's remnant while it un-writes. */
+  arrived: number,
+): void {
+  const { ctx, view, dpr, remains } = f;
   const px = Math.max(SCATTER_MIN_PX, view.s(SCATTER_TENTHS));
   const vocab = sample.action_vocab;
   const budget = labelBudget(season);
@@ -630,7 +672,7 @@ function drawLabels(f: Frame, sample: Sample, season: Season, live: Box[]): void
   // Labels trail the arrival edge: the record is being written, and the scribe
   // annotates what has just landed. Older marks keep their dot and lose their
   // description, which is also how an archive behaves.
-  const arrivedCount = Math.ceil(sample.n * Math.min(1, Math.max(0, st.arrived)));
+  const arrivedCount = Math.ceil(sample.n * Math.min(1, Math.max(0, arrived)));
   const from = Math.max(0, arrivedCount - budget);
 
   ctx.save();
@@ -722,8 +764,18 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
   // beneath them is not public. The typography carries the claim; the slug
   // states it.
   const px = Math.max(SCATTER_MIN_PX, view.s(LEAGUE_NAME_TENTHS));
-  const values = inWindow ? windowValues(data.window) : new Map<string, string>();
+  const values = inWindow ? windowValues(data.window) : new Map<string, string[]>();
   const names = publishedInstead(data);
+  // THE VALUES WITHDRAW (session 17): in the close each recomputed figure
+  // departs on the reverse of the accumulation law that brought its name —
+  // strict reverse arrival order, eased over exactly one name's spacing, so
+  // the last figure written is the first to leave and the twelve headings
+  // stand bare at wash 1 (Act V's exact standing state, from this same
+  // function). Per-NAME, never per-line: a scope tag departing separately
+  // from its share would re-create D-09. Each departure is statable on the
+  // fold's own calendar — value i completes leaving when the reverse clock
+  // reads (i / names) of the window's days.
+  const rem = closeRemnant(f);
 
   // They accumulate across the act and settle into the mid-range, which by this
   // point in the piece is very nearly empty: the derived measures occupy exactly
@@ -750,12 +802,17 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
     // into its neighbour's figure (third audit D-09).
     const v = values.get(text);
     if (v) {
-      ctx.globalAlpha = remains * LEAGUE_VALUE_ALPHA * arriving;
-      let vy = y + lab.height * 0.75;
-      for (const line of v) {
-        const vl = label(line, px * LEAGUE_VALUE_SCALE, dpr);
-        ctx.drawImage(vl.canvas, x - vl.width / 2, vy, vl.width, vl.height);
-        vy += vl.height;
+      const departing = rem === null
+        ? 1
+        : Math.max(0, Math.min(1, rem * names.length - i));
+      if (departing > 0.01) {
+        ctx.globalAlpha = remains * LEAGUE_VALUE_ALPHA * arriving * departing;
+        let vy = y + lab.height * 0.75;
+        for (const line of v) {
+          const vl = label(line, px * LEAGUE_VALUE_SCALE, dpr);
+          ctx.drawImage(vl.canvas, x - vl.width / 2, vy, vl.width, vl.height);
+          vy += vl.height;
+        }
       }
     }
   }
