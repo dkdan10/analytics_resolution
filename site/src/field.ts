@@ -13,13 +13,19 @@
  * accumulated in 8 bits anywhere.
  *
  * The layer is complete regardless of where the playhead is, because a season
- * *develops* rather than fills in: arrival is the layer's opacity. That is why
- * scrubbing backwards needs no rebake, and why none of this holds frame state.
+ * *develops* rather than fills in: arrival is the position in a ladder of
+ * exposure states — the same tone curve at scaled strength, the last state
+ * exactly the measured constants — so the rim flare surfaces first out of the
+ * dark and the faintest texture arrives last, like a print in a tray. Every
+ * state is a pure function of its key, which is why scrubbing backwards needs
+ * no rebake beyond a cache miss, and why none of this holds frame state.
  */
 
 import { BONE_RGB, ZONE_RGB } from "./palette";
 import { COURT, type View } from "./plate";
 import {
+  DEVELOP_STATES,
+  DEVELOP_STEP,
   FALLOFF_DISC_INTEGRAL,
   RESIDENCE_TONE_K,
   SPLAT_MIN_PX,
@@ -83,9 +89,26 @@ export function decodePoints(buf: ArrayBuffer): Points {
  *
  * TONE_K and TONE_CEILING are declared in src/scalars.ts with what each one
  * controls; nothing material is written here.
+ *
+ * `strength` scales the curve's slope for THE DEVELOPMENT's under-exposed
+ * states. At 1 the expression reduces to exactly the measured curve — the
+ * multiplication by 1 is exact in IEEE arithmetic, so a fully developed layer
+ * is byte-identical to the bake the constants define. Below 1 the curve is the
+ * same shape under-exposed: compression means a dense cell keeps most of its
+ * brightness while a faint one sinks toward black, which is why an early state
+ * is the rim flare surfacing out of the dark rather than a dimmer photograph.
  */
-function tone(share: number): number {
-  return TONE_CEILING * (1 - Math.exp(-TONE_K * share));
+function tone(share: number, strength: number): number {
+  return TONE_CEILING * (1 - Math.exp(-TONE_K * strength * share));
+}
+
+/**
+ * The exposure ladder: state `i` of 1..DEVELOP_STATES, each DEVELOP_STEP below
+ * the next, the last exactly 1 — stated explicitly rather than through
+ * Math.pow so the endpoint's byte-identity rests on nothing but the branch.
+ */
+function exposureStrength(state: number): number {
+  return state >= DEVELOP_STATES ? 1 : Math.pow(DEVELOP_STEP, state - DEVELOP_STATES);
 }
 
 export interface Layer {
@@ -101,12 +124,14 @@ function layerKey(
   view: View,
   dpr: number,
   pin: [number, number] | null,
+  strength: number,
 ): string {
   // The pin's coordinate is a pure function of the year, so it could be left
   // out — and it is in the key anyway, because rule 5 asks that a key carry
   // everything affecting its pixels rather than everything that happens to
-  // vary. It adds no cache entries.
-  return `${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${pin ? pin.join(",") : "none"}`;
+  // vary. It adds no cache entries. `strength` is the exposure state and DOES
+  // add entries: each state is a different image of the same season.
+  return `${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${pin ? pin.join(",") : "none"}|s${strength}`;
 }
 
 /**
@@ -131,8 +156,9 @@ export function bakeLayer(
   view: View,
   dpr: number,
   pin: [number, number] | null,
+  strength = 1,
 ): Layer {
-  const key = layerKey(year, coloured, view, dpr, pin);
+  const key = layerKey(year, coloured, view, dpr, pin, strength);
   const hit = layers.get(key);
   if (hit) return hit;
 
@@ -181,7 +207,7 @@ export function bakeLayer(
     const count = pts.hires[i]! + pts.rest[i]!;
     if (count === 0) continue;
 
-    const a = tone(count / pts.total) / overlap;
+    const a = tone(count / pts.total, strength) / overlap;
     const rgb = coloured ? (zoneRGB[pts.zone[i]!] ?? bone) : bone;
     const fx = view.sx(cx) * dpr;
     const fy = view.sy(cy) * dpr;
@@ -226,13 +252,52 @@ export function bakeLayer(
 
   const layer: Layer = { canvas, key };
   layers.set(key, layer);
-  // Only the current and previous season are ever live, in at most two
-  // palettes; anything older is a resize or a season we have left behind.
-  if (layers.size > 6) {
+  // The live set, derived rather than guessed: at most the current and the
+  // previous season are drawn (2), each at up to DEVELOP_STATES exposure
+  // states as the ladder sweeps through them, in at most two palettes (bone
+  // for THE PLATE and the text hands, zone for THE FIELD) — so a full
+  // rotation's working set is 2 seasons x DEVELOP_STATES states x 2 palettes.
+  // Sized to hold all of it so neither the ladder revisiting a state nor the
+  // rotation switching palettes evicts a layer that is still in play; the
+  // cost is memory, and it is the deliberate side of the trade.
+  if (layers.size > 2 * 2 * DEVELOP_STATES) {
     const oldest = layers.keys().next().value;
     if (oldest !== undefined && oldest !== key) layers.delete(oldest);
   }
   return layer;
+}
+
+/**
+ * THE DEVELOPMENT: draw a season at a position in its exposure ladder.
+ *
+ * `position` runs 0..DEVELOP_STATES. Segment 0 lifts the first state out of
+ * black; every later segment crossfades two ADJACENT states, weights linear in
+ * the position — and because the tone curve is monotone in its strength, the
+ * upper state is pixel-wise at least the lower one, so the additive crossfade
+ * is a monotone deepening with no brightness pumping at the midpoints. At
+ * position DEVELOP_STATES exactly, the lower term's weight is 0 (skipped by
+ * drawLayer's cutoff) and the top state draws alone at `dim` — byte-identical
+ * to the single finished-layer blit this path replaced.
+ *
+ * The states are baked lazily through `bake`, so a frame only pays for the one
+ * or two states it actually composites. A pure function of its arguments:
+ * nothing here reads a clock or remembers a frame.
+ */
+export function drawDeveloping(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  position: number,
+  dim: number,
+  bake: (strength: number) => Layer,
+): void {
+  const p = Math.min(DEVELOP_STATES, Math.max(0, position));
+  if (p <= 0 || dim <= 0.002) return;
+  const upper = Math.min(DEVELOP_STATES, Math.floor(p) + 1);
+  const frac = p - (upper - 1);
+  if (upper > 1) {
+    drawLayer(ctx, bake(exposureStrength(upper - 1)), view, (1 - frac) * dim);
+  }
+  drawLayer(ctx, bake(exposureStrength(upper)), view, frac * dim);
 }
 
 export function clearLayers(): void {

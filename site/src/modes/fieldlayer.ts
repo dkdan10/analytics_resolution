@@ -8,9 +8,9 @@
  */
 
 import type { Season } from "../data";
-import { bakeLayer, bakeResidence, developed, drawLayer } from "../field";
+import { bakeLayer, bakeResidence, developed, drawDeveloping, drawLayer } from "../field";
 import { drawPin } from "../marks";
-import { RESIDENCE_ALPHA } from "../scalars";
+import { DEVELOP_STATES, RESIDENCE_ALPHA } from "../scalars";
 import { WINDOW_BEATS } from "../timeline";
 import type { Frame } from "./types";
 
@@ -65,16 +65,25 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
     );
   }
 
+  // THE DEVELOPMENT (session 8): arrival is a position in the exposure
+  // ladder, not a global alpha — the incoming season develops like a print
+  // (rim flare out of the dark first, faintest texture last) and the outgoing
+  // one sinks the same ladder in reverse (texture first, flare last). One
+  // position drives both, so the plate's total light hands over continuously;
+  // `developed` keeps the same easing the old crossfade had, and past
+  // ARRIVAL_TAIL the position sits at the ladder's top, where the drawn frame
+  // is byte-identical to the finished layer the old path blitted.
+  const ladder = developed(st.arrived) * DEVELOP_STATES;
+
   if (withPrevious && st.prev !== null) {
     const prevSeason = data.byYear.get(st.prev);
     const prevPts = data.points(st.prev);
     if (prevSeason && prevPts) {
+      // The pin is not part of the ladder: it occludes rather than adds, so it
+      // keeps the linear fade the receding field used to share with it.
       const fading = (1 - st.arrived) * dim;
-      drawLayer(
-        ctx,
-        bakeLayer(st.prev, prevPts, coloured, view, dpr, pinCoordOf(prevSeason)),
-        view,
-        fading,
+      drawDeveloping(ctx, view, DEVELOP_STATES - ladder, dim, (strength) =>
+        bakeLayer(st.prev!, prevPts, coloured, view, dpr, pinCoordOf(prevSeason), strength),
       );
       drawPin(ctx, view, pinFractionOf(prevSeason), pinCoordOf(prevSeason), {
         dpr, opacity: fading,
@@ -85,11 +94,8 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
   const season = data.byYear.get(year)!;
   const pts = data.points(year);
   if (pts) {
-    drawLayer(
-      ctx,
-      bakeLayer(year, pts, coloured, view, dpr, pinCoordOf(season)),
-      view,
-      developed(st.arrived) * dim,
+    drawDeveloping(ctx, view, ladder, dim, (strength) =>
+      bakeLayer(year, pts, coloured, view, dpr, pinCoordOf(season), strength),
     );
   }
   // The pin is never baked into the layer: it occludes rather than adds, and

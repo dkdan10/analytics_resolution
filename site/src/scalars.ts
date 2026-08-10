@@ -131,6 +131,46 @@ export const SCALARS = {
       "with it.",
   },
 
+  // --- the development — the path a season takes to its measured image -----
+  //
+  // THE DEVELOPMENT (session 8, stage A of the artist's two-stage arrival
+  // repair): a season no longer FADES in — it develops, like a print. The
+  // layer is baked at a ladder of exposure states, each the same tone curve at
+  // a scaled strength, and arrival crossfades up the ladder instead of ramping
+  // one finished image's opacity. Because the tone curve is compressive, an
+  // under-exposed state holds the dense rim at nearly full brightness while
+  // the faint mid-range texture sinks — so the rim flare surfaces first out of
+  // the dark, the arc rises next, the faintest texture arrives last, and the
+  // outgoing season sinks the same ladder in reverse. THE ENDPOINTS ARE NOT
+  // THESE SCALARS': the last exposure state is exactly TONE_K and TONE_CEILING
+  // above, so the fully developed frame is byte-identical to the bake those
+  // measured constants define. These two shape only the PATH to it — pace and
+  // shape of the development, the same kind of claim as ARRIVAL_TAIL.
+  DEVELOP_STATES: {
+    class: "authored",
+    value: 4,
+    material: true,
+    controls:
+      "how many exposure states the development passes through on its way to " +
+      "the measured image. The endpoints are fixed — black, and the tone curve " +
+      "TONE_K and TONE_CEILING define — so this only sets how finely the path " +
+      "between them is sampled: fewer states and the crossfade between " +
+      "under-exposures gets coarser; more and the development approaches a " +
+      "continuous deepening, at one full-plate bake per state per season.",
+  },
+  DEVELOP_STEP: {
+    class: "authored",
+    value: 4,
+    material: true,
+    controls:
+      "the exposure ratio between adjacent states of the development ladder — " +
+      "each state's tone strength is this factor below the next, ending at " +
+      "exactly the measured curve. Lower and the under-exposed states crowd " +
+      "the finished image so the development reads as a plain fade; higher " +
+      "and the first state sinks toward rim-flare-only and the mid-range " +
+      "texture arrives later and more abruptly.",
+  },
+
   // --- the residence — the window's ball-occupancy under-layer -------------
   //
   // THE RESIDENCE: where the ball LIVED, under where the shots ENDED, drawn
@@ -1308,6 +1348,8 @@ export const TONE_CEILING: number = SCALARS.TONE_CEILING.value;
 export const SPLAT_MIN_PX: number = SCALARS.SPLAT_MIN_PX.value;
 export const SPLAT_SPACING_K: number = SCALARS.SPLAT_SPACING_K.value;
 export const FALLOFF_DISC_INTEGRAL: number = SCALARS.FALLOFF_DISC_INTEGRAL.value;
+export const DEVELOP_STATES: number = SCALARS.DEVELOP_STATES.value;
+export const DEVELOP_STEP: number = SCALARS.DEVELOP_STEP.value;
 export const RESIDENCE_TONE_K: number = SCALARS.RESIDENCE_TONE_K.value;
 export const RESIDENCE_ALPHA: number = SCALARS.RESIDENCE_ALPHA.value;
 
