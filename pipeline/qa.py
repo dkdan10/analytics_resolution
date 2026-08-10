@@ -3169,6 +3169,12 @@ MEMORY_CLAIMS = [
     Claim("`recovery.attribution_agreement` **{}**", "window",
           "recovery.attribution_agreement", "f4"),
     Claim("`recovery.event_offsets` is `{}`", "window", "recovery.event_offsets", "offsets"),
+    # THE QUARREL (session 10): the export's population, stated wherever the
+    # artifact is described, and the off-plate count the drawing does not clip.
+    Claim("`quarrel.bin`, **{} records**, one per detected shot", "window",
+          "quarrel_bin.records", "comma"),
+    Claim("**{}** records reach off the plate box", "window",
+          "quarrel_bin.off_plate", "comma"),
     Claim("`WINDOW_RECOVERY_FLOOR` in qa.py (**{}**)", "code", "WINDOW_RECOVERY_FLOOR", "f2"),
     Claim("`pipeline/checks/mutations.py` holds **{} defects**", "code", "MUTATION_CASES"),
     # DEPLOY.md states the same count as evidence its checklist was run. It is the
