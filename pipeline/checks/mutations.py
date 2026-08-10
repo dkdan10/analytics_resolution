@@ -784,13 +784,16 @@ def m_palette_stale(d):
 
 
 def m_palette_verdict(d):
-    """The artifact claims to meet a target it lists its own failures against.
+    """The artifact's verdict contradicts its own measurements.
 
     The dishonest-artifact case, and the one worth having: the numbers stay
-    right and only the CLAIM about them is wrong.
+    right and only the CLAIM about them is wrong. FLIPPED rather than set,
+    so the defect is a lie whichever way the shipped palette actually
+    measures - an absolute `True` became a no-op the day the palette
+    cleared its target (2026-08-10, RUST-HELD applied).
     """
     p = _load(d, "palette.json")
-    p["meets_target"] = True
+    p["meets_target"] = not p["meets_target"]
     _save(d, "palette.json", p)
 
 
@@ -798,11 +801,22 @@ def m_palette_source_drift(d):
     """The site's hue is edited and the measurement is not re-run.
 
     Repo scope, because this defect lives in site/src/palette.ts rather than in
-    data/processed/ - the two halves the gate exists to bind.
+    data/processed/ - the two halves the gate exists to bind. The edit is
+    RELATIVE (first ZONE_RGB entry, last channel nudged by one) rather than a
+    hard-coded string swap: the old absolute replace silently became a no-op
+    when the palette's hues changed (2026-08-10, RUST-HELD applied), and a
+    mutation that mutates nothing is a defect the suite cannot see.
     """
+    import re
+
     p = d / "site" / "src" / "palette.ts"
     src = p.read_text()
-    p.write_text(src.replace('"224, 90, 65",', '"224, 90, 66",', 1))
+    m = re.search(r'"(\d+), (\d+), (\d+)"', src[src.index("ZONE_RGB"):])
+    assert m, "no ZONE_RGB triple found to drift"
+    r, g, b = (int(x) for x in m.groups())
+    drifted = f'"{r}, {g}, {b - 1 if b > 0 else b + 1}"'
+    start = src.index("ZONE_RGB") + m.start()
+    p.write_text(src[:start] + drifted + src[start + len(m.group(0)):])
 
 
 def m_zone_byte(d):

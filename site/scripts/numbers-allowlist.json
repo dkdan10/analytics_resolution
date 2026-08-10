@@ -17,37 +17,37 @@
     },
     {
       "file": "palette.ts",
-      "contains": "255, 196, 107",
+      "contains": "239, 204, 104",
       "why": "ZONE_RGB[0], Restricted Area. Rule 4 says colour EXPOSES the league's own SHOT_ZONE_BASIC partition rather than adding a classification; which hue stands for which zone is authored, and the file states the scheme and its reasoning."
     },
     {
       "file": "palette.ts",
-      "contains": "242, 146, 78",
+      "contains": "243, 129, 34",
       "why": "ZONE_RGB[1], In The Paint (Non-RA) - see above."
     },
     {
       "file": "palette.ts",
-      "contains": "224, 90, 65",
+      "contains": "156, 5, 44",
       "why": "ZONE_RGB[2], Mid-Range - the colour that drains away. See above."
     },
     {
       "file": "palette.ts",
-      "contains": "89, 184, 201",
+      "contains": "81, 206, 231",
       "why": "ZONE_RGB[3], Left Corner 3 - see above."
     },
     {
       "file": "palette.ts",
-      "contains": "79, 163, 212",
+      "contains": "80, 152, 228",
       "why": "ZONE_RGB[4], Right Corner 3 - see above."
     },
     {
       "file": "palette.ts",
-      "contains": "125, 146, 224",
+      "contains": "98, 80, 255",
       "why": "ZONE_RGB[5], Above the Break 3 - see above."
     },
     {
       "file": "palette.ts",
-      "contains": "143, 138, 132",
+      "contains": "187, 180, 169",
       "why": "ZONE_RGB[6], Backcourt - see above."
     },
     {

@@ -55,13 +55,13 @@ export function bone(alpha: number): string {
  * of work; declaring honestly what these ones do is this one.
  */
 export const ZONE_RGB: string[] = [
-  "255, 196, 107", // Restricted Area      — gold, the brightest thing on the floor
-  "242, 146, 78",  // In The Paint (Non-RA) — orange
-  "224, 90, 65",   // Mid-Range             — rust; the colour that drains away
-  "89, 184, 201",  // Left Corner 3         — cyan
-  "79, 163, 212",  // Right Corner 3        — cool blue
-  "125, 146, 224", // Above the Break 3     — indigo; the colour that floods in
-  "143, 138, 132", // Backcourt             — grey; heaves, and almost never seen
+  "239, 204, 104", // Restricted Area      — gold, the brightest thing on the floor
+  "243, 129, 34",  // In The Paint (Non-RA) — orange
+  "156, 5, 44",   // Mid-Range             — rust; the colour that drains away
+  "81, 206, 231",  // Left Corner 3         — cyan
+  "80, 152, 228",  // Right Corner 3        — cool blue
+  "98, 80, 255", // Above the Break 3     — indigo; the colour that floods in
+  "187, 180, 169", // Backcourt             — grey; heaves, and almost never seen
 ];
 
 /** Struck numerals: cut into the floor, not laid on top of it. */
