@@ -191,9 +191,12 @@ export const SCALARS = {
       "how many quantized batches a season's per-mark arrival lands in. The " +
       "order within them is the record's own — descending filed count — and " +
       "the population and tones are the measured ones; this only sets the " +
-      "grain of the landing: fewer steps and the marks strike in coarser, " +
-      "louder groups; more and the arrival approaches one mark per frame, at " +
-      "one full-plate re-quantize per step.",
+      "grain of the landing. Since session 13 the steps BLEND (artist ruling): " +
+      "each batch rises over its interval at the linear fractional part of " +
+      "the arrival envelope — no batch strikes whole — and at every integer " +
+      "boundary the frame is exactly the folded prefix. Fewer steps and the " +
+      "batches are coarser, longer rises; more and the arrival approaches one " +
+      "mark per frame, at one full-plate re-quantize per step.",
   },
   REVEAL_CURVE: {
     class: "authored",

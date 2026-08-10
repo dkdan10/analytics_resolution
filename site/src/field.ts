@@ -172,7 +172,13 @@ function splatOf(view: View, dpr: number): Splat {
  *  budget; this path fits). The mirror is idempotent — the last write to a
  *  pixel is the clamp of its final accumulated value, the exact assignment
  *  `quantize` would make — so mirroring during the fold and converting after
- *  it produce the same bytes. */
+ *  it produce the same bytes. The mirror also stamps the pixel opaque: under
+ *  `lighter` a transparent pixel and an opaque black one contribute the same
+ *  nothing, so a mirrored surface may start as transparent black — one native
+ *  fill — instead of paying a per-pixel alpha pass (measured this session:
+ *  that pass was most of a delta refold's cost). For the reveal's persistent
+ *  img, whose alpha is already opaque, the write re-stamps the byte it
+ *  already holds. */
 function splatCell(
   acc: Float32Array,
   w: number,
@@ -213,6 +219,7 @@ function splatCell(
         img[q] = acc[o] as number;
         img[q + 1] = acc[o + 1] as number;
         img[q + 2] = acc[o + 2] as number;
+        img[q + 3] = 255;
       }
     }
   }
@@ -551,15 +558,117 @@ function revealLayer(
   return r.layer;
 }
 
+/** THE CROSSFADE (session 13, by the artist's ruling — the session-9 packet's
+ *  named rival, now taken): a batch no longer strikes at its full tone on a
+ *  floor crossing; it RISES over its interval. The arriving batch is its own
+ *  delta layer — the bake is linear in cells, so
+ *  `layer(prefix_{s+1}) = layer(prefix_s) + layer(batch_s)` in float exactly —
+ *  drawn above the folded base at an alpha that is the LINEAR fractional part
+ *  of the same reveal envelope. No new authored scalar: the ramp is the
+ *  fraction the floor already discarded.
+ *
+ *  One persistent entry per (season, palette, geometry), same shape and
+ *  justification as `Reveal` above: the canvas is written only by
+ *  `putImageData` and its bytes are a pure function of (geometry key, step).
+ *  Refolding a step costs one batch fold and one full-frame putImageData; the
+ *  float scratch is the shared `accOf` pool, zeroed per refold. The 8-bit
+ *  QUANTIZATION of a delta is independent of the fold's: a batch cell's
+ *  contribution rounds once here and once inside the folded prefix, so at full
+ *  alpha `base + delta` can differ from the folded `prefix_{s+1}` by the two
+ *  roundings — and at every integer boundary the drawn frame IS the folded
+ *  prefix (the delta's alpha is exactly 0), so the handover is byte-exact and
+ *  the delta is only ever an APPROACH to the surface the next boundary draws. */
+interface Delta {
+  key: string;
+  /** Which interval's batch is folded into `img`; -1 before the first fold. */
+  step: number;
+  img: ImageData;
+  canvas: HTMLCanvasElement;
+  layer: Layer | null;
+  w: number;
+  h: number;
+}
+
+const deltas = new Map<string, Delta>();
+
+function deltaLayer(
+  year: number,
+  pts: Points,
+  coloured: boolean,
+  view: View,
+  dpr: number,
+  pin: [number, number] | null,
+  step: number,
+  from: number,
+  to: number,
+): Layer {
+  const key = `delta|${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${pin ? pin.join(",") : "none"}`;
+  const w = Math.max(1, Math.round(view.width * dpr));
+  const h = Math.max(1, Math.round(view.height * dpr));
+
+  let d = deltas.get(key);
+  if (d && (d.w !== w || d.h !== h)) d = undefined;
+  if (!d) {
+    // Transparent black, not opaque: the splat mirror stamps every touched
+    // pixel opaque, and under `lighter` the untouched remainder contributes
+    // nothing either way — which is what buys the refold its native fill.
+    const img = new ImageData(w, h);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    d = { key, step: -1, img, canvas, layer: null, w, h };
+  }
+
+  if (d.step !== step || d.layer === null) {
+    // Refold: any direction, always from zero — a batch is tiny against the
+    // season, so there is nothing worth advancing in place.
+    const order = revealOrder(pts, pin);
+    const acc = accOf(w * h * 3);
+    d.img.data.fill(0);
+    const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
+    const zoneRGB = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
+    const sp = splatOf(view, dpr);
+    for (let j = from; j < to; j++) {
+      const i = order[j]!;
+      const count = pts.hires[i]! + pts.rest[i]!;
+      const a = tone(count / pts.total, 1) / sp.overlap;
+      const rgb = coloured ? (zoneRGB[pts.zone[i]!] ?? bone) : bone;
+      splatCell(acc, w, h, view, dpr, sp, pts.x[i]!, pts.y[i]!, a, rgb, d.img.data);
+    }
+    d.step = step;
+    d.canvas.getContext("2d")!.putImageData(d.img, 0, 0);
+    d.layer = { canvas: d.canvas, key: `${key}|s${step}` };
+  }
+
+  deltas.set(key, d);
+  // The live set, derived exactly as `reveals`' is: only the arriving season
+  // carries a delta, in at most two palettes. Eviction costs a refold — time,
+  // never bytes.
+  if (deltas.size > 2) {
+    const oldest = deltas.keys().next().value;
+    if (oldest !== undefined && oldest !== key) deltas.delete(oldest);
+  }
+  return d.layer;
+}
+
 /**
  * Draw a season mid-arrival: the reveal replaces THE DEVELOPMENT's exposure
  * crossfade for the arriving season only (recession keeps A's develop-out, as
  * ratified). `arrived` is the arrival envelope itself — `st.arrived`, which
  * reaches 1 exactly at ARRIVAL_TAIL, so THE NUMBER LEAVES LAST's ratified
- * timing still lands the numeral against arrival's end. The step is a pure
- * floor of it; at the top step and past it the surface drawn is `bakeLayer`'s
- * own finished canvas, so the tail endpoint frames are byte-identical to the
- * judged bake by construction, not by arithmetic luck.
+ * timing still lands the numeral against arrival's end.
+ *
+ * SINCE SESSION 13 THE STEPS BLEND (the crossfade above): the folded prefix of
+ * the floor's step draws as the base, and the NEXT batch rises over it at the
+ * linear fractional part of the same envelope. At every integer boundary the
+ * frame is exactly the folded prefix — the delta contributes nothing at alpha
+ * 0 — and at the top and past it the surface drawn is `bakeLayer`'s own
+ * finished canvas, so the tail endpoint frames are byte-identical to the
+ * judged bake by construction, not by arithmetic luck. Between boundaries the
+ * frames are new, which is the ruling's point. The delta's bake is skipped
+ * while its draw would be skipped (the blit's own alpha floor) so its cold
+ * cost lands a frame after the base's advance, never stacked on it; no pixel
+ * depends on that timing.
  */
 export function drawReveal(
   ctx: CanvasRenderingContext2D,
@@ -579,24 +688,34 @@ export function drawReveal(
   // boundary, where the season's cold work (the order, the accumulator)
   // already lives — so its one cold cost sits in the frame a viewer and a
   // probe can attribute rather than surprising the middle of the season
-  // (measured this session: left lazy, it landed a full-plate bake at the
+  // (measured in session 9: left lazy, it landed a full-plate bake at the
   // reveal's top step, mid-window). Warm frames pay a cache hit; no pixel
   // depends on when this ran.
   const top = bakeLayer(year, pts, coloured, view, dpr, pin, 1);
-  const step = Math.min(REVEAL_STEPS, 1 + Math.floor(r * REVEAL_STEPS));
+  const u = r * REVEAL_STEPS;
+  const step = Math.floor(u);
   if (step >= REVEAL_STEPS) {
     drawLayer(ctx, top, view, dim);
     return;
   }
   const order = revealOrder(pts, pin);
-  const prefix = Math.round(order.length * Math.pow(step / REVEAL_STEPS, REVEAL_CURVE));
-  if (prefix <= 0) return;
-  drawLayer(ctx, revealLayer(year, pts, coloured, view, dpr, pin, prefix), view, dim);
+  const prefixAt = (s: number): number =>
+    Math.round(order.length * Math.pow(s / REVEAL_STEPS, REVEAL_CURVE));
+  const base = prefixAt(step);
+  if (base > 0) {
+    drawLayer(ctx, revealLayer(year, pts, coloured, view, dpr, pin, base), view, dim);
+  }
+  const next = prefixAt(step + 1);
+  const alpha = dim * (u - step);
+  if (next > base && alpha > 0.002) {
+    drawLayer(ctx, deltaLayer(year, pts, coloured, view, dpr, pin, step, base, next), view, alpha);
+  }
 }
 
 export function clearLayers(): void {
   layers.clear();
   reveals.clear();
+  deltas.clear();
   residence = null;
 }
 
