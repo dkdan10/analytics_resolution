@@ -4,7 +4,7 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**137 scalars**, 95 of them material: 2 measured, 3 geometry, 132 authored.
+**139 scalars**, 97 of them material: 2 measured, 3 geometry, 134 authored.
 
 A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts`, `prefix.ts`, `inscription.ts`, `modes/ledger.ts`, `modes/census.ts`, `palette.ts`, `modes/stack.ts`, `modes/operations.ts`, `modes/fieldlayer.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
@@ -44,6 +44,10 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   how many exposure states the development passes through on its way to the measured image. The endpoints are fixed — black, and the tone curve TONE_K and TONE_CEILING define — so this only sets how finely the path between them is sampled: fewer states and the crossfade between under-exposures gets coarser; more and the development approaches a continuous deepening, at one full-plate bake per state per season.
 - **DEVELOP_STEP** — **4**  
   the exposure ratio between adjacent states of the development ladder — each state's tone strength is this factor below the next, ending at exactly the measured curve. Lower and the under-exposed states crowd the finished image so the development reads as a plain fade; higher and the first state sinks toward rim-flare-only and the mid-range texture arrives later and more abruptly.
+- **REVEAL_STEPS** — **32**  
+  how many quantized batches a season's per-mark arrival lands in. The order within them is the record's own — descending filed count — and the population and tones are the measured ones; this only sets the grain of the landing: fewer steps and the marks strike in coarser, louder groups; more and the arrival approaches one mark per frame, at one full-plate re-quantize per step.
+- **REVEAL_CURVE** — **3**  
+  how sharply the reveal leans into the record's head: the prefix of the emphasis order revealed at step s is n·(s/steps) raised to this power. At 1 every step lands the same number of cells and the first batch is hundreds of marks; higher bends the early steps down to single strikes — the most-filed coordinate arriving alone — while the faint tail lands in progressively wider bands. Measured against the record: at 3 no step deposits more than ~6% of a season's total tone.
 - **RESIDENCE_TONE_K** — **400**  
   how fast a cell's share of the ball's measured time saturates toward full glow. Lower and only the densest corridors of the ball's traffic survive the tone curve while the mid-floor sinks to nothing; higher and the whole window ground flattens toward one undifferentiated sheet, which is atmosphere — rule 3's exact failure for this layer.
 - **RESIDENCE_ALPHA** — **0.35**  

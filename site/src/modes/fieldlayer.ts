@@ -8,7 +8,7 @@
  */
 
 import type { Season } from "../data";
-import { bakeLayer, bakeResidence, developed, drawDeveloping, drawLayer } from "../field";
+import { bakeLayer, bakeResidence, developed, drawDeveloping, drawLayer, drawReveal } from "../field";
 import { drawPin } from "../marks";
 import { DEVELOP_STATES, RESIDENCE_ALPHA } from "../scalars";
 import { WINDOW_BEATS } from "../timeline";
@@ -27,6 +27,13 @@ export interface FieldOpts {
    *  ground their registers, and a glow under their type would be one more
    *  thing to read around rather than the ground disagreeing with the marks. */
   residence?: boolean;
+  /** THE PER-MARK ARRIVAL (session 9, stage B): the arriving season's cells
+   *  surface individually in the record's own emphasis order — descending
+   *  filed count — instead of developing as one image. THE PLATE and THE
+   *  FIELD only (the hands the artist named); the dimmed text hands keep
+   *  stage A's development pending S2's measured budget decision. Recession
+   *  keeps A's develop-out in every hand, as ratified. */
+  reveal?: boolean;
 }
 
 /**
@@ -49,7 +56,7 @@ function residenceEnvelope(phase: number): number {
 
 export function drawSeasonField(f: Frame, opts: FieldOpts): void {
   const { ctx, view, dpr, st, data } = f;
-  const { coloured = false, dim, withPrevious = true, residence = false } = opts;
+  const { coloured = false, dim, withPrevious = true, residence = false, reveal = false } = opts;
   const year = st.year!;
 
   // The residence goes down FIRST: it is the ground the endings sit over, and
@@ -94,9 +101,18 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
   const season = data.byYear.get(year)!;
   const pts = data.points(year);
   if (pts) {
-    drawDeveloping(ctx, view, ladder, dim, (strength) =>
-      bakeLayer(year, pts, coloured, view, dpr, pinCoordOf(season), strength),
-    );
+    if (reveal && st.arrived < 1) {
+      // THE PER-MARK ARRIVAL: while the season is arriving, its cells strike
+      // in the record's own emphasis order, each at full tone. At
+      // `st.arrived >= 1` this branch is dead and the path below draws the
+      // finished layer exactly as stage A did — the tail and every boundary
+      // handover frame are byte-identical to the judged development.
+      drawReveal(ctx, view, st.arrived, dim, year, pts, coloured, dpr, pinCoordOf(season));
+    } else {
+      drawDeveloping(ctx, view, ladder, dim, (strength) =>
+        bakeLayer(year, pts, coloured, view, dpr, pinCoordOf(season), strength),
+      );
+    }
   }
   // The pin is never baked into the layer: it occludes rather than adds, and
   // it stands for shots the record refused to place, so it belongs to no zone

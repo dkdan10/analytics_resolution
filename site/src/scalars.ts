@@ -171,6 +171,44 @@ export const SCALARS = {
       "texture arrives later and more abruptly.",
   },
 
+  // --- the per-mark arrival — the order the record's emphasis surfaces in --
+  //
+  // THE PER-MARK ARRIVAL (session 9, stage B of the artist's two-stage arrival
+  // repair): during arrival the season's cells no longer surface as one
+  // developing image — they ARRIVE, individually at the head and in bands at
+  // the tail, each at its full measured tone. THE ORDER IS NOT AUTHORED: cells
+  // arrive by descending filed count — the record's own emphasis, the
+  // most-filed coordinate first (artist ruling, 2026-08-09) — with ties broken
+  // by a stated deterministic rule (nearest the rim first, then y, then x).
+  // `points/*.bin` holds no time, so the order claims nothing chronological:
+  // it is the record's emphasis, not its calendar. Only the PACE of reveal is
+  // composition, and these two scalars are the whole of it.
+  REVEAL_STEPS: {
+    class: "authored",
+    value: 32,
+    material: true,
+    controls:
+      "how many quantized batches a season's per-mark arrival lands in. The " +
+      "order within them is the record's own — descending filed count — and " +
+      "the population and tones are the measured ones; this only sets the " +
+      "grain of the landing: fewer steps and the marks strike in coarser, " +
+      "louder groups; more and the arrival approaches one mark per frame, at " +
+      "one full-plate re-quantize per step.",
+  },
+  REVEAL_CURVE: {
+    class: "authored",
+    value: 3,
+    material: true,
+    controls:
+      "how sharply the reveal leans into the record's head: the prefix of the " +
+      "emphasis order revealed at step s is n·(s/steps) raised to this power. " +
+      "At 1 every step lands the same number of cells and the first batch is " +
+      "hundreds of marks; higher bends the early steps down to single strikes " +
+      "— the most-filed coordinate arriving alone — while the faint tail " +
+      "lands in progressively wider bands. Measured against the record: at 3 " +
+      "no step deposits more than ~6% of a season's total tone.",
+  },
+
   // --- the residence — the window's ball-occupancy under-layer -------------
   //
   // THE RESIDENCE: where the ball LIVED, under where the shots ENDED, drawn
@@ -1350,6 +1388,8 @@ export const SPLAT_SPACING_K: number = SCALARS.SPLAT_SPACING_K.value;
 export const FALLOFF_DISC_INTEGRAL: number = SCALARS.FALLOFF_DISC_INTEGRAL.value;
 export const DEVELOP_STATES: number = SCALARS.DEVELOP_STATES.value;
 export const DEVELOP_STEP: number = SCALARS.DEVELOP_STEP.value;
+export const REVEAL_STEPS: number = SCALARS.REVEAL_STEPS.value;
+export const REVEAL_CURVE: number = SCALARS.REVEAL_CURVE.value;
 export const RESIDENCE_TONE_K: number = SCALARS.RESIDENCE_TONE_K.value;
 export const RESIDENCE_ALPHA: number = SCALARS.RESIDENCE_ALPHA.value;
 

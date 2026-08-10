@@ -24,12 +24,13 @@ export function drawFieldHand(f: Frame): void {
   drawInscriptions(ctx, view, inscriptions, st.t);
   ctx.restore();
 
-  // Every shot in the league's own colours. The pin stays bone inside
+  // Every shot in the league's own colours, arriving mark by mark in the
+  // record's own emphasis order (stage B). The pin stays bone inside
   // drawSeasonField: it stands for shots the record would not place, so it
   // belongs to no zone and colouring it would invent a category it never had.
   // In the window the residence rises beneath the colours — bone, because the
   // ball belongs to no zone either.
-  drawSeasonField(f, { coloured: true, dim: remains, residence: true });
+  drawSeasonField(f, { coloured: true, dim: remains, residence: true, reveal: true });
 
   // Whose categories these are, named on the plate rather than only on a wall.
   if (st.phase < 0.34) {
