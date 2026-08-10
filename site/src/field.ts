@@ -752,10 +752,295 @@ export function drawReveal(
   }
 }
 
+/**
+ * THE WINDOW FOLD (session 16, the third audit's re-clock, ruled 2026-08-10).
+ *
+ * The window season's base no longer arrives in the authored emphasis order:
+ * it accumulates on the record's own measured days, the same calendar the
+ * drops, the paint and the wash already keep. The fold order is the shipped
+ * artifact's own filing re-grouped for the score: the night's day first (the
+ * pre-seed — its endings rise through the game+night span as one continuous
+ * arrival), then every other window day on the season clock, then the
+ * post-window remainder as ONE staged step at the close (the enclosure made
+ * visible on the base itself — an artist-flagged content claim). Within a day
+ * the artifact's own emphasis order stands; no intra-day chronology exists to
+ * borrow.
+ *
+ * Each record's splat is the TONE INCREMENT its day adds to its cell —
+ * tone(cum + n) − tone(cum) — so a coordinate brightens exactly as the record
+ * accumulates there and the fold's completed sum is the finished bake's own
+ * arithmetic. From the close's first frame the surface drawn IS `bakeLayer`'s
+ * finished canvas (the reveal's own top-swap idiom), so the exit handover and
+ * every downstream byte-identity guarantee survive by construction.
+ *
+ * Same purity contract as `Reveal` above: canvas written only by
+ * `putImageData`, backward scrubs rebuild from zero, cleared by `clearLayers`.
+ */
+
+/** The base's position on the window's own calendar, computed by the caller
+ *  from the shared beat table — this file holds no timeline literals. */
+export interface WindowFoldClock {
+  /** The pre-seeded night-day's continuous arrival across the game+night
+   *  span, 0..1. */
+  rise: number;
+  /** The measured calendar through the window's days, 0..window_days. */
+  dayFrac: number;
+  /** True from the close's first frame: the remainder has flooded and the
+   *  base is the finished layer, byte-identical to `bakeLayer`'s. */
+  flood: boolean;
+}
+
+interface DayFoldPlan {
+  pinKey: string;
+  seedDay: number;
+  /** Record indices in fold order; pin cells excluded (the plate refuses
+   *  them, exactly as `bakeLayer` and `revealOrder` do). */
+  order: Int32Array;
+  /** Per fold position: the cell's count already folded before this record. */
+  cumBefore: Float64Array;
+  /** Fold-order records belonging to the seed day (the order's head). */
+  seedCount: number;
+  /** Per window day d, non-seed window records with day < d (length
+   *  windowLast + 2); index windowLast + 1 is all of them. */
+  bCum: Int32Array;
+  /** Per window day d, that day's own non-seed record count. */
+  bDayCount: Int32Array;
+  /** order.length through the window's last day (the remainder starts here). */
+  windowEnd: number;
+  /** The pin cell's calendar, for the envelope that fills with the marks. */
+  pinSeedN: number;
+  pinBCum: Float64Array;
+  pinBDay: Float64Array;
+  pinTotal: number;
+}
+
+const dayFoldPlans = new WeakMap<DayPoints, DayFoldPlan>();
+
+function dayFoldPlan(
+  dayPts: DayPoints,
+  pin: [number, number] | null,
+  seedDay: number,
+  windowLast: number,
+): DayFoldPlan {
+  const pinKey = pin ? pin.join(",") : "none";
+  const have = dayFoldPlans.get(dayPts);
+  if (have && have.pinKey === pinKey && have.seedDay === seedDay) return have;
+
+  const [pinX, pinY] = pin ?? [NaN, NaN];
+  const seed: number[] = [];
+  const winDays: number[] = [];
+  const rest: number[] = [];
+  let pinSeedN = 0;
+  const pinBDay = new Float64Array(windowLast + 1);
+  let pinTotal = 0;
+  for (let i = 0; i < dayPts.n; i++) {
+    const d = dayPts.day[i]!;
+    if (dayPts.x[i]! === pinX && dayPts.y[i]! === pinY) {
+      pinTotal += dayPts.count[i]!;
+      if (d === seedDay) pinSeedN += dayPts.count[i]!;
+      else if (d <= windowLast) pinBDay[d] = pinBDay[d]! + dayPts.count[i]!;
+      continue;
+    }
+    if (dayPts.count[i]! === 0) continue;
+    if (d === seedDay) seed.push(i);
+    else if (d <= windowLast) winDays.push(i);
+    else rest.push(i);
+  }
+  // The artifact is filed day-ascending with the emphasis order inside each
+  // day, so concatenation preserves both. Only the seed day moves.
+  const order = Int32Array.from([...seed, ...winDays, ...rest]);
+
+  const bCum = new Int32Array(windowLast + 2);
+  const bDayCount = new Int32Array(windowLast + 1);
+  for (const i of winDays) bDayCount[dayPts.day[i]!]!++;
+  for (let d = 0; d <= windowLast; d++) bCum[d + 1] = bCum[d]! + bDayCount[d]!;
+
+  const pinBCum = new Float64Array(windowLast + 2);
+  for (let d = 0; d <= windowLast; d++) pinBCum[d + 1] = pinBCum[d]! + pinBDay[d]!;
+
+  // The running cell totals the tone increments are read against. The key
+  // only needs to be injective over int16 coordinates.
+  const cellCum = new Map<number, number>();
+  const cumBefore = new Float64Array(order.length);
+  for (let p = 0; p < order.length; p++) {
+    const i = order[p]!;
+    const k = dayPts.x[i]! * 65536 + dayPts.y[i]!;
+    const before = cellCum.get(k) ?? 0;
+    cumBefore[p] = before;
+    cellCum.set(k, before + dayPts.count[i]!);
+  }
+
+  const built: DayFoldPlan = {
+    pinKey, seedDay, order, cumBefore,
+    seedCount: seed.length, bCum, bDayCount,
+    windowEnd: seed.length + winDays.length,
+    pinSeedN, pinBCum, pinBDay, pinTotal,
+  };
+  dayFoldPlans.set(dayPts, built);
+  return built;
+}
+
+/** How many fold-order records the clock has reached. Whole records: the
+ *  artifact's grain is the (day, coordinate) delta, and interpolating within
+ *  the live day walks its emphasis order record by record. */
+function foldPrefix(plan: DayFoldPlan, clock: WindowFoldClock, windowLast: number): number {
+  if (clock.flood) return plan.order.length;
+  if (clock.dayFrac <= 0) return Math.round(clock.rise * plan.seedCount);
+  const d0 = Math.min(windowLast + 1, Math.floor(clock.dayFrac));
+  let p = plan.seedCount + plan.bCum[d0]!;
+  if (d0 <= windowLast && d0 !== plan.seedDay) {
+    p += Math.round((clock.dayFrac - d0) * plan.bDayCount[d0]!);
+  }
+  return Math.min(plan.windowEnd, p);
+}
+
+/** The pin's own position on the same calendar, 0..1 — the refusal fills with
+ *  the marks, never on a separate clock. Counts, not records: the pin is an
+ *  ink total, not a set of cells. */
+export function windowPinArrived(
+  dayPts: DayPoints,
+  pin: [number, number] | null,
+  clock: WindowFoldClock,
+  seedDay: number,
+  windowLast: number,
+): number {
+  if (pin === null) return 1;
+  const plan = dayFoldPlan(dayPts, pin, seedDay, windowLast);
+  if (plan.pinTotal === 0) return 1;
+  if (clock.flood) return 1;
+  if (clock.dayFrac <= 0) return (clock.rise * plan.pinSeedN) / plan.pinTotal;
+  const d0 = Math.min(windowLast + 1, Math.floor(clock.dayFrac));
+  let c = plan.pinSeedN + plan.pinBCum[d0]!;
+  if (d0 <= windowLast && d0 !== plan.seedDay) {
+    c += (clock.dayFrac - d0) * plan.pinBDay[d0]!;
+  }
+  return Math.min(1, c / plan.pinTotal);
+}
+
+interface WindowFold {
+  key: string;
+  applied: number;
+  acc: Float32Array;
+  img: ImageData;
+  canvas: HTMLCanvasElement;
+  layer: Layer | null;
+  w: number;
+  h: number;
+}
+
+const windowFolds = new Map<string, WindowFold>();
+
+const foldAssetIds = new WeakMap<object, number>();
+let nextFoldAssetId = 1;
+function foldAssetId(o: object): number {
+  let id = foldAssetIds.get(o);
+  if (!id) {
+    id = nextFoldAssetId++;
+    foldAssetIds.set(o, id);
+  }
+  return id;
+}
+
+function windowFoldLayer(
+  year: number,
+  dayPts: DayPoints,
+  plan: DayFoldPlan,
+  coloured: boolean,
+  view: View,
+  dpr: number,
+  prefix: number,
+): Layer {
+  // Everything that affects the pixels except the prefix, which advances —
+  // including the artifact's own identity, so a re-fetched calendar can never
+  // inherit a fold built from different bytes.
+  const key = `wfold|${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${plan.pinKey}|d${plan.seedDay}|a${foldAssetId(dayPts)}`;
+  const w = Math.max(1, Math.round(view.width * dpr));
+  const h = Math.max(1, Math.round(view.height * dpr));
+
+  let r = windowFolds.get(key);
+  if (r && (r.w !== w || r.h !== h)) r = undefined;
+  if (r && r.applied > prefix) {
+    // Backwards rebuilds from zero: the fold has no inverse.
+    r.applied = 0;
+    r.layer = null;
+    r.acc.fill(0);
+    r.img.data.fill(0);
+    for (let p = 3; p < r.img.data.length; p += 4) r.img.data[p] = 255;
+  }
+  if (!r) {
+    const img = new ImageData(w, h);
+    for (let p = 3; p < img.data.length; p += 4) img.data[p] = 255;
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    r = { key, applied: 0, acc: new Float32Array(w * h * 3), img, canvas, layer: null, w, h };
+  }
+
+  if (r.applied < prefix || r.layer === null) {
+    const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
+    const zoneRGB = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
+    const sp = splatOf(view, dpr);
+    for (let j = r.applied; j < prefix; j++) {
+      const i = plan.order[j]!;
+      const before = plan.cumBefore[j]!;
+      const after = before + dayPts.count[i]!;
+      const a = (tone(after / dayPts.total, 1) - tone(before / dayPts.total, 1)) / sp.overlap;
+      const rgb = coloured ? (zoneRGB[dayPts.zone[i]!] ?? bone) : bone;
+      splatCell(r.acc, w, h, view, dpr, sp, dayPts.x[i]!, dayPts.y[i]!, a, rgb, r.img.data);
+    }
+    r.applied = prefix;
+    r.canvas.getContext("2d")!.putImageData(r.img, 0, 0);
+    r.layer = { canvas: r.canvas, key: `${key}|c${prefix}` };
+  }
+
+  windowFolds.set(key, r);
+  // At most two palettes of one season fold; eviction costs a rebuild.
+  if (windowFolds.size > 2) {
+    const oldest = windowFolds.keys().next().value;
+    if (oldest !== undefined && oldest !== key) windowFolds.delete(oldest);
+  }
+  return r.layer;
+}
+
+/**
+ * Draw the window season's base on its own calendar. The finished layer is
+ * baked at the window's OPENING frame (the reveal's own staging idiom), so the
+ * close-flood is a blit swap whose cold cost sat at an attributable boundary;
+ * from the flood on, the frame drawn is `bakeLayer`'s canvas — byte-identical
+ * to what every later consumer (the exit handover, the develop-out of the next
+ * pass) reads.
+ */
+export function drawWindowReveal(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  clock: WindowFoldClock,
+  dim: number,
+  year: number,
+  pts: Points,
+  dayPts: DayPoints,
+  coloured: boolean,
+  dpr: number,
+  pin: [number, number] | null,
+  seedDay: number,
+  windowLast: number,
+): void {
+  if (dim <= 0.002) return;
+  const top = bakeLayer(year, pts, coloured, view, dpr, pin, 1);
+  if (clock.flood) {
+    drawLayer(ctx, top, view, dim);
+    return;
+  }
+  const plan = dayFoldPlan(dayPts, pin, seedDay, windowLast);
+  const prefix = foldPrefix(plan, clock, windowLast);
+  if (prefix <= 0) return;
+  drawLayer(ctx, windowFoldLayer(year, dayPts, plan, coloured, view, dpr, prefix), view, dim);
+}
+
 export function clearLayers(): void {
   layers.clear();
   reveals.clear();
   deltas.clear();
+  windowFolds.clear();
   residence = null;
 }
 

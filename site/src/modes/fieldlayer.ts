@@ -8,10 +8,14 @@
  */
 
 import type { Season } from "../data";
-import { bakeLayer, bakeResidence, developed, drawDeveloping, drawLayer, drawReveal } from "../field";
+import {
+  bakeLayer, bakeResidence, developed, drawDeveloping, drawLayer, drawReveal,
+  drawWindowReveal, windowPinArrived, type WindowFoldClock,
+} from "../field";
 import { drawPin } from "../marks";
 import { DEVELOP_STATES, RESIDENCE_ALPHA } from "../scalars";
 import { WINDOW_BEATS } from "../timeline";
+import { seasonClock } from "./shared";
 import type { Frame } from "./types";
 
 export interface FieldOpts {
@@ -41,12 +45,18 @@ export interface FieldOpts {
    *  already documents its own withPrevious exception keeps one more. THE
    *  STACK's locate base is deliberately left on stage A — a talk-mode
    *  instrument, outside the named scope. Recession keeps A's develop-out in
-   *  every hand, as ratified. */
+   *  every hand, as ratified. SINCE SESSION 16: in the window season this
+   *  same flag routes to THE WINDOW FOLD — the base accumulates on the
+   *  record's own calendar instead of the emphasis-order arrival (the
+   *  re-clock ruling); the two no-reveal hands keep the shared envelope,
+   *  documented above. */
   reveal?: boolean;
 }
 
 /**
- * The residence's whole-layer envelope — THE ONLY THING `t` DRIVES.
+ * The residence's whole-layer envelope. (Until session 16 this was the only
+ * thing `t` drove in this file; the window fold's clock below is the second,
+ * and both read the shared beat table.)
  *
  * Since the crescendo: rise through "one" and "the night", held through "the
  * season", washed by "the close" — the ground where the ball lived is
@@ -64,6 +74,28 @@ function residenceEnvelope(phase: number): number {
   if (phase < riseTo) return developed(phase / riseTo);
   if (phase < washFrom) return 1;
   return 1 - developed((phase - washFrom) / (1 - washFrom));
+}
+
+/**
+ * THE WINDOW FOLD's clock (session 16, the re-clock ruling): where the base
+ * sits on the window's own calendar, from the shared beat table and the same
+ * `seasonClock` the drops keep — one clock in Act III, base and foreground
+ * agreeing about what day it is. "One" opens on the residence with none of the
+ * season's endings; the night's day rises through the game+night span as one
+ * continuous arrival; the season beat folds the window's days; the close
+ * floods the remainder and holds the finished layer. Null wherever the season
+ * ships no calendar, and the shared arrival envelope stands.
+ */
+function windowBaseClock(phase: number, season: Season): WindowFoldClock | null {
+  const meta = season.points_by_day;
+  if (!meta) return null;
+  const night = WINDOW_BEATS.find((b) => b.id === "night")!;
+  const seasonBeat = WINDOW_BEATS.find((b) => b.id === "season")!;
+  const closeFrom = WINDOW_BEATS.find((b) => b.id === "close")!.from;
+  if (phase >= closeFrom) return { rise: 1, dayFrac: meta.window_days, flood: true };
+  const rise = Math.min(1, Math.max(0, (phase - night.from) / (night.to - night.from)));
+  const seasonU = Math.min(1, Math.max(0, (phase - seasonBeat.from) / (seasonBeat.to - seasonBeat.from)));
+  return { rise, dayFrac: seasonClock(seasonU) * meta.window_days, flood: false };
 }
 
 export function drawSeasonField(f: Frame, opts: FieldOpts): void {
@@ -112,8 +144,19 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
 
   const season = data.byYear.get(year)!;
   const pts = data.points(year);
+  // THE WINDOW FOLD: the window season's base accumulates on its own measured
+  // calendar wherever the reveal is on and the calendar shipped. CENSUS (no
+  // reveal, stage A by measurement) and STACK (talk instrument) keep the
+  // shared arrival envelope — the two documented exceptions, packet-flagged.
+  const dayPts = reveal && st.act === 3 && season.points_by_day ? data.pointsByDay(year) : null;
+  const clock = dayPts ? windowBaseClock(st.phase, season) : null;
+  const seedDay = data.slateFile?.day ?? -1;
+  const windowLast = season.points_by_day?.window_last_day ?? 0;
   if (pts) {
-    if (reveal && st.arrived < 1) {
+    if (dayPts && clock) {
+      drawWindowReveal(ctx, view, clock, dim, year, pts, dayPts, coloured, dpr,
+        pinCoordOf(season), seedDay, windowLast);
+    } else if (reveal && st.arrived < 1) {
       // THE PER-MARK ARRIVAL: while the season is arriving, its cells strike
       // in the record's own emphasis order, each at full tone. At
       // `st.arrived >= 1` this branch is dead and the path below draws the
@@ -128,9 +171,13 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
   }
   // The pin is never baked into the layer: it occludes rather than adds, and
   // it stands for shots the record refused to place, so it belongs to no zone
-  // and takes no colour.
+  // and takes no colour. On the window fold it fills with the marks — the
+  // refusal keeps the calendar's clock, never a separate one.
   drawPin(ctx, view, pinFractionOf(season), pinCoordOf(season), {
-    dpr, opacity: dim, arrived: st.arrived,
+    dpr, opacity: dim,
+    arrived: dayPts && clock
+      ? windowPinArrived(dayPts, pinCoordOf(season), clock, seedDay, windowLast)
+      : st.arrived,
   });
 }
 
