@@ -31,3 +31,4 @@ docs/prompts/
 # is started for the browser probes, and it belongs with them.
 .claude/*
 !.claude/launch.json
+docs/paper/
