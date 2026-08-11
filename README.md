@@ -141,7 +141,7 @@ one**; its output is gitignored, because `docs/build/probe/` is where a verdict 
 
 ```bash
 cd site && npm run dev                    # in one shell - the probes need the data synced
-cd site && npm run probe:purity           # six hands + THE STACK's configurations, x twelve
+cd site && npm run probe:purity           # six hands + THE STACK's configurations, x the
                                           #   schedule-derived beats, two arms
 cd site && npm run probe:perf             # one row per view per beat
 cd site && npm run shots -- --list hands  # exact frames, for looking at
@@ -158,7 +158,8 @@ the noise predicate.
 
 - `http://localhost:5173/?probe=purity` — the same instant reached four ways (continuous playback,
   a forward seek, a backward seek, and a cold direct load) and compared by exact pixel hash, at
-  twelve schedule-derived beats. Read every verdict against the run's own measured **noise floor**:
+  the schedule-derived beats (the run's own JSON names them; the count grew when the act
+  boundaries were named and is not restated here). Read every verdict against the run's own measured **noise floor**:
   Canvas2D rasterisation is not bit-stable under memory pressure, an uncalibrated run blames the
   piece for the browser, and the floor is a property of the FRAME, so it is measured on the densest
   one in the sweep rather than at startup on a bare plate. Note the floor is not the tolerance:
