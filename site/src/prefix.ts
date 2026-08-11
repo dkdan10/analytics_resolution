@@ -55,6 +55,28 @@ interface Layer {
 }
 
 const layers = new Map<string, Layer>();
+let generation = 0;
+
+/** Lets other derived canvas geometry share `cold()` without a probe import. */
+export function prefixCacheGeneration(): number {
+  return generation;
+}
+
+/**
+ * Release a prefix generation's backing store as soon as its successor owns a
+ * copy. Canvas commands are synchronous with respect to their bitmap, so this
+ * happens only after `drawImage` and the successor's bake have completed.
+ *
+ * A cold seek to the finished game builds long DPR-sized Plate chains. Letting
+ * superseded canvases wait for GC strands a large series of full-size backing
+ * stores and makes later, otherwise cheap frames pay for collection. Resizing
+ * does not alter the successor and the retired generation is unreachable by
+ * design; it only returns its backing store promptly.
+ */
+function releaseLayer(layer: Layer): void {
+  layer.front.width = 1;
+  layer.front.height = 1;
+}
 
 /**
  * The surface holding the first `step` steps of a layer, built or reused.
@@ -80,11 +102,17 @@ export function prefixSurface(
   if (step <= 0) return null;
 
   let layer = layers.get(key);
-  if (layer && (layer.w !== w || layer.h !== h)) layer = undefined;
+  if (layer && (layer.w !== w || layer.h !== h)) {
+    releaseLayer(layer);
+    layer = undefined;
+  }
   // Going backwards REBUILDS. The recursion has no inverse and this is the
   // whole point: there is no path by which a surface carries something the
   // requested step does not contain.
-  if (layer && layer.step > step) layer = undefined;
+  if (layer && layer.step > step) {
+    releaseLayer(layer);
+    layer = undefined;
+  }
 
   while (!layer || layer.step < step) {
     const s = layer ? layer.step + 1 : 1;
@@ -110,14 +138,16 @@ export function prefixSurface(
     el.width = w;
     el.height = h;
     const ctx = el.getContext("2d")!;
-    if (layer) {
+    const previous = layer;
+    if (previous) {
       ctx.globalCompositeOperation = "copy";
-      ctx.drawImage(layer.front, 0, 0);
+      ctx.drawImage(previous.front, 0, 0);
       ctx.globalCompositeOperation = "source-over";
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     bake(ctx, (s - 1) * stepSize, s * stepSize);
     layer = { key, front: el, step: s, w, h };
+    if (previous) releaseLayer(previous);
   }
 
   layers.set(key, layer);
@@ -125,7 +155,11 @@ export function prefixSurface(
   // time. Anything older is a resize or an act the playhead has left.
   if (layers.size > 8) {
     const oldest = layers.keys().next().value;
-    if (oldest !== undefined && oldest !== key) layers.delete(oldest);
+    if (oldest !== undefined && oldest !== key) {
+      const evicted = layers.get(oldest);
+      if (evicted) releaseLayer(evicted);
+      layers.delete(oldest);
+    }
   }
   return layer.front;
 }
@@ -133,5 +167,7 @@ export function prefixSurface(
 /** Drop every cached surface. Called from `cold()` in the probes, and it must
  *  change no pixel anywhere - that is precisely what the purity probe tests. */
 export function clearPrefixes(): void {
+  for (const layer of layers.values()) releaseLayer(layer);
   layers.clear();
+  generation++;
 }

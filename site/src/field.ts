@@ -24,12 +24,14 @@
 import { BONE_RGB, ZONE_RGB } from "./palette";
 import { COURT, type View } from "./plate";
 import {
+  COARSE_R,
   DEVELOP_STATES,
   DEVELOP_STEP,
   FALLOFF_DISC_INTEGRAL,
   RESIDENCE_TONE_K,
   REVEAL_CURVE,
   REVEAL_STEPS,
+  SHARP_R,
   SPLAT_MIN_PX,
   SPLAT_SPACING_K,
   TONE_CEILING,
@@ -37,6 +39,7 @@ import {
   WINDOW_WET_DAYS,
   WINDOW_WET_GAIN,
 } from "./scalars";
+import { RESTRICTED_R } from "./zone";
 
 /** Bytes per record in points/season_YYYY.bin — must match POINT_DTYPE. */
 const REC = 14;
@@ -161,9 +164,44 @@ export interface Layer {
 }
 
 /**
- * The splat's geometry, derived once per bake — one derivation for the whole
- * field and the reveal both, so the two paths cannot disagree about what a
- * cell's ink looks like on the plate.
+ * The record's measured rim grain, expressed independently of a season so all
+ * four field paths can consume the same decision. The default is SHARP_GRAIN:
+ * old callers therefore keep the exact pre-ladder output until they opt a
+ * season into its measured profile.
+ *
+ * `split` means the uneven era's one honest mixture: at a restricted-area
+ * coordinate, the cell's EXISTING tone is divided by its n_hires:n_rest
+ * populations. The tone curve is never applied twice. Outside the restricted
+ * area every profile resolves to sharp, because no coarser measurement was
+ * established there.
+ */
+export interface GrainProfile {
+  readonly mode: "sharp" | "coarse" | "split";
+}
+
+export type GrainRegime =
+  | "uniformly_blind"
+  | "uneven"
+  | "uniformly_sighted"
+  | "categorical_refusal";
+
+export const SHARP_GRAIN: GrainProfile = Object.freeze({ mode: "sharp" });
+export const BLIND_GRAIN: GrainProfile = Object.freeze({ mode: "coarse" });
+export const UNEVEN_GRAIN: GrainProfile = Object.freeze({ mode: "split" });
+
+/** One mapping from the pipeline's four measured regimes to the three drawing
+ * profiles. Categorical refusal keeps every placed coordinate sharp; its loss
+ * is already carried by the pin rather than by invented blur. */
+export function grainProfileFor(regime: GrainRegime): GrainProfile {
+  if (regime === "uniformly_blind") return BLIND_GRAIN;
+  if (regime === "uneven") return UNEVEN_GRAIN;
+  return SHARP_GRAIN;
+}
+
+/**
+ * The sharp splat's geometry, derived once per bake — one derivation for the
+ * whole field and the reveal both, so the two paths cannot disagree about what
+ * a cell's ink looks like on the plate.
  *
  * Adjacent coordinates are a tenth of a foot apart, which is a few pixels.
  * Writing each as an axis-aligned square at a rounded position makes the
@@ -183,6 +221,7 @@ export interface Layer {
  * from the falloff below, not chosen; see src/scalars.ts.
  */
 interface Splat {
+  radius: number;
   span: number;
   inv: number;
   overlap: number;
@@ -192,6 +231,7 @@ function splatOf(view: View, dpr: number): Splat {
   const spacing = view.s(1) * dpr;
   const radius = Math.max(SPLAT_MIN_PX, spacing * SPLAT_SPACING_K);
   return {
+    radius,
     span: Math.ceil(radius),
     inv: 1 / (radius * radius),
     overlap: Math.max(
@@ -199,6 +239,127 @@ function splatOf(view: View, dpr: number): Splat {
       (Math.PI * radius * radius * FALLOFF_DISC_INTEGRAL) / (spacing * spacing),
     ),
   };
+}
+
+/** The broad hand is a ratio of the already-judged sharp field kernel, not a
+ * second authored field radius. Its overlap uses the same integrated
+ * paraboloid normaliser, so changing hands redistributes light without adding
+ * it. */
+function coarseSplatOf(view: View, dpr: number, sharp: Splat): Splat {
+  const spacing = view.s(1) * dpr;
+  const radius = sharp.radius * (COARSE_R / SHARP_R);
+  return {
+    radius,
+    span: Math.ceil(radius),
+    inv: 1 / (radius * radius),
+    overlap: Math.max(
+      1,
+      (Math.PI * radius * radius * FALLOFF_DISC_INTEGRAL) / (spacing * spacing),
+    ),
+  };
+}
+
+interface GrainSplats {
+  sharp: Splat;
+  coarse: Splat | null;
+}
+
+/** Dirty upload bookkeeping for the two persistent, ImageData-backed Window
+ * folds. This does not participate in their pixels or keys: it only records
+ * which already-computed bytes need copying to the backing canvas after a
+ * forward advance. Fresh and backward rebuilds still upload the full image. */
+interface UploadTiles {
+  readonly size: number;
+  readonly cols: number;
+  readonly rows: number;
+  readonly bits: Uint8Array;
+}
+
+const UPLOAD_TILE_PX = 256;
+
+function uploadTilesOf(w: number, h: number): UploadTiles {
+  const cols = Math.ceil(w / UPLOAD_TILE_PX);
+  const rows = Math.ceil(h / UPLOAD_TILE_PX);
+  return { size: UPLOAD_TILE_PX, cols, rows, bits: new Uint8Array(cols * rows) };
+}
+
+function markUploadTiles(
+  tiles: UploadTiles,
+  view: View,
+  dpr: number,
+  sp: Splat,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): void {
+  const bx = Math.round(view.sx(x) * dpr);
+  const by = Math.round(view.sy(y) * dpr);
+  const x0 = Math.max(0, bx - sp.span);
+  const y0 = Math.max(0, by - sp.span);
+  const x1 = Math.min(w - 1, bx + sp.span);
+  const y1 = Math.min(h - 1, by + sp.span);
+  const tx0 = Math.floor(x0 / tiles.size);
+  const ty0 = Math.floor(y0 / tiles.size);
+  const tx1 = Math.floor(x1 / tiles.size);
+  const ty1 = Math.floor(y1 / tiles.size);
+  for (let ty = ty0; ty <= ty1; ty++) {
+    for (let tx = tx0; tx <= tx1; tx++) tiles.bits[ty * tiles.cols + tx] = 1;
+  }
+}
+
+function uploadMarkedTiles(
+  canvas: HTMLCanvasElement,
+  img: ImageData,
+  tiles: UploadTiles,
+): void {
+  const ctx = canvas.getContext("2d")!;
+  for (let ty = 0; ty < tiles.rows; ty++) {
+    let tx = 0;
+    while (tx < tiles.cols) {
+      while (tx < tiles.cols && tiles.bits[ty * tiles.cols + tx] === 0) tx++;
+      if (tx >= tiles.cols) break;
+      const from = tx;
+      while (tx < tiles.cols && tiles.bits[ty * tiles.cols + tx] !== 0) tx++;
+      const x = from * tiles.size;
+      const y = ty * tiles.size;
+      const width = Math.min(img.width, tx * tiles.size) - x;
+      const height = Math.min(tiles.size, img.height - y);
+      ctx.putImageData(img, 0, 0, x, y, width, height);
+    }
+  }
+}
+
+function grainSplatsOf(view: View, dpr: number, grain: GrainProfile): GrainSplats {
+  const sharp = splatOf(view, dpr);
+  return {
+    sharp,
+    coarse: grain.mode === "sharp" ? null : coarseSplatOf(view, dpr, sharp),
+  };
+}
+
+function grainSuffix(grain: GrainProfile): string {
+  // Keep the old sharp cache key byte-for-byte. A non-sharp profile must name
+  // itself because it changes pixels for the same season and geometry.
+  return grain.mode === "sharp" ? "" : `|g${grain.mode}`;
+}
+
+function inRestrictedArea(x: number, y: number): boolean {
+  return x * x + y * y <= RESTRICTED_R * RESTRICTED_R;
+}
+
+/** How much of one cell's ALREADY-TONED light belongs to the coarse kernel. */
+function coarseShare(
+  grain: GrainProfile,
+  x: number,
+  y: number,
+  hires: number,
+  rest: number,
+): number {
+  if (grain.mode === "sharp" || !inRestrictedArea(x, y)) return 0;
+  if (grain.mode === "coarse") return 1;
+  const total = hires + rest;
+  return total > 0 ? rest / total : 0;
 }
 
 /** One cell's ink into the float accumulator — `a` is the cell's tone already
@@ -267,6 +428,62 @@ function splatCell(
   }
 }
 
+/** Deposit one cell through its measured hand.
+ *
+ * `ink` is the cell's ONE tone value, before overlap normalisation. In an
+ * uneven cell it is split linearly before either kernel receives it; applying
+ * the nonlinear tone curve to hires and rest separately would manufacture
+ * extra light. The zero-share branch repeats the former sharp expression
+ * exactly, including operation order, which is the byte-identity guarantee for
+ * every off-rim cell and every uniformly sighted season. */
+function splatGrainedCell(
+  acc: Float32Array,
+  w: number,
+  h: number,
+  view: View,
+  dpr: number,
+  splats: GrainSplats,
+  cx: number,
+  cy: number,
+  ink: number,
+  coarseFraction: number,
+  rgb: number[],
+  img: Uint8ClampedArray | null = null,
+  uploadTiles: UploadTiles | null = null,
+): void {
+  if (uploadTiles) {
+    const outer = coarseFraction > 0 && splats.coarse !== null
+      ? splats.coarse
+      : splats.sharp;
+    markUploadTiles(uploadTiles, view, dpr, outer, cx, cy, w, h);
+  }
+  if (coarseFraction <= 0 || splats.coarse === null) {
+    splatCell(
+      acc, w, h, view, dpr, splats.sharp, cx, cy,
+      ink / splats.sharp.overlap, rgb, img,
+    );
+    return;
+  }
+  if (coarseFraction >= 1) {
+    splatCell(
+      acc, w, h, view, dpr, splats.coarse, cx, cy,
+      ink / splats.coarse.overlap, rgb, img,
+    );
+    return;
+  }
+
+  // Sharp first, coarse second, in every path. Incremental folds therefore
+  // advance in the same arithmetic order whether reached warm or rebuilt cold.
+  splatCell(
+    acc, w, h, view, dpr, splats.sharp, cx, cy,
+    (ink * (1 - coarseFraction)) / splats.sharp.overlap, rgb, img,
+  );
+  splatCell(
+    acc, w, h, view, dpr, splats.coarse, cx, cy,
+    (ink * coarseFraction) / splats.coarse.overlap, rgb, img,
+  );
+}
+
 /**
  * Scratch for the bakes — reused, not reallocated, and that is a measured GC
  * repair, not an optimisation taste: each bake used to allocate a ~44 MB
@@ -323,13 +540,14 @@ function layerKey(
   dpr: number,
   pin: [number, number] | null,
   strength: number,
+  grain: GrainProfile,
 ): string {
   // The pin's coordinate is a pure function of the year, so it could be left
   // out — and it is in the key anyway, because rule 5 asks that a key carry
   // everything affecting its pixels rather than everything that happens to
   // vary. It adds no cache entries. `strength` is the exposure state and DOES
   // add entries: each state is a different image of the same season.
-  return `${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${pin ? pin.join(",") : "none"}|s${strength}`;
+  return `${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${pin ? pin.join(",") : "none"}|s${strength}${grainSuffix(grain)}`;
 }
 
 /**
@@ -355,8 +573,9 @@ export function bakeLayer(
   dpr: number,
   pin: [number, number] | null,
   strength = 1,
+  grain: GrainProfile = SHARP_GRAIN,
 ): Layer {
-  const key = layerKey(year, coloured, view, dpr, pin, strength);
+  const key = layerKey(year, coloured, view, dpr, pin, strength, grain);
   const hit = layers.get(key);
   if (hit) return hit;
 
@@ -371,7 +590,7 @@ export function bakeLayer(
 
   const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
   const zoneRGB = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
-  const sp = splatOf(view, dpr);
+  const splats = grainSplatsOf(view, dpr, grain);
 
   const [pinX, pinY] = pin ?? [NaN, NaN];
   for (let i = 0; i < pts.n; i++) {
@@ -381,9 +600,12 @@ export function bakeLayer(
     const count = pts.hires[i]! + pts.rest[i]!;
     if (count === 0) continue;
 
-    const a = tone(count / pts.total, strength) / sp.overlap;
+    const ink = tone(count / pts.total, strength);
     const rgb = coloured ? (zoneRGB[pts.zone[i]!] ?? bone) : bone;
-    splatCell(acc, w, h, view, dpr, sp, cx, cy, a, rgb);
+    splatGrainedCell(
+      acc, w, h, view, dpr, splats, cx, cy, ink,
+      coarseShare(grain, cx, cy, pts.hires[i]!, pts.rest[i]!), rgb,
+    );
   }
 
   const layer: Layer = { canvas: quantize(acc, w, h), key };
@@ -544,9 +766,10 @@ function revealLayer(
   dpr: number,
   pin: [number, number] | null,
   prefix: number,
+  grain: GrainProfile,
 ): Layer {
   // Everything that affects the pixels except the prefix, which advances.
-  const key = `reveal|${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${pin ? pin.join(",") : "none"}`;
+  const key = `reveal|${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${pin ? pin.join(",") : "none"}${grainSuffix(grain)}`;
   const w = Math.max(1, Math.round(view.width * dpr));
   const h = Math.max(1, Math.round(view.height * dpr));
 
@@ -574,15 +797,20 @@ function revealLayer(
     const order = revealOrder(pts, pin);
     const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
     const zoneRGB = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
-    const sp = splatOf(view, dpr);
+    const splats = grainSplatsOf(view, dpr, grain);
     for (let j = r.cells; j < prefix; j++) {
       const i = order[j]!;
       const count = pts.hires[i]! + pts.rest[i]!;
       // Full tone: a mark that has arrived is the finished bake's mark — the
       // development IS the population filling in, dense first.
-      const a = tone(count / pts.total, 1) / sp.overlap;
+      const ink = tone(count / pts.total, 1);
       const rgb = coloured ? (zoneRGB[pts.zone[i]!] ?? bone) : bone;
-      splatCell(r.acc, w, h, view, dpr, sp, pts.x[i]!, pts.y[i]!, a, rgb, r.img.data);
+      const cx = pts.x[i]!;
+      const cy = pts.y[i]!;
+      splatGrainedCell(
+        r.acc, w, h, view, dpr, splats, cx, cy, ink,
+        coarseShare(grain, cx, cy, pts.hires[i]!, pts.rest[i]!), rgb, r.img.data,
+      );
     }
     r.cells = prefix;
     r.canvas.getContext("2d")!.putImageData(r.img, 0, 0);
@@ -643,8 +871,9 @@ function deltaLayer(
   step: number,
   from: number,
   to: number,
+  grain: GrainProfile,
 ): Layer {
-  const key = `delta|${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${pin ? pin.join(",") : "none"}`;
+  const key = `delta|${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${pin ? pin.join(",") : "none"}${grainSuffix(grain)}`;
   const w = Math.max(1, Math.round(view.width * dpr));
   const h = Math.max(1, Math.round(view.height * dpr));
 
@@ -669,13 +898,18 @@ function deltaLayer(
     d.img.data.fill(0);
     const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
     const zoneRGB = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
-    const sp = splatOf(view, dpr);
+    const splats = grainSplatsOf(view, dpr, grain);
     for (let j = from; j < to; j++) {
       const i = order[j]!;
       const count = pts.hires[i]! + pts.rest[i]!;
-      const a = tone(count / pts.total, 1) / sp.overlap;
+      const ink = tone(count / pts.total, 1);
       const rgb = coloured ? (zoneRGB[pts.zone[i]!] ?? bone) : bone;
-      splatCell(acc, w, h, view, dpr, sp, pts.x[i]!, pts.y[i]!, a, rgb, d.img.data);
+      const cx = pts.x[i]!;
+      const cy = pts.y[i]!;
+      splatGrainedCell(
+        acc, w, h, view, dpr, splats, cx, cy, ink,
+        coarseShare(grain, cx, cy, pts.hires[i]!, pts.rest[i]!), rgb, d.img.data,
+      );
     }
     d.step = step;
     d.canvas.getContext("2d")!.putImageData(d.img, 0, 0);
@@ -722,6 +956,7 @@ export function drawReveal(
   coloured: boolean,
   dpr: number,
   pin: [number, number] | null,
+  grain: GrainProfile = SHARP_GRAIN,
 ): void {
   const r = Math.min(1, Math.max(0, arrived));
   if (r <= 0 || dim <= 0.002) return;
@@ -733,7 +968,7 @@ export function drawReveal(
   // (measured in session 9: left lazy, it landed a full-plate bake at the
   // reveal's top step, mid-window). Warm frames pay a cache hit; no pixel
   // depends on when this ran.
-  const top = bakeLayer(year, pts, coloured, view, dpr, pin, 1);
+  const top = bakeLayer(year, pts, coloured, view, dpr, pin, 1, grain);
   const u = r * REVEAL_STEPS;
   const step = Math.floor(u);
   if (step >= REVEAL_STEPS) {
@@ -745,12 +980,17 @@ export function drawReveal(
     Math.round(order.length * Math.pow(s / REVEAL_STEPS, REVEAL_CURVE));
   const base = prefixAt(step);
   if (base > 0) {
-    drawLayer(ctx, revealLayer(year, pts, coloured, view, dpr, pin, base), view, dim);
+    drawLayer(ctx, revealLayer(year, pts, coloured, view, dpr, pin, base, grain), view, dim);
   }
   const next = prefixAt(step + 1);
   const alpha = dim * (u - step);
   if (next > base && alpha > 0.002) {
-    drawLayer(ctx, deltaLayer(year, pts, coloured, view, dpr, pin, step, base, next), view, alpha);
+    drawLayer(
+      ctx,
+      deltaLayer(year, pts, coloured, view, dpr, pin, step, base, next, grain),
+      view,
+      alpha,
+    );
   }
 }
 
@@ -926,6 +1166,7 @@ interface WindowFold {
   img: ImageData;
   canvas: HTMLCanvasElement;
   layer: Layer | null;
+  uploadTiles: UploadTiles;
   w: number;
   h: number;
 }
@@ -943,19 +1184,67 @@ function foldAssetId(o: object): number {
   return id;
 }
 
+/** Window's uneven split reads one extra artifact: the finished points cells.
+ * Name that identity only when it affects pixels; sharp and blind retain their
+ * former cache shape. */
+function splitAssetSuffix(grain: GrainProfile, pts: Points): string {
+  return grain.mode === "split" ? `|p${foldAssetId(pts)}` : "";
+}
+
+/** The day artifact carries total count only. For an uneven season its broad
+ * share is therefore read from the finished points artifact at the same cell.
+ * A fixed cell share is exactly what the underlying measurement says—the
+ * building mix belongs to the cell's season population—and splitting every
+ * tone increment by that same share makes the completed day fold sum to the
+ * finished layer's two kernels. */
+const pointCoarseShares = new WeakMap<Points, Map<number, number>>();
+
+function pointCellKey(x: number, y: number): number {
+  // Both coordinates are int16. Biasing them makes a collision-free uint32
+  // represented exactly by JavaScript's integer-valued Number.
+  return (x + 32768) * 65536 + (y + 32768);
+}
+
+function coarseSharesFor(pts: Points): Map<number, number> {
+  const have = pointCoarseShares.get(pts);
+  if (have) return have;
+  const out = new Map<number, number>();
+  for (let i = 0; i < pts.n; i++) {
+    const h = pts.hires[i]!;
+    const r = pts.rest[i]!;
+    const total = h + r;
+    if (total > 0) out.set(pointCellKey(pts.x[i]!, pts.y[i]!), r / total);
+  }
+  pointCoarseShares.set(pts, out);
+  return out;
+}
+
+function dayCoarseShare(
+  grain: GrainProfile,
+  pts: Points,
+  x: number,
+  y: number,
+): number {
+  if (grain.mode === "sharp" || !inRestrictedArea(x, y)) return 0;
+  if (grain.mode === "coarse") return 1;
+  return coarseSharesFor(pts).get(pointCellKey(x, y)) ?? 0;
+}
+
 function windowFoldLayer(
   year: number,
+  pts: Points,
   dayPts: DayPoints,
   plan: DayFoldPlan,
   coloured: boolean,
   view: View,
   dpr: number,
   prefix: number,
+  grain: GrainProfile,
 ): Layer {
   // Everything that affects the pixels except the prefix, which advances —
   // including the artifact's own identity, so a re-fetched calendar can never
   // inherit a fold built from different bytes.
-  const key = `wfold|${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${plan.pinKey}|d${plan.seedDay}|a${foldAssetId(dayPts)}`;
+  const key = `wfold|${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${plan.pinKey}|d${plan.seedDay}|a${foldAssetId(dayPts)}${grainSuffix(grain)}${splitAssetSuffix(grain, pts)}`;
   const w = Math.max(1, Math.round(view.width * dpr));
   const h = Math.max(1, Math.round(view.height * dpr));
 
@@ -975,23 +1264,35 @@ function windowFoldLayer(
     const canvas = document.createElement("canvas");
     canvas.width = w;
     canvas.height = h;
-    r = { key, applied: 0, acc: new Float32Array(w * h * 3), img, canvas, layer: null, w, h };
+    r = {
+      key, applied: 0, acc: new Float32Array(w * h * 3), img, canvas, layer: null,
+      uploadTiles: uploadTilesOf(w, h), w, h,
+    };
   }
 
   if (r.applied < prefix || r.layer === null) {
+    const fullUpload = r.layer === null;
+    r.uploadTiles.bits.fill(0);
     const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
     const zoneRGB = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
-    const sp = splatOf(view, dpr);
+    const splats = grainSplatsOf(view, dpr, grain);
     for (let j = r.applied; j < prefix; j++) {
       const i = plan.order[j]!;
       const before = plan.cumBefore[j]!;
       const after = before + dayPts.count[i]!;
-      const a = (tone(after / dayPts.total, 1) - tone(before / dayPts.total, 1)) / sp.overlap;
+      const ink = tone(after / dayPts.total, 1) - tone(before / dayPts.total, 1);
       const rgb = coloured ? (zoneRGB[dayPts.zone[i]!] ?? bone) : bone;
-      splatCell(r.acc, w, h, view, dpr, sp, dayPts.x[i]!, dayPts.y[i]!, a, rgb, r.img.data);
+      const cx = dayPts.x[i]!;
+      const cy = dayPts.y[i]!;
+      splatGrainedCell(
+        r.acc, w, h, view, dpr, splats, cx, cy, ink,
+        dayCoarseShare(grain, pts, cx, cy), rgb, r.img.data,
+        fullUpload ? null : r.uploadTiles,
+      );
     }
     r.applied = prefix;
-    r.canvas.getContext("2d")!.putImageData(r.img, 0, 0);
+    if (fullUpload) r.canvas.getContext("2d")!.putImageData(r.img, 0, 0);
+    else uploadMarkedTiles(r.canvas, r.img, r.uploadTiles);
     r.layer = { canvas: r.canvas, key: `${key}|c${prefix}` };
   }
 
@@ -1043,6 +1344,7 @@ interface WetLive {
   img: ImageData;
   canvas: HTMLCanvasElement;
   layer: Layer | null;
+  uploadTiles: UploadTiles;
   w: number;
   h: number;
 }
@@ -1071,7 +1373,8 @@ function splatWet(
   h: number,
   view: View,
   dpr: number,
-  sp: Splat,
+  splats: GrainSplats,
+  pts: Points,
   dayPts: DayPoints,
   plan: DayFoldPlan,
   j: number,
@@ -1079,14 +1382,20 @@ function splatWet(
   bone: number[],
   zoneRGB: number[][],
   coloured: boolean,
+  grain: GrainProfile,
+  uploadTiles: UploadTiles | null = null,
 ): void {
   const i = plan.order[j]!;
   const before = plan.cumBefore[j]!;
   const after = before + dayPts.count[i]!;
-  const a =
-    (gain * (tone(after / dayPts.total, 1) - tone(before / dayPts.total, 1))) / sp.overlap;
+  const ink = gain * (tone(after / dayPts.total, 1) - tone(before / dayPts.total, 1));
   const rgb = coloured ? (zoneRGB[dayPts.zone[i]!] ?? bone) : bone;
-  splatCell(acc, w, h, view, dpr, sp, dayPts.x[i]!, dayPts.y[i]!, a, rgb, img);
+  const cx = dayPts.x[i]!;
+  const cy = dayPts.y[i]!;
+  splatGrainedCell(
+    acc, w, h, view, dpr, splats, cx, cy, ink,
+    dayCoarseShare(grain, pts, cx, cy), rgb, img, uploadTiles,
+  );
 }
 
 /** The front's fade-out, at the day grain the aging keeps: 1 deep in the
@@ -1099,6 +1408,7 @@ function wetAnneal(d0: number, windowLast: number): number {
 
 function wetLiveLayer(
   year: number,
+  pts: Points,
   dayPts: DayPoints,
   plan: DayFoldPlan,
   coloured: boolean,
@@ -1107,9 +1417,10 @@ function wetLiveLayer(
   d0: number,
   liveStart: number,
   prefix: number,
+  grain: GrainProfile,
 ): Layer | null {
   if (prefix <= liveStart) return null;
-  const key = `wetlive|${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${plan.pinKey}|a${foldAssetId(dayPts)}`;
+  const key = `wetlive|${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${plan.pinKey}|a${foldAssetId(dayPts)}${grainSuffix(grain)}${splitAssetSuffix(grain, pts)}`;
   const w = Math.max(1, Math.round(view.width * dpr));
   const h = Math.max(1, Math.round(view.height * dpr));
 
@@ -1131,20 +1442,25 @@ function wetLiveLayer(
     canvas.height = h;
     r = {
       key, d0, applied: liveStart,
-      acc: new Float32Array(w * h * 3), img, canvas, layer: null, w, h,
+      acc: new Float32Array(w * h * 3), img, canvas, layer: null,
+      uploadTiles: uploadTilesOf(w, h), w, h,
     };
   }
 
   if (r.applied < prefix || r.layer === null) {
+    const fullUpload = r.layer === null;
+    r.uploadTiles.bits.fill(0);
     const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
     const zoneRGB = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
-    const sp = splatOf(view, dpr);
+    const splats = grainSplatsOf(view, dpr, grain);
     for (let j = Math.max(r.applied, liveStart); j < prefix; j++) {
-      splatWet(r.acc, r.img.data, w, h, view, dpr, sp, dayPts, plan, j,
-        WINDOW_WET_GAIN, bone, zoneRGB, coloured);
+      splatWet(r.acc, r.img.data, w, h, view, dpr, splats, pts, dayPts, plan, j,
+        WINDOW_WET_GAIN, bone, zoneRGB, coloured, grain,
+        fullUpload ? null : r.uploadTiles);
     }
     r.applied = prefix;
-    r.canvas.getContext("2d")!.putImageData(r.img, 0, 0);
+    if (fullUpload) r.canvas.getContext("2d")!.putImageData(r.img, 0, 0);
+    else uploadMarkedTiles(r.canvas, r.img, r.uploadTiles);
     r.layer = { canvas: r.canvas, key: `${key}|d${d0}|c${prefix}` };
   }
 
@@ -1159,15 +1475,17 @@ function wetLiveLayer(
 
 function wetTrailLayer(
   year: number,
+  pts: Points,
   dayPts: DayPoints,
   plan: DayFoldPlan,
   coloured: boolean,
   view: View,
   dpr: number,
   d0: number,
+  grain: GrainProfile,
 ): Layer | null {
   if (WINDOW_WET_DAYS <= 0 || d0 <= 0) return null;
-  const key = `wettrail|${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${plan.pinKey}|a${foldAssetId(dayPts)}`;
+  const key = `wettrail|${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${plan.pinKey}|a${foldAssetId(dayPts)}${grainSuffix(grain)}${splitAssetSuffix(grain, pts)}`;
   const w = Math.max(1, Math.round(view.width * dpr));
   const h = Math.max(1, Math.round(view.height * dpr));
 
@@ -1189,7 +1507,7 @@ function wetTrailLayer(
     const acc = accOf(w * h * 3);
     const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
     const zoneRGB = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
-    const sp = splatOf(view, dpr);
+    const splats = grainSplatsOf(view, dpr, grain);
     for (let age = 1; age <= WINDOW_WET_DAYS; age++) {
       const d = d0 - age;
       if (d < 0) continue;
@@ -1200,8 +1518,8 @@ function wetTrailLayer(
       const to = plan.seedCount + plan.bCum[d + 1]!;
       const decay = 1 - age / (WINDOW_WET_DAYS + 1);
       for (let j = from; j < to; j++) {
-        splatWet(acc, r.img.data, w, h, view, dpr, sp, dayPts, plan, j,
-          WINDOW_WET_GAIN * decay, bone, zoneRGB, coloured);
+        splatWet(acc, r.img.data, w, h, view, dpr, splats, pts, dayPts, plan, j,
+          WINDOW_WET_GAIN * decay, bone, zoneRGB, coloured, grain);
       }
     }
     r.d0 = d0;
@@ -1238,9 +1556,10 @@ export function drawWindowReveal(
   pin: [number, number] | null,
   seedDay: number,
   windowLast: number,
+  grain: GrainProfile = SHARP_GRAIN,
 ): void {
   if (dim <= 0.002) return;
-  const top = bakeLayer(year, pts, coloured, view, dpr, pin, 1);
+  const top = bakeLayer(year, pts, coloured, view, dpr, pin, 1, grain);
   if (clock.flood) {
     drawLayer(ctx, top, view, dim);
     return;
@@ -1248,7 +1567,12 @@ export function drawWindowReveal(
   const plan = dayFoldPlan(dayPts, pin, seedDay, windowLast);
   const prefix = foldPrefix(plan, clock, windowLast);
   if (prefix <= 0) return;
-  drawLayer(ctx, windowFoldLayer(year, dayPts, plan, coloured, view, dpr, prefix), view, dim);
+  drawLayer(
+    ctx,
+    windowFoldLayer(year, pts, dayPts, plan, coloured, view, dpr, prefix, grain),
+    view,
+    dim,
+  );
 
   // THE WET DAY: the front rides the same clock as the fold it excites. Off
   // during the seed's rise (dayFrac 0 — one and the night stay byte-identical)
@@ -1257,11 +1581,11 @@ export function drawWindowReveal(
     const d0 = Math.min(windowLast, Math.floor(clock.dayFrac));
     const anneal = wetAnneal(d0, windowLast);
     if (anneal > 0) {
-      const trail = wetTrailLayer(year, dayPts, plan, coloured, view, dpr, d0);
+      const trail = wetTrailLayer(year, pts, dayPts, plan, coloured, view, dpr, d0, grain);
       if (trail) drawLayer(ctx, trail, view, dim * anneal);
       const liveStart = plan.seedCount + plan.bCum[d0]!;
       const live = wetLiveLayer(
-        year, dayPts, plan, coloured, view, dpr, d0, liveStart, prefix);
+        year, pts, dayPts, plan, coloured, view, dpr, d0, liveStart, prefix, grain);
       if (live) drawLayer(ctx, live, view, dim * anneal);
     }
   }

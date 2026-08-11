@@ -23,8 +23,10 @@
  */
 
 import { renderTo } from "../render";
-import { opsToken, type StackOps } from "../modes/operations";
+import { completedStackState, opsToken, type StackOps } from "../modes/operations";
 import type { ModeId } from "../modes";
+import { displayFromQuery } from "../display";
+import { semanticStopById, semanticTime } from "../semantic";
 import {
   cold,
   beatsOf,
@@ -107,9 +109,16 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
   // Act 0 - a frame that draws nothing and times at a hundredth of a
   // millisecond. The same trap `startOffset` guards against in main.ts.
   const atSeconds = Number(q.get("t"));
-  const chosen = q.has("t") && Number.isFinite(atSeconds)
-    ? [{ id: `t=${atSeconds}`, at: atSeconds }]
-    : beats;
+  const semantic = semanticStopById(q.get("stop"));
+  const semanticAt = semantic
+    ? semanticTime(semantic, schedule, data.slateFile?.span.seconds)
+    : null;
+  const chosen = semantic && semanticAt !== null
+    ? [{ id: semantic.id, at: semanticAt }]
+    : q.has("t") && Number.isFinite(atSeconds)
+      ? [{ id: `t=${atSeconds}`, at: atSeconds }]
+      : beats;
+  const display = displayFromQuery(q, false);
 
   const target = makeTarget();
   const base = schedule.duration;
@@ -121,7 +130,7 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
    * which is the cheapest frame in the whole piece. Timing it there would report
    * a hand that costs nothing and say nothing about the frame a presenter can
    * actually build, and the acceptance criterion is explicitly about the densest
-   * configuration shipped. So the perf probe asks for ALL RENDERINGS: seven
+   * configuration shipped. So the perf probe asks for ALL RENDERINGS: eight
    * operations composited at once, which is the most this view can ever be asked
    * to draw. Every other hand ignores the argument and is timed exactly as it
    * was before session 6.
@@ -132,7 +141,8 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
   };
   // Same warm-up as the purity probe: a first-use cost charged to one beat is
   // not that beat's cost.
-  warmUp((t, m) => renderTo(target, t, data, schedule, inscriptions, m, false, dense(m)),
+  warmUp((t, m) => renderTo(target, t, data, schedule, inscriptions, m,
+           false, false, completedStackState(dense(m)), null, display),
          chosen, base, modes);
 
   // What the record makes available to a hand at this beat. The draw-op counts
@@ -153,14 +163,14 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
       cold();
       for (let i = 0; i < WARMUP; i++) {
         renderTo(target, t0 + i * STEP, data, schedule, inscriptions, mode as ModeId,
-                 false, dense(mode as ModeId));
+                 false, false, completedStackState(dense(mode as ModeId)), null, display);
       }
       const ms: number[] = [];
       for (let i = 0; i < frames; i++) {
         const t = t0 + (WARMUP + i) * STEP;
         const a = performance.now();
         renderTo(target, t, data, schedule, inscriptions, mode as ModeId,
-                 false, dense(mode as ModeId));
+                 false, false, completedStackState(dense(mode as ModeId)), null, display);
         ms.push(performance.now() - a);
       }
       const q4 = quantiles(ms);
@@ -168,7 +178,8 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
       // Counted separately, so the Proxy never taxes the timing.
       const { proxy, counts } = countingCtx(target.ctx);
       renderTo({ ...target, ctx: proxy }, t0 + WARMUP * STEP, data, schedule,
-               inscriptions, mode as ModeId, false, dense(mode as ModeId));
+               inscriptions, mode as ModeId, false, false,
+               completedStackState(dense(mode as ModeId)), null, display);
       const drawOps = (counts.arc ?? 0) + (counts.fill ?? 0) + (counts.stroke ?? 0)
         + (counts.fillText ?? 0) + (counts.drawImage ?? 0) + (counts.fillRect ?? 0);
 
@@ -218,6 +229,7 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
   return {
     probe: "perf",
     surface: { width: PROBE_W, height: PROBE_H, dpr: PROBE_DPR },
+    display,
     frameBudgetMs: r2(FRAME_BUDGET_MS),
     framesPerBeat: frames,
     warmupFrames: WARMUP,

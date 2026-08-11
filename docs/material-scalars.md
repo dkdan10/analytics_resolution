@@ -4,7 +4,7 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**145 scalars**, 105 of them material: 2 measured, 3 geometry, 140 authored.
+**148 scalars**, 107 of them material: 2 measured, 3 geometry, 143 authored.
 
 A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts`, `prefix.ts`, `inscription.ts`, `modes/ledger.ts`, `modes/census.ts`, `palette.ts`, `modes/stack.ts`, `modes/operations.ts`, `modes/fieldlayer.ts`, `modes/shared.ts`, `game.ts`, `wash.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
@@ -220,6 +220,10 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   the engraved court - baseline, sidelines, lane, free-throw circle and the three-point line. Never brighter than the marks it holds: above roughly a tenth the floor reads as a diagram with data on it rather than as a plate the record is accumulating on.
 - **ENGRAVING_FAINT_ALPHA** — **0.05**  
   the apparatus at the centre of the record - backboard, rim and the restricted arc. Fainter than the rest of the engraving because it sits exactly where the density is highest, and at the same weight it would cut a visible ring through the one region every act is about.
+- **ROOM_ENGRAVING_ALPHA** — **0.24**  
+  the essential court-line weight in the room display profile. It lifts the plate above projector wash without making it compete with the measured field; the near profile retains ENGRAVING_ALPHA unchanged.
+- **ROOM_ENGRAVING_FAINT_ALPHA** — **0.16**  
+  the secondary court-apparatus weight in the room display profile. It keeps the rim and backboard legible at distance while remaining below the essential court lines and the marks they hold.
 - **STRIKE_MAX_TENTHS** — **55**  
   the cap height, in court tenths, a category holding ONE HUNDRED PER CENT of a season would be struck at. Every word is this times the square root of its own share, so the word's AREA is proportional to the shots it names - the law drawPin already obeys. Raise it and the biggest categories run off the floor; lower it and the census stops being monumental and goes back to being a list.
 - **STRIKE_FLOOR_TENTHS** — **4.75**  
@@ -246,6 +250,8 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   the struck word's own strength, before the frame's fade. Near the top of the range because these ARE the hand - the tables they replaced were the brightest thing on the plate and read as an overlay.
 - **MACHINE_SAW_SCALE** — **0.6**  
   the window's seventh beat - the count of body positions the machine held - as a fraction of the largest a category may be struck at. It is the strongest content the census has and it used to be set in the smallest type on screen, in a gutter. Struck below a full-share word because it is a count and not a share, and nothing here is entitled to the whole floor.
+- **MACHINE_SAW_SCOPE_OFFSET_PX** — **60** *(not material)*  
+  the pixel offset placing MACHINE SAW's games-parsed scope below its two-line voice. The former 44px offset ran the scope through POSITION PER SHOT at the 1280x720 room profile; this leaves both statements uncontested.
 - **CENSUS_SHARE_SCALE** — **0.32** *(not material)*  
   the share numeral riding under each word, as a fraction of the word. Subordinate on purpose: the word's own SIZE already carries the share, and the numeral only says exactly how much.
 - **CENSUS_HEAD_ALPHA** — **0.75** *(not material)*  
@@ -277,13 +283,13 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
 - **STACK_FIELD_DIM** — **0.78**  
   how bright the one shot-material base is under a stack of operations. At full strength the field is the whole image and the six layers over it read as decoration on a picture that was already finished; held here, the marks stay the ground the other operations are applied TO.
 - **STACK_INSCRIPTION_DIM** — **0.72** *(not material)*  
-  the struck season numerals' ink in the composite. In THE PLATE the figure is the thing the frame is about; here it is one operation of seven, and at its own weight it dominates every layer a presenter adds after it. Typography, not grain.
+  the struck season numerals' ink in the composite. In THE PLATE the figure is the thing the frame is about; here it is one operation of eight, and at its own weight it dominates every layer a presenter adds after it. Typography, not grain.
 - **STACK_DISCLOSURE_INSET** — **18** *(not material)*  
   how far inside the plate's far edge a disclosure line sits, in court tenths. Composition: it moves a sentence, never a mark.
 - **STACK_WINDOW_FIELD_DIM** — **0.4**  
   how far the shot-material base yields when a WINDOW operation is applied over it — the painted possession or the calipers. Both are thin by measurement rather than by choice (ink is conserved against time, and one possession is one possession), so against a field at full weight neither is visible at all. THE PLATE dims its own field through Act III for the same reason and this is that rule, applied when the presenter names the operation instead of when the act arrives. Raise it and CONNECT THE BODY stops changing the plate when it is switched on.
 - **STACK_NAME_DIM** — **0.8** *(not material)*  
-  the spoken term's ink in the composite. Its SIZE is not touched — area is proportional to the shots the word names, which is the measurement THE LEDGER's register is built on — so ink is the only lever that can make it one voice among seven rather than the loudest thing on the plate. Typography, not grain.
+  the spoken term's ink in the composite. Its SIZE is not touched — area is proportional to the shots the word names, which is the measurement THE LEDGER's register is built on — so ink is the only lever that can make it one voice among eight rather than the loudest thing on the plate. Typography, not grain.
 - **STACK_CALIPER_ALPHA** — **0.55**  
   the four hero calipers' ink. A caliper is a hairline the length of the floor, and four of them at full strength read as engraving rather than as one operation applied over others.
 - **STACK_TICK_ALPHA** — **0.8**  
@@ -298,14 +304,14 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   the margin's subordinate lines — the record's own column name above the tally, and the tick-and-a-count tail below it.
 - **QUARREL_ALPHA** — **0.45**  
   the quarrel hairline's ink — the segment between the two instruments' claims about where one shot happened, JOIN THE INSTRUMENTS' only mark. Serifless on purpose: it is not a measurement between bodies, it is a distance between claims, and the caliper's serifs stay on the caliper. The ONE authored alpha the operation holds — the confession struck beside the flood rides at the same weight, and the budget of segments drawn at once is a count (stack.ts), not a material.
-- **SEASON_CLOCK_K** — **3.5**  
-  the easing of the season beat's clock over the window's REAL calendar (the crescendo, session 14): day(u) = (e^(k·u) − 1)/(e^k − 1) of the 89 inclusive days. The calendar underneath is measured — which marks arrive on which day, and the four days nobody played stay dead at speed — and only this easing is authored. Material because it decides which marks exist on a mid-beat frame, the REVEAL_CURVE reasoning. At this value the beat opens near the night's own pace and closes about e^k (~33×) faster; smaller flattens the crescendo toward a constant rate, larger makes the closing weeks a blur.
+- **SEASON_CLOCK_K** — **2.6**  
+  the easing of the season beat's clock over the window's REAL calendar (the crescendo, session 14): day(u) = (e^(k·u) − 1)/(e^k − 1) of the 89 inclusive days. The calendar underneath is measured — which marks arrive on which day, and the four days nobody played stay dead at speed — and only this easing is authored. Material because it decides which marks exist on a mid-beat frame, the REVEAL_CURVE reasoning. At this gentler value retains acceleration without holding the opening weeks almost still and dumping the closing weeks at once; smaller flattens toward a constant rate, larger makes the closing weeks a blur.
 - **WASH_TONE_K** — **400**  
   the wash's tone curve: how fast a cell's share of the corpus's tracked positions saturates toward full brightness, 1 − e^(−k·share) — the residence's own idiom at the wash's grain. Every scale reads the SAME curve against the SAME corpus total, which is what makes each handoff subset→superset by measure. Lower and a single game's ground vanishes under the season's; higher and the season flattens to a uniform glow.
 - **WASH_ALPHA** — **0.3**  
   the dried ground's ceiling: how strongly the wash sits under the wet strokes at full arrival. Higher and the ground competes with the followable line; lower and thirty nights of bodies read as a stain.
-- **GAME_CLOCK_K** — **3.5**  
-  the easing of the game phase's clock over the found game's own frames: frame(u) = (e^(k·u) − 1)/(e^k − 1) of the whole game, SEASON_CLOCK_K's curve one scale down. The feed underneath is measured; only the easing is authored. Material because it decides which strokes exist on a mid-phase frame. A rival ~7.3 (opening at the possession's true rate) is packet-flagged, undecided.
+- **GAME_CLOCK_K** — **2.6**  
+  the easing of the game phase's clock over the found game's own frames: frame(u) = (e^(k·u) − 1)/(e^k − 1) of the whole game, SEASON_CLOCK_K's curve one scale down. The feed underneath is measured; only the easing is authored. Material because it decides which strokes exist on a mid-phase frame. It shares the season clock's gentler acceleration so the game develops instead of stalling and then arriving as a rush.
 - **GAME_DRIED** — **0.12**  
   how far a game stroke dims once the wet edge has passed it — the drying, distinct from the wash beneath. 1 leaves the whole game as bright as its newest gesture and the eye loses the edge; too low and the game exists only at its leading seconds. The plan's first value was 0.45, and the first frames falsified it: a whole game's strokes at that ink saturate into a solid zone-coloured poster that buries the filed record beneath — the measured correction is the session-15 packet's to ratify.
 - **PASS_MARK_R** — **2.5**  

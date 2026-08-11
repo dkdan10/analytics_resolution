@@ -35,6 +35,7 @@ import {
   type Measures,
   type WindowFile,
 } from "../data";
+import { contextDisplay, ROOM_TEXT_MIN_PX } from "../display";
 import { drawSlug } from "../inscription";
 import { BONE_RGB, INSCRIPTION_FAMILY } from "../palette";
 import type { View } from "../plate";
@@ -53,7 +54,13 @@ import {
   NAMES_ONLY_ALPHA,
 } from "../scalars";
 import { label } from "../textatlas";
-import { WINDOW_BEATS } from "../timeline";
+import {
+  MEASURE_CLOSE_TERMINAL_FROM,
+  MEASURE_CLOSE_TERMINAL_TO,
+  MEASURE_WINDOW_TERMINAL_SPAN,
+  WINDOW_BEATS,
+  WINDOW_SEASON_CREST,
+} from "../window-score";
 import { drawSeasonField } from "./fieldlayer";
 import { arrivedThrough, cumulativeByDay, drawActCue, seasonClock } from "./shared";
 import type { Frame } from "./types";
@@ -63,6 +70,9 @@ import type { Frame } from "./types";
 const BEAT = Object.fromEntries(
   WINDOW_BEATS.map((b) => [b.id, [b.from, b.to] as const]),
 ) as Record<(typeof WINDOW_BEATS)[number]["id"], readonly [number, number]>;
+
+/** Compatibility export; the terminal-date score is centralized. */
+export { MEASURE_WINDOW_TERMINAL_SPAN };
 
 /** The inner annulus the figures settle on, in court tenths: inside the ring
  *  the season numerals garland, so Act III leaves two rings around the same
@@ -142,6 +152,26 @@ export function caliper(
   serif: number = CALIPER_SERIF,
 ): void {
   if (alpha <= 0.01) return;
+  ctx.save();
+  caliperInBatch(ctx, view, sx, sy, dx, dy, alpha, serif);
+  ctx.restore();
+}
+
+/** The same exact stroke, for a caller that owns one save/restore around a
+ * flood. Per-record save/restore was pure state churn: no caliper changes the
+ * transform, clip, composite mode or line cap, and every mutable value it does
+ * use is assigned below before drawing. */
+function caliperInBatch(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  sx: number,
+  sy: number,
+  dx: number,
+  dy: number,
+  alpha: number,
+  serif: number,
+): void {
+  if (alpha <= 0.01) return;
   const x0 = view.sx(sx);
   const y0 = view.sy(sy);
   const x1 = view.sx(dx);
@@ -150,7 +180,6 @@ export function caliper(
   const nx = -Math.sin(ang) * serif;
   const ny = Math.cos(ang) * serif;
 
-  ctx.save();
   ctx.strokeStyle = `rgba(${BONE_RGB}, ${alpha})`;
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -161,7 +190,6 @@ export function caliper(
   ctx.moveTo(x1 - nx, y1 - ny);
   ctx.lineTo(x1 + nx, y1 + ny);
   ctx.stroke();
-  ctx.restore();
 }
 
 /**
@@ -236,7 +264,8 @@ function strikeFigure(
   size = 22,
 ): void {
   if (alpha <= 0.01) return;
-  const px = Math.max(11, size * (view.scale / 2));
+  const room = contextDisplay(ctx) === "room";
+  const px = Math.max(room ? 16 : 11, size * (view.scale / 2));
   ctx.save();
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -244,7 +273,7 @@ function strikeFigure(
   ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha})`;
   ctx.fillText(text, view.sx(x), view.sy(y));
   if (sub) {
-    const sp = Math.max(7, px * 0.32);
+    const sp = Math.max(room ? 13 : 7, px * 0.32);
     ctx.font = `${sp}px ${INSCRIPTION_FAMILY}`;
     ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha * FIGURE_SUB_ALPHA})`;
     ctx.letterSpacing = `${sp * 0.16}px`;
@@ -276,6 +305,7 @@ function drawAbsent(f: Frame): void {
 /** Act II: the names arrive; the values cannot be made by anyone outside. */
 function drawNamesOnly(f: Frame, w: WindowFile | null): void {
   const { ctx, view, st, remains } = f;
+  const room = contextDisplay(ctx) === "room";
   drawSeasonField(f, { dim: remains * 0.55, reveal: true });
 
   const names = w ? w.contest.buckets.map((b) => b.name) : [];
@@ -283,7 +313,15 @@ function drawNamesOnly(f: Frame, w: WindowFile | null): void {
   names.forEach((name, i) => {
     if (i >= shown) return;
     const slot = figureSlot(i, names.length);
-    const lab = label(name.toUpperCase(), Math.max(8, 9.5 * (view.scale / 2)), f.dpr);
+    const lab = label(
+      name.toUpperCase(),
+      Math.max(
+        8,
+        9.5 * (view.scale / 2),
+        room ? ROOM_TEXT_MIN_PX.statement : 0,
+      ),
+      f.dpr,
+    );
     ctx.save();
     ctx.globalAlpha = remains * NAMES_ONLY_ALPHA;
     ctx.drawImage(lab.canvas, view.sx(slot.x) - lab.width / 2,
@@ -427,12 +465,15 @@ function beatNight(f: Frame, w: WindowFile, k: number, m: Measures | null): void
   const upto = from + Math.round((to - from) * Math.min(1, k * 1.1));
 
   const lo = Math.max(from, upto - CALIPER_BUDGET);
+  ctx.save();
   for (let i = lo; i < upto; i++) {
     const age = (upto - i) / Math.max(1, upto - lo);
     const fresh = (1 - age) * (1 - age);
     const alpha = a * (FLOOD_ALPHA_BASE + FLOOD_ALPHA_FRESH * fresh);
-    caliper(ctx, view, m.x[i]!, m.y[i]!, m.dx[i]!, m.dy[i]!, alpha, CALIPER_SERIF_FLOOD);
+    caliperInBatch(ctx, view, m.x[i]!, m.y[i]!, m.dx[i]!, m.dy[i]!,
+      alpha, CALIPER_SERIF_FLOOD);
   }
+  ctx.restore();
 
   // The night's own date, from the record's day byte — the same stamp the
   // season beat sweeps.
@@ -470,14 +511,17 @@ function beatSeason(f: Frame, w: WindowFile, k: number, m: Measures | null): voi
     const upto = arrivedThrough(cum, seasonClock(k) * (span + 1));
     reached = upto;
     const from = Math.max(0, upto - CALIPER_BUDGET);
+    ctx.save();
     for (let i = from; i < upto; i++) {
       // Sharply weighted to the newest, so the eye follows the writing edge
       // instead of swimming in the accumulated tangle behind it.
       const age = (upto - i) / Math.max(1, upto - from);
       const fresh = (1 - age) * (1 - age);
       const alpha = a * (FLOOD_ALPHA_BASE + FLOOD_ALPHA_FRESH * fresh);
-      caliper(ctx, view, m.x[i]!, m.y[i]!, m.dx[i]!, m.dy[i]!, alpha, CALIPER_SERIF_FLOOD);
+      caliperInBatch(ctx, view, m.x[i]!, m.y[i]!, m.dx[i]!, m.dy[i]!,
+        alpha, CALIPER_SERIF_FLOOD);
     }
+    ctx.restore();
 
     // The date the leading edge has reached — the corpus traversed as its own
     // calendar, now at the crescendo's pace.
@@ -502,7 +546,8 @@ function beatSeason(f: Frame, w: WindowFile, k: number, m: Measures | null): voi
 
   // The figures assemble at the crest, where the calendar is at its fastest —
   // the published statistic condensing out of the flood.
-  const settle = Math.max(0, (k - 0.85) / 0.15);
+  const settle = Math.max(0, Math.min(1,
+    (k - WINDOW_SEASON_CREST) / (1 - WINDOW_SEASON_CREST)));
   if (settle > 0) {
     w.contest.buckets.forEach((b, i) => {
       const slot = figureSlot(i, w.contest.buckets.length);
@@ -546,10 +591,12 @@ function beatClose(f: Frame, w: WindowFile, k: number, m: Measures | null): void
   if (m && m.n && remain > 0) {
     const upto = Math.round(m.n * remain);
     const from = Math.max(0, upto - CALIPER_BUDGET);
+    ctx.save();
     for (let i = from; i < upto; i++) {
-      caliper(ctx, view, m.x[i]!, m.y[i]!, m.dx[i]!, m.dy[i]!,
+      caliperInBatch(ctx, view, m.x[i]!, m.y[i]!, m.dx[i]!, m.dy[i]!,
         a * CLOSE_ALPHA * remain, CALIPER_SERIF_CLOSE);
     }
+    ctx.restore();
   }
 
   w.contest.buckets.forEach((b, i) => {
@@ -561,7 +608,9 @@ function beatClose(f: Frame, w: WindowFile, k: number, m: Measures | null): void
   // survives for the rest of the loop. It says so.
   if (w.bias.scope) drawSlug(ctx, view, [w.bias.scope], { x: 0, y: 250 }, a * 0.4);
 
-  const closing = Math.max(0, (k - 0.55) / 0.45);
+  const closing = Math.max(0, Math.min(1,
+    (k - MEASURE_CLOSE_TERMINAL_FROM)
+      / (MEASURE_CLOSE_TERMINAL_TO - MEASURE_CLOSE_TERMINAL_FROM)));
   if (closing > 0 && w.corpus.date_last) {
     const deadBy = factExternal<string>(f.data.facts, "endpoint_known_dead_by");
     drawSlug(ctx, view, [

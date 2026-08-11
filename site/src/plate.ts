@@ -5,7 +5,9 @@
  * transformed on its way to the screen beyond scale and offset.
  */
 
-import { LINE, LINE_FAINT } from "./palette";
+import { contextDisplay } from "./display";
+import { BONE_RGB, LINE, LINE_FAINT } from "./palette";
+import { ROOM_ENGRAVING_ALPHA, ROOM_ENGRAVING_FAINT_ALPHA } from "./scalars";
 // The lines this file engraves ARE the lines that classify a shot, so it draws
 // them from the same module the classifier reads. Three copies of the geometry
 // lived in the site before zone.ts; one drifting from another would put the
@@ -84,9 +86,12 @@ function strokePath(ctx: CanvasRenderingContext2D, color: string, w: number, pat
 export function drawPlate(ctx: CanvasRenderingContext2D, view: View, threeR = THREE_R): void {
   const { sx, sy, s } = view;
   const hair = Math.max(1, view.scale * 1.1);
+  const room = contextDisplay(ctx) === "room";
+  const essential = room ? `rgba(${BONE_RGB}, ${ROOM_ENGRAVING_ALPHA})` : LINE;
+  const detail = room ? `rgba(${BONE_RGB}, ${ROOM_ENGRAVING_FAINT_ALPHA})` : LINE_FAINT;
 
   // Baseline and sidelines.
-  strokePath(ctx, LINE, hair, () => {
+  strokePath(ctx, essential, hair, () => {
     ctx.moveTo(sx(COURT.x0), sy(BASELINE_Y));
     ctx.lineTo(sx(COURT.x1), sy(BASELINE_Y));
     ctx.moveTo(sx(COURT.x0), sy(BASELINE_Y));
@@ -96,7 +101,7 @@ export function drawPlate(ctx: CanvasRenderingContext2D, view: View, threeR = TH
   });
 
   // The lane and the free-throw circle.
-  strokePath(ctx, LINE, hair, () => {
+  strokePath(ctx, essential, hair, () => {
     ctx.moveTo(sx(-LANE_HALF_W), sy(BASELINE_Y));
     ctx.lineTo(sx(-LANE_HALF_W), sy(FREE_THROW_Y));
     ctx.lineTo(sx(LANE_HALF_W), sy(FREE_THROW_Y));
@@ -108,27 +113,27 @@ export function drawPlate(ctx: CanvasRenderingContext2D, view: View, threeR = TH
   // The three-point line: corner segments to where they meet the arc.
   const cornerX = Math.min(CORNER_X, threeR);
   const meetY = Math.sqrt(Math.max(0, threeR * threeR - cornerX * cornerX));
-  strokePath(ctx, LINE, hair, () => {
+  strokePath(ctx, essential, hair, () => {
     ctx.moveTo(sx(-cornerX), sy(BASELINE_Y));
     ctx.lineTo(sx(-cornerX), sy(meetY));
     ctx.moveTo(sx(cornerX), sy(BASELINE_Y));
     ctx.lineTo(sx(cornerX), sy(meetY));
   });
-  strokePath(ctx, LINE, hair, () => {
+  strokePath(ctx, essential, hair, () => {
     const a = Math.atan2(meetY, cornerX);
     ctx.arc(sx(0), sy(0), s(threeR), -Math.PI + a, -a, false);
   });
 
   // Backboard, rim, restricted arc - the apparatus at the centre of the record.
-  strokePath(ctx, LINE_FAINT, hair, () => {
+  strokePath(ctx, detail, hair, () => {
     ctx.moveTo(sx(-BACKBOARD_HALF_W), sy(BACKBOARD_Y));
     ctx.lineTo(sx(BACKBOARD_HALF_W), sy(BACKBOARD_Y));
   });
-  strokePath(ctx, LINE_FAINT, hair, () => {
+  strokePath(ctx, detail, hair, () => {
     ctx.moveTo(sx(RIM_R), sy(0));
     ctx.arc(sx(0), sy(0), s(RIM_R), 0, Math.PI * 2);
   });
-  strokePath(ctx, LINE_FAINT, hair, () => {
+  strokePath(ctx, detail, hair, () => {
     ctx.arc(sx(0), sy(0), s(RESTRICTED_R), -Math.PI, 0, false);
   });
 }

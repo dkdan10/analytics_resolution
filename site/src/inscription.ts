@@ -13,6 +13,7 @@
  */
 
 import type { Season } from "./data";
+import { contextDisplay, ROOM_TEXT_MIN_PX } from "./display";
 import { BONE_RGB, INSCRIPTION_FAMILY, SLUG_FAMILY } from "./palette";
 import type { View } from "./plate";
 import {
@@ -28,9 +29,14 @@ import {
   STRIKE_SHADOW_MAX,
 } from "./scalars";
 import {
-  ARRIVAL_TAIL, KEPT_CREST, SEASON_SECONDS, WINDOW_BEATS, WINDOW_YEAR,
+  ARRIVAL_TAIL, SEASON_SECONDS, WINDOW_YEAR,
   type Schedule,
 } from "./timeline";
+import {
+  PLATE_NUMERAL_HOLD_SECONDS,
+  PLATE_SHELL_FULL_PHASE,
+  WINDOW_CREST_PHASE,
+} from "./window-score";
 
 /** Struck on the centreline, out in the middle the piece is about. */
 const STRIKE_AT = { x: 0, y: 200 };
@@ -52,12 +58,12 @@ const RING_R = 172;
  * the window season the arc is different SINCE SESSION 17 (the fourth audit's
  * numeral ruling — both blind runs measured 24·6 as the loudest object at the
  * exact instant the found possession is smallest): the window's numeral WAITS,
- * strikes at the season beat's crest (timeline.ts:KEPT_CREST — the same
- * anchor THE HAND's kept points rise on), and migrates through the whole
- * close, landing resident exactly at the season boundary — the ordinary
- * seasons' own law, arrived at by the window's own clock. The possession
- * enters decongested; the statistic strikes as a consequence of the season
- * just built.
+ * strikes at the season beat's crest (window-score.ts:WINDOW_CREST_PHASE — the same
+ * anchor THE HAND's kept points rise on), holds fully for its scored dwell,
+ * then migrates only until the terminal shell becomes whole. It stays resident
+ * through the shell's terminal hold, so the closing frame is genuinely stable.
+ * The possession enters decongested; the statistic strikes as a consequence
+ * of the season just built.
  *
  * What this costs, accepted with the commission: the numeral no longer
  * coexists centrally with mid-arrival marks — the marks finish, and the
@@ -86,6 +92,8 @@ export interface Inscription {
    *  number cannot disagree with its own picture. */
   weight: number;
   strikeAt: number;
+  /** Seconds the numeral remains fully struck before it begins to migrate. */
+  hold: number;
   /** Seconds the migration takes — derived so residence lands exactly at the
    *  season boundary whatever the strike's delay was. */
   migrate: number;
@@ -118,18 +126,24 @@ export const STRIKE_LETTER_SPACING = 0.08;
 
 export function buildInscriptions(seasons: Season[], schedule: Schedule): Inscription[] {
   const n = seasons.length;
-  const seasonBeat = WINDOW_BEATS.find((b) => b.id === "season")!;
-  const crestPhase = seasonBeat.from + KEPT_CREST * (seasonBeat.to - seasonBeat.from);
   return seasons.map((s, i) => {
     // Slots run across the semicircle in season order, so the ring reads as
     // time laid around the hole it is measuring.
     const a = Math.PI - (i + 0.5) * (Math.PI / n);
     const seg = schedule.byYear.get(s.year);
     // The window's numeral waits for its season: it strikes at the beat's
-    // crest and migrates through the close, resident exactly at the boundary
-    // — the same law the ordinary delay produces, on the window's own clock.
+    // crest and completes its migration when the shell becomes whole. It then
+    // stays resident through the terminal hold.
     const duration = seg?.duration ?? SEASON_SECONDS;
-    const delay = s.year === WINDOW_YEAR ? crestPhase * duration : STRIKE_DELAY;
+    const delay = s.year === WINDOW_YEAR ? WINDOW_CREST_PHASE * duration : STRIKE_DELAY;
+    const hold = s.year === WINDOW_YEAR ? PLATE_NUMERAL_HOLD_SECONDS : HOLD;
+    // The Window's numeral completes its migration with the rest of the motion
+    // when the terminal shell becomes whole, then stays resident through the
+    // terminal receipt hold. Ordinary seasons still land at their own
+    // boundary exactly as before.
+    const migrationEnd = s.year === WINDOW_YEAR
+      ? PLATE_SHELL_FULL_PHASE * duration
+      : duration;
     return {
       year: s.year,
       text: struckFigure(s.mid_share),
@@ -147,7 +161,8 @@ export function buildInscriptions(seasons: Season[], schedule: Schedule): Inscri
         : undefined,
       weight: s.mid_share,
       strikeAt: (seg?.start ?? 0) + delay,
-      migrate: duration - delay - STRIKE_IN - HOLD,
+      hold,
+      migrate: migrationEnd - delay - STRIKE_IN - hold,
       slot: { x: RING_R * Math.cos(a), y: RING_R * Math.sin(a) },
       angle: a,
     };
@@ -176,10 +191,10 @@ function placementAt(ins: Inscription, t: number): Placement | null {
     const p = u / STRIKE_IN;
     return { x: STRIKE_AT.x, y: STRIKE_AT.y, scale: 1 + 0.12 * (1 - p), alpha: p, settled: 0 };
   }
-  if (u < STRIKE_IN + HOLD) {
+  if (u < STRIKE_IN + ins.hold) {
     return { x: STRIKE_AT.x, y: STRIKE_AT.y, scale: 1, alpha: 1, settled: 0 };
   }
-  const p = easeInOut((u - STRIKE_IN - HOLD) / ins.migrate);
+  const p = easeInOut((u - STRIKE_IN - ins.hold) / ins.migrate);
   return {
     x: STRIKE_AT.x + (ins.slot.x - STRIKE_AT.x) * p,
     y: STRIKE_AT.y + (ins.slot.y - STRIKE_AT.y) * p,
@@ -271,13 +286,17 @@ export function drawSlug(
 ): void {
   if (alpha <= 0.01) return;
   const r = SLUG_RANK[rank];
-  const px = Math.max(SLUG_MIN_PX, view.s(r.tenths));
+  const room = contextDisplay(ctx) === "room";
+  const px = Math.max(SLUG_MIN_PX, view.s(r.tenths), room ? ROOM_TEXT_MIN_PX[rank] : 0);
+  const ink = room
+    ? Math.max(r.alpha, rank === "voice" ? 0.94 : rank === "statement" ? 0.84 : 0.76)
+    : r.alpha;
   ctx.save();
   ctx.font = `${px}px ${SLUG_FAMILY}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.letterSpacing = `${px * 0.14}px`;
-  ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha * r.alpha})`;
+  ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha * ink})`;
   lines.forEach((line, i) => {
     ctx.fillText(line, view.sx(at.x), view.sy(at.y) + offsetPx + i * px * 1.9);
   });
@@ -306,7 +325,10 @@ export function drawInscriptions(
     // because there the numerals are a garland and have to stay legible.
     const byWeight = 0.55 + 1.05 * Math.min(1, ins.weight / 0.4);
     const sized = FACE_SIZE * (byWeight + (1 - byWeight) * p.settled);
-    const px = sized * p.scale * (view.scale / 2);
+    const px = Math.max(
+      sized * p.scale * (view.scale / 2),
+      contextDisplay(ctx) === "room" && p.settled >= 0.999 ? 14 : 0,
+    );
     // Struck upright in the middle, turning into the ring as it settles.
     const rotation = (Math.PI / 2 - ins.angle) * p.settled;
     strike(ctx, ins.text, view.sx(p.x), view.sy(p.y), px, p.alpha, rotation);
@@ -340,6 +362,35 @@ export function drawInscriptions(
         }
       }
     }
+  }
+  ctx.restore();
+}
+
+/** Coda lift: the completed ring is redrawn over the receding hand, then the
+ * ring itself takes the final fade. This is deliberately separate from the
+ * ordinary under-field inscription pass so layer order is explicit. */
+export function drawSettledInscriptions(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  inscriptions: Inscription[],
+  t: number,
+  alpha: number,
+): void {
+  if (alpha <= 0.01) return;
+  ctx.save();
+  for (const ins of inscriptions) {
+    const p = placementAt(ins, t);
+    if (!p || p.settled < 0.999) continue;
+    const byWeight = 0.55 + 1.05 * Math.min(1, ins.weight / 0.4);
+    const sized = FACE_SIZE * (byWeight + (1 - byWeight) * p.settled);
+    const px = Math.max(
+      sized * p.scale * (view.scale / 2),
+      contextDisplay(ctx) === "room" ? 14 : 0,
+    );
+    const rotation = (Math.PI / 2 - ins.angle) * p.settled;
+    // A stronger overprint than the engraved under-layer; still cut through
+    // `strike`, so face/shadow material remains one system.
+    strike(ctx, ins.text, view.sx(p.x), view.sy(p.y), px, alpha * 1.2, rotation);
   }
   ctx.restore();
 }

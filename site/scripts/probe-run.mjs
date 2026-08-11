@@ -86,7 +86,8 @@ async function main() {
   const [kind, ...rest] = process.argv.slice(2);
   if (kind !== "purity" && kind !== "perf") {
     die("usage: probe-run.mjs <purity|perf> [--mode ids] [--beat ids] [--t s] "
-      + "[--frames n] [--exact] [--timeout s] [--headed] [--channel name] [--port n]");
+      + "[--stop semantic-id] [--display near|room] [--frames n] [--exact] "
+      + "[--assert-presentation] [--timeout s] [--headed] [--channel name] [--port n]");
   }
   const { flags, bools } = parseArgs(rest);
 
@@ -104,7 +105,7 @@ async function main() {
   // `ops` narrows THE STACK's configuration axis the way `mode` and `beat`
   // narrow the other two. Without it a stack run always sweeps every
   // configuration, which is right for a verdict and slow for an iteration.
-  for (const k of ["mode", "beat", "t", "frames", "playback", "ops"]) {
+  for (const k of ["mode", "beat", "t", "stop", "display", "frames", "playback", "ops"]) {
     if (flags[k] !== undefined) q.set(k, flags[k]);
   }
   if (bools.has("exact")) q.set("exact", "1");
@@ -188,6 +189,29 @@ async function main() {
 
   const stamped = {
     ...report,
+    ...(kind === "perf" && bools.has("assert-presentation") ? (() => {
+      const limits = {
+        p95MsBelow: 16.67,
+        maxMsBelow: 33.3,
+        noFrameAboveMs: 50,
+      };
+      const failures = report.rows.flatMap((row) => {
+        const reasons = [];
+        if (!(row.p95Ms < limits.p95MsBelow)) reasons.push(`p95 ${row.p95Ms}ms`);
+        if (!(row.maxMs < limits.maxMsBelow)) reasons.push(`max ${row.maxMs}ms`);
+        if (row.maxMs > limits.noFrameAboveMs) reasons.push(`frame above ${limits.noFrameAboveMs}ms`);
+        return reasons.length
+          ? [`${row.mode}/${row.beat}: ${reasons.join(", ")}`]
+          : [];
+      });
+      return {
+        presentationAcceptance: {
+          limits,
+          passed: failures.length === 0,
+          failures,
+        },
+      };
+    })() : {}),
     instrument: {
       driver: "site/scripts/probe-run.mjs",
       browser: "chromium",
@@ -210,7 +234,8 @@ async function main() {
   // `--out` names the file, so a "before" measurement is not overwritten by the
   // "after" that is supposed to be compared with it. Unnamed narrowed runs are
   // marked partial rather than posing as a full sweep.
-  const suffix = flags.mode || flags.beat || flags.t || flags.ops ? "-partial" : "";
+  const suffix = flags.mode || flags.beat || flags.t || flags.stop || flags.display || flags.ops
+    ? "-partial" : "";
   const path = join(OUT_DIR, flags.out ? `${flags.out}.json` : `${kind}${suffix}.json`);
   writeFileSync(path, `${JSON.stringify(stamped, null, 2)}\n`);
 
@@ -228,6 +253,12 @@ async function main() {
     }
   }
   console.log(`probe-run: wrote ${path.replace(`${REPO}/`, "")}`);
+  if (stamped.presentationAcceptance && !stamped.presentationAcceptance.passed) {
+    for (const failure of stamped.presentationAcceptance.failures) {
+      console.error(`probe-run: presentation threshold failed: ${failure}`);
+    }
+    die("presentation performance acceptance failed; failing report was written");
+  }
 }
 
 await main();

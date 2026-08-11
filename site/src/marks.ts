@@ -1,20 +1,22 @@
-/** The pin, and a dormant texture ladder.
+/** The pin, and a dormant per-shot texture ladder.
  *
  * WHAT IN THIS FILE ACTUALLY DRAWS. Only `drawPin` and `clearStamps` are
  * imported anywhere: the pin, by modes/fieldlayer.ts, and the cache reset by
  * the purity probe, which needs to force a cold start. `drawMarks`, `stampsFor`
- * and `stamp` are the two-hand texture ladder, and nothing calls them — since
- * commit e811cab THE FIELD bakes every shot into one image (field.ts) instead
- * of stamping the fixed-seed sample, and that layer COLLAPSES the count classes,
- * summing `hires` and `rest` per cell. So the arena-inlay content the ladder
- * below describes is not on screen at all.
+ * and `stamp` are the legacy two-hand sampler, and nothing calls them — since
+ * commit e811cab THE FIELD bakes the population into one image (field.ts)
+ * instead of stamping the fixed-seed sample.
  *
- * It is kept, deliberately, and it is session 5's to decide: deleting it would
- * silently remove the option of restoring the ladder over the baked field, and
- * the loss is recorded in CLAUDE.md rather than left for a reader to discover.
- * INK is live through INK_REFERENCE_MARKS, which sets the pin's radius.
+ * The measured grain is no longer dormant, however. `field.ts` now carries the
+ * same sharp/coarse distinction through the finished bake, reveals, deltas and
+ * Window folds: blind restricted-area cells use the broad normalised kernel;
+ * uneven cells divide their one already-toned light value by the recorded
+ * hires/rest populations; sighted and off-rim cells keep the original sharp
+ * pixels. The sampler below remains only as the older per-shot expression of
+ * that rule. INK is live through INK_REFERENCE_MARKS, which sets the pin's
+ * radius.
  *
- * THE LADDER'S CLAIM, for whoever restores it. The four regimes in `resolution`
+ * THE SHARED CLAIM. The four regimes in `resolution`
  * are measured ONLY over restricted-area shots — whether the record would say
  * *where at the rim* a layup happened. Away from the rim its precision is a
  * constant tenth of a foot in every season and every building (CLAUDE.md ground

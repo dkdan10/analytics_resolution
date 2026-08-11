@@ -14,9 +14,33 @@
 
 import { drawInscriptions, drawSlug } from "../inscription";
 import { SEASON_SECONDS, secondsFor } from "../timeline";
+import {
+  FIELD_WINDOW_ATTRIBUTION_SPAN,
+  FIELD_WINDOW_ATTRIBUTION_STOPS,
+  progressInWindowSpan,
+} from "../window-score";
 import type { Frame } from "./types";
 import { drawSeasonField } from "./fieldlayer";
 import { drawActCue } from "./shared";
+
+/** Compatibility exports; the canonical attribution score is centralized. */
+export { FIELD_WINDOW_ATTRIBUTION_SPAN, FIELD_WINDOW_ATTRIBUTION_STOPS };
+
+/** Window-only envelope: a short entrance, a long hold, then a clean exit. */
+export function fieldWindowAttributionAlpha(phase: number): number {
+  const local = progressInWindowSpan(phase, FIELD_WINDOW_ATTRIBUTION_SPAN);
+  const enterEnd = progressInWindowSpan(
+    FIELD_WINDOW_ATTRIBUTION_STOPS[1].at,
+    FIELD_WINDOW_ATTRIBUTION_SPAN,
+  );
+  const exitStart = progressInWindowSpan(
+    FIELD_WINDOW_ATTRIBUTION_STOPS[2].at,
+    FIELD_WINDOW_ATTRIBUTION_SPAN,
+  );
+  if (local < enterEnd) return local / enterEnd;
+  if (local <= exitStart) return 1;
+  return Math.max(0, (1 - local) / (1 - exitStart));
+}
 
 export function drawFieldHand(f: Frame): void {
   const { ctx, view, st, inscriptions, remains } = f;
@@ -36,16 +60,19 @@ export function drawFieldHand(f: Frame): void {
 
   // Whose categories these are, named on the plate rather than only on a wall.
   // Clocked in SECONDS, not phase (third audit, FIELD improvement 3): the
-  // attribution held a few seconds in an ordinary season but nearly a minute in the dilated
-  // window — the longest-lived sentence in the piece, over the act with the
-  // most competing material. The spans below reproduce the judged ordinary-
-  // season timing exactly (byte-identical there) and give the window the same
-  // few seconds; a viewer entering mid-window catches it next season.
+  // attribution held a few seconds in an ordinary season but nearly a minute in
+  // the dilated window — the longest-lived sentence in the piece, over the act
+  // with the most competing material. Ordinary seasons retain their judged
+  // envelope; the Window gets the explicit entrance, hold, and exit above.
   const sIn = st.phase * secondsFor(st.year!);
   const spanS = 0.34 * SEASON_SECONDS;
   const rampS = SEASON_SECONDS / 8;
-  if (sIn < spanS) {
-    const fade = Math.min(1, sIn / rampS) * Math.min(1, (spanS - sIn) / rampS) * remains;
+  const fade = st.act === 3
+    ? fieldWindowAttributionAlpha(st.phase) * remains
+    : (sIn < spanS
+      ? Math.min(1, sIn / rampS) * Math.min(1, (spanS - sIn) / rampS) * remains
+      : 0);
+  if (fade > 0) {
     drawSlug(ctx, view, ["COLOURED BY THE NBA'S OWN ZONES"], { x: 0, y: 400 }, fade);
   }
 

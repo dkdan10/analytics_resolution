@@ -61,6 +61,7 @@ import {
   CENSUS_TICK_WEIGHT,
   CENSUS_WORD_ALPHA,
   MACHINE_SAW_SCALE,
+  MACHINE_SAW_SCOPE_OFFSET_PX,
   ROTATE_MAX_RAD,
   ROTATE_STEP_RAD,
   SIXFOLD_ALPHA,
@@ -70,9 +71,33 @@ import {
   WORD_CLEAR_PAD,
 } from "../scalars";
 import { ARRIVAL_TAIL } from "../timeline";
+import {
+  CENSUS_FILING_COMPLETE,
+  CENSUS_FILING_FADE,
+  CENSUS_FILING_HOLD_TO,
+  CENSUS_FILING_MIN_SECONDS,
+  CENSUS_MACHINE_SAW_SPAN,
+  CENSUS_MACHINE_SAW_STOP,
+  MACHINE_SAW_BUILD_SECONDS,
+  MACHINE_SAW_TITLE,
+  censusWindowStops,
+  windowSecondAtPhase,
+} from "../window-score";
 import { drawSeasonField } from "./fieldlayer";
 import { drawActCue } from "./shared";
 import type { Frame } from "./types";
+
+/** Compatibility exports; the canonical Census score is centralized. */
+export {
+  CENSUS_FILING_COMPLETE,
+  CENSUS_FILING_FADE,
+  CENSUS_FILING_HOLD_TO,
+  CENSUS_FILING_MIN_SECONDS,
+  CENSUS_MACHINE_SAW_SPAN,
+  CENSUS_MACHINE_SAW_STOP,
+  MACHINE_SAW_BUILD_SECONDS,
+  MACHINE_SAW_TITLE,
+};
 
 
 /** Where the plate speaks, in court tenths. Above the arc, where no season has
@@ -365,7 +390,13 @@ function strikeSixfold(
 /** The machine's own field name and its size, plus the count so far. The
  *  league's schema names rather than friendly words: this is the machine's
  *  field, struck in stone. */
-function strikeHeader(f: Frame, season: Season, taxonomy: string, arrived: number): void {
+function strikeHeader(
+  f: Frame,
+  season: Season,
+  taxonomy: string,
+  arrived: number,
+  opacity = 1,
+): void {
   const { ctx, view, data, remains } = f;
   const column = data.taxonomyColumns[taxonomy] ?? taxonomy;
   const categories = season.vocabulary.taxonomies[column] ?? 0;
@@ -373,7 +404,7 @@ function strikeHeader(f: Frame, season: Season, taxonomy: string, arrived: numbe
   drawSlug(ctx, view, [
     `${season.season}  ·  ${column}  ·  ${categories} CATEGORIES`,
     `${classified.toLocaleString()} SHOTS CLASSIFIED`,
-  ], HEADER_AT, remains * CENSUS_HEAD_ALPHA);
+  ], HEADER_AT, remains * CENSUS_HEAD_ALPHA * opacity);
 }
 
 /**
@@ -381,12 +412,12 @@ function strikeHeader(f: Frame, season: Season, taxonomy: string, arrived: numbe
  * composition. One line, once, in THE MEASURE's definition idiom, and it is not
  * optional: without it a viewer is entitled to read the layout as a design.
  */
-function strikeDisclosure(f: Frame): void {
+function strikeDisclosure(f: Frame, opacity = 1): void {
   const { ctx, view, remains } = f;
   drawSlug(ctx, view, [
     "EACH NAME STRUCK AT THE MEAN DISTANCE AND BEARING",
     "OF THE SHOTS THE RECORD GAVE IT · BEARING MOVED FOR ROOM, DISTANCE NEVER",
-  ], HEADER_AT, remains * CENSUS_SUB_ALPHA, "aside", 62);
+  ], HEADER_AT, remains * CENSUS_SUB_ALPHA * opacity, "aside", 62);
 }
 
 /**
@@ -398,7 +429,13 @@ function strikeDisclosure(f: Frame): void {
  * many found no clear bearing. The tail is a tick and a number, never a swarm of
  * labels, which is THE LEDGER's proven failure.
  */
-function strikeFooter(f: Frame, season: Season, taxonomy: string, words: Filed[]): void {
+function strikeFooter(
+  f: Frame,
+  season: Season,
+  taxonomy: string,
+  words: Filed[],
+  opacity = 1,
+): void {
   const { ctx, view, remains } = f;
   const total = Object.keys(season.classification[taxonomy] ?? {}).length;
   const struck = words.filter((w) => w.named && !w.homeless).length;
@@ -413,7 +450,7 @@ function strikeFooter(f: Frame, season: Season, taxonomy: string, words: Filed[]
   const lines = [`${struck} OF ${total} STRUCK · ${total - struck} A TICK AND A COUNT`];
   if (beyond > 0) lines.push(`${beyond} PLACED BEYOND THIS FLOOR`);
   if (homeless > 0) lines.push(`${homeless} WITH NO ROOM AT ITS OWN DISTANCE`);
-  drawSlug(ctx, view, lines, FOOTER_AT, remains * CENSUS_SUB_ALPHA);
+  drawSlug(ctx, view, lines, FOOTER_AT, remains * CENSUS_SUB_ALPHA * opacity);
 }
 
 /**
@@ -436,13 +473,26 @@ function strikeFooter(f: Frame, season: Season, taxonomy: string, words: Filed[]
  * the criterion is met for most of every season and knowingly relaxed at the end
  * of it, by decision.
  */
-function drawReceipt(f: Frame, season: Season, taxonomy: string, words: Filed[]): void {
-  const { ctx, view, st, remains } = f;
-  // Nothing until the season has finished arriving, then in over the tail.
-  const k = Math.min(1, Math.max(0, (st.phase - ARRIVAL_TAIL) / (1 - ARRIVAL_TAIL) * 3));
+function drawReceipt(
+  f: Frame,
+  season: Season,
+  taxonomy: string,
+  words: Filed[],
+  localPhase = f.st.phase,
+  completeAt = ARRIVAL_TAIL,
+  holdTo = 1,
+  opacity = 1,
+): void {
+  const { ctx, view, remains, navVisible, display } = f;
+  // The panel already carries this apparatus. Suppress only when it is visibly
+  // present; talk mode with the panel hidden remains a clean, complete canvas.
+  if (navVisible) return;
+  // Nothing until this filing has finished arriving, then in on its LOCAL tail.
+  const tail = Math.max(Number.EPSILON, holdTo - completeAt);
+  const k = Math.min(1, Math.max(0, ((localPhase - completeAt) / tail) * 3)) * opacity;
   if (k <= 0.01) return;
 
-  const px = Math.max(8.5, Math.min(11, view.width / 150));
+  const px = Math.max(display === "room" ? 13 : 8.5, Math.min(11, view.width / 150));
   const pad = Math.round(px * 1.6);
   ctx.save();
   ctx.font = `${px}px ${SLUG_FAMILY}`;
@@ -479,30 +529,30 @@ function drawReceipt(f: Frame, season: Season, taxonomy: string, words: Filed[])
  * strongest content in the census set in the smallest type on screen.
  */
 
-/** The seventh beat's headline — exported so the talk rail's CENSUS interior
- *  (THE SECOND SCORE) names the beat with the hand's own words rather than a
- *  second copy that can drift. One definition, two readers. */
-export const MACHINE_SAW_TITLE = "BODY POSITIONS THE MACHINE SAW";
-
 // --- TIME BELONGS TO THE COUNT (session 17, the three-instrument vote) -------
 //
 // The window's census stops used to split the act evenly, so the smallest
 // filing held the plate exactly as long as the largest — a plateau for the
 // small filings and a sprint for the one that carries the hand's whole
 // argument. The beats are now DERIVED from the record: each
-// filing gets a floor of CENSUS_FILING_MIN_S seconds, the remainder divides in
-// proportion to each taxonomy's own category count
-// (`vocabulary.taxonomies`), and MACHINE SAW is protected at the equal-split
-// span it always had — its beat's boundaries are unchanged to the digit, so
-// the seventh stop's frames are byte-stable across this change. Time belongs
-// to the count; nothing here is a judgment about which filing matters.
+// filing gets the central CENSUS_FILING_MIN_SECONDS floor, the remainder of the
+// PRE-CLOSE score divides in proportion to each taxonomy's own category count
+// (`vocabulary.taxonomies`). MACHINE SAW owns the shared CLOSE exactly: its
+// build is short and its completed receipt holds for the rest of the Window.
+// Time belongs to the count; nothing here is a judgment about which filing
+// matters.
 //
 // ONE definition, TWO readers: the hand files by this table and the talk
 // rail's CENSUS interior lists it (the WINDOW_BEATS discipline).
 
-/** A pacing floor, not a material: the shortest a filing may hold the plate,
- *  in window seconds — below this a two-category filing becomes a flash. */
-const CENSUS_FILING_MIN_S = 6;
+export function censusFilingProgress(localPhase: number): number {
+  return Math.min(1, Math.max(0, localPhase / CENSUS_FILING_COMPLETE));
+}
+
+export function censusFilingOpacity(localPhase: number): number {
+  if (localPhase <= CENSUS_FILING_HOLD_TO) return 1;
+  return Math.min(1, Math.max(0, (1 - localPhase) / CENSUS_FILING_FADE));
+}
 
 export interface CensusStop {
   /** The classification key this stop files, or null for MACHINE SAW. */
@@ -519,28 +569,19 @@ export function censusStops(
   durationSeconds: number,
 ): CensusStop[] {
   const columns = Object.keys(taxonomyColumns);
-  const sawSeconds = durationSeconds / (columns.length + 1);
-  const counts = columns.map(
-    (c) => season.vocabulary.taxonomies[taxonomyColumns[c] ?? c] ?? 0,
-  );
-  const total = counts.reduce((a, b) => a + b, 0) || 1;
-  const spare = Math.max(
-    0, durationSeconds - sawSeconds - CENSUS_FILING_MIN_S * columns.length,
-  );
-  const out: CensusStop[] = [];
-  let at = 0;
-  columns.forEach((c, k) => {
-    const secs = CENSUS_FILING_MIN_S + (spare * counts[k]!) / total;
-    out.push({
-      taxonomy: c,
-      title: taxonomyColumns[c] ?? c,
-      from: at / durationSeconds,
-      to: (at + secs) / durationSeconds,
-    });
-    at += secs;
-  });
-  out.push({ taxonomy: null, title: MACHINE_SAW_TITLE, from: at / durationSeconds, to: 1 });
-  return out;
+  return censusWindowStops(columns.map((taxonomy) => {
+    const title = taxonomyColumns[taxonomy] ?? taxonomy;
+    return {
+      taxonomy,
+      title,
+      count: season.vocabulary.taxonomies[title] ?? 0,
+    };
+  }), durationSeconds).map(({ taxonomy, title, from, to }) => ({
+    taxonomy,
+    title,
+    from,
+    to,
+  }));
 }
 
 function strikeMachineSaw(f: Frame, k: number): void {
@@ -578,11 +619,11 @@ function strikeMachineSaw(f: Frame, k: number): void {
   // figures it does not describe is the same defect as omitting one.
   drawSlug(ctx, view, [
     `${w.corpus.games_parsed} OF ${factNum(data.facts, "season.games_full").toLocaleString()} GAMES`,
-  ], { x: 0, y: 60 }, remains * k, "aside", 44);
+  ], { x: 0, y: 60 }, remains * k, "aside", MACHINE_SAW_SCOPE_OFFSET_PX);
 }
 
 export function drawCensusHand(f: Frame): void {
-  const { st, data, schedule, remains, talk } = f;
+  const { st, data, schedule, remains } = f;
   const season = data.byYear.get(st.year!)!;
   const elapsed = st.phase * (schedule.byYear.get(st.year!)?.duration ?? 0);
 
@@ -605,8 +646,18 @@ export function drawCensusHand(f: Frame): void {
 
   // Inside the window each beat fills on its own clock, so the count settles
   // once per taxonomy rather than once per season.
-  const arrived = stop
+  const local = stop
     ? Math.min(1, Math.max(0, (st.phase - stop.from) / (stop.to - stop.from)))
+    : st.phase;
+  const filingOpacity = stop && stop.taxonomy !== null
+    ? censusFilingOpacity(local)
+    : 1;
+  const arrived = stop
+    ? (machineSaw
+      ? Math.min(1, Math.max(0,
+        (windowSecondAtPhase(st.phase) - windowSecondAtPhase(stop.from))
+          / MACHINE_SAW_BUILD_SECONDS))
+      : censusFilingProgress(local))
     : st.arrived;
 
   // The league's own region names, in the league's own order, out of the
@@ -619,12 +670,17 @@ export function drawCensusHand(f: Frame): void {
     const words = filing(season, taxonomy, arrived, zoneNames,
                          season.vocabulary.covering_90pct?.[taxonomy] ?? 1);
     layOut(words);
-    strikeTicks(f, words, remains);
-    strikeWords(f, words, remains, taxonomy === "ZONE");
-    strikeHeader(f, season, taxonomy, arrived);
-    strikeDisclosure(f);
-    strikeFooter(f, season, taxonomy, words);
-    drawReceipt(f, season, taxonomy, words);
+    strikeTicks(f, words, remains * filingOpacity);
+    strikeWords(f, words, remains * filingOpacity, taxonomy === "ZONE");
+    strikeHeader(f, season, taxonomy, arrived, filingOpacity);
+    strikeDisclosure(f, filingOpacity);
+    strikeFooter(f, season, taxonomy, words, filingOpacity);
+    if (stop) {
+      drawReceipt(f, season, taxonomy, words, local,
+        CENSUS_FILING_COMPLETE, CENSUS_FILING_HOLD_TO, filingOpacity);
+    } else {
+      drawReceipt(f, season, taxonomy, words);
+    }
 
     // All six at once, briefly, at the opening of every season.
     const k = 1 - Math.min(1, elapsed / SIXFOLD_SECONDS);
@@ -639,10 +695,6 @@ export function drawCensusHand(f: Frame): void {
   // counts this season's arrived shots, so a field still carrying the previous
   // season's marks would contradict a census reading "3 SHOTS CLASSIFIED".
   drawSeasonField(f, { dim: remains * CENSUS_FIELD_DIM, withPrevious: false });
-
-  // The full apparatus, verbatim, and only where somebody is working. This is
-  // mode CONFIGURATION, not held state, so render(mode, t) stays pure.
-  if (talk) drawTables(f, season);
 
   // The boundaries named (S1): the census has no native boundary event —
   // its taxonomy turnover happens most seasons, not at the acts.
@@ -768,7 +820,7 @@ class Columns {
   }
 }
 
-function drawTables(f: Frame, season: Season): void {
+export function drawCensusApparatus(f: Frame, season: Season): void {
   const { ctx, view, st, data, remains } = f;
   const { groups, classified } = census(season, st.arrived);
 

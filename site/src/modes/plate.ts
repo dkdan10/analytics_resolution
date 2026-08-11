@@ -24,16 +24,25 @@ import { drawInscriptions, drawSlug } from "../inscription";
 import { prefixSurface } from "../prefix";
 import { GAME_DRIED, OLD_YIELD_STRENGTH } from "../scalars";
 import { secondsFor } from "../timeline";
+import {
+  PLATE_GAME_FROM_PHASE,
+  PLATE_GAME_TO_PHASE,
+  PLATE_SHELL_FROM_PHASE,
+  PLATE_SHELL_FULL_PHASE,
+  PLATE_SHELL_SPAN,
+  PLATE_WITHDRAW_SPAN,
+  WINDOW_BEATS,
+  progressInWindowSpan,
+} from "../window-score";
 import { drawSeasonField } from "./fieldlayer";
-import { HAND_PHASES } from "./hand";
 import { drawActCue, terminalShell } from "./shared";
 import { drawQuarrel } from "./stack";
 import type { Frame } from "./types";
 
 /** Where in the window's phase the terminal shell strikes. Exported for the
  *  talk rail's PLATE interior (THE SECOND SCORE) — one definition, two
- *  readers, the `WINDOW_BEATS` discipline. Paired with `bloom.ts:SPREAD`. */
-export const SHELL_PHASE = 0.9;
+ *  readers. The source is window-score.ts; this alias preserves the rail API. */
+export const SHELL_PHASE = PLATE_SHELL_FROM_PHASE;
 
 /**
  * The entry yield's fixed two-width penumbra: the wake erases at full
@@ -59,17 +68,25 @@ export function drawPlateHand(f: Frame): void {
 
   // Act III dims the field slightly: the rest of the league is still only dots,
   // and the gestures have to be the brightest thing the window holds. The
-  // depth RELEASES across the close (third audit D-01): ordinary light comes
-  // back while the window's layers wash off, so the boundary at the window's
-  // exit is an ordinary season boundary and never a second cut — the piece's
-  // law is one cut, at the burst.
+  // depth RELEASES across the early close (third audit D-01), then holds once
+  // the shell is whole: the receipt needs a stable field behind it rather than
+  // a background still changing during its terminal hold.
   const inWindow = st.act === 3 && data.traces !== null;
-  const pClose = HAND_PHASES[4];
-  const closeU = st.act === 3
-    ? Math.max(0, Math.min(1, (st.phase - pClose.from) / (pClose.to - pClose.from)))
+  const pClose = WINDOW_BEATS[3];
+  const withdrawU = st.act === 3
+    ? progressInWindowSpan(st.phase, PLATE_WITHDRAW_SPAN)
+    : 0;
+  // Preserve the existing brightness release only until the terminal shell is
+  // fully present, then freeze it. The final scored hold keeps one stable,
+  // slightly subordinate field behind the receipt instead of continuing to
+  // brighten under text that is supposed to hold.
+  const fieldReleaseU = st.act === 3
+    ? Math.max(0, Math.min(1,
+      (Math.min(st.phase, PLATE_SHELL_FULL_PHASE) - pClose.from)
+      / (pClose.to - pClose.from)))
     : 0;
   const fieldDim =
-    (inWindow ? 1 - 0.55 * Math.min(1, st.phase * 4) * (1 - closeU) : 1) * remains;
+    (inWindow ? 1 - 0.55 * Math.min(1, st.phase * 4) * (1 - fieldReleaseU) : 1) * remains;
 
   // THE GAME'S SHARE's clock, computed BEFORE the field goes down: the entry
   // yield mask (session 17) needs the same reach the strokes below will
@@ -80,16 +97,17 @@ export function drawPlateHand(f: Frame): void {
   const p = st.phase;
   const clock = gm && gf && st.act === 3
     ? (() => {
-        const pGame = HAND_PHASES[1];
         const total = gameTotalFrames(gf);
-        const gameU = Math.max(0, Math.min(1, (p - pGame.from) / (pGame.to - pGame.from)));
+        const gameU = Math.max(0, Math.min(1,
+          (p - PLATE_GAME_FROM_PHASE) / (PLATE_GAME_TO_PHASE - PLATE_GAME_FROM_PHASE)));
         const gameFrame = gameU > 0 ? gameClock(gameU) * total : 0;
         const sp = strokeSpans(gm, gf);
         const pos = possessionFrames(gf);
         const oneFrames = p * secondsFor(year) * gf.hz;
         return {
           total, gameFrame, sp, pos,
-          dryFrame: gameFrame + Math.max(0, p - pGame.to) * secondsFor(year) * gf.hz,
+          dryFrame: gameFrame
+            + Math.max(0, p - PLATE_GAME_TO_PHASE) * secondsFor(year) * gf.hz,
           clipUpto: Math.min(pos.f1, pos.f0 + oneFrames),
         };
       })()
@@ -176,16 +194,13 @@ export function drawPlateHand(f: Frame): void {
   // THE GAME'S SHARE (session 15 — the artist's strongest want: ALL the
   // information on the plate). The found game's every body and the ball, in
   // bone at the traces' own weights — bodies fainter and thinner, the ball
-  // brighter and wider — with pass beads and shot anchors, phased by the
-  // hand's exported HAND_PHASES: the possession at true rate through "one",
-  // the full game on its eased clock through "the game", held dried through
-  // the window, washed at the close. The ratified ball residence beneath is
+  // brighter and wider — with pass beads and shot anchors, phased by THE
+  // PLATE's score: five seconds of possession, five held clean, then the full
+  // game on its eased clock through the shared season boundary, held dried
+  // through the window and washed at the close. The ball residence beneath is
   // untouched, and there is deliberately NO body wash on this plate — two
   // densities under one field would compete (rival flagged in the packet).
-  let tracesDim = 1;
   if (gm && gf && clock) {
-    const pGame = HAND_PHASES[1];
-    const pNight = HAND_PHASES[2];
     const { total, gameFrame, sp, pos, dryFrame, clipUpto } = clock;
     // THE DRYING CLOCK (`dryFrame`) CONTINUES past the game's end (third
     // audit D-02): the buzzer's stroke is not "just happening" for the rest
@@ -196,7 +211,7 @@ export function drawPlateHand(f: Frame): void {
     // prefix and the clip keep `gameFrame`, so no stroke gains vertices it
     // has not earned. All computed once, above, where the yield mask shares
     // them.
-    const env = remains * (1 - closeU);
+    const env = remains * (1 - withdrawU);
 
     const dw = Math.max(1, Math.round(view.width * dpr));
     const dh = Math.max(1, Math.round(view.height * dpr));
@@ -250,21 +265,11 @@ export function drawPlateHand(f: Frame): void {
     drawGameEvents(ctx, view, gf, gameFrame, env,
       { from: pos.f0, to: clipUpto }, dryFrame - wetFrames);
 
-    // The 32 curated traces YIELD while the game holds the plate: an
-    // index-spread schedule and a date-anchored game are two clocks, and one
-    // surface may not run both. The coexist rival is one constant away and is
-    // flagged in the session-15 packet. EASED at both edges over one second of
-    // the window (third audit D-05): a trace mid-flight at a yield boundary
-    // dims over a beat instead of popping in a frame; inside the span the
-    // yield still reaches exactly zero.
-    const yieldRamp = 1 / secondsFor(year);
-    tracesDim = Math.max(0, Math.min(1,
-      Math.max(pGame.from - p, p - pNight.to) / yieldRamp));
   }
 
   if (inWindow && data.traces) {
     drawBloom(ctx, view, data.traces.traces,
-      { phase: st.phase, duration: secondsFor(year), dim: tracesDim });
+      { phase: st.phase, duration: secondsFor(year) });
   }
 
   // THE PACKET CANDIDATE, and nothing else. Reachable only through the shots
@@ -282,13 +287,15 @@ export function drawPlateHand(f: Frame): void {
     if (last) {
       // The shell arrives while the last gesture is still fading — the plate
       // hands itself from the corpus's last trace to the record's last file
-      // with no dead interval between them. Paired with `bloom.ts:SPREAD`.
-      const closing = Math.max(0, Math.min(1, (st.phase - SHELL_PHASE) / 0.05));
+      // with no dead interval between them. Both anchors live in window-score.
+      const closing = progressInWindowSpan(st.phase, PLATE_SHELL_SPAN);
       drawSlug(
         ctx,
         view,
         [data.corpus.date_range[1], last, `${data.corpus.empty_shell_bytes} BYTES · NO CONTENT`],
-        { x: 0, y: 210 },
+        // Above the settled numeral annulus: the receipt's final line must not
+        // cross the evidence it concludes during the terminal hold.
+        { x: 0, y: 250 },
         closing,
       );
     }

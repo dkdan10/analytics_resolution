@@ -21,6 +21,7 @@
  */
 
 import { factExternal, factNum, type Loaded, type Sample, type Season, type WindowFile } from "../data";
+import { contextDisplay, ROOM_TEXT_MIN_PX } from "../display";
 import { drawSlug } from "../inscription";
 import { BONE_RGB, SLUG_FAMILY } from "../palette";
 import { COURT } from "../plate";
@@ -46,8 +47,17 @@ import {
   TERM_TAIL_TENTHS,
   TERM_TIE_ALPHA,
 } from "../scalars";
-import { actOf, ARRIVAL_TAIL, WINDOW_BEATS } from "../timeline";
+import { actOf, ARRIVAL_TAIL } from "../timeline";
 import { label } from "../textatlas";
+import {
+  LEDGER_WINDOW_STOPS,
+  LEDGER_WINDOW_WITHDRAW_PHASE,
+  LEDGER_WINDOW_WRITING_SPAN,
+  progressInWindowSpan,
+  WINDOW_BEATS,
+  windowEntryProgress,
+  windowSecondAtPhase,
+} from "../window-score";
 import { drawSeasonField } from "./fieldlayer";
 import { drawActCue, seasonClock } from "./shared";
 import type { Frame } from "./types";
@@ -137,12 +147,24 @@ function windowValues(w: WindowFile | null): Map<string, string[]> {
 const LEAGUE_ARC_INNER = 152;
 const LEAGUE_ARC_OUTER = 212;
 
-/** How fast the published names accumulate across the act: the count shown at
- *  phase p is `ceil(p × names × LEAGUE_ACCUM_K)`, so the last heading arrives
- *  at phase `(names − 1) / (names × LEAGUE_ACCUM_K)` — after the field's
- *  arrival, the hand's one late event inside the window. Exported for the talk
- *  rail's LEDGER interior (THE SECOND SCORE): one definition, two readers. */
+/** How fast the bare published names accumulate in Act V. The Window instead
+ *  follows the explicit NIGHT-to-crest span below. Retained as an export while
+ *  older presenter integrations migrate to the semantic stops. */
 export const LEAGUE_ACCUM_K = 1.4;
+
+/** Compatibility exports; the canonical Ledger score is centralized. */
+export { LEDGER_WINDOW_STOPS, LEDGER_WINDOW_WRITING_SPAN };
+
+export function ledgerWindowWritingProgress(phase: number): number {
+  return progressInWindowSpan(phase, LEDGER_WINDOW_WRITING_SPAN);
+}
+
+/** Null before CLOSE; thereafter the reverse-writing edge, one down to zero. */
+export function ledgerWindowRemnant(phase: number): number | null {
+  if (phase <= LEDGER_WINDOW_WITHDRAW_PHASE) return null;
+  const close = progressInWindowSpan(phase, WINDOW_BEATS[3]);
+  return 1 - seasonClock(close);
+}
 
 function leagueBoxes(names: string[]): Box[] {
   const perArc = Math.ceil(names.length / 2);
@@ -422,6 +444,7 @@ export function clearLedgerCaches(): void {
 export function drawTerms(f: Frame, terms: Term[], elapsed: number, interval: number, dim: number): void {
   const { ctx, view, dpr, remains } = f;
   if (dim <= 0.01) return;
+  const room = contextDisplay(ctx) === "room";
   const spoken = Math.min(terms.length - 1, Math.floor(elapsed / interval));
 
   ctx.save();
@@ -442,7 +465,11 @@ export function drawTerms(f: Frame, terms: Term[], elapsed: number, interval: nu
     ctx.lineTo(view.sx(t.wx < t.x ? t.wx + t.w : t.wx), view.sy(t.wy));
     ctx.stroke();
 
-    const px = Math.max(SCATTER_MIN_PX, view.s(t.size));
+    const px = Math.max(
+      SCATTER_MIN_PX,
+      view.s(t.size),
+      room ? ROOM_TEXT_MIN_PX.aside : 0,
+    );
     // Set exactly as the archive filed it, lower-case `shot` and all: the
     // record's own inconsistent casing is a fact about the record.
     const lab = label(t.phrase, px, dpr);
@@ -453,7 +480,11 @@ export function drawTerms(f: Frame, terms: Term[], elapsed: number, interval: nu
     // A birth discloses what it is, in the margin, rather than being asserted
     // by its size alone.
     if (t.bornIn) {
-      const mp = Math.max(SCATTER_MIN_PX * 0.8, px * TERM_MARGIN_SCALE);
+      const mp = Math.max(
+        SCATTER_MIN_PX * 0.8,
+        px * TERM_MARGIN_SCALE,
+        room ? ROOM_TEXT_MIN_PX.aside : 0,
+      );
       const margin = label(`FIRST FILED ${t.bornIn}`, mp, dpr);
       ctx.globalAlpha = alpha * TERM_MARGIN_ALPHA;
       ctx.drawImage(margin.canvas, view.sx(t.wx),
@@ -536,7 +567,7 @@ function pinCaptionBox(season: Season): Box | null {
 export function ledgerUtterances(
   f: Frame,
   year: number,
-): { terms: Term[]; interval: number; elapsed: number } | null {
+): { terms: Term[]; interval: number; elapsed: number; heldElapsed: number } | null {
   const { data, schedule } = f;
   const season = data.byYear.get(year);
   const sample = data.samples.get(year);
@@ -544,7 +575,11 @@ export function ledgerUtterances(
   if (!season || !sample || !seg) return null;
   // A season spends `ARRIVAL_TAIL` of itself being written; the utterances are
   // spread over exactly that, so a term lands with the marks it describes.
-  const secs = seg.duration * ARRIVAL_TAIL;
+  const isWindow = f.st.act === 3 && f.st.year === year;
+  const secs = isWindow
+    ? windowSecondAtPhase(LEDGER_WINDOW_WRITING_SPAN.to)
+      - windowSecondAtPhase(LEDGER_WINDOW_WRITING_SPAN.from)
+    : seg.duration * ARRIVAL_TAIL;
   // The fixed obstacles: the league's boxes (a function of the act, so of the
   // year) and the pin's caption (a function of the season). Both are properties
   // of the YEAR and never of the hand or the viewport, so the year-only memo
@@ -555,10 +590,20 @@ export function ledgerUtterances(
     ? [...leagueObstacles(data, year), pinBox]
     : leagueObstacles(data, year);
   const terms = utterancesFor(year, season, sample, data.seasons, secs, fixed);
+  const interval = secs / Math.max(1, terms.length);
+  const remnant = isWindow ? ledgerWindowRemnant(f.st.phase) : null;
+  const elapsed = isWindow
+    ? (f.st.phase < LEDGER_WINDOW_WRITING_SPAN.from
+      ? -1
+      : secs * (remnant ?? ledgerWindowWritingProgress(f.st.phase)))
+    : (f.st.year === year ? f.st.phase * seg.duration : secs);
   return {
     terms,
-    interval: secs / Math.max(1, terms.length),
-    elapsed: f.st.year === year ? f.st.phase * seg.duration : secs,
+    interval,
+    elapsed,
+    // THE STACK holds a deterministic final utterance; it does not inherit the
+    // season clock merely because its words come from this shared derivation.
+    heldElapsed: terms.length ? terms[terms.length - 1]!.j * interval : 0,
   };
 }
 
@@ -580,10 +625,7 @@ export function ledgerUtterances(
 function closeRemnant(f: Frame): number | null {
   const { st } = f;
   if (st.act !== 3) return null;
-  const close = WINDOW_BEATS.find((b) => b.id === "close")!;
-  const closeU = (st.phase - close.from) / (close.to - close.from);
-  if (closeU <= 0) return null;
-  return 1 - seasonClock(Math.min(1, closeU));
+  return ledgerWindowRemnant(st.phase);
 }
 
 export function drawLedgerHand(f: Frame): void {
@@ -609,9 +651,10 @@ export function drawLedgerHand(f: Frame): void {
   // The outgoing season's last words, still receding. `ledgerUtterances`
   // returns its `elapsed` at the END of the writing for a season that is not
   // the current one, which is what the explicit `secs` here used to say.
-  if (st.prev !== null && st.arrived < 1) {
+  const previousArrival = st.act === 3 ? windowEntryProgress(st.phase) : st.arrived;
+  if (st.prev !== null && previousArrival < 1) {
     const out = ledgerUtterances(f, st.prev);
-    if (out) drawTerms(f, out.terms, out.elapsed, out.interval, 1 - st.arrived);
+    if (out) drawTerms(f, out.terms, out.elapsed, out.interval, 1 - previousArrival);
   }
   let speaking: Box[] = [];
   const here = ledgerUtterances(f, year);
@@ -641,12 +684,20 @@ export function drawLedgerHand(f: Frame): void {
     // continuity at the boundary — the byte-identity that matters — needs
     // only rem(0) = 1, which the raw easing gives exactly.
     const rem = closeRemnant(f);
-    drawLabels(f, sample, season, speaking, rem === null ? st.arrived : rem);
+    const writing = st.act === 3 ? ledgerWindowWritingProgress(st.phase) : st.arrived;
+    const edge = rem === null ? writing : rem;
+    drawLabels(f, sample, season, speaking, edge);
     // The pile, named once. Labels stacked on a single point would be a
     // rendering bug; one line saying how many shots the record declined to
     // place is the fact itself.
-    drawPinLabel(f, season);
-    drawTerms(f, terms, elapsed, interval, 1);
+    drawPinLabel(f, season, edge);
+    // Reversing the register makes the first utterance freshest at the very
+    // end; fade that final edge with the same spacing as the first heading so
+    // CLOSE reaches an actually empty ledger instead of snapping one word off.
+    const termVisible = rem === null
+      ? 1
+      : Math.max(0, Math.min(1, rem * Math.max(1, terms.length)));
+    drawTerms(f, terms, elapsed, interval, termVisible);
   }
 
   // Act III shows the same published names carrying real recomputed values;
@@ -725,14 +776,14 @@ function drawLabels(
  * said nothing at all. Now the count is the sentinel's own `n` and the name is
  * the head of that same pile.
  */
-function drawPinLabel(f: Frame, season: Season): void {
-  const { ctx, view, st, remains } = f;
+function drawPinLabel(f: Frame, season: Season, arrived: number): void {
+  const { ctx, view, remains } = f;
   const sentinel = season.resolution.rim_sentinel;
   if (!sentinel || !sentinel.is_refusal) return;
 
   // The season's own measured count of refused shots, grown with arrival - not
   // a number scaled off a sample.
-  const count = Math.round(sentinel.n * Math.min(1, Math.max(0, st.arrived)));
+  const count = Math.round(sentinel.n * Math.min(1, Math.max(0, arrived)));
   if (count === 0) return;
 
   // What the record refused to place, and what it called those shots. Both come
@@ -748,6 +799,13 @@ function drawPinLabel(f: Frame, season: Season): void {
     { x: sentinel.coord[0], y: sentinel.coord[1] - PIN_CAPTION_DROP }, remains * 0.85);
 }
 
+/** A heading enters at the start of its lane and finishes by the next one. */
+function windowHeadingArrival(writing: number, count: number, index: number): number {
+  const lane = writing * count - index;
+  return lane <= 0 ? 0 : Math.min(1,
+    LEAGUE_ARRIVAL_K + (1 - LEAGUE_ARRIVAL_K) * lane);
+}
+
 /**
  * The published names, with or without their values.
  *
@@ -759,6 +817,7 @@ function drawPinLabel(f: Frame, season: Season): void {
  */
 function drawPublishedInstead(f: Frame, inWindow: boolean): void {
   const { ctx, view, dpr, st, data, remains } = f;
+  const room = contextDisplay(ctx) === "room";
   // UNIFORM, AND LARGER THAN THE SCATTER, AND THAT IS THE ARGUMENT.
   //
   // These were drawn at the size of an action label, among the whole scatter of
@@ -767,15 +826,19 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
   // speaks is sized by how many shots it names and these cannot be: the record
   // beneath them is not public. The typography carries the claim; the slug
   // states it.
-  const px = Math.max(SCATTER_MIN_PX, view.s(LEAGUE_NAME_TENTHS));
+  const px = Math.max(
+    SCATTER_MIN_PX,
+    view.s(LEAGUE_NAME_TENTHS),
+    room ? ROOM_TEXT_MIN_PX.statement : 0,
+  );
   const values = inWindow ? windowValues(data.window) : new Map<string, string[]>();
   const names = publishedInstead(data);
-  // THE VALUES WITHDRAW (session 17): in the close each recomputed figure
-  // departs on the reverse of the accumulation law that brought its name —
+  // THE LEDGER WITHDRAWS: in the close each heading and recomputed figure
+  // departs on the reverse of the accumulation law that brought it —
   // strict reverse arrival order, eased over exactly one name's spacing, so
   // the last figure written is the first to leave and every heading stands
-  // bare at wash 1 (Act V's exact standing state, from this same
-  // function). Per-NAME, never per-line: a scope tag departing separately
+  // absent at wash 1. Act V later rebuilds the surviving bare headings from
+  // this same function. Per-NAME, never per-line: a scope tag departing separately
   // from its share would re-create D-09. Each departure is statable on the
   // fold's own calendar — value i completes leaving when the reverse clock
   // reads (i / names) of the window's days.
@@ -785,7 +848,8 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
   // point in the piece is very nearly empty: the derived measures occupy exactly
   // the space the geometry vacated. Two arcs, because one cannot hold all the
   // phrases without them running off the floor.
-  const shown = Math.min(names.length, Math.ceil(st.phase * names.length * LEAGUE_ACCUM_K));
+  const writing = inWindow ? ledgerWindowWritingProgress(st.phase) : st.phase * LEAGUE_ACCUM_K;
+  const shown = inWindow ? names.length : Math.min(names.length, Math.ceil(writing * names.length));
   // Both arcs sit inside the mid-range band, which by Act V is very nearly
   // empty - `mid_share` says how nearly. The names occupy that emptiness, and
   // the spoken register reads these SAME boxes so it does not speak through them.
@@ -797,8 +861,15 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
     const box = boxes[i]!;
     const x = view.sx(box.wx + box.w / 2);
     const y = view.sy(box.wy);
-    const arriving = Math.min(1, (shown - i) * LEAGUE_ARRIVAL_K);
-    ctx.globalAlpha = remains * LEAGUE_NAME_ALPHA * arriving;
+    const arriving = inWindow
+      ? windowHeadingArrival(writing, names.length, i)
+      : Math.min(1, (shown - i) * LEAGUE_ARRIVAL_K);
+    const departing = inWindow && rem !== null
+      ? Math.max(0, Math.min(1, rem * names.length - i))
+      : 1;
+    const visible = arriving * departing;
+    if (visible <= 0.01) continue;
+    ctx.globalAlpha = remains * LEAGUE_NAME_ALPHA * visible;
     ctx.drawImage(lab.canvas, x - lab.width / 2, y - lab.height / 2, lab.width, lab.height);
 
     // The value, when there is one to show, struck beneath its own name —
@@ -806,15 +877,32 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
     // into its neighbour's figure (third audit D-09).
     const v = values.get(text);
     if (v) {
-      const departing = rem === null
-        ? 1
-        : Math.max(0, Math.min(1, rem * names.length - i));
-      if (departing > 0.01) {
-        ctx.globalAlpha = remains * LEAGUE_VALUE_ALPHA * arriving * departing;
-        let vy = y + lab.height * 0.75;
-        for (const line of v) {
-          const vl = label(line, px * LEAGUE_VALUE_SCALE, dpr);
-          ctx.drawImage(vl.canvas, x - vl.width / 2, vy, vl.width, vl.height);
+      if (visible > 0.01) {
+        ctx.globalAlpha = remains * LEAGUE_VALUE_ALPHA * visible;
+        // The recovered-set scope is the only multi-line value. In room mode
+        // place that block above its heading: below it sits the inner arc, and
+        // the prior layout ran this evidence through DRIVES at the completed
+        // crest. Near mode keeps the judged composition unchanged.
+        let vy = room && v.length > 1
+          ? y - lab.height * 0.75 - v.length * px * 1.35
+          : y + lab.height * 0.75;
+        const valueLabels = v.map((line) => label(
+          line,
+          Math.max(
+            px * LEAGUE_VALUE_SCALE,
+            room ? ROOM_TEXT_MIN_PX.aside : 0,
+          ),
+          dpr,
+        ));
+        const blockWidth = room && valueLabels.length > 1
+          ? Math.max(...valueLabels.map((valueLabel) => valueLabel.width))
+          : 0;
+        for (const vl of valueLabels) {
+          // A scoped value is one evidence block, not two unrelated captions.
+          // Give both lines a common left edge in the room profile so the
+          // shorter share reads immediately with its longer scope statement.
+          const vx = blockWidth > 0 ? x - blockWidth / 2 : x - vl.width / 2;
+          ctx.drawImage(vl.canvas, vx, vy, vl.width, vl.height);
           vy += vl.height;
         }
       }
@@ -830,5 +918,9 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
     ? ["RECOMPUTED FROM THE RAW RECORD",
        `${days} DAYS · ONE RECONSTRUCTION, NOT THE LEAGUE'S`]
     : ["PUBLISHED INSTEAD OF THE GEOMETRY", "THE NUMBERS REMAIN · THE RECORD BENEATH THEM DOES NOT"];
-  drawSlug(ctx, view, slug, { x: 0, y: 395 }, remains * 0.5);
+  const slugVisible = inWindow
+    ? windowHeadingArrival(writing, names.length, 0)
+      * (rem === null ? 1 : Math.max(0, Math.min(1, rem * names.length)))
+    : 1;
+  drawSlug(ctx, view, slug, { x: 0, y: 395 }, remains * slugVisible * 0.5);
 }

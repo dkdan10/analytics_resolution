@@ -1069,9 +1069,9 @@ export interface Loaded {
    *  The scales dry into it; the piece renders without it and gains the
    *  ground a frame or two later. */
   wash(): Wash | null;
-  /** Every lazily-fetched asset that failed for good, with why. A failure
-   *  latches rather than being retried from the animation loop, so this is a
-   *  finite list and the probes assert it is empty before believing a row. */
+  /** Every lazily-fetched asset whose latest attempt failed, with why. Failures
+   *  do not retry from the animation loop; the visible RETRY action owns that
+   *  state change, so this remains finite and inspectable. */
   assetErrors(): string[];
   /** Every lazily-fetched asset a frame has ASKED for that has not yet
    *  arrived (session 17, THE FEED readout): the rail says the piece is
@@ -1079,6 +1079,17 @@ export interface Loaded {
    *  record. Probing NEVER fetches — only assets some draw call already
    *  requested appear — and the list empties on completion. */
   pendingAssets(): string[];
+  /** Presentation-facing state for the assets behind the current rendering.
+   *  `degraded` is deliberately distinct from `ready`: an optional stage may
+   *  be absent and the piece can still draw, but a presenter must never mistake
+   *  that sparse drawing for the intended frame. */
+  assetState(): AssetState;
+  /** Make every asset used by the dilated Window resident before a talk jumps
+   *  into it. Safe to call more than once. */
+  preloadWindow(): Promise<AssetState>;
+  /** Re-attempt every failed optional or lazy asset. Failures stay visible if
+   *  the retry also fails. */
+  retryAssets(): Promise<AssetState>;
   provenance: Record<string, string>;
   /**
    * `seasons.json:definitions` — the pipeline's own sentence for each key it
@@ -1096,11 +1107,44 @@ export interface Loaded {
   taxonomyColumns: Record<string, string>;
 }
 
+export type AssetStatus = "loading" | "ready" | "degraded" | "failed";
+
+export interface AssetState {
+  status: AssetStatus;
+  pending: string[];
+  errors: string[];
+}
+
 const BASE = import.meta.env.BASE_URL;
 
+/** A presentation machine should never wait forever on a half-open request.
+ *  One retry absorbs a transient server/cache miss; the second failure is
+ *  surfaced through the loader/rail instead of disappearing into a sparse
+ *  rendering. */
+const FETCH_TIMEOUT_MS = 15_000;
+const FETCH_ATTEMPTS = 2;
+
+async function getResponse(path: string): Promise<Response> {
+  let last: unknown = new Error(`failed to load data/${path}`);
+  for (let attempt = 0; attempt < FETCH_ATTEMPTS; attempt++) {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${BASE}data/${path}`, { signal: controller.signal });
+      if (!res.ok) throw new Error(`failed to load data/${path}: ${res.status}`);
+      return res;
+    } catch (err: unknown) {
+      last = err;
+    } finally {
+      window.clearTimeout(timer);
+    }
+  }
+  const reason = last instanceof Error ? last.message : String(last);
+  throw new Error(`${reason} (after ${FETCH_ATTEMPTS} attempts)`);
+}
+
 async function getJSON<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}data/${path}`);
-  if (!res.ok) throw new Error(`failed to load data/${path}: ${res.status}`);
+  const res = await getResponse(path);
   return (await res.json()) as T;
 }
 
@@ -1119,14 +1163,16 @@ async function getJSON<T>(path: string): Promise<T> {
  * what it could not read.
  */
 async function getBinary(path: string): Promise<ArrayBuffer> {
-  const res = await fetch(`${BASE}data/${path}`);
-  if (!res.ok) throw new Error(`failed to load data/${path}: ${res.status}`);
+  const res = await getResponse(path);
   return await res.arrayBuffer();
 }
 
-/** One lazily-fetched asset: absent, arriving, arrived, or failed for good. */
+/** One lazily-fetched asset: absent, arriving, arrived, or failed until an
+ * explicit retry. */
 interface Lazy<T> {
   get(): T | null;
+  load(): Promise<T | null>;
+  retry(): Promise<T | null>;
   error(): string | null;
   /** True while a request is in flight. A probe, never a trigger. */
   pending(): boolean;
@@ -1136,24 +1182,38 @@ function lazy<T>(name: string, fetcher: () => Promise<T>): Lazy<T> {
   let value: T | null = null;
   let failure: string | null = null;
   let inFlight = false;
+  let request: Promise<T | null> | null = null;
+  const begin = (force: boolean): Promise<T | null> => {
+    if (value) return Promise.resolve(value);
+    if (request) return request;
+    if (failure && !force) return Promise.resolve(null);
+    if (force) failure = null;
+    inFlight = true;
+    request = fetcher()
+      .then((v) => {
+        value = v;
+        failure = null;
+        return v;
+      })
+      .catch((e: unknown) => {
+        failure = e instanceof Error ? e.message : String(e);
+        // eslint-disable-next-line no-console
+        console.error(`FADEAWAY: ${name} will not be drawn - ${failure}`);
+        return null;
+      })
+      .finally(() => {
+        inFlight = false;
+        request = null;
+      });
+    return request;
+  };
   return {
     get(): T | null {
-      if (value || failure || inFlight) return value;
-      inFlight = true;
-      void fetcher()
-        .then((v) => {
-          value = v;
-        })
-        .catch((e: unknown) => {
-          failure = e instanceof Error ? e.message : String(e);
-          // eslint-disable-next-line no-console
-          console.error(`FADEAWAY: ${name} will not be drawn - ${failure}`);
-        })
-        .finally(() => {
-          inFlight = false;
-        });
-      return null;
+      if (!value && !failure && !inFlight) void begin(false);
+      return value;
     },
+    load: () => begin(false),
+    retry: () => begin(true),
     error: () => failure,
     pending: () => inFlight,
   };
@@ -1170,40 +1230,50 @@ export async function load(): Promise<Loaded> {
   ]);
   const seasons = file.seasons;
 
+  // Samples are required by every hand, but they need not stand in front of
+  // every optional summary. Start every sample request and optional JSON
+  // together; the static first-paint surface remains visible while the single
+  // concurrent startup wave resolves.
   const samples = new Map<number, Sample>();
-  await Promise.all(
+  const sampleRequest = Promise.all(
     seasons.map(async (s) => {
       samples.set(s.year, await getJSON<Sample>(`samples/season_${s.year}.json`));
     }),
   );
 
-  // The corpus probe and the traces are Act III's evidence. The piece still
-  // runs without them - the window simply stays a field of dots, which is what
-  // every other era looks like anyway.
-  let corpus: Corpus | null = null;
-  try {
-    const probe = await getJSON<{ corpus_listing: Corpus | null }>("sportvu_probe.json");
-    corpus = probe.corpus_listing;
-  } catch {
-    corpus = null;
-  }
+  type OptionalKey = "corpus" | "traces" | "window" | "paint" | "slate" | "game";
+  const optionalErrors = new Map<OptionalKey, string>();
+  const optionalLoaders: Record<OptionalKey, () => Promise<unknown>> = {
+    corpus: async () =>
+      (await getJSON<{ corpus_listing: Corpus | null }>("sportvu_probe.json")).corpus_listing,
+    traces: () => getJSON<TracesFile>("traces.json"),
+    window: () => getJSON<WindowFile>("window.json"),
+    paint: () => getJSON<PaintFile>("paint.json"),
+    slate: () => getJSON<SlateFile>("slate.json"),
+    game: () => getJSON<GameFile>("game.json"),
+  };
+  const optionalKeys = Object.keys(optionalLoaders) as OptionalKey[];
+  const optionalRequest = Promise.allSettled(optionalKeys.map((key) => optionalLoaders[key]()));
 
-  let traces: TracesFile | null = null;
-  try {
-    traces = await getJSON<TracesFile>("traces.json");
-  } catch {
-    traces = null;
-  }
+  const [, optionalResults] = await Promise.all([sampleRequest, optionalRequest]);
+  const optionalValues = new Map<OptionalKey, unknown>();
+  optionalResults.forEach((result, i) => {
+    const key = optionalKeys[i]!;
+    if (result.status === "fulfilled") optionalValues.set(key, result.value);
+    else {
+      const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
+      optionalErrors.set(key, reason);
+    }
+  });
 
+  // The corpus probe and traces are Act III's evidence. The piece can still
+  // draw if one is absent, but the degraded state remains visible and retryable.
+  let corpus = (optionalValues.get("corpus") as Corpus | null | undefined) ?? null;
+  let traces = (optionalValues.get("traces") as TracesFile | undefined) ?? null;
   // Not named `window`: that would shadow the DOM global for the rest of this
   // function, and the next person to reach for window.devicePixelRatio here
   // would get a data artifact instead.
-  let windowFile: WindowFile | null = null;
-  try {
-    windowFile = await getJSON<WindowFile>("window.json");
-  } catch {
-    windowFile = null;
-  }
+  let windowFile = (optionalValues.get("window") as WindowFile | undefined) ?? null;
 
   const pointLoaders = new Map<number, Lazy<Points>>();
   const fetchPoints = (year: number): Points | null => {
@@ -1232,12 +1302,7 @@ export async function load(): Promise<Loaded> {
     return l.get();
   };
 
-  let paintFile: PaintFile | null = null;
-  try {
-    paintFile = await getJSON<PaintFile>("paint.json");
-  } catch {
-    paintFile = null;
-  }
+  let paintFile = (optionalValues.get("paint") as PaintFile | undefined) ?? null;
 
   const strokeLoader = lazy("the paint", async (): Promise<Strokes> => {
     const [v, i] = await Promise.all([
@@ -1256,12 +1321,7 @@ export async function load(): Promise<Loaded> {
     () => getBinary("quarrel.bin").then((b) => decodeQuarrel(b, windowFile!)));
   const fetchQuarrel = (): Quarrel | null => (windowFile ? quarrelLoader.get() : null);
 
-  let slateFile: SlateFile | null = null;
-  try {
-    slateFile = await getJSON<SlateFile>("slate.json");
-  } catch {
-    slateFile = null;
-  }
+  let slateFile = (optionalValues.get("slate") as SlateFile | undefined) ?? null;
 
   const slateLoader = lazy("the slate", async (): Promise<Slate> => {
     const [v, i] = await Promise.all([
@@ -1272,12 +1332,7 @@ export async function load(): Promise<Loaded> {
   });
   const fetchSlate = (): Slate | null => (slateFile ? slateLoader.get() : null);
 
-  let gameFile: GameFile | null = null;
-  try {
-    gameFile = await getJSON<GameFile>("game.json");
-  } catch {
-    gameFile = null;
-  }
+  let gameFile = (optionalValues.get("game") as GameFile | undefined) ?? null;
 
   const gameLoader = lazy("the game", async (): Promise<Game> => {
     const [v, i] = await Promise.all([
@@ -1293,7 +1348,136 @@ export async function load(): Promise<Loaded> {
   const fetchWash = (): Wash | null =>
     (windowFile && windowFile.wash ? washLoader.get() : null);
 
-  return {
+  let preloadingWindow = false;
+  let preloadRequest: Promise<AssetState> | null = null;
+  let loaded!: Loaded;
+
+  const lazyEntries = (): [string, Lazy<unknown>][] => [
+    ...[...pointLoaders].map(([y, l]) => [`points/${y}`, l] as [string, Lazy<unknown>]),
+    ...[...dayPointLoaders].map(
+      ([y, l]) => [`points_by_day/${y}`, l] as [string, Lazy<unknown>]),
+    ["strokes", strokeLoader],
+    ["measures", measureLoader],
+    ["quarrel", quarrelLoader],
+    ["slate", slateLoader],
+    ["game", gameLoader],
+    ["wash", washLoader],
+  ];
+
+  const errors = (): string[] => [
+    ...[...optionalErrors].map(([name, reason]) => `${name}: ${reason}`),
+    ...lazyEntries()
+      .filter(([, l]) => l.error() !== null)
+      .map(([name, l]) => `${name}: ${l.error()!}`),
+  ];
+  const pending = (): string[] => [
+    ...(preloadingWindow ? ["the window"] : []),
+    ...lazyEntries().filter(([, l]) => l.pending()).map(([name]) => name),
+  ];
+  const state = (): AssetState => {
+    const p = pending();
+    const e = errors();
+    return { status: p.length > 0 ? "loading" : e.length > 0 ? "degraded" : "ready",
+      pending: p, errors: e };
+  };
+
+  const applyOptional = (key: OptionalKey, value: unknown): void => {
+    switch (key) {
+      case "corpus":
+        corpus = value as Corpus | null;
+        loaded.corpus = corpus;
+        break;
+      case "traces":
+        traces = value as TracesFile;
+        loaded.traces = traces;
+        break;
+      case "window":
+        windowFile = value as WindowFile;
+        loaded.window = windowFile;
+        break;
+      case "paint":
+        paintFile = value as PaintFile;
+        loaded.paint = paintFile;
+        break;
+      case "slate":
+        slateFile = value as SlateFile;
+        loaded.slateFile = slateFile;
+        break;
+      case "game":
+        gameFile = value as GameFile;
+        loaded.gameFile = gameFile;
+        break;
+    }
+  };
+
+  const retryOptionals = async (): Promise<void> => {
+    const keys = [...optionalErrors.keys()];
+    await Promise.all(keys.map(async (key) => {
+      try {
+        const value = await optionalLoaders[key]();
+        applyOptional(key, value);
+        optionalErrors.delete(key);
+      } catch (err: unknown) {
+        optionalErrors.set(key, err instanceof Error ? err.message : String(err));
+      }
+    }));
+  };
+
+  const retryAssets = async (): Promise<AssetState> => {
+    await retryOptionals();
+    await Promise.all(lazyEntries()
+      .filter(([, l]) => l.error() !== null)
+      .map(([, l]) => l.retry()));
+    return state();
+  };
+
+  const preloadWindow = (): Promise<AssetState> => {
+    if (preloadRequest) return preloadRequest;
+    preloadRequest = (async () => {
+      preloadingWindow = true;
+      try {
+        // Startup already gave every optional summary one retry inside its
+        // bounded request. Do not silently start a second retry cycle here:
+        // a failed summary must reach the visible DEGRADED state within that
+        // contract, and only the presenter's RETRY action may try it again.
+        const windowIndex = seasons.findIndex((s) => s.points_by_day);
+        const windowYear = windowIndex >= 0 ? seasons[windowIndex]!.year : undefined;
+        const requests: Promise<unknown>[] = [];
+        if (windowYear !== undefined) {
+          // The Window opens with the preceding season still present for its
+          // scored entry withdrawal. Preload BOTH sides of that
+          // handoff; otherwise a direct Window stop can paint its first frame
+          // without the outgoing field and only request it after the audience
+          // is already looking.
+          const pointYears = [windowYear, seasons[windowIndex - 1]?.year]
+            .filter((year): year is number => year !== undefined);
+          for (const year of pointYears) {
+            fetchPoints(year);
+            const p = pointLoaders.get(year);
+            if (p) requests.push(p.load());
+          }
+          fetchPointsByDay(windowYear);
+          const d = dayPointLoaders.get(windowYear);
+          if (d) requests.push(d.load());
+        }
+        if (paintFile) requests.push(strokeLoader.load());
+        if (windowFile) {
+          requests.push(measureLoader.load(), quarrelLoader.load());
+          if (windowFile.wash) requests.push(washLoader.load());
+        }
+        if (slateFile) requests.push(slateLoader.load());
+        if (gameFile) requests.push(gameLoader.load());
+        await Promise.all(requests);
+      } finally {
+        preloadingWindow = false;
+        preloadRequest = null;
+      }
+      return state();
+    })();
+    return preloadRequest;
+  };
+
+  loaded = {
     seasons,
     facts,
     byYear: new Map(seasons.map((s) => [s.year, s])),
@@ -1312,36 +1496,14 @@ export async function load(): Promise<Loaded> {
     gameFile,
     game: fetchGame,
     wash: fetchWash,
-    assetErrors: () => {
-      const all: [string, string | null][] = [
-        ...[...pointLoaders].map(([y, l]) => [`points/${y}`, l.error()] as [string, string | null]),
-        ...[...dayPointLoaders].map(
-          ([y, l]) => [`points_by_day/${y}`, l.error()] as [string, string | null]),
-        ["strokes", strokeLoader.error()],
-        ["measures", measureLoader.error()],
-        ["quarrel", quarrelLoader.error()],
-        ["slate", slateLoader.error()],
-        ["game", gameLoader.error()],
-        ["wash", washLoader.error()],
-      ];
-      return all.filter(([, e]) => e !== null).map(([n, e]) => `${n}: ${e}`);
-    },
-    pendingAssets: () => {
-      const all: [string, boolean][] = [
-        ...[...pointLoaders].map(([y, l]) => [`points/${y}`, l.pending()] as [string, boolean]),
-        ...[...dayPointLoaders].map(
-          ([y, l]) => [`points_by_day/${y}`, l.pending()] as [string, boolean]),
-        ["strokes", strokeLoader.pending()],
-        ["measures", measureLoader.pending()],
-        ["quarrel", quarrelLoader.pending()],
-        ["slate", slateLoader.pending()],
-        ["game", gameLoader.pending()],
-        ["wash", washLoader.pending()],
-      ];
-      return all.filter(([, p]) => p).map(([n]) => n);
-    },
+    assetErrors: errors,
+    pendingAssets: pending,
+    assetState: state,
+    preloadWindow,
+    retryAssets,
     provenance: file.provenance,
     seasonDefinitions: file.definitions,
     taxonomyColumns: file.taxonomy_columns,
   };
+  return loaded;
 }

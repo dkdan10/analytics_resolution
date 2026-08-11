@@ -1,4 +1,4 @@
-/** The seven acts by which a record becomes an image.
+/** The eight acts by which a record becomes an image.
  *
  * THE STACK's controls do not name visual effects. They name INTERPRETIVE
  * OPERATIONS — things somebody did to a list of coordinates to turn it into a
@@ -24,6 +24,11 @@
  * prose rather than to a number.
  */
 
+import { STACK_OPERATION_DURATIONS_SECONDS } from "../window-score";
+
+/** Compatibility export; operation response timing lives in the Window score. */
+export { STACK_OPERATION_DURATIONS_SECONDS };
+
 /** One letter per operation: the URL token and the keyboard key are the same
  *  alphabet, so `?ops=lci` and pressing `l`, `c`, `i` are one thing said twice.
  *  Three verbs and four objects, all distinct — the table is the definition. */
@@ -32,6 +37,8 @@ export const OPERATIONS = [
     id: "locate",
     key: "l",
     title: "LOCATE THE ATTEMPT",
+    /** A dense cached field needs a legible, but still prompt, reveal. */
+    durationSeconds: STACK_OPERATION_DURATIONS_SECONDS.locate,
     /** What the operation does to the record, in the rail, under its title. */
     does: "puts every shot where the record says it happened, and piles the ones it would not place",
     // The rail's LOCATE row quoted `ra_origin_share` while session 6 shipped,
@@ -47,6 +54,8 @@ export const OPERATIONS = [
     id: "classify",
     key: "c",
     title: "CLASSIFY THE FLOOR",
+    /** A colour response is immediately legible; it should not linger. */
+    durationSeconds: STACK_OPERATION_DURATIONS_SECONDS.classify,
     does: "tints those same marks by the league's own seven regions — a partition the NBA drew",
     reads: ["seasons[].zones", "palette.ts:ZONE_RGB"],
     definition: ["paint", "zone"],
@@ -60,6 +69,7 @@ export const OPERATIONS = [
     id: "inscribe",
     key: "i",
     title: "INSCRIBE THE SEASON",
+    durationSeconds: STACK_OPERATION_DURATIONS_SECONDS.inscribe,
     does: "strikes the season's own figure into the floor and migrates it out to the ring",
     reads: ["seasons[].mid_share", "seasons[].contemporaneous"],
     definition: ["seasons", "mid_share"],
@@ -68,6 +78,8 @@ export const OPERATIONS = [
     id: "connect",
     key: "b",
     title: "CONNECT THE BODY",
+    /** The only deliberately slow operation: the bodies draw their paths. */
+    durationSeconds: STACK_OPERATION_DURATIONS_SECONDS.connect,
     does: "joins the positions of one corroborated possession into the paths the bodies took",
     reads: ["paint_strokes.bin", "paint_index.bin"],
     definition: ["paint", "stroke"],
@@ -81,6 +93,7 @@ export const OPERATIONS = [
     id: "measure",
     key: "d",
     title: "MEASURE THE DEFENDER",
+    durationSeconds: STACK_OPERATION_DURATIONS_SECONDS.measure,
     does: "cuts a continuous distance into the league's four published categories",
     reads: ["window.json:contest.heroes", "window.json:bias"],
     definition: ["window", "closest_defender"],
@@ -90,6 +103,7 @@ export const OPERATIONS = [
     id: "name",
     key: "n",
     title: "NAME THE ACTION",
+    durationSeconds: STACK_OPERATION_DURATIONS_SECONDS.name,
     does: "says what the record called each shot, as often a season as its vocabulary is varied",
     reads: ["samples/season_YYYY.json:action_vocab"],
     definition: ["seasons", "sample"],
@@ -98,6 +112,7 @@ export const OPERATIONS = [
     id: "count",
     key: "e",
     title: "COUNT THE EVENT",
+    durationSeconds: STACK_OPERATION_DURATIONS_SECONDS.count,
     does: "files the season under one of the record's six taxonomies and tallies it in the margin",
     reads: ["seasons[].classification", "seasons[].active_taxonomy"],
     definition: ["seasons", "vocabulary.covering_90pct"],
@@ -106,6 +121,8 @@ export const OPERATIONS = [
     id: "join",
     key: "j",
     title: "JOIN THE INSTRUMENTS",
+    /** A short flood: longer than a static response, shorter than a body. */
+    durationSeconds: STACK_OPERATION_DURATIONS_SECONDS.join,
     does: "lays a hairline from each filed coordinate to the feed's ball at release — the archive's two words about where one shot happened",
     reads: ["quarrel.bin", "window.json:quarrel_bin"],
     definition: ["window", "quarrel"],
@@ -137,6 +154,22 @@ export type OpId = Operation["id"];
  */
 export type StackOps = number;
 
+/**
+ * The complete, addressable rendering configuration for THE STACK.
+ *
+ * `mask` says which operations are held on. `progressByOp` says how far the
+ * presenter-triggered response for each selected operation has travelled.
+ * Both are inputs to rendering, never renderer-owned state, so direct seeks and
+ * backward scrubs remain deterministic.
+ */
+export interface StackRenderState {
+  mask: StackOps;
+  progressByOp: Partial<Record<OpId, number>>;
+}
+
+/** Numeric masks remain accepted while navigation and stored URLs migrate. */
+export type StackRenderInput = StackOps | StackRenderState;
+
 export const NO_OPS: StackOps = 0;
 
 export const ALL_OPS: StackOps = OPERATIONS.reduce((m, _, i) => m | (1 << i), 0);
@@ -148,6 +181,31 @@ export function bitOf(id: OpId): StackOps {
 
 export function has(ops: StackOps, id: OpId): boolean {
   return (ops & bitOf(id)) !== 0;
+}
+
+/** The selected bits, independent of whether the caller is legacy or paced. */
+export function stackMask(state: StackRenderInput): StackOps {
+  return typeof state === "number" ? state : state.mask;
+}
+
+/**
+ * Operation-local progress, clamped at the renderer boundary.
+ *
+ * A missing entry is complete rather than zero. That is the compatibility
+ * rule for URL-loaded configurations and old callers: an address names a held
+ * rendering, not the instant its controls happened to be pressed.
+ */
+export function operationProgress(state: StackRenderInput, id: OpId): number {
+  const mask = stackMask(state);
+  if (!has(mask, id)) return 0;
+  if (typeof state === "number") return 1;
+  const value = state.progressByOp[id];
+  return value === undefined ? 1 : Math.max(0, Math.min(1, value));
+}
+
+/** Build the stable state represented by a URL token or restored mask. */
+export function completedStackState(mask: StackOps): StackRenderState {
+  return { mask, progressByOp: {} };
 }
 
 export function toggle(ops: StackOps, id: OpId): StackOps {

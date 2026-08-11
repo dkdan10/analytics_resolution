@@ -34,6 +34,7 @@ import {
 } from "./scalars";
 import type { View } from "./plate";
 import type { Game, GameEvent, GameFile } from "./data";
+import { prefixCacheGeneration } from "./prefix";
 
 /** The game surfaces accumulate in this many prefix steps across the whole
  *  game — one cache granularity for both consumers (hand and plate), a
@@ -159,6 +160,117 @@ export function walkGame(
 
 const boneOf = (alpha: number): string => `rgba(${BONE_RGB}, ${alpha})`;
 
+/** Keep compound-path circles farther apart than their antialias footprints. */
+const EVENT_AA_GAP_DEVICE_PX = 2;
+
+interface CompleteEventPaths {
+  passes: Path2D[];
+  shots: Path2D[];
+}
+
+let eventPathGeneration = -1;
+let completePaths = new WeakMap<GameFile, WeakMap<View, Map<number, CompleteEventPaths>>>();
+
+/**
+ * Contiguous, screen-nonoverlapping batches in artifact order.
+ *
+ * Translucent circles that overlap must be separate fills or their accumulated
+ * alpha changes. Circles in one batch are separated by a device-pixel safety
+ * gap, so filling their compound Path2D directly on the destination is the same
+ * set of covered pixels as filling each subpath alone. A collision closes the
+ * current batch rather than reordering events around it.
+ */
+function eventPaths(
+  events: readonly GameEvent[],
+  view: View,
+  radius: number,
+  deviceScale: number,
+): Path2D[] {
+  const batches: Path2D[] = [];
+  let path = new Path2D();
+  let centres: Array<readonly [number, number]> = [];
+  const clear = radius * 2 + EVENT_AA_GAP_DEVICE_PX / deviceScale;
+  const clear2 = clear * clear;
+
+  for (const event of events) {
+    const x = view.sx(event.x);
+    const y = view.sy(event.y);
+    const overlaps = centres.some(([cx, cy]) => {
+      const dx = x - cx;
+      const dy = y - cy;
+      return dx * dx + dy * dy <= clear2;
+    });
+    if (overlaps) {
+      batches.push(path);
+      path = new Path2D();
+      centres = [];
+    }
+    // `moveTo` starts an independent subpath; otherwise `arc` would join this
+    // circle to the preceding circle's endpoint with a line.
+    path.moveTo(x + radius, y);
+    path.arc(x, y, radius, 0, Math.PI * 2);
+    centres.push([x, y]);
+  }
+  if (centres.length) batches.push(path);
+  return batches;
+}
+
+function completedEventPaths(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  gf: GameFile,
+): CompleteEventPaths {
+  const generation = prefixCacheGeneration();
+  if (generation !== eventPathGeneration) {
+    completePaths = new WeakMap();
+    eventPathGeneration = generation;
+  }
+
+  let byView = completePaths.get(gf);
+  if (!byView) {
+    byView = new WeakMap();
+    completePaths.set(gf, byView);
+  }
+  let byScale = byView.get(view);
+  if (!byScale) {
+    byScale = new Map();
+    byView.set(view, byScale);
+  }
+
+  const transform = ctx.getTransform();
+  const deviceScale = Math.max(
+    Number.EPSILON,
+    Math.hypot(transform.a, transform.b),
+    Math.hypot(transform.c, transform.d),
+  );
+  let paths = byScale.get(deviceScale);
+  if (!paths) {
+    const passR = Math.max(1, view.s(PASS_MARK_R));
+    const anchorR = Math.max(TRACE_ANCHOR_MIN_PX, view.scale * TRACE_ANCHOR_SCALE);
+    paths = {
+      passes: eventPaths(gf.events.passes, view, passR, deviceScale),
+      shots: eventPaths(gf.events.shots, view, anchorR, deviceScale),
+    };
+    byScale.set(deviceScale, paths);
+  }
+  return paths;
+}
+
+function drawCompletedGameEvents(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  gf: GameFile,
+  alpha: number,
+): void {
+  const paths = completedEventPaths(ctx, view, gf);
+  ctx.save();
+  ctx.fillStyle = boneOf(Math.min(1, PASS_MARK_ALPHA * alpha));
+  for (const path of paths.passes) ctx.fill(path);
+  ctx.fillStyle = boneOf(Math.min(1, TRACE_ANCHOR_ALPHA * alpha));
+  for (const path of paths.shots) ctx.fill(path);
+  ctx.restore();
+}
+
 /**
  * The stroke's vertex path, begun on the ctx — ONE walk for every consumer.
  * `plateStroke` styles and strokes it; the entry yield mask (session 17)
@@ -238,6 +350,15 @@ export function drawGameEvents(
   sinceFrame?: number,
 ): void {
   if (alpha <= 0.002) return;
+  // The Plate holds the completed game's annotations for most of the Window.
+  // Their geometry is static; only ink changes in CLOSE. Batch that one case
+  // directly on the destination. Dynamic, clipped and wet-edge calls retain
+  // the original per-event path below.
+  if (clip === undefined && sinceFrame === undefined
+      && uptoFrame >= gameTotalFrames(gf)) {
+    drawCompletedGameEvents(ctx, view, gf, alpha);
+    return;
+  }
   const b = frameBases(gf);
   const at = (e: GameEvent): number => (b.get(e.p) ?? 0) + e.f;
   const due = (e: GameEvent): boolean => {

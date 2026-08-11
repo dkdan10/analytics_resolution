@@ -10,31 +10,35 @@
  * the record's own resolution changes.
  */
 
-import { ignitePhase } from "./bloom";
-import { factExternal, type FactsFile, type Loaded, type Season } from "./data";
+import { factExternal, factNum, type FactsFile, type Loaded, type Season } from "./data";
 import { censusStops } from "./modes/census";
-import { LEAGUE_ACCUM_K } from "./modes/ledger";
+import { FIELD_WINDOW_ATTRIBUTION_STOPS } from "./modes/field";
+import { LEDGER_WINDOW_STOPS } from "./modes/ledger";
+import { MEASURE_WINDOW_TERMINAL_SPAN } from "./modes/measure";
 import {
-  ALL_OPS,
+  bitOf,
   has,
   OPERATIONS,
   type OpId,
   type Operation,
   type StackOps,
 } from "./modes/operations";
-import { HAND_PHASES } from "./modes/hand";
-import { SHELL_PHASE } from "./modes/plate";
 import { MODE_IDS, MODE_TITLES, type ModeId } from "./modes/types";
 import {
   ACT_TITLES,
-  ARRIVAL_TAIL,
   CUT_YEAR,
   stateAt,
-  WINDOW_BEATS,
   WINDOW_YEAR,
   type Act,
   type Schedule,
 } from "./timeline";
+import {
+  HAND_NIGHT_SECONDS,
+  PLATE_WINDOW_STOPS,
+  WINDOW_BEATS,
+  WINDOW_CREST_PHASE,
+  handWindowPhases,
+} from "./window-score";
 
 export interface Transport {
   seek(seconds: number): void;
@@ -44,6 +48,8 @@ export interface Transport {
   position(): number;
   /** Which hand is drawing right now. */
   mode(): string;
+  /** The same hand as an id, for rail panels whose content replaces the score. */
+  activeMode(): ModeId;
   /** The pinned hand's id, or null while the loop rotates. THE SECOND SCORE
    *  reads this: the rail's window interior belongs to the pinned hand. */
   pinned(): ModeId | null;
@@ -130,21 +136,16 @@ export interface WindowStop {
  *
  * Every stop is DERIVED from the same constants the hands read — never a typed
  * `t`:
- * - CENSUS: the derived stop table (`census.ts:censusStops` — a floor per
- *   filing, the remainder proportional to each taxonomy's own category
- *   count, MACHINE SAW protected at the equal-split span), the artifact's
- *   own column names in the record's column order.
- * - PLATE: the trace rhythm — the gestures ignite on `bloom.ts:ignitePhase`,
- *   the last at `(n−1)/n` of the spread, and the record's last file strikes at
- *   `SHELL_PHASE`.
- * - FIELD: arrival, then the one unchanged image it holds from `ARRIVAL_TAIL`
- *   to the close — the rail does not invent interior events the hand does not
- *   have.
- * - LEDGER: arrival, then its one late event — the last published heading,
- *   at the phase `LEAGUE_ACCUM_K` puts it.
- * - MEASURE and HAND keep the shared four beats: theirs genuinely are the
- *   window's beats. THE STACK and the released (rotating) rail keep the shared
- *   act map — releasing the pin restores it.
+ * - CENSUS: the count-weighted filing table, followed by a CLOSE reserved for
+ *   MACHINE SAW; names retain the artifact's own column order.
+ * - PLATE: possession, hold, game, evenly distributed gestures, close and
+ *   terminal receipt, all from `WINDOW_SCORE.plate`.
+ * - FIELD: attribution entrance/hold/exit, then NIGHT, SEASON, CREST and CLOSE.
+ * - LEDGER: first published heading, completed crest and reverse withdrawal.
+ * - MEASURE: shared beats plus the terminal-date entrance; HAND uses its honest
+ *   one/game/night scales before returning to the shared season and close.
+ * - STACK and the released rotating rail keep the shared act map; releasing a
+ *   pin restores it.
  */
 export function windowSubStops(
   pinned: ModeId | null,
@@ -154,11 +155,11 @@ export function windowSubStops(
   const w = schedule.byYear.get(WINDOW_YEAR);
   if (!w) return [];
   const at = (phase: number): number => w.start + phase * w.duration;
-  const span = (stops: { title: string; from: number }[]): WindowStop[] =>
+  const span = (stops: { title: string; at: number }[]): WindowStop[] =>
     stops.map((s, i) => ({
       title: s.title,
-      at: at(s.from),
-      end: at(stops[i + 1]?.from ?? 1),
+      at: at(s.at),
+      end: at(stops[i + 1]?.at ?? 1),
     }));
 
   if (pinned === "census" && data.window) {
@@ -168,43 +169,46 @@ export function windowSubStops(
     const season = data.byYear.get(WINDOW_YEAR);
     if (season) {
       return span(censusStops(season, data.taxonomyColumns, w.duration)
-        .map((s) => ({ title: s.title, from: s.from })));
+        .map((s) => ({ title: s.title, at: s.from })));
     }
   }
-  if (pinned === "plate" && data.traces) {
-    // In time order: the shell begins striking BEFORE the last gesture
-    // ignites — the plate hands itself from the corpus's last trace to the
-    // record's last file with no dead interval, and the rail says so.
-    const n = data.traces.traces.length;
-    return span([
-      { title: "the gestures, one at a time", from: 0 },
-      { title: "the record's last file", from: SHELL_PHASE },
-      { title: "the last gesture", from: ignitePhase(n - 1, n) },
-    ]);
+  if (pinned === "plate") {
+    return span(PLATE_WINDOW_STOPS.map((s) => ({ title: s.title, at: s.at })));
   }
   if (pinned === "field") {
     return span([
-      { title: "arrival", from: 0 },
-      { title: "one image, held", from: ARRIVAL_TAIL },
+      ...FIELD_WINDOW_ATTRIBUTION_STOPS.map((s) => ({ title: s.title, at: s.at })),
+      { title: "the night", at: WINDOW_BEATS[1].from },
+      { title: "the season", at: WINDOW_BEATS[2].from },
+      { title: "the crest", at: WINDOW_CREST_PHASE },
+      { title: "the close", at: WINDOW_BEATS[3].from },
     ]);
   }
   if (pinned === "ledger") {
-    const names = factExternal<unknown[]>(data.facts, "published_instead").length;
-    return span([
-      { title: "arrival", from: 0 },
-      { title: "the last published heading", from: (names - 1) / (names * LEAGUE_ACCUM_K) },
-    ]);
+    return span(LEDGER_WINDOW_STOPS.map((s) => ({ title: s.title, at: s.at })));
   }
-  if (pinned === "hand" && data.gameFile) {
+  if (pinned === "hand") {
     // THE FOUR SCALES (session 15): the hand's interior holds five real stops
     // — the shared night beat splits into the game and the night at the
     // hand's own exported anchor. One definition, two readers.
-    return span(HAND_PHASES.map((p) => ({ title: p.title, from: p.from })));
+    const phases = handWindowPhases(data.slateFile?.span.seconds ?? HAND_NIGHT_SECONDS);
+    return span(phases.map((p) => ({ title: p.title, at: p.from })));
+  }
+  if (pinned === "measure") {
+    return span([
+      { title: "one", at: 0 },
+      { title: "the night", at: WINDOW_BEATS[1].from },
+      { title: "the season", at: WINDOW_BEATS[2].from },
+      { title: "the crest", at: WINDOW_CREST_PHASE },
+      { title: "the close", at: WINDOW_BEATS[3].from },
+      { title: "terminal dates", at: MEASURE_WINDOW_TERMINAL_SPAN.from },
+    ]);
   }
   return WINDOW_BEATS.map((b) => ({ title: b.title, at: at(b.from), end: at(b.to) }));
 }
 
 export class Navigator {
+  private root: HTMLElement;
   private rows: Row[] = [];
   private current: Row | null = null;
   private fill: HTMLElement;
@@ -218,11 +222,18 @@ export class Navigator {
   private opBtns: { op: Operation; el: HTMLButtonElement; glyph: HTMLElement }[] = [];
   private allBtn!: HTMLButtonElement;
   private shownOps = -1;
+  private shownStackYear: number | null | undefined = undefined;
 
   /** The scrolling list. The transport lives outside it, because a rail that
    *  scrolls its own controls off the top leaves the presenter with no mouse
    *  at exactly the point in the run they are furthest from the start. */
   private list!: HTMLElement;
+  /** Only one body occupies that scroll region: the score, Stack operations,
+   * or Census apparatus. */
+  private scoreEl!: HTMLElement;
+  private censusEl!: HTMLElement;
+  private shownCensusYear: number | null = null;
+  private shownCensusTaxonomy = "";
 
   /** THE SECOND SCORE's region: the window's sub-stops, rebuilt only when the
    *  pinned hand changes — the rail's touch-DOM-only-on-change discipline. */
@@ -264,6 +275,7 @@ export class Navigator {
     private transport: Transport,
     private data: Loaded,
   ) {
+    this.root = root;
     const facts: FactsFile = data.facts;
     root.hidden = false;
     root.innerHTML = "";
@@ -426,7 +438,7 @@ export class Navigator {
     cite.type = "button";
     cite.id = "cite";
     cite.textContent = "⧉ CITE THIS FRAME";
-    cite.title = "copy the frame's citation — the piece's mode@t grammar";
+    cite.title = "copy a semantic stop or exact-time URL for this frame";
     cite.setAttribute("aria-label", "copy this frame's citation to the clipboard");
     cite.addEventListener("click", () => {
       void navigator.clipboard?.writeText(this.transport.citation());
@@ -453,18 +465,19 @@ export class Navigator {
     this.buildKeys(false);
     head.append(this.keysEl);
 
-    // OUTSIDE the head, and this is V-09's lesson rather than a layout taste.
-    // The head is `flex: 0 0 auto`, so anything put in it takes its full height
-    // out of the rail: the first build of this panel pushed the whole segment
-    // list off the bottom, which is the same failure as a transport that
-    // scrolls itself away — the presenter loses the controls exactly when they
-    // need them. It scrolls in its own region now, and the transport above and
-    // the segments below both keep their room.
-    root.append(this.buildStack(data));
-
+    // ONE scroll region. Stack and Census replace the long season score inside
+    // it instead of introducing nested scrollers or competing with that list.
     this.list = document.createElement("div");
     this.list.id = "nav-list";
     root.append(this.list);
+    this.list.append(this.buildStack(data));
+    this.censusEl = document.createElement("section");
+    this.censusEl.id = "census-panel";
+    this.censusEl.hidden = true;
+    this.list.append(this.censusEl);
+    this.scoreEl = document.createElement("div");
+    this.scoreEl.id = "nav-score";
+    this.list.append(this.scoreEl);
 
     // The closing year is the first season the record holds; the opening one is
     // the league's founding, the one date no dump can supply - which is Act 0.
@@ -512,7 +525,7 @@ export class Navigator {
       // interior, and releasing the pin restores the shared map.
       if (seg.year === WINDOW_YEAR) {
         this.windowBox = document.createElement("div");
-        this.list.append(this.windowBox);
+        this.scoreEl.append(this.windowBox);
         this.buildWindowStops(this.transport.pinned());
       }
     }
@@ -545,7 +558,7 @@ export class Navigator {
   }
 
   /**
-   * THE STACK's panel: seven operations, each declaring what it reads.
+   * THE STACK's panel: eight operations, each declaring what it reads.
    *
    * WHAT KEEPS THIS FROM BEING THE SETTINGS PANEL THE AUDIT REFUSED. Every row
    * names an ACT performed on a record rather than a renderer or a visual
@@ -625,7 +638,7 @@ export class Navigator {
       box.append(el);
     }
 
-    // The argumentative event. It is not a seven-fold convenience: applying
+    // The argumentative event. It is not an eight-fold convenience: applying
     // every operation at once is the demonstration that maximal rendering is not
     // maximal access, and the plate becomes illegible on purpose. HOLD UNTIL
     // RELEASED, by the artist's ruling — pressing again restores exactly the
@@ -646,33 +659,148 @@ export class Navigator {
   }
 
   /** The panel's state, written only when the mask actually moved. */
-  private syncStack(): void {
+  private syncStack(year: number | null): void {
     const on = this.transport.isStack();
+    this.root.classList.toggle("stack-active", on);
     if (this.stackEl.hidden === on) this.stackEl.hidden = !on;
     if (!on) return;
     const ops = this.transport.stack();
-    if (ops === this.shownOps) return;
+    if (ops === this.shownOps && year === this.shownStackYear) return;
     this.shownOps = ops;
+    this.shownStackYear = year;
     // The subtitle is state-aware (session 17): while anything is applied it
     // counts, so the panel's own words never claim a bare plate over an
     // operated one. The count and total both derive from the table.
-    const appliedCount = OPERATIONS.filter((o) => has(ops, o.id)).length;
+    const available = (op: Operation): boolean =>
+      !("windowOnly" in op) || year === WINDOW_YEAR;
+    const availableOps = OPERATIONS.filter(available);
+    const appliedCount = availableOps.filter((o) => has(ops, o.id)).length;
+    const unavailableCount = OPERATIONS.length - availableOps.length;
     this.stackNote.textContent = appliedCount > 0
-      ? `${appliedCount} OF ${OPERATIONS.length} APPLIED`
-      : "nothing is applied until it is named";
+      ? `${appliedCount} OF ${availableOps.length} AVAILABLE APPLIED`
+        + (unavailableCount ? ` · ${unavailableCount} UNAVAILABLE OUTSIDE THE WINDOW` : "")
+      : unavailableCount
+        ? `${unavailableCount} UNAVAILABLE OUTSIDE THE WINDOW`
+        : "nothing is applied until it is named";
     for (const { op, el, glyph } of this.opBtns) {
       const applied = has(ops, op.id);
+      const canApply = available(op);
       glyph.textContent = applied ? "◼" : "◻";
       el.setAttribute("aria-pressed", String(applied));
       el.classList.toggle("on", applied);
+      el.classList.toggle("unavailable", !canApply);
+      el.disabled = !canApply;
+      el.setAttribute("aria-disabled", String(!canApply));
       // A modifier with nothing to modify is shown as inert rather than hidden:
       // the dependency is part of what the panel is saying — CLASSIFY re-tints
       // the base LOCATE draws and never draws a field of its own.
       const inert = "requires" in op && !has(ops, op.requires as OpId);
       el.classList.toggle("inert", applied && inert);
     }
-    this.allBtn.setAttribute("aria-pressed", String(ops === ALL_OPS));
-    this.allBtn.classList.toggle("on", ops === ALL_OPS);
+    const availableMask = availableOps.reduce((mask, op) => mask | bitOf(op.id), 0);
+    const allAvailable = availableMask !== 0 && (ops & availableMask) === availableMask;
+    this.allBtn.setAttribute("aria-pressed", String(allAvailable));
+    this.allBtn.classList.toggle("on", allAvailable);
+  }
+
+  /** The Census's literal apparatus belongs to the presenter, not on top of
+   * the audience court. It is generated from the same classification maps as
+   * the hand and occupies the rail's one scroll region. */
+  private syncCensus(year: number | null, phase: number): void {
+    const season = year === null ? null : this.data.byYear.get(year) ?? null;
+    const currentTaxonomy = season
+      ? year === WINDOW_YEAR
+        ? censusStops(season, this.data.taxonomyColumns,
+            this.schedule.byYear.get(year)?.duration ?? 1)
+          .find((stop) => phase >= stop.from && phase < stop.to)?.taxonomy ?? null
+        : season.active_taxonomy
+      : null;
+    const key = currentTaxonomy ?? "machine-saw";
+    if (year === this.shownCensusYear && key === this.shownCensusTaxonomy) return;
+    this.shownCensusYear = year;
+    this.shownCensusTaxonomy = key;
+    this.censusEl.textContent = "";
+
+    const title = document.createElement("h2");
+    title.textContent = season ? `${season.season} · THE CENSUS` : "THE CENSUS";
+    this.censusEl.append(title);
+    if (!season) return;
+
+    const summary = document.createElement("p");
+    summary.textContent = `${season.attempts.toLocaleString()} SHOTS · `
+      + `${season.vocabulary.categories_total.toLocaleString()} CATEGORIES`;
+    this.censusEl.append(summary);
+
+    const appendSection = (
+      headingText: string,
+      rows: readonly (readonly [string, string])[],
+      active = false,
+    ): void => {
+      const heading = document.createElement("h3");
+      heading.textContent = active ? `◆ ${headingText}` : headingText;
+      this.censusEl.append(heading);
+      for (const [name, rendered] of rows) {
+        const row = document.createElement("p");
+        row.className = "census-row";
+        const label = document.createElement("span");
+        label.textContent = name;
+        const value = document.createElement("span");
+        value.textContent = rendered;
+        row.append(label, value);
+        this.censusEl.append(row);
+      }
+    };
+
+    for (const taxonomy of Object.keys(this.data.taxonomyColumns)) {
+      const source = this.data.taxonomyColumns[taxonomy] ?? taxonomy;
+      const counts = season.classification[taxonomy] ?? {};
+      const total = Object.values(counts).reduce((sum, n) => sum + n, 0) || 1;
+      appendSection(
+        `${taxonomy} · ${source}`,
+        Object.entries(counts)
+          .sort((a, b) => b[1] - a[1])
+          .map(([name, count]) => [
+            name,
+            `${count.toLocaleString()} · ${(100 * count / total).toFixed(1)}%`,
+          ] as const),
+        taxonomy === currentTaxonomy,
+      );
+
+      // PLACEMENT was part of the canvas apparatus even though it is not one
+      // of the record's six taxonomy columns. Keep it in the same place in the
+      // presenter-owned copy: after AREA, before DESCRIPTION.
+      if (taxonomy === "AREA") {
+        const sentinel = season.resolution.rim_sentinel;
+        const unplaced = sentinel?.is_refusal ? sentinel.n : 0;
+        const located = season.attempts - unplaced;
+        appendSection("PLACEMENT", [
+          ["Located", `${located.toLocaleString()} · ${(100 * located / season.attempts).toFixed(1)}%`],
+          ["No place given", `${unplaced.toLocaleString()} · ${(100 * unplaced / season.attempts).toFixed(1)}%`],
+        ]);
+      }
+    }
+
+    // The old apparatus ended with the Window's material inventory. Moving
+    // the tables into the rail must move this evidence too, not strand it in a
+    // dead canvas helper.
+    if (year === WINDOW_YEAR && this.data.window) {
+      const inv = this.data.window.inventory;
+      appendSection("THE MACHINE SAW", [
+        ["Moments", inv.moments.toLocaleString()],
+        ["Body positions", inv.body_positions.toLocaleString()],
+        ["Miles run", inv.miles_run.toLocaleString()],
+        ["Hours tracked", inv.hours_tracked.toLocaleString()],
+        ["Touches", inv.touches.toLocaleString()],
+        ["Passes", inv.passes.toLocaleString()],
+        ["Drives", inv.drives.toLocaleString()],
+      ]);
+      const positions = factNum(this.data.facts, "schema.positions_per_shot");
+      const full = factNum(this.data.facts, "season.games_full");
+      appendSection("THE RECORD KEPT", [
+        ["Positions per shot", positions.toLocaleString()],
+        [`Games of ${full.toLocaleString()}`, this.data.window.corpus.games_parsed.toLocaleString()],
+      ]);
+    }
   }
 
   /** Rebuild the window's sub-stop rows for the pinned hand (or the shared
@@ -715,7 +843,7 @@ export class Navigator {
     const el = document.createElement("div");
     el.className = cls;
     el.textContent = label.toUpperCase();
-    this.list.append(el);
+    this.scoreEl.append(el);
   }
 
   /**
@@ -750,7 +878,7 @@ export class Navigator {
     el.append(left, right);
     el.setAttribute("aria-label", `${label}${share ? `, ${share}` : ""}, at ${fmt(start)}`);
     el.addEventListener("click", () => this.transport.seek(start));
-    (parent ?? this.list).append(el);
+    (parent ?? this.scoreEl).append(el);
     return el;
   }
 
@@ -791,11 +919,18 @@ export class Navigator {
     const hand = `▣ ${this.transport.mode()}`;
     if (this.handEl.textContent !== hand) this.handEl.textContent = hand;
 
-    this.syncStack();
+    const pin = this.transport.pinned();
+    const activeMode = this.transport.activeMode();
+    const stackPanel = pin === "stack";
+    const censusPanel = activeMode === "census";
+    this.root.classList.toggle("census-active", censusPanel);
+    this.scoreEl.hidden = stackPanel || censusPanel;
+    this.censusEl.hidden = !censusPanel;
+    this.syncStack(st.year);
+    if (censusPanel) this.syncCensus(st.year, st.phase);
 
     // THE SECOND SCORE: the window's interior follows the pinned hand. The
     // rows are rebuilt only when the pin actually moved.
-    const pin = this.transport.pinned();
     if (pin !== this.shownPin) this.buildWindowStops(pin);
 
     // The direct hand choices track the pin, written on change only.

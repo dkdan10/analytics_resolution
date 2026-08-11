@@ -59,9 +59,60 @@ interface Lane {
    *  or null when the arriving day is dead or already the seed. */
   delta: HTMLCanvasElement | null;
   deltaFor: number;
+  /** The exact completed front the current delta rises toward. */
+  nextFront: HTMLCanvasElement | null;
+  nextPx: Float32Array | null;
+  nextFor: number;
+  /** One further day, prepared in bounded pieces behind the live fold. */
+  prepared: PreparedFold | null;
+  job: FoldJob | null;
 }
 
+interface PixelField {
+  px: Float32Array;
+  /** Half-open device-pixel bounds containing every possible non-zero value. */
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+interface PreparedFold {
+  forDay: number;
+  front: HTMLCanvasElement;
+  px: Float32Array;
+  delta: HTMLCanvasElement;
+}
+
+interface FoldJob {
+  forDay: number;
+  target: Float64Array;
+  basePx: Float32Array;
+  field: PixelField;
+  cell: number;
+  stage: "deposit" | "delta-field" | "delta-canvas" | "front";
+  deltaField: PixelField | null;
+  delta: HTMLCanvasElement | null;
+}
+
+/** At DPR 2 this is ~6 ms of the old all-at-once conversion. */
+const PREP_CELLS_PER_FRAME = 256;
+
 const lanes = new Map<string, Lane>();
+
+interface WashGeometry {
+  w: number;
+  h: number;
+  span: number;
+  inv: number;
+  overlap: number;
+  fx: Float64Array;
+  fy: Float64Array;
+  x2: Float64Array;
+  y2: Float64Array;
+}
+
+let geometries = new WeakMap<View, Map<string, WashGeometry>>();
 
 /** Artifact identity for keys, the hand's own WeakMap idiom. */
 const ids = new WeakMap<object, number>();
@@ -77,6 +128,7 @@ function idOf(o: object): number {
 
 export function clearWashes(): void {
   lanes.clear();
+  geometries = new WeakMap();
 }
 
 /** One day's cells out of the decoded rasters, as fold-ready floats. */
@@ -103,19 +155,18 @@ export function gridCells(grid: Record<string, number>, meta: WashMeta): Float64
   return out;
 }
 
-/** Cell sums → toned, splatted float pixels. The residence's arithmetic at the
- *  wash's tone: a cell's share of the CORPUS total through 1 − e^(−k·share),
- *  spread by the J2-null kernel so the lattice's beat is suppressed. */
-function convert(
-  cells: Float64Array,
-  total: number,
-  meta: WashMeta,
-  view: View,
-  dpr: number,
-): Float32Array {
+function washGeometry(meta: WashMeta, view: View, dpr: number): WashGeometry {
+  const key = `${meta.rows}|${meta.cols}|${meta.x0}|${meta.y0}|${dpr}`;
+  let byKey = geometries.get(view);
+  if (!byKey) {
+    byKey = new Map();
+    geometries.set(view, byKey);
+  }
+  const have = byKey.get(key);
+  if (have) return have;
+
   const w = Math.max(1, Math.round(view.width * dpr));
   const h = Math.max(1, Math.round(view.height * dpr));
-  const px = new Float32Array(w * h);
   const spacing = view.s(CELL_TENTHS) * dpr;
   const radius = Math.max(SPLAT_MIN_PX, spacing * SPLAT_SPACING_K);
   const span = Math.ceil(radius);
@@ -124,55 +175,259 @@ function convert(
     1,
     (Math.PI * radius * radius * FALLOFF_DISC_INTEGRAL) / (spacing * spacing),
   );
-  for (let c = 0; c < cells.length; c++) {
+  const fx = new Float64Array(meta.cols);
+  const fy = new Float64Array(meta.rows);
+  for (let c = 0; c < meta.cols; c++) {
+    fx[c] = view.sx((c + meta.x0) * CELL_TENTHS + CELL_TENTHS / 2) * dpr;
+  }
+  for (let r = 0; r < meta.rows; r++) {
+    fy[r] = view.sy((r + meta.y0) * CELL_TENTHS + CELL_TENTHS / 2) * dpr;
+  }
+
+  // Pixel-major conversion below visits the same cell order as the old
+  // cell-major splat.  Cache only geometry: squared distances stay Float64, so
+  // the eventual `1 - (x² + y²) * inv` is the exact same expression.
+  const x2 = new Float64Array(w * meta.cols);
+  const y2 = new Float64Array(h * meta.rows);
+  for (let x = 0; x < w; x++) {
+    const row = x * meta.cols;
+    for (let c = 0; c < meta.cols; c++) {
+      const ex = x - fx[c]!;
+      x2[row + c] = ex * ex;
+    }
+  }
+  for (let y = 0; y < h; y++) {
+    const row = y * meta.rows;
+    for (let r = 0; r < meta.rows; r++) {
+      const ey = y - fy[r]!;
+      y2[row + r] = ey * ey;
+    }
+  }
+
+  const made = {
+    w, h, span, inv, overlap, fx, fy, x2, y2,
+  };
+  byKey.set(key, made);
+  return made;
+}
+
+/** Cell sums → toned, splatted float pixels. The residence's arithmetic at the
+ *  wash's tone: a cell's share of the CORPUS total through 1 − e^(−k·share),
+ *  spread by the J2-null kernel so the lattice's beat is suppressed.
+ *
+ * Geometry is cached because the court, kernel and device grid do not move
+ * between days. Deposits remain cell-major and every Float32 write stays in the
+ * original order; only repeated coordinate transforms and squaring leave the
+ * day-crossing path.
+ */
+function emptyField(view: View, dpr: number): PixelField {
+  const w = Math.max(1, Math.round(view.width * dpr));
+  const h = Math.max(1, Math.round(view.height * dpr));
+  return { px: new Float32Array(w * h), x0: w, y0: h, x1: 0, y1: 0 };
+}
+
+function depositCells(
+  field: PixelField,
+  cells: Float64Array,
+  total: number,
+  meta: WashMeta,
+  view: View,
+  dpr: number,
+  from: number,
+  to: number,
+): void {
+  const geom = washGeometry(meta, view, dpr);
+  const { w, h, span, inv, overlap } = geom;
+  const px = field.px;
+  for (let c = from; c < Math.min(to, cells.length); c++) {
     const sum = cells[c]!;
     if (sum <= 0) continue;
-    const gx = (c % meta.cols) + meta.x0;
-    const gy = Math.floor(c / meta.cols) + meta.y0;
-    const cx = gx * CELL_TENTHS + CELL_TENTHS / 2;
-    const cy = gy * CELL_TENTHS + CELL_TENTHS / 2;
     const a = (1 - Math.exp(-WASH_TONE_K * (sum / total))) / overlap;
-    const fx = view.sx(cx) * dpr;
-    const fy = view.sy(cy) * dpr;
-    const bx = Math.round(fx);
-    const by = Math.round(fy);
-    for (let dy = -span; dy <= span; dy++) {
-      const yy = by + dy;
-      if (yy < 0 || yy >= h) continue;
-      const ey = yy - fy;
-      for (let dx = -span; dx <= span; dx++) {
-        const xx = bx + dx;
-        if (xx < 0 || xx >= w) continue;
-        const ex = xx - fx;
-        const wgt = 1 - (ex * ex + ey * ey) * inv;
+    const col = c % meta.cols;
+    const row = Math.floor(c / meta.cols);
+    const bx = Math.round(geom.fx[col]!);
+    const by = Math.round(geom.fy[row]!);
+    field.x0 = Math.min(field.x0, Math.max(0, bx - span));
+    field.y0 = Math.min(field.y0, Math.max(0, by - span));
+    field.x1 = Math.max(field.x1, Math.min(w, bx + span + 1));
+    field.y1 = Math.max(field.y1, Math.min(h, by + span + 1));
+    const yy0 = Math.max(0, by - span);
+    const yy1 = Math.min(h, by + span + 1);
+    const xx0 = Math.max(0, bx - span);
+    const xx1 = Math.min(w, bx + span + 1);
+    for (let y = yy0; y < yy1; y++) {
+      const pixelRow = y * w;
+      const ey2 = geom.y2[y * meta.rows + row]!;
+      for (let x = xx0; x < xx1; x++) {
+        const wgt = 1 - (geom.x2[x * meta.cols + col]! + ey2) * inv;
         if (wgt <= 0) continue;
-        px[yy * w + xx] = px[yy * w + xx]! + a * wgt;
+        const p = pixelRow + x;
+        px[p] = px[p]! + a * wgt;
       }
     }
   }
-  return px;
+}
+
+function convert(
+  cells: Float64Array,
+  total: number,
+  meta: WashMeta,
+  view: View,
+  dpr: number,
+): PixelField {
+  const field = emptyField(view, dpr);
+  depositCells(field, cells, total, meta, view, dpr, 0, cells.length);
+  return field;
 }
 
 const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
 
+/** `Uint8ClampedArray`'s exact ToUint8Clamp, including ties-to-even. */
+function clampByte(x: number): number {
+  if (x <= 0) return 0;
+  if (x >= 255) return 255;
+  const lo = Math.floor(x);
+  const d = x - lo;
+  if (d < 0.5) return lo;
+  if (d > 0.5) return lo + 1;
+  return lo % 2 === 0 ? lo : lo + 1;
+}
+
 /** Float pixels → a canvas, bone always: the ground belongs to no zone. */
-function toCanvas(px: Float32Array, view: View, dpr: number): HTMLCanvasElement {
+function toCanvas(field: PixelField, view: View, dpr: number): HTMLCanvasElement {
   const w = Math.max(1, Math.round(view.width * dpr));
   const h = Math.max(1, Math.round(view.height * dpr));
   const img = new ImageData(w, h);
-  const data = img.data;
-  for (let p = 0, o = 0; p < px.length; p++, o += 4) {
-    const v = Math.min(1, px[p]!);
-    data[o] = bone[0]! * v;
-    data[o + 1] = bone[1]! * v;
-    data[o + 2] = bone[2]! * v;
-    data[o + 3] = 255;
+  // The old loop wrote opaque black through the full viewport one channel at
+  // a time even though the wash can only touch the fitted court.  Fill that
+  // identical ground in native code, then visit only the device-pixel bounds
+  // `convert` actually touched.  Packing a pixel is byte-identical to four
+  // Uint8Clamped writes because `clampByte` implements their specified
+  // ties-to-even conversion.
+  const words = new Uint32Array(img.data.buffer);
+  words.fill(0xff000000);
+  for (let y = field.y0; y < field.y1; y++) {
+    const row = y * w;
+    for (let x = field.x0; x < field.x1; x++) {
+      const p = row + x;
+      const v = Math.min(1, field.px[p]!);
+      const r = clampByte(bone[0]! * v);
+      const g = clampByte(bone[1]! * v);
+      const b = clampByte(bone[2]! * v);
+      words[p] = (0xff000000 | r | (g << 8) | (b << 16)) >>> 0;
+    }
   }
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
   canvas.getContext("2d")!.putImageData(img, 0, 0);
   return canvas;
+}
+
+function addDay(
+  cells: Float64Array,
+  wash: Wash,
+  meta: WashMeta,
+  day: number,
+): void {
+  const at = meta.days.indexOf(day);
+  if (at < 0) return;
+  const per = meta.rows * meta.cols;
+  for (let i = 0; i < per; i++) cells[i] = cells[i]! + wash.data[at * per + i]!;
+}
+
+/** Begin the state after the day following the currently arriving one. */
+function beginPreparation(
+  lane: Lane,
+  order: number[],
+  wash: Wash,
+  meta: WashMeta,
+  view: View,
+  dpr: number,
+): void {
+  if (lane.job || lane.prepared || !lane.nextPx) return;
+  const arriving = order[lane.applied];
+  const following = order[lane.applied + 1];
+  if (arriving === undefined || following === undefined || lane.nextFor !== arriving) return;
+  const target = new Float64Array(lane.acc);
+  addDay(target, wash, meta, arriving);
+  addDay(target, wash, meta, following);
+  lane.job = {
+    forDay: following,
+    target,
+    basePx: lane.nextPx,
+    field: emptyField(view, dpr),
+    cell: 0,
+    stage: "deposit",
+    deltaField: null,
+    delta: null,
+  };
+}
+
+function differenceField(
+  next: PixelField,
+  basePx: Float32Array,
+  view: View,
+  dpr: number,
+): PixelField {
+  const delta = emptyField(view, dpr);
+  delta.x0 = next.x0;
+  delta.y0 = next.y0;
+  delta.x1 = next.x1;
+  delta.y1 = next.y1;
+  const w = Math.max(1, Math.round(view.width * dpr));
+  for (let y = delta.y0; y < delta.y1; y++) {
+    const row = y * w;
+    for (let x = delta.x0; x < delta.x1; x++) {
+      const p = row + x;
+      delta.px[p] = Math.max(0, next.px[p]! - basePx[p]!);
+    }
+  }
+  return delta;
+}
+
+/**
+ * Pay one bounded piece of the next day's exact fold per rendered frame.
+ * Typed-array accumulation is deterministic across these boundaries: cells
+ * still deposit in one ascending sequence and no Canvas surface is extended.
+ * Direct/backward seeks may fall back to `convert`; the resulting bytes are the
+ * same, while ordinary forward playback never receives the all-at-once spike.
+ */
+function advancePreparation(
+  lane: Lane,
+  total: number,
+  meta: WashMeta,
+  view: View,
+  dpr: number,
+): void {
+  const job = lane.job;
+  if (!job) return;
+  if (job.stage === "deposit") {
+    const to = Math.min(job.target.length, job.cell + PREP_CELLS_PER_FRAME);
+    depositCells(job.field, job.target, total, meta, view, dpr, job.cell, to);
+    job.cell = to;
+    if (job.cell >= job.target.length) job.stage = "delta-field";
+    return;
+  }
+  if (job.stage === "delta-field") {
+    job.deltaField = differenceField(job.field, job.basePx, view, dpr);
+    job.stage = "delta-canvas";
+    return;
+  }
+  if (job.stage === "delta-canvas") {
+    job.delta = toCanvas(job.deltaField!, view, dpr);
+    job.deltaField = null;
+    job.stage = "front";
+    return;
+  }
+  const front = toCanvas(job.field, view, dpr);
+  lane.prepared = {
+    forDay: job.forDay,
+    front,
+    px: job.field.px,
+    delta: job.delta!,
+  };
+  lane.job = null;
 }
 
 function blitLighter(
@@ -205,15 +460,20 @@ export function drawWashCells(
   const key = `cells|${id}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}`;
   let lane = lanes.get(key);
   if (!lane) {
-    const px = convert(cells, total, meta, view, dpr);
+    const field = convert(cells, total, meta, view, dpr);
     lane = {
       key,
       acc: cells,
       applied: 0,
-      front: toCanvas(px, view, dpr),
-      frontPx: px,
+      front: toCanvas(field, view, dpr),
+      frontPx: field.px,
       delta: null,
       deltaFor: -1,
+      nextFront: null,
+      nextPx: null,
+      nextFor: -1,
+      prepared: null,
+      job: null,
     };
     lanes.set(key, lane);
     evict(key);
@@ -252,18 +512,55 @@ export function drawWashFold(
   if (lane && lane.applied > wantApplied) lane = undefined; // backward: rebuild
   if (!lane) {
     const acc = dayCells(wash, meta, seedDay) ?? new Float64Array(per);
-    const px = convert(acc, total, meta, view, dpr);
+    const field = convert(acc, total, meta, view, dpr);
     lane = {
       key,
       acc,
       applied: 0,
-      front: toCanvas(px, view, dpr),
-      frontPx: px,
+      front: toCanvas(field, view, dpr),
+      frontPx: field.px,
       delta: null,
       deltaFor: -1,
+      nextFront: null,
+      nextPx: null,
+      nextFor: -1,
+      prepared: null,
+      job: null,
     };
     lanes.set(key, lane);
     evict(key);
+  }
+  // One bounded piece per frame. The initial direct/cold conversion above is
+  // still synchronous; forward playback prepares every following day before
+  // its boundary instead of paying the whole fold there.
+  advancePreparation(lane, total, meta, view, dpr);
+
+  // If the current arriving day was already converted (it is the destination
+  // of the delta now on screen), promote those exact bytes at its boundary.
+  while (lane.applied < wantApplied) {
+    const day = order[lane.applied]!;
+    if (lane.nextFor !== day || !lane.nextFront || !lane.nextPx) break;
+    addDay(lane.acc, wash, meta, day);
+    lane.applied++;
+    lane.front = lane.nextFront;
+    lane.frontPx = lane.nextPx;
+    lane.nextFront = null;
+    lane.nextPx = null;
+    lane.nextFor = -1;
+    lane.delta = null;
+    lane.deltaFor = -1;
+
+    const prepared = lane.prepared;
+    const nowArriving = order[lane.applied];
+    if (prepared && prepared.forDay === nowArriving) {
+      lane.delta = prepared.delta;
+      lane.deltaFor = prepared.forDay;
+      lane.nextFront = prepared.front;
+      lane.nextPx = prepared.px;
+      lane.nextFor = prepared.forDay;
+      lane.prepared = null;
+      beginPreparation(lane, order, wash, meta, view, dpr);
+    }
   }
   // Catch up in CELL SPACE first, then convert ONCE: during a multi-day
   // catch-up (a cold jump, a backward rebuild) the intermediate fronts are
@@ -273,15 +570,19 @@ export function drawWashFold(
   if (lane.applied < wantApplied) {
     while (lane.applied < wantApplied) {
       const day = order[lane.applied]!;
-      const at = meta.days.indexOf(day);
-      for (let i = 0; i < per; i++) lane.acc[i] = lane.acc[i]! + wash.data[at * per + i]!;
+      addDay(lane.acc, wash, meta, day);
       lane.applied++;
     }
-    const px = convert(lane.acc, total, meta, view, dpr);
-    lane.front = toCanvas(px, view, dpr);
-    lane.frontPx = px;
+    const field = convert(lane.acc, total, meta, view, dpr);
+    lane.front = toCanvas(field, view, dpr);
+    lane.frontPx = field.px;
     lane.delta = null;
     lane.deltaFor = -1;
+    lane.nextFront = null;
+    lane.nextPx = null;
+    lane.nextFor = -1;
+    lane.prepared = null;
+    lane.job = null;
   }
 
   blitLighter(ctx, lane.front, view, alpha * WASH_ALPHA);
@@ -292,15 +593,18 @@ export function drawWashFold(
   const arriving = order[wantApplied];
   if (arriving === undefined || arriving !== lo || frac <= 0) return;
   if (lane.deltaFor !== lo) {
-    const at = meta.days.indexOf(lo);
     const next = new Float64Array(lane.acc);
-    for (let i = 0; i < per; i++) next[i] = next[i]! + wash.data[at * per + i]!;
-    const nextPx = convert(next, total, meta, view, dpr);
-    for (let p = 0; p < nextPx.length; p++) {
-      nextPx[p] = Math.max(0, nextPx[p]! - lane.frontPx[p]!);
-    }
-    lane.delta = toCanvas(nextPx, view, dpr);
+    addDay(next, wash, meta, lo);
+    const nextField = convert(next, total, meta, view, dpr);
+    const delta = differenceField(nextField, lane.frontPx, view, dpr);
+    lane.delta = toCanvas(delta, view, dpr);
     lane.deltaFor = lo;
+    lane.nextFront = toCanvas(nextField, view, dpr);
+    lane.nextPx = nextField.px;
+    lane.nextFor = lo;
+    lane.prepared = null;
+    lane.job = null;
+    beginPreparation(lane, order, wash, meta, view, dpr);
   }
   if (lane.delta) blitLighter(ctx, lane.delta, view, alpha * WASH_ALPHA * frac);
 }

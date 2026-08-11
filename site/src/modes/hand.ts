@@ -112,7 +112,7 @@ import {
 import { drawSlug } from "../inscription";
 import { BONE_RGB, ZONE_RGB } from "../palette";
 import { COURT, type View } from "../plate";
-import { prefixSurface } from "../prefix";
+import { prefixCacheGeneration, prefixSurface } from "../prefix";
 import { dayCells, drawWashCells, drawWashFold, gridCells } from "../wash";
 // One implementation of the league's map, checked against the Python one
 // through a committed fixture. See site/src/zone.ts.
@@ -142,10 +142,18 @@ import {
   SPLOTCH_MIN_R,
   SPLOTCH_VISIBLE,
 } from "../scalars";
-import { KEPT_CREST, secondsFor, WINDOW_BEATS, WINDOW_YEAR } from "../timeline";
+import { secondsFor, WINDOW_YEAR } from "../timeline";
 import { pinCoordOf } from "./fieldlayer";
 import { arrivedThrough, cumulativeByDay, drawActCue, seasonClock } from "./shared";
 import type { Frame } from "./types";
+import {
+  HAND_INVENTORY_FULL_CLOSE_LOCAL,
+  HAND_NIGHT_SECONDS,
+  HAND_NIGHT_GROUND_ALPHA,
+  HAND_WINDOW_PHASES,
+  WINDOW_CREST_PHASE,
+  handWindowPhases,
+} from "../window-score";
 
 const ZONE = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
 /** The ball, and the fallback for a coordinate no zone claims: the plate's own
@@ -274,38 +282,10 @@ function scatterOrder(owner: object, n: number): Int32Array {
 
 // --- the beats ---------------------------------------------------------------
 
-const [BEAT_ONE, BEAT_NIGHT, BEAT_SEASON, BEAT_CLOSE] = WINDOW_BEATS;
-
-// KEPT_CREST — the season beat's crest — lives in timeline.ts since session
-// 17: the window's 24·6 inscription strikes at the same anchor, and one
-// definition serves both readers (the WINDOW_BEATS discipline).
-
-/**
- * WHERE THE SHARED NIGHT BEAT SPLITS INTO THE GAME AND THE NIGHT (session 15,
- * THE FOUR SCALES). `WINDOW_BEATS` is untouched — MEASURE, CENSUS, the keys
- * and the probes all keep the four shared boundaries — and this hand
- * subdivides its own interior with one file-local anchor: the first stretch
- * of the night beat is THE GAME (the full found game laying on its own
- * clock), the rest THE NIGHT (the slate). A phase anchor like KEPT_CREST,
- * not a material. AT 4/9 SINCE SESSION 17 (Codex A4, ruled with the rail
- * trim): the slate is a true-rate artifact of a fixed span, and 4/9 of the
- * shared beat gives the night sub-beat exactly that span — the slate's last
- * frame lands on the season boundary instead of running past it into a beat
- * named for something else.
- */
-const GAME_SPLIT = 4 / 9;
-const GAME_AT = BEAT_NIGHT.from + GAME_SPLIT * (BEAT_NIGHT.to - BEAT_NIGHT.from);
-
 /** The five real stops of this hand's window interior, exported for the rail
  *  (THE SECOND SCORE) — one definition, two readers, the `WINDOW_BEATS`
  *  discipline. Titles are copy, proposed in the session-15 packet. */
-export const HAND_PHASES = [
-  { id: "one", title: "one", from: 0, to: BEAT_ONE.to },
-  { id: "game", title: "the game", from: BEAT_NIGHT.from, to: GAME_AT },
-  { id: "night", title: "the night", from: GAME_AT, to: BEAT_NIGHT.to },
-  { id: "season", title: "the season", from: BEAT_SEASON.from, to: BEAT_SEASON.to },
-  { id: "close", title: "the close", from: BEAT_CLOSE.from, to: BEAT_CLOSE.to },
-] as const;
+export const HAND_PHASES = HAND_WINDOW_PHASES;
 
 /** Where the window is, as the five states this hand's interior actually
  *  holds. The rail lists the same five through HAND_PHASES, so a presenter
@@ -325,26 +305,36 @@ interface Window5 {
   kept: number;
   /** 0..1 as the paint is taken back off the plate over the close. */
   wash: number;
+  /** 0..1 through the inventory's entrance, then held through the close. */
+  inventory: number;
 }
 
-function windowAt(phase: number, span: number): Window5 {
+function windowAt(
+  phase: number,
+  span: number,
+  phases: ReturnType<typeof handWindowPhases>,
+): Window5 {
   const p = Math.min(1, Math.max(0, phase));
+  const [beatOne, beatGame, beatNight, beatSeason, beatClose] = phases;
   const seasonU = Math.max(0, Math.min(1,
-    (p - BEAT_SEASON.from) / (BEAT_SEASON.to - BEAT_SEASON.from)));
-  const keptFrom = BEAT_SEASON.from + KEPT_CREST * (BEAT_SEASON.to - BEAT_SEASON.from);
+    (p - beatSeason.from) / (beatSeason.to - beatSeason.from)));
   return {
-    one: Math.min(1, p / BEAT_ONE.to),
+    one: Math.min(1, p / beatOne.to),
     game: Math.max(0, Math.min(1,
-      (p - BEAT_NIGHT.from) / (GAME_AT - BEAT_NIGHT.from))),
+      (p - beatGame.from) / (beatGame.to - beatGame.from))),
     night: Math.max(0, Math.min(1,
-      (p - GAME_AT) / (BEAT_NIGHT.to - GAME_AT))),
+      (p - beatNight.from) / (beatNight.to - beatNight.from))),
     seasonU,
     // The whole real calendar, compressed through the register's one authored
     // easing: `span + 1` inclusive days, so the beat opens empty and closes
     // complete, and the four dead days stay dead at speed.
     dayFrac: seasonClock(seasonU) * (span + 1),
-    kept: smooth((p - keptFrom) / (BEAT_CLOSE.from - keptFrom)),
-    wash: smooth((p - BEAT_CLOSE.from) / (BEAT_CLOSE.to - BEAT_CLOSE.from)),
+    kept: smooth((p - WINDOW_CREST_PHASE) / (beatClose.from - WINDOW_CREST_PHASE)),
+    wash: smooth((p - beatClose.from) / (beatClose.to - beatClose.from)),
+    inventory: smooth(
+      (p - beatClose.from)
+      / ((beatClose.to - beatClose.from) * HAND_INVENTORY_FULL_CLOSE_LOCAL),
+    ),
   };
 }
 
@@ -451,6 +441,144 @@ export function paintStroke(
   }
 }
 
+type PaintCommand =
+  | { kind: "stroke"; path: Path2D; style: string; width: number }
+  | { kind: "fill"; path: Path2D; style: string };
+
+interface PaintPathCache {
+  strokes: Array<PaintCommand[] | undefined>;
+}
+
+let paintPathGeneration = -1;
+let paintPaths = new WeakMap<object, WeakMap<View, Map<string, PaintPathCache>>>();
+
+/**
+ * Compile the immutable geometry and material of one completed stroke.
+ *
+ * The live edge still walks `paintStroke`: its endpoint changes and must remain
+ * the original direct Canvas sequence.  Behind that edge, however, the same
+ * completed segments were rebuilding thousands of temporary current paths and
+ * colour strings every frame.  A `Path2D` replays the identical path on the
+ * destination — preserving source-over order and overlap — without allocating
+ * its geometry again.  Unlike grouping, this changes neither the number nor
+ * the ordering of translucent deposits.
+ */
+function completedPaintCommands(
+  view: View,
+  s: Strokes,
+  i: number,
+  r: Regimes,
+): PaintCommand[] {
+  const generation = prefixCacheGeneration();
+  if (generation !== paintPathGeneration) {
+    paintPaths = new WeakMap();
+    paintPathGeneration = generation;
+  }
+
+  let byView = paintPaths.get(s);
+  if (!byView) {
+    byView = new WeakMap();
+    paintPaths.set(s, byView);
+  }
+  let byRegime = byView.get(view);
+  if (!byRegime) {
+    byRegime = new Map();
+    byView.set(view, byRegime);
+  }
+  const regime = `${r.v10}|${r.v50}|${r.v90}`;
+  let cache = byRegime.get(regime);
+  if (!cache) {
+    cache = { strokes: new Array(s.n) };
+    byRegime.set(regime, cache);
+  }
+  const have = cache.strokes[i];
+  if (have) return have;
+
+  const commands: PaintCommand[] = [];
+  const first = s.first[i]!;
+  const n = s.count[i]!;
+  const ball = s.kind[i] === 1;
+  for (let k = 1; k < n; k++) {
+    const a = first + k - 1;
+    const b = first + k;
+    const dt = s.dt[b]!;
+    const arcT = s.arc[b]!;
+    if (dt === 0) continue;
+
+    const v = arcT / 10 / (dt / 25);
+    const seg = filament(v, r);
+    const rad = seg.rad;
+    const alpha = Math.min(FILAMENT_ALPHA_CAP, seg.alpha);
+    const x0 = view.sx(s.x[a]!);
+    const y0 = view.sy(s.y[a]!);
+    const x1 = view.sx(s.x[b]!);
+    const y1 = view.sy(s.y[b]!);
+    const rgb = ball ? BONE : (ZONE[zoneAt(s.x[b]!, s.y[b]!)] ?? BONE);
+    const col = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, `;
+
+    if (v > r.v90) {
+      const wl = RAYLEIGH * rad;
+      const beads = Math.max(1, Math.min(BEAD_CAP, Math.round(arcT / wl)));
+      const style = `${col}${alpha})`;
+      for (let d = 0; d < beads; d++) {
+        const t = (d + 0.5) / beads;
+        const path = new Path2D();
+        path.arc(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t,
+          view.s(rad), 0, Math.PI * 2);
+        commands.push({ kind: "fill", path, style });
+      }
+      continue;
+    }
+
+    const path = new Path2D();
+    path.moveTo(x0, y0);
+    path.lineTo(x1, y1);
+    commands.push({
+      kind: "stroke",
+      path,
+      style: `${col}${alpha})`,
+      width: view.s(rad * 2),
+    });
+
+    if (v < r.v10) {
+      const excess = (r.v10 / Math.max(v, POOL_V_FLOOR) - 1) * POOL_EXCESS_K;
+      if (excess > POOL_V_FLOOR) {
+        const pool = new Path2D();
+        pool.arc((x0 + x1) / 2, (y0 + y1) / 2,
+          view.s(rad * Math.min(POOL_R_CAP, 1 + excess)), 0, Math.PI * 2);
+        commands.push({
+          kind: "fill",
+          path: pool,
+          style: `${col}${Math.min(POOL_ALPHA_CAP, alpha * POOL_ALPHA_K)})`,
+        });
+      }
+    }
+  }
+  cache.strokes[i] = commands;
+  return commands;
+}
+
+function drawCompletedPaintStroke(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  s: Strokes,
+  i: number,
+  r: Regimes,
+): void {
+  for (const command of completedPaintCommands(view, s, i, r)) {
+    if (command.kind === "fill") {
+      ctx.fillStyle = command.style;
+      ctx.fill(command.path);
+    } else {
+      ctx.strokeStyle = command.style;
+      ctx.lineWidth = command.width;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.stroke(command.path);
+    }
+  }
+}
+
 /**
  * THE SLATE, drawn. Progress is a pure function of the beat's own seconds:
  * each path begins at its span-local start offset and advances vertex by
@@ -477,7 +605,11 @@ function drawSlate(ctx: CanvasRenderingContext2D, view: View, sl: Slate,
       cumDt += sl.dt[first + k]!;
       k++;
     }
-    paintStroke(ctx, view, sl as unknown as Strokes, i, k / n, r);
+    if (k >= n) {
+      drawCompletedPaintStroke(ctx, view, sl as unknown as Strokes, i, r);
+    } else {
+      paintStroke(ctx, view, sl as unknown as Strokes, i, k / n, r);
+    }
   }
   ctx.restore();
 }
@@ -627,10 +759,12 @@ export function drawHandHand(f: Frame): void {
   ctx.clip();
 
   const inWindow = year === WINDOW_YEAR && data.window !== null;
+  const handScore = handWindowPhases(data.slateFile?.span.seconds ?? HAND_NIGHT_SECONDS);
+  const [, beatGame, beatNight, beatSeason] = handScore;
   const w = data.window;
   const m = inWindow ? data.measures() : null;
   const span = inWindow && m ? m.day[m.n - 1]! : 0;
-  const win = inWindow ? windowAt(st.phase, span) : null;
+  const win = inWindow ? windowAt(st.phase, span, handScore) : null;
 
   // --- the drops the record kept --------------------------------------------
   let dropSurface: HTMLCanvasElement | null = null;
@@ -703,7 +837,6 @@ export function drawHandHand(f: Frame): void {
       ctx.restore();
     }
   }
-
   // --- the bodies the record did not keep -----------------------------------
   const s = inWindow ? data.strokes() : null;
   if (s && s.n && paint && win) {
@@ -728,11 +861,14 @@ export function drawHandHand(f: Frame): void {
         // add). The handoff from the night phase is exact by construction —
         // the fold's ground opens as the seed's own conversion.
         drawWashFold(ctx, view, dpr, washFile, wmeta, gf.day, win.dayFrac, ground);
-      } else if (win.game > 0) {
+      } else {
         // The game's own ground rising through its phase, then the night's
         // raster crossing over it — subset -> superset BY MEASURE: the same
         // tone curve against the same corpus total, so the crossfade only
-        // ever brightens a cell.
+        // ever brightens a cell. Build the fixed game ground during ONE with
+        // zero ink: GAME otherwise paid its full kernel conversion on the
+        // first visible frame. `drawWashCells` caches the immutable surface and
+        // its zero-alpha blit is a no-op, so timing moves and pixels do not.
         const nightIn = smooth(win.night);
         if (nightIn < 1) {
           drawWashCells(ctx, view, dpr, `game|${assetId(gf)}`,
@@ -755,6 +891,7 @@ export function drawHandHand(f: Frame): void {
     // over the game's own frames (dim applied at blit, never in the key).
     const gm = data.game();
     if (gm && gf) {
+      const gameCrop = courtBacking(view, dpr);
       const total = gameTotalFrames(gf);
       const pos = possessionFrames(gf);
       const gameFrame = win.game > 0 ? gameClock(win.game) * total : 0;
@@ -763,24 +900,27 @@ export function drawHandHand(f: Frame): void {
       // and beads settle to the dried register within GAME_WET_S of
       // presentation time instead of standing "just painted" all window.
       // Drawing thresholds keep `gameFrame`; only drying reads this.
-      const dryFrame = gameFrame + Math.max(0, st.phase - GAME_AT) * secondsFor(WINDOW_YEAR) * gf.hz;
+      const dryFrame = gameFrame
+        + Math.max(0, st.phase - beatGame.to) * secondsFor(WINDOW_YEAR) * gf.hz;
       const gEnv = remains * (1 - win.wash);
       const sp = strokeSpans(gm, gf);
       const wetFrames = GAME_WET_S * gf.hz;
       const stepFrames = Math.ceil(total / GAME_PREFIX_STEPS);
       const gSteps = Math.floor(gameFrame / stepFrames);
       const bakedGame = prefixSurface(
-        `hand.game|${assetId(gm)}|${geom}`, gSteps, dw, dh, dpr, stepFrames,
+        `hand.game|${assetId(gm)}|court|${geom}`,
+        gSteps, gameCrop.dw, gameCrop.dh, dpr, stepFrames,
         (c, a, b) => {
+          c.translate(-gameCrop.x, -gameCrop.y);
           for (let i = 0; i < gm.n; i++) {
             const end = sp.start[i]! + sp.dur[i]!;
             if (end >= a && end < b) {
-              paintStroke(c, view, gm as unknown as Strokes, i, 1, r);
+              drawCompletedPaintStroke(c, view, gm as unknown as Strokes, i, r);
             }
           }
         },
       );
-      if (bakedGame) blit(ctx, bakedGame, view, gEnv * GAME_DRIED);
+      if (bakedGame) blitCrop(ctx, bakedGame, gameCrop, gEnv * GAME_DRIED);
 
       if (gameFrame > 0) {
         // The live edge: every stroke not both fully baked and fully dried,
@@ -795,8 +935,12 @@ export function drawHandHand(f: Frame): void {
           if (end < bakedBefore && age >= wetFrames) continue;
           const wetness = Math.max(0, 1 - Math.max(0, age) / wetFrames);
           ctx.globalAlpha = gEnv * (GAME_DRIED + (1 - GAME_DRIED) * wetness);
-          paintStroke(ctx, view, gm as unknown as Strokes, i,
-            timeFrac(gm, i, gameFrame - at0), r);
+          const drawn = timeFrac(gm, i, gameFrame - at0);
+          if (drawn >= 1) {
+            drawCompletedPaintStroke(ctx, view, gm as unknown as Strokes, i, r);
+          } else {
+            paintStroke(ctx, view, gm as unknown as Strokes, i, drawn, r);
+          }
         }
         ctx.restore();
       }
@@ -863,7 +1007,9 @@ export function drawHandHand(f: Frame): void {
     ctx.save();
     ctx.globalAlpha = wet;
     for (let i = steps * STROKE_STEP; i < laid; i++) {
-      paintStroke(ctx, view, s, i, Math.min(1, (laid - i) / WET_STROKES), r);
+      const drawn = Math.min(1, (laid - i) / WET_STROKES);
+      if (drawn >= 1) drawCompletedPaintStroke(ctx, view, s, i, r);
+      else paintStroke(ctx, view, s, i, drawn, r);
     }
     ctx.restore();
 
@@ -880,9 +1026,10 @@ export function drawHandHand(f: Frame): void {
     const sl = data.slate();
     const sf = data.slateFile;
     if (sl && sf && win.night > 0) {
-      const nightSeconds = Math.max(0, st.phase - GAME_AT)
+      const nightSeconds = Math.max(0, st.phase - beatNight.from)
         * secondsFor(WINDOW_YEAR);
-      drawSlate(ctx, view, sl, nightSeconds * sf.span.hz, wet, r);
+      const nightGround = st.phase >= beatSeason.from ? HAND_NIGHT_GROUND_ALPHA : 1;
+      drawSlate(ctx, view, sl, nightSeconds * sf.span.hz, wet * nightGround, r);
     }
 
     // THE NIGHT's own endings: the slate date's calipers-as-drops, layering
@@ -904,7 +1051,8 @@ export function drawHandHand(f: Frame): void {
       const from2 = Math.max(nfrom, arrivedThrough(mcum, win.dayFrac));
       if (nightUpto > from2) {
         ctx.save();
-        ctx.globalAlpha = remains;
+        const nightGround = st.phase >= beatSeason.from ? HAND_NIGHT_GROUND_ALPHA : 1;
+        ctx.globalAlpha = remains * nightGround;
         bakeWindowDrops(ctx, view, m, w, from2, nightUpto);
         ctx.restore();
       }
@@ -918,11 +1066,11 @@ export function drawHandHand(f: Frame): void {
     // layer, composited again above instead of below.
     if (dropSurface && win.kept > 0) blit(ctx, dropSurface, view, remains * win.kept * KEPT_OVER_PAINT);
 
-    if (win.wash > 0) {
+    if (win.inventory > 0) {
       drawSlug(ctx, view, [
         `${paint.strokes.toLocaleString()} STROKES · ${paint.canvases} POSSESSIONS`,
         "EVERY VERTEX A POSITION THE MACHINE RECORDED",
-      ], { x: 0, y: 330 }, remains * win.wash * 0.5);
+      ], { x: 0, y: 330 }, remains * win.inventory);
     }
   }
 
@@ -980,6 +1128,49 @@ function blit(ctx: CanvasRenderingContext2D, el: HTMLCanvasElement,
   ctx.save();
   ctx.globalAlpha = Math.min(1, alpha);
   ctx.drawImage(el, 0, 0, view.width, view.height);
+  ctx.restore();
+}
+
+interface BackingCrop {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  dw: number;
+  dh: number;
+}
+
+/** Device-aligned backing bounds for the halfcourt clip already on `ctx`. */
+function courtBacking(view: View, dpr: number): BackingCrop {
+  const left = view.sx(COURT.x0);
+  const top = view.sy(COURT.y1);
+  const right = left + view.s(COURT.x1 - COURT.x0);
+  const bottom = top + view.s(COURT.y1 - COURT.y0);
+  const x0 = Math.floor(left * dpr);
+  const y0 = Math.floor(top * dpr);
+  const x1 = Math.ceil(right * dpr);
+  const y1 = Math.ceil(bottom * dpr);
+  return {
+    x: x0 / dpr,
+    y: y0 / dpr,
+    width: (x1 - x0) / dpr,
+    height: (y1 - y0) / dpr,
+    dw: Math.max(1, x1 - x0),
+    dh: Math.max(1, y1 - y0),
+  };
+}
+
+function blitCrop(
+  ctx: CanvasRenderingContext2D,
+  el: HTMLCanvasElement,
+  crop: BackingCrop,
+  alpha: number,
+): void {
+  if (alpha <= 0.002) return;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, alpha);
+  ctx.drawImage(el, 0, 0, el.width, el.height,
+    crop.x, crop.y, crop.width, crop.height);
   ctx.restore();
 }
 

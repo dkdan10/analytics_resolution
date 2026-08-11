@@ -1026,6 +1026,24 @@ export const SCALARS = {
       "exactly where the density is highest, and at the same weight it would " +
       "cut a visible ring through the one region every act is about.",
   },
+  ROOM_ENGRAVING_ALPHA: {
+    class: "authored",
+    value: 0.24,
+    material: true,
+    controls:
+      "the essential court-line weight in the room display profile. It lifts " +
+      "the plate above projector wash without making it compete with the " +
+      "measured field; the near profile retains ENGRAVING_ALPHA unchanged.",
+  },
+  ROOM_ENGRAVING_FAINT_ALPHA: {
+    class: "authored",
+    value: 0.16,
+    material: true,
+    controls:
+      "the secondary court-apparatus weight in the room display profile. It " +
+      "keeps the rim and backboard legible at distance while remaining below " +
+      "the essential court lines and the marks they hold.",
+  },
 
   // --- modes/census.ts — the filing (V-05) ---------------------------------
   //
@@ -1169,6 +1187,15 @@ export const SCALARS = {
       "type on screen, in a gutter. Struck below a full-share word because it is " +
       "a count and not a share, and nothing here is entitled to the whole floor.",
   },
+  MACHINE_SAW_SCOPE_OFFSET_PX: {
+    class: "authored",
+    value: 60,
+    material: false,
+    controls:
+      "the pixel offset placing MACHINE SAW's games-parsed scope below its two-line " +
+      "voice. The former 44px offset ran the scope through POSITION PER SHOT at " +
+      "the 1280x720 room profile; this leaves both statements uncontested.",
+  },
   CENSUS_SHARE_SCALE: {
     class: "authored",
     value: 0.32,
@@ -1298,9 +1325,9 @@ export const SCALARS = {
       "hole of pure black through the plate.",
   },
 
-  // --- modes/stack.ts — THE STACK, seven operations over one base -----------
+  // --- modes/stack.ts — THE STACK, eight operations over one base -----------
   // Every one of these is a COMPOSITE weight: how loudly a layer speaks when it
-  // is one of seven rather than the whole frame. They are authored, they are
+  // is one of eight rather than the whole frame. They are authored, they are
   // material, and the reason they exist at all is that material tuned to own a
   // frame is too loud inside a composite - which is the audit's "an all-on
   // default dissolves the court into proof-of-capability spectacle", answered
@@ -1321,7 +1348,7 @@ export const SCALARS = {
     material: false,
     controls:
       "the struck season numerals' ink in the composite. In THE PLATE the figure " +
-      "is the thing the frame is about; here it is one operation of seven, and at " +
+      "is the thing the frame is about; here it is one operation of eight, and at " +
       "its own weight it dominates every layer a presenter adds after it. " +
       "Typography, not grain.",
   },
@@ -1355,7 +1382,7 @@ export const SCALARS = {
       "the spoken term's ink in the composite. Its SIZE is not touched — area is " +
       "proportional to the shots the word names, which is the measurement THE " +
       "LEDGER's register is built on — so ink is the only lever that can make it " +
-      "one voice among seven rather than the loudest thing on the plate. " +
+      "one voice among eight rather than the loudest thing on the plate. " +
       "Typography, not grain.",
   },
   STACK_CALIPER_ALPHA: {
@@ -1426,7 +1453,7 @@ export const SCALARS = {
 
   SEASON_CLOCK_K: {
     class: "authored",
-    value: 3.5,
+    value: 2.6,
     material: true,
     controls:
       "the easing of the season beat's clock over the window's REAL calendar " +
@@ -1435,8 +1462,8 @@ export const SCALARS = {
       "arrive on which day, and the four days nobody played stay dead at " +
       "speed — and only this easing is authored. Material because it decides " +
       "which marks exist on a mid-beat frame, the REVEAL_CURVE reasoning. At " +
-      "this value the beat opens near the night's own pace and closes about " +
-      "e^k (~33×) faster; smaller flattens the crescendo toward a constant " +
+      "this gentler value retains acceleration without holding the opening " +
+      "weeks almost still and dumping the closing weeks at once; smaller flattens toward a constant " +
       "rate, larger makes the closing weeks a blur.",
   },
 
@@ -1464,15 +1491,15 @@ export const SCALARS = {
   },
   GAME_CLOCK_K: {
     class: "authored",
-    value: 3.5,
+    value: 2.6,
     material: true,
     controls:
       "the easing of the game phase's clock over the found game's own frames: " +
       "frame(u) = (e^(k·u) − 1)/(e^k − 1) of the whole game, SEASON_CLOCK_K's " +
       "curve one scale down. The feed underneath is measured; only the easing " +
       "is authored. Material because it decides which strokes exist on a " +
-      "mid-phase frame. A rival ~7.3 (opening at the possession's true rate) " +
-      "is packet-flagged, undecided.",
+      "mid-phase frame. It shares the season clock's gentler acceleration so " +
+      "the game develops instead of stalling and then arriving as a rush.",
   },
   GAME_DRIED: {
     class: "authored",
@@ -1633,12 +1660,15 @@ export const CENSUS_TICK_ALPHA: number = SCALARS.CENSUS_TICK_ALPHA.value;
 export const CENSUS_TICK_WEIGHT: number = SCALARS.CENSUS_TICK_WEIGHT.value;
 export const CENSUS_WORD_ALPHA: number = SCALARS.CENSUS_WORD_ALPHA.value;
 export const MACHINE_SAW_SCALE: number = SCALARS.MACHINE_SAW_SCALE.value;
+export const MACHINE_SAW_SCOPE_OFFSET_PX: number = SCALARS.MACHINE_SAW_SCOPE_OFFSET_PX.value;
 export const CENSUS_SHARE_SCALE: number = SCALARS.CENSUS_SHARE_SCALE.value;
 export const CENSUS_HEAD_ALPHA: number = SCALARS.CENSUS_HEAD_ALPHA.value;
 export const CENSUS_ROW_ALPHA: number = SCALARS.CENSUS_ROW_ALPHA.value;
 export const CENSUS_SUB_ALPHA: number = SCALARS.CENSUS_SUB_ALPHA.value;
 export const ENGRAVING_ALPHA: number = SCALARS.ENGRAVING_ALPHA.value;
 export const ENGRAVING_FAINT_ALPHA: number = SCALARS.ENGRAVING_FAINT_ALPHA.value;
+export const ROOM_ENGRAVING_ALPHA: number = SCALARS.ROOM_ENGRAVING_ALPHA.value;
+export const ROOM_ENGRAVING_FAINT_ALPHA: number = SCALARS.ROOM_ENGRAVING_FAINT_ALPHA.value;
 
 export const SLUG_VOICE_TENTHS: number = SCALARS.SLUG_VOICE_TENTHS.value;
 export const SLUG_STATEMENT_TENTHS: number = SCALARS.SLUG_STATEMENT_TENTHS.value;

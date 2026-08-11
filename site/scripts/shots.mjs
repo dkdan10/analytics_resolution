@@ -16,9 +16,9 @@
  *        --shots "census@32,census@152,census@376"
  *   node scripts/shots.mjs --list prelude          # a named set
  *
- * `--width/--height/--dpr` fix the surface. Defaults are a laptop panel, which
- * is the only surface this piece is judged on (CLAUDE.md, "Where the piece is
- * judged").
+ * `--width/--height/--dpr` fix the surface. `--display room` exercises the
+ * projector-distance profile and `--stop plate.shell` addresses the semantic
+ * score without copying its numeric second.
  */
 
 import { spawn } from "node:child_process";
@@ -67,6 +67,8 @@ const height = Number(flags.height ?? 852);
 const dpr = Number(flags.dpr ?? 2);
 const port = Number(flags.port ?? 5173);
 const talk = Boolean(flags.talk);
+const display = flags.display ? String(flags.display) : undefined;
+const semanticStop = flags.stop ? String(flags.stop) : undefined;
 // A packet-candidate composition (see src/modes/types.ts:Frame.candidate).
 // Applies to every shot in the run; the filename says so.
 const candidate = flags.candidate ? String(flags.candidate) : null;
@@ -91,13 +93,15 @@ for (const spec of shots) {
   // configuration produced the picture.
   const [where, t] = spec.split("@");
   const [mode, ops = ""] = where.split(":");
-  const take = () => page.evaluate(async ({ mode, t, width, height, dpr, talk, ops, candidate }) => {
+  const take = () => page.evaluate(async (
+    { mode, t, width, height, dpr, talk, ops, candidate, display, semanticStop },
+  ) => {
     const png = await window.__shot({
-      mode, t: Number(t), width, height, dpr, talk, ops,
+      mode, t: Number(t), stop: semanticStop, width, height, dpr, talk, ops, display,
       candidate: candidate ?? undefined,
     });
     return png;
-  }, { mode, t, width, height, dpr, talk, ops, candidate });
+  }, { mode, t, width, height, dpr, talk, ops, candidate, display, semanticStop });
   let dataUrl;
   try {
     dataUrl = await take();
@@ -110,8 +114,10 @@ for (const spec of shots) {
     console.error(`shots: ${spec} threw once (${e}); retrying that frame`);
     dataUrl = await take();
   }
+  const position = semanticStop ? `stop-${semanticStop.replace(/[^a-z0-9-]+/gi, "-")}`
+    : String(t).replace(".", "_");
   const name = `${mode}${ops ? `-${ops}` : ""}${candidate ? `-cand-${candidate}` : ""}`
-    + `-${String(t).replace(".", "_")}.png`;
+    + `${display ? `-${display}` : ""}-${position}.png`;
   writeFileSync(join(outDir, name), Buffer.from(dataUrl.split(",")[1], "base64"));
   console.log(`shots: ${join(outDir, name).replace(`${REPO}/`, "")}`);
 }

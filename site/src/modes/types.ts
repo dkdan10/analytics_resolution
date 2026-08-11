@@ -24,10 +24,11 @@
  */
 
 import type { Loaded } from "../data";
+import type { DisplayProfile } from "../display";
 import type { Inscription } from "../inscription";
 import type { View } from "../plate";
 import type { Schedule, State } from "../timeline";
-import type { StackOps } from "./operations";
+import type { StackRenderState } from "./operations";
 
 export interface Frame {
   ctx: CanvasRenderingContext2D;
@@ -53,6 +54,10 @@ export interface Frame {
    * kept verbatim for the lectern and is not on the gallery wall.
    */
   talk: boolean;
+  /** Whether the presenter/navigation panel is visibly occupying the frame. */
+  navVisible: boolean;
+  /** Viewer-distance legibility profile. */
+  display: DisplayProfile;
   /**
    * Which interpretive operations THE STACK has been asked to apply.
    *
@@ -64,10 +69,10 @@ export interface Frame {
    * a frame by direct URL and a configuration only a click can reach cannot be
    * tested that way at all.
    *
-   * A bitmask over `operations.ts:OPERATIONS`, in table order, which is also the
-   * layer order. Every hand but THE STACK ignores it.
+   * A selected-operation mask plus pure operation-local progress values. Every
+   * hand but THE STACK ignores it.
    */
-  stack: StackOps;
+  stack: StackRenderState;
   /**
    * A PACKET CANDIDATE, never a gallery state. Populated only by the shots
    * probe (`?probe=shots`, `scripts/shots.mjs --candidate ...`); `main.ts`

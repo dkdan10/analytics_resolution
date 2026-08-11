@@ -80,8 +80,12 @@
  */
 
 import { renderTo, type Target } from "../render";
+import { displayFromQuery } from "../display";
 import type { ModeId } from "../modes";
-import { OPERATIONS, opsToken, toggle, type StackOps } from "../modes/operations";
+import {
+  completedStackState, OPERATIONS, opsToken, toggle, type StackOps,
+} from "../modes/operations";
+import { semanticStopById, semanticTime } from "../semantic";
 import type { PixelDiff } from "./shared";
 import {
   cold,
@@ -148,7 +152,13 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
   // Narrowed the same way the perf probe is, and an unmatched name throws
   // rather than silently sweeping nothing. A full sweep is the default.
   const modes = narrow("hand", MODES, q.get("mode"), (m) => m);
-  const beats = narrow("beat", beatsOf(schedule), q.get("beat"), (b) => b.id);
+  let beats = narrow("beat", beatsOf(schedule), q.get("beat"), (b) => b.id);
+  const semantic = semanticStopById(q.get("stop"));
+  const semanticAt = semantic
+    ? semanticTime(semantic, schedule, data.slateFile?.span.seconds)
+    : null;
+  if (semantic && semanticAt !== null) beats = [{ id: semantic.id, at: semanticAt }];
+  const display = displayFromQuery(q, false);
   // Every beat is taken on the SECOND pass of the loop, so that continuous
   // playback into the prelude arrives out of the previous loop's coda exactly
   // as the gallery does, rather than out of nothing.
@@ -158,7 +168,8 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
   // hands that ignore it are measured exactly as they were before session 6 and
   // their committed sweeps stay comparable.
   const drawOn = (tg: Target, t: number, mode: ModeId, ops: StackOps = 0) =>
-    renderTo(tg, t, data, schedule, inscriptions, mode, false, ops);
+    renderTo(tg, t, data, schedule, inscriptions, mode,
+      false, false, completedStackState(ops), null, display);
   const draw = (t: number, mode: ModeId, ops: StackOps = 0) => drawOn(surface, t, mode, ops);
   const pixels = (tg: Target) =>
     tg.ctx.getImageData(0, 0, PROBE_W * PROBE_DPR, PROBE_H * PROBE_DPR).data;
@@ -441,6 +452,7 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
     verdict: inconclusive ? "INCONCLUSIVE"
       : impure === 0 && roundTripFailures === 0 ? "PURE" : "IMPURE",
     surface: { width: PROBE_W, height: PROBE_H, dpr: PROBE_DPR },
+    display,
     histories: HISTORIES,
     reference: "direct",
     playbackSeconds: playback,

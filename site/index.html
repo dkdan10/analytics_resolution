@@ -8,7 +8,7 @@
       :root {
         --ground: #0b0a09;
         --bone: #e8e2d6;
-        --rail: 246px;
+        --rail: 280px;
         --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
       }
       html, body {
@@ -25,6 +25,85 @@
       body.exhibit { cursor: none; }
       body.exhibit #nav { display: none; }
 
+      /* Static first paint: present in the HTML before the module graph or a
+         data request can begin. JS changes only the status word and removes it
+         once the first real frame is ready. */
+      #startup {
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        display: grid;
+        place-content: center;
+        gap: 14px;
+        background: var(--ground);
+        color: rgba(232, 226, 214, 0.82);
+        font-family: var(--mono);
+        text-align: center;
+        letter-spacing: 0.2em;
+      }
+      #startup[hidden] { display: none; }
+      #startup .startup-title { margin: 0; font-size: 16px; font-weight: 400; }
+      #startup .startup-state {
+        margin: 0;
+        font-size: 13px;
+        color: rgba(232, 226, 214, 0.7);
+      }
+      #startup[data-state="degraded"] .startup-state,
+      #startup[data-state="failed"] .startup-state { color: #e7b77b; }
+
+      #context-label, #overview-title {
+        position: fixed;
+        z-index: 12;
+        left: 20px;
+        top: 18px;
+        max-width: calc(100vw - 40px);
+        font-family: var(--mono);
+        font-size: 14px;
+        line-height: 1.45;
+        letter-spacing: 0.12em;
+        color: rgba(232, 226, 214, 0.86);
+        pointer-events: none;
+        text-shadow: 0 1px 8px #0b0a09;
+      }
+      #overview-title { left: auto; right: 22px; text-align: right; }
+      #context-label[hidden], #overview-title[hidden] { display: none; }
+      #full-entry {
+        position: fixed;
+        z-index: 13;
+        right: 22px;
+        bottom: 20px;
+        min-height: 28px;
+        display: inline-flex;
+        align-items: center;
+        padding: 0 10px;
+        border: 1px solid rgba(232, 226, 214, 0.48);
+        color: rgba(232, 226, 214, 0.9);
+        background: rgba(11, 10, 9, 0.72);
+        font: 13px/1 var(--mono);
+        letter-spacing: 0.1em;
+        text-decoration: none;
+      }
+      #full-entry:hover, #full-entry:focus-visible { background: rgba(232, 226, 214, 0.12); }
+      #full-entry[hidden] { display: none; }
+      #asset-state {
+        position: fixed;
+        z-index: 20;
+        left: 18px;
+        bottom: 18px;
+        min-height: 28px;
+        padding: 0 9px;
+        border: 1px solid rgba(231, 183, 123, 0.7);
+        background: rgba(11, 10, 9, 0.86);
+        color: #e7b77b;
+        font: 12px/1 var(--mono);
+        letter-spacing: 0.08em;
+        cursor: pointer;
+      }
+      #asset-state[hidden] { display: none; }
+      body:not(.exhibit) #asset-state { left: calc(var(--rail) + 18px); }
+      body.degraded { cursor: auto; }
+      body.overview { cursor: auto; }
+
       /* The transport never scrolls: only the segment list does. A rail that
          scrolls its own controls away leaves the presenter without a mouse
          exactly when they are furthest from the start. */
@@ -39,8 +118,8 @@
         padding: 18px 0 0;
         border-right: 1px solid rgba(232, 226, 214, 0.08);
         font-family: var(--mono);
-        color: rgba(232, 226, 214, 0.55);
-        font-size: 11px;
+        color: rgba(232, 226, 214, 0.76);
+        font-size: 12px;
         line-height: 1.5;
         scrollbar-width: thin;
         scrollbar-color: rgba(232, 226, 214, 0.15) transparent;
@@ -54,22 +133,23 @@
       }
       #nav h1 {
         margin: 0 16px 2px;
-        font-size: 11px;
+        font-size: 13px;
         font-weight: 400;
         letter-spacing: 0.22em;
         color: rgba(232, 226, 214, 0.8);
       }
-      #nav .meta { margin: 0 16px 14px; color: rgba(232, 226, 214, 0.3); font-size: 10px; }
+      #nav .meta { margin: 0 16px 12px; color: rgba(232, 226, 214, 0.68); font-size: 12px; }
 
       .transport { display: flex; gap: 4px; margin: 0 12px 10px; }
       .transport button {
         flex: 1;
         background: transparent;
         border: 1px solid rgba(232, 226, 214, 0.12);
-        color: rgba(232, 226, 214, 0.6);
+        color: rgba(232, 226, 214, 0.82);
         font-family: var(--mono);
         font-size: 12px;
-        padding: 6px 0;
+        min-height: 28px;
+        padding: 5px 0;
         cursor: pointer;
         border-radius: 2px;
       }
@@ -80,7 +160,9 @@
       #scrub {
         margin: 0 16px 4px;
         height: 3px;
-        padding: 6px 0;
+        min-height: 28px;
+        box-sizing: border-box;
+        padding: 12px 0 13px;
         background: rgba(232, 226, 214, 0.1);
         background-clip: content-box;
         cursor: pointer;
@@ -89,7 +171,7 @@
       }
       #scrub .fill {
         position: absolute;
-        inset: 6px auto 6px 0;
+        inset: 12px auto 13px 0;
         background: rgba(232, 226, 214, 0.45);
       }
       /* The score's ticks: acts and the cut fixed, the pinned hand's window
@@ -97,20 +179,20 @@
       #scrub .ticks { position: absolute; inset: 0; pointer-events: none; }
       #scrub .tick {
         position: absolute;
-        top: 4px;
-        bottom: 4px;
+        top: 9px;
+        bottom: 10px;
         width: 1px;
         background: rgba(232, 226, 214, 0.35);
       }
-      #scrub .tick.beat { top: 6px; bottom: 6px; background: rgba(232, 226, 214, 0.22); }
-      #scrub .tick.cut { top: 2px; bottom: 2px; background: rgba(232, 226, 214, 0.8); }
-      #clock { margin: 0 16px 3px; font-size: 10px; color: rgba(232, 226, 214, 0.32); }
+      #scrub .tick.beat { top: 11px; bottom: 12px; background: rgba(232, 226, 214, 0.55); }
+      #scrub .tick.cut { top: 7px; bottom: 8px; background: rgba(232, 226, 214, 0.9); }
+      #clock { margin: 0 16px 3px; font-size: 12px; color: rgba(232, 226, 214, 0.68); }
       /* The presenter's readout: exact t, the next boundary, and the fermata
          while it acts. Tabular figures so the countdown does not shimmer. */
       #readout {
         margin: 0 16px 3px;
-        font-size: 10px;
-        color: rgba(232, 226, 214, 0.45);
+        font-size: 12px;
+        color: rgba(232, 226, 214, 0.72);
         font-variant-numeric: tabular-nums;
       }
       #readout.fermata { color: var(--bone); letter-spacing: 0.1em; }
@@ -118,14 +200,15 @@
         display: block;
         width: calc(100% - 32px);
         margin: 0 16px 12px;
-        padding: 0;
+        min-height: 28px;
+        padding: 4px 0;
         text-align: left;
         background: transparent;
         border: 0;
         font-family: var(--mono);
-        font-size: 10px;
+        font-size: 12px;
         letter-spacing: 0.12em;
-        color: rgba(232, 226, 214, 0.5);
+        color: rgba(232, 226, 214, 0.55);
         cursor: pointer;
       }
       #hand:hover { color: var(--bone); }
@@ -138,32 +221,34 @@
         margin: 0 16px 10px;
       }
       .hand-pick {
-        padding: 1px 3px;
+        min-height: 28px;
+        padding: 2px 5px;
         background: transparent;
         border: 1px solid rgba(232, 226, 214, 0.12);
         font-family: var(--mono);
-        font-size: 8px;
+        font-size: 12px;
         letter-spacing: 0.1em;
-        color: rgba(232, 226, 214, 0.4);
+        color: rgba(232, 226, 214, 0.72);
         cursor: pointer;
       }
       .hand-pick:hover { color: var(--bone); border-color: rgba(232, 226, 214, 0.35); }
       .hand-pick.on { color: var(--bone); background: rgba(232, 226, 214, 0.1); }
 
-      /* The copy-frame helper: one press, the frame's citation on the
-         clipboard, in the piece's own mode@t grammar. */
+      /* The copy-frame helper: one press puts a semantic stop or exact-time
+         URL for the current hand on the clipboard. */
       #cite {
         display: block;
         width: calc(100% - 32px);
         margin: 0 16px 10px;
-        padding: 3px 0;
+        min-height: 28px;
+        padding: 4px 0;
         text-align: left;
         background: transparent;
         border: 0;
         font-family: var(--mono);
-        font-size: 9px;
+        font-size: 12px;
         letter-spacing: 0.14em;
-        color: rgba(232, 226, 214, 0.35);
+        color: rgba(232, 226, 214, 0.72);
         cursor: pointer;
       }
       #cite:hover { color: var(--bone); }
@@ -173,8 +258,8 @@
       /* THE FEED's arriving-count line: present only while assets arrive. */
       #feed {
         margin: 0 16px 3px;
-        font-size: 10px;
-        color: rgba(232, 226, 214, 0.45);
+        font-size: 12px;
+        color: rgba(232, 226, 214, 0.78);
         font-variant-numeric: tabular-nums;
       }
       #feed[hidden] { display: none; }
@@ -182,10 +267,10 @@
       /* The keys, said where the presenter is already looking. */
       #keys {
         margin: 0 16px 14px;
-        font-size: 9px;
+        font-size: 12px;
         line-height: 1.7;
         letter-spacing: 0.06em;
-        color: rgba(232, 226, 214, 0.26);
+        color: rgba(232, 226, 214, 0.66);
       }
       #keys p { margin: 0; }
 
@@ -195,35 +280,28 @@
          definition that artifact ships, so the panel reads as a list of
          interpretations with their sources rather than as preferences. */
       #stack {
-        /* Its own scrolling region between the transport and the segment list,
-           so a panel of seven operations cannot push either of them away. */
-        flex: 0 1 auto;
-        min-height: 0;
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        margin: 0 0 8px;
+        margin: 0 0 12px;
         border-top: 1px solid rgba(232, 226, 214, 0.07);
-        padding-top: 10px;
-        scrollbar-width: thin;
-        scrollbar-color: rgba(232, 226, 214, 0.15) transparent;
+        padding-top: 8px;
       }
       #stack .stack-title {
         margin: 0 16px 1px;
-        font-size: 10px;
+        font-size: 12px;
         letter-spacing: 0.14em;
-        color: rgba(232, 226, 214, 0.42);
+        color: rgba(232, 226, 214, 0.78);
       }
       #stack .stack-note {
         margin: 0 16px 8px;
-        font-size: 9px;
+        font-size: 12px;
         letter-spacing: 0.04em;
-        color: rgba(232, 226, 214, 0.26);
+        color: rgba(232, 226, 214, 0.7);
       }
       .op {
         display: block;
         width: 100%;
         box-sizing: border-box;
-        padding: 4px 16px 5px;
+        min-height: 34px;
+        padding: 3px 16px 4px;
         background: transparent;
         border: 0;
         text-align: left;
@@ -238,23 +316,30 @@
       .op-modifier { padding-left: 28px; }
       .op-line { display: flex; gap: 6px; align-items: baseline; }
       .op-glyph { color: rgba(232, 226, 214, 0.35); }
+      body.display-room .op-glyph { color: rgba(232, 226, 214, 0.6); }
       .op.on .op-glyph { color: var(--bone); }
       .op-name {
         flex: 1 1 auto;
-        font-size: 10px;
+        font-size: 12px;
         letter-spacing: 0.1em;
-        color: rgba(232, 226, 214, 0.5);
+        color: rgba(232, 226, 214, 0.78);
       }
       .op.on .op-name { color: var(--bone); }
-      .op-key { font-size: 9px; color: rgba(232, 226, 214, 0.22); }
+      .op-key { font-size: 12px; color: rgba(232, 226, 214, 0.68); }
       .op-reads, .op-def {
         display: block;
-        font-size: 9px;
-        line-height: 1.45;
+        font-size: 12px;
+        line-height: 1.25;
         letter-spacing: 0.02em;
         padding-left: 15px;
       }
-      .op-reads { color: rgba(232, 226, 214, 0.42); margin-top: 2px; }
+      .op-reads {
+        color: rgba(232, 226, 214, 0.67);
+        margin-top: 1px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
       /* The record's own sentence, not this piece's. Some of these definitions
          are a paragraph, so they are clamped with an ellipsis rather than cut
          mid-word — a sentence sliced through the middle of a clause reads as a
@@ -265,31 +350,24 @@
          its body size — readable ink and three lines now, still subordinate to
          the operation's own name. */
       .op-def {
-        color: rgba(232, 226, 214, 0.34);
-        font-size: 10px;
-        line-height: 1.5;
-        margin-top: 1px;
-        display: -webkit-box;
-        -webkit-box-orient: vertical;
-        -webkit-line-clamp: 3;
-        line-clamp: 3;
-        overflow: hidden;
+        display: none;
       }
       /* Applied, but with nothing to apply itself to. Shown rather than hidden:
          the dependency is part of what the panel is saying. */
-      .op.inert .op-name { color: rgba(232, 226, 214, 0.32); font-style: italic; }
+      .op.inert .op-name { color: rgba(232, 226, 214, 0.55); font-style: italic; }
       #all-renderings {
         display: block;
         width: calc(100% - 32px);
         margin: 8px 16px 2px;
+        min-height: 28px;
         padding: 5px 0;
         background: transparent;
         border: 1px solid rgba(232, 226, 214, 0.12);
         border-radius: 2px;
         font-family: var(--mono);
-        font-size: 9px;
+        font-size: 12px;
         letter-spacing: 0.18em;
-        color: rgba(232, 226, 214, 0.45);
+        color: rgba(232, 226, 214, 0.76);
         cursor: pointer;
       }
       #all-renderings:hover { border-color: rgba(232, 226, 214, 0.35); color: var(--bone); }
@@ -309,9 +387,9 @@
 
       .act {
         margin: 14px 16px 4px;
-        font-size: 10px;
+        font-size: 12px;
         letter-spacing: 0.14em;
-        color: rgba(232, 226, 214, 0.42);
+        color: rgba(232, 226, 214, 0.58);
         border-top: 1px solid rgba(232, 226, 214, 0.07);
         padding-top: 8px;
       }
@@ -323,7 +401,8 @@
         gap: 8px;
         width: 100%;
         box-sizing: border-box;
-        padding: 2px 16px;
+        min-height: 28px;
+        padding: 4px 16px;
         background: transparent;
         border: 0;
         text-align: left;
@@ -333,20 +412,46 @@
         white-space: nowrap;
       }
       .seg:hover { background: rgba(232, 226, 214, 0.05); color: var(--bone); }
-      .seg .share { color: rgba(232, 226, 214, 0.32); font-variant-numeric: tabular-nums; }
+      .seg .share { color: rgba(232, 226, 214, 0.58); font-variant-numeric: tabular-nums; }
       .seg.current { background: rgba(232, 226, 214, 0.1); color: var(--bone); }
       .seg.current .share { color: rgba(232, 226, 214, 0.7); }
       /* A mark for the seasons where the record's own resolution changes. */
       .seg .mark { color: rgba(232, 226, 214, 0.28); width: 1.2em; display: inline-block; }
+      body.display-room .seg .mark { color: rgba(232, 226, 214, 0.6); }
       .seg.window .mark, .seg.cut .mark { color: rgba(232, 226, 214, 0.7); }
       /* The window's four beats: the only sub-list in the rail, because the
          window is the only segment long enough to have an inside. */
       .seg.beat {
         padding-left: 40px;
-        font-size: 11px;
-        color: rgba(232, 226, 214, 0.42);
+        font-size: 12px;
+        color: rgba(232, 226, 214, 0.72);
       }
-      .seg.beat .share { color: rgba(232, 226, 214, 0.22); }
+      .seg.beat .share { color: rgba(232, 226, 214, 0.65); }
+
+      #census-panel { padding: 2px 16px 24px; }
+      #census-panel h2, #census-panel h3 {
+        margin: 10px 0 5px;
+        font-size: 12px;
+        font-weight: 400;
+        letter-spacing: 0.12em;
+        color: rgba(232, 226, 214, 0.88);
+      }
+      #census-panel h3 { border-top: 1px solid rgba(232, 226, 214, 0.16); padding-top: 8px; }
+      #census-panel p { margin: 2px 0; color: rgba(232, 226, 214, 0.73); }
+      #census-panel .census-row { display: flex; justify-content: space-between; gap: 8px; }
+      #census-panel .census-row span:last-child { font-variant-numeric: tabular-nums; }
+      .op.unavailable { opacity: 0.82; }
+      body.display-room .op.unavailable { opacity: 1; }
+      .op.unavailable .op-reads::after { content: " · unavailable outside the Window"; }
+
+      /* Stack/Census replace the long score. Compact only the nonessential
+         head rows so all eight Stack operations and ALL remain visible at the
+         supported 720px lectern height. */
+      #nav.stack-active .meta,
+      #nav.stack-active #hands,
+      #nav.stack-active #keys,
+      #nav.census-active #hands,
+      #nav.census-active #keys { display: none; }
 
       /* The only thing a viewer should ever see go wrong. Composed, on the
          plate's own ground, in the plate's own type - a gallery wall may not
@@ -380,10 +485,18 @@
   <!-- Chrome-free from the first paint: the rail removes this class if it is
        wanted, so a gallery machine never flashes a cursor while data loads. -->
   <body class="exhibit">
+    <div id="startup" role="status" aria-live="polite" data-state="loading">
+      <p class="startup-title">FADEAWAY</p>
+      <p class="startup-state">THE RECORD IS LOADING</p>
+    </div>
     <div id="app">
       <aside id="nav" hidden></aside>
       <canvas id="plate"></canvas>
     </div>
+    <div id="context-label" hidden></div>
+    <div id="overview-title" hidden></div>
+    <a id="full-entry" href="?experience=full" hidden>FULL WORK</a>
+    <button id="asset-state" type="button" hidden>DEGRADED · RETRY</button>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

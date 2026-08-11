@@ -3,7 +3,9 @@
 **The Analytics Resolution: How Quantifying the NBA Has Changed the Game** — paper and studio
 piece (**FADEAWAY**) for "Theories, Methods, and Experiments in Art and AI," Columbia.
 
-**Live:** <https://dkdan10.github.io/analytics_resolution/> (exhibit; add `?talk` for the rail).
+**Live:** <https://dkdan10.github.io/analytics_resolution/>. A bare visit is the 96-second guided
+overview; `?experience=full` opens the canonical 50:00 six-hand work, and `?talk` opens that full
+work as a paused presenter instrument.
 
 FADEAWAY is one monumental halfcourt that never moves while thirty seasons migrate out of its
 middle. Every material property of a mark comes from a measurement of that era's archive — grain is
@@ -18,8 +20,9 @@ places as there are shots, so the coordinate is a filing convention and not a lo
 
 Six hands draw the same record in turn, one per pass of the loop: **the plate** (evidence), **the
 field** (the league's own colours), **the ledger** (its words), **the census** (its counts), **the
-hand** (paint), and **the measure** — which follows a single published statistic, closest-defender distance, through
-its three states. For most of the piece no such measure exists. For 89 days in 2015-16 the
+measure**, and **the hand** (paint). The measure follows a single published statistic,
+closest-defender distance, through its three states. For most of the piece no such measure exists.
+For 89 days in 2015-16 the
 optical feed was public and the number can be *made*, out of all 632 games, in front of you. After
 23 January 2016 four figures stay lit above four empty calipers for the rest of the loop: the
 league still publishes those categories, and those are the last figures anyone outside could
@@ -34,13 +37,14 @@ them, because that is all the record kept.
 **The stack** is a seventh view, and it is not a hand. The six each render the whole record one
 way; the stack renders nothing of its own. It composites the others' material over a single shared
 base, one named interpretive operation at a time — LOCATE THE ATTEMPT, CLASSIFY THE FLOOR, INSCRIBE
-THE SEASON, CONNECT THE BODY, MEASURE THE DEFENDER, NAME THE ACTION, COUNT THE EVENT — and it opens
-with all seven switched off, on bare stone. Each control names an act somebody performed on a list
-of coordinates rather than a renderer or a visual effect, and each declares the artifact it reads
+THE SEASON, CONNECT THE BODY, MEASURE THE DEFENDER, NAME THE ACTION, COUNT THE EVENT, JOIN THE
+INSTRUMENTS — and it opens with all eight switched off, on bare stone. Each control names an act
+somebody performed on a list of coordinates rather than a renderer or a visual effect, and each
+declares the artifact it reads
 and the definition that artifact ships. A presenter builds the image live, and ALL RENDERINGS
-applies every operation at once until it is released: the plate becomes illegible, which is the
-point, because maximal rendering is not maximal access. It is **talk mode only** and is not in the
-gallery rotation, which stays six.
+applies every available operation at once until it is released: the plate becomes illegible,
+which is the point, because maximal rendering is not maximal access. It is **talk mode only** and
+is not in the gallery rotation, which stays six.
 
 ## Running it
 
@@ -139,17 +143,19 @@ They are driven headlessly by a committed runner, which is how a sweep gets run 
 verdict committed. None is wired into `npm run build`: a purity sweep is minutes and performance
 numbers are a property of the machine that took them. `npm run shots` is the third — it renders
 exact frames through `renderTo` for a person to look at, and it is **not a gate and must not become
-one**; its output is gitignored, because `docs/build/probe/` is where a verdict goes.
+one**; its output is evidence rather than exhibit code, and lands in `docs/probe/`.
 
 ```bash
 cd site && npm run dev                    # in one shell - the probes need the data synced
 cd site && npm run probe:purity           # six hands + THE STACK's configurations, x the
                                           #   schedule-derived beats, two arms
-cd site && npm run probe:perf             # one row per view per beat
+cd site && npm run probe:perf -- --assert-presentation
+                                          # one row per view per beat; nonzero if the
+                                          #   room-performance thresholds are missed
 cd site && npm run shots -- --list hands  # exact frames, for looking at
 ```
 
-Verdicts land in `docs/build/probe/`. `--mode`, `--beat`, `--ops` and `--out` narrow a run and name its
+Verdicts land in `docs/probe/`. `--mode`, `--beat`, `--ops` and `--out` narrow a run and name its
 output; an unmatched name is an error rather than an empty table. Read the RENDERER arm — the
 history warms the caches on a scratch surface and the tested frame is drawn on a virgin one, so a
 difference there is renderer state; `row.surfaceArm` is a kept second reading and carries no
@@ -180,33 +186,72 @@ GNU tar cannot. The shot-record stages need none of them.
 run resumes where it stopped and one bad archive costs one game rather than the run. Leave `--jobs`
 alone: the stage is bound by memory rather than cores, and more workers make it slower.
 
-**Two modes, one codebase** — the whole piece is a pure function of one float, so both modes are
-the same work sampled differently:
+**Viewer entry and presenter controls.** The renderer still reads one deterministic score; these
+routes decide how that score is sampled and whether working controls are visible:
 
-- **exhibit** (default) — one autoplaying loop, no chrome, no cursor, no loop seam. The schedule is
-  declared once, in `site/src/timeline.ts`, and `pipeline/facts.py` derives the runtime from it into
-  `facts.json:derived.loop.seconds`; `qa.py` gates every prose statement of it against that key.
-  This file deliberately does not restate the number — unlike CLAUDE.md it is gated on the claims
-  below rather than on all of them, so a figure written here could go stale unseen.
-- **talk** (`?talk`) — a rail beside the plate listing every segment (Act 0, all thirty seasons
-  under their act headings, the coda) with each season's measured mid-range share; click any of
-  them to jump. Transport for start / previous / pause / next, plus a draggable scrub. Keys still
-  work: `space` pause · `f` fermata · `0` start · `1`–`5` acts · `6`–`9` the window's four beats ·
-  `w` the window · `,` `.` step a season · `h` cycle the hand. The window is 150 seconds and is the
-  only segment with an inside, so the rail lists its four beats and the step buttons stop at each,
-  and the rail prints the keys — a shortcut nobody is told about is not one.
-  `?t=<seconds>` and `?year=<YYYY>` open on any beat; `?nav` adds the rail, `?nav=0` removes it.
-  `?mode=<id>` pins one hand; the rail's hand row and `h` cycle through them and back to rotating.
+- A bare `/` plays a 96-second guided overview: an introduction, one named Window chapter for each
+  of the six hands, and a coda, with a link to the full work. `?experience=overview` requests the
+  same entry explicitly.
+- `?experience=full` plays the canonical 50:00 work without chrome: six complete passes in the
+  order plate, field, ledger, census, measure, hand. Each pass traverses the same record; THE STACK
+  remains outside the rotation.
+- `?talk` opens the full work with the presenter rail and starts **paused**. Add `&autoplay=1` only
+  when a talk should begin moving immediately. `?nav` adds the working rail to an autoplaying full
+  view; `?nav=0` removes it, including in a clean talk-mode capture.
+- Talk and a visible nav always select the full work. Otherwise, an explicit `?experience=overview`
+  wins; when it is absent, direct addresses — `?t=<seconds>`, `?year=<YYYY>`,
+  `?stop=<semantic-id>`, `?mode=<id>` and `?ops=<letters>` — choose the full work rather than the
+  overview. `?stop=` is the durable presenter form: for example `hand.game`, `plate.shell`,
+  `ledger.crest`, `census.machine-saw`, `measure.terminal`, or `window.crest`. The rail's
+  terminal bookmarks land on completed, holdable evidence; entrance choreography remains in the
+  rail's finer stop list, and the overview keeps the Census build as its chapter opening.
+  **CITE THIS FRAME** uses
+  a semantic stop when the playhead is on one, and otherwise falls back to an exact `t` address;
+  both forms carry the hand actually drawing and any Stack operation token.
+- `?display=near|room` selects viewer-distance legibility. `near` is the original laptop/exhibit
+  profile; `room` raises essential type floors and line contrast and, in the full work when the
+  rail is hidden, keeps the current hand, act and season visible. Talk mode defaults to `room`;
+  other entries default to `near`, and either can be overridden explicitly.
 
-**THE STACK is talk mode only, and `?mode=stack` is refused without `?talk` or `?nav`.** It opens
-on bare stone and is driven entirely from the rail and the keyboard, neither of which exists on a
-wall machine, so a gallery pinned to it would show an empty plate with no way out. Its seven
-operations take one letter each — `l` `c` `i` `b` `d` `n` `e`, and `a` for ALL RENDERINGS — and the
-same letters are the URL token, so `?talk&mode=stack&ops=lci&t=120` reopens an exact configured
-frame and the address bar keeps naming the frame on screen as a presenter toggles.
+The rail supplies start / previous stop / pause / next stop, a draggable and keyboard-operable
+scrub, direct hand buttons, score ticks, the next-boundary readout, and a frame citation. Keys are
+`space` pause · `f` fermata · `0` start · `1`–`5` acts · `6`–`9` the four **shared** Window beats ·
+`w` Window · `x` the cut · `,` `.` previous/next scored stop · `h` hand. Pinning a hand changes
+the Window sub-stops and scrub ticks to that hand's actual interior; it does not change the shared
+`6`–`9` anchors.
 
-The rail is deliberately absent from exhibit mode — the gallery loop shows nothing that looks like
-it wants to be touched.
+The 150-second Window's shared score is ONE 0–15, NIGHT 15–42, SEASON 42–121.95, CLOSE
+121.95–150, with the season crest exactly 110 seconds into the Window. Its hand-specific pacing is:
+
+| view | Window-relative score |
+|---|---|
+| PLATE | possession 0–5; held 5–10; full game 10–42; gestures ignite 42–131.625; the numeral strikes at 110 and holds fully for three seconds; gestures, motion, residence and numeral migration settle while the shell enters 135–138; the finished receipt holds unchanged to 150 |
+| HAND | one 0–9; game begins at 9; NIGHT is derived backwards from `slate.json:span.seconds` so it ends at 42 (the shipped 15-second slate makes game 9–27 and night 27–42); then the shared season and close |
+| CENSUS | six filings share 0–121.95 with a six-second floor and the remaining time proportional to the artifact's category counts; BODY POSITIONS THE MACHINE SAW builds for the first eight seconds of CLOSE, then holds |
+| LEDGER | headings write from 15 to the crest, hold to 121.95, then withdraw through CLOSE |
+| MEASURE | one, night, season and close use the shared anchors; the figures condense at the crest and the terminal dates arrive in the middle of CLOSE |
+
+**THE STACK is presenter-only, and `?mode=stack` is refused without `?talk` or a visible `?nav`.**
+Its eight operations take one letter each — `l` `c` `i` `b` `d` `n` `e` `j`, with `a` for ALL RENDERINGS —
+and the same letters form the URL token. CONNECT, MEASURE and JOIN are Window-only: outside the
+Window their controls are visibly unavailable, and ALL applies only the operations available at
+the current score position. CLASSIFY without LOCATE remains visibly explicit about its missing
+located attempts rather than appearing broken. A configured frame such as
+`?talk&mode=stack&ops=lcij&stop=window.crest`
+is reopenable without replaying the button presses, and CITE remains visible while Stack is pinned.
+
+Loading is visible rather than mistaken for an intentionally sparse frame. The static first paint
+says **THE RECORD IS LOADING**; the overview, talk mode and semantic-stop links preload the Window
+before revealing the canvas, including both seasons needed for its opening withdrawal. Optional
+asset failures leave the available work running and expose a
+**DEGRADED · … · RETRY** control. Each request has a 15-second timeout and one automatic retry;
+only the visible RETRY action starts another cycle. A fatal initialisation failure
+says **THE RECORD DID NOT LOAD**, with the actionable reason kept in the console and added on screen
+for talk/nav users.
+
+Top-level backing surfaces share a four-million-pixel budget. Full and talk therefore retain DPR 2
+at 1280×720; the overview renders its current chapter directly to the visible canvas and budgets
+one lazy outgoing surface with it, preserving the one-second crossfade without tripling memory.
 
 ## Structure
 
@@ -215,7 +260,7 @@ CLAUDE.md          ground rules, findings, decisions log — and the seven rules
 DEPLOY.md          what has to be true on the day this repo goes public
 docs/              the build plan (reference), the thesis, one handoff per session,
                    the typography inventory, the generated scalar disclosure, and
-                   docs/build/probe/ — every committed purity and performance verdict
+                   docs/probe/ — current purity and performance verdicts
 pipeline/          acquisition, aggregation, the QA gate, the corpus probe, traces,
                    the window, the paint, the cited facts, the palette measurement
 site/              FADEAWAY — Vite + TS, Canvas 2D, one rAF loop

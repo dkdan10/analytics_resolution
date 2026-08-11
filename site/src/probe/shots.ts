@@ -19,21 +19,26 @@
  */
 
 import { buildInscriptions } from "../inscription";
+import type { DisplayProfile } from "../display";
 import { isModeId, type ModeId } from "../modes";
-import { parseOps } from "../modes/operations";
+import { completedStackState, parseOps } from "../modes/operations";
 import { GROUND } from "../palette";
 import { makeView } from "../plate";
 import { renderTo } from "../render";
+import { semanticStopById, semanticTime } from "../semantic";
 import { cold, forceResidency } from "./shared";
 import type { Env } from "./shared";
 
 export interface ShotRequest {
   mode: string;
-  t: number;
+  t?: number;
+  /** Human-readable score address. A valid stop takes precedence over t. */
+  stop?: string;
   width: number;
   height: number;
   dpr: number;
   talk?: boolean;
+  display?: DisplayProfile;
   /** THE STACK's operation token, exactly as `?ops=` carries it — `lci` for
    *  locate, classify and inscribe. Ignored by every other hand. Without it a
    *  picture of THE STACK is always a picture of bare stone, which is the one
@@ -62,6 +67,17 @@ export async function shotsProbe(env: Env): Promise<void> {
   await forceResidency(env.data, () => {});
   const inscriptions = buildInscriptions(env.data.seasons, env.schedule);
 
+  const resolve = (r: ShotRequest): { time: number; mode: ModeId | null } => {
+    const stop = semanticStopById(r.stop ?? null);
+    const at = stop
+      ? semanticTime(stop, env.schedule, env.data.slateFile?.span.seconds)
+      : null;
+    return {
+      time: at ?? (Number.isFinite(r.t) ? Math.max(0, r.t!) : 0),
+      mode: stop?.mode ?? (isModeId(r.mode) ? r.mode : null),
+    };
+  };
+
   const draw = (r: ShotRequest, readback: boolean): CanvasRenderingContext2D => {
     const el = document.createElement("canvas");
     el.width = Math.round(r.width * r.dpr);
@@ -69,11 +85,12 @@ export async function shotsProbe(env: Env): Promise<void> {
     const ctx = el.getContext("2d", { alpha: false, willReadFrequently: readback })!;
     ctx.setTransform(r.dpr, 0, 0, r.dpr, 0, 0);
     cold();
-    const mode: ModeId | null = isModeId(r.mode) ? r.mode : null;
+    const resolved = resolve(r);
     renderTo(
       { ctx, view: makeView(r.width, r.height), dpr: r.dpr },
-      r.t, env.data, env.schedule, inscriptions, mode, r.talk ?? false,
-      parseOps(r.ops ?? null), r.candidate ?? null,
+      resolved.time, env.data, env.schedule, inscriptions, resolved.mode,
+      r.talk ?? false, false, completedStackState(parseOps(r.ops ?? null)),
+      r.candidate ?? null, r.display ?? (r.talk ? "room" : "near"),
     );
     return ctx;
   };
@@ -110,7 +127,7 @@ export async function shotsProbe(env: Env): Promise<void> {
       if (v > GROUND_MAX + 1) lit++;
     }
     const px = d.length / 4;
-    return { t: r.t, lit, litShare: lit / px, mean: sum / px, peak };
+    return { t: resolve(r).time, stop: r.stop ?? null, lit, litShare: lit / px, mean: sum / px, peak };
   };
 }
 

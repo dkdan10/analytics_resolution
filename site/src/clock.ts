@@ -32,13 +32,14 @@ export class TalkClock implements Clock {
   readonly mode = "talk";
   private position = 0;
   private lastNow: number | null = null;
-  private paused = false;
+  private paused: boolean;
   private fermata = false;
   /** Eased 0..1 multiplier on the passage of time. */
   private rate = 1;
 
-  constructor(offset = 0) {
+  constructor(offset = 0, startPaused = false) {
     this.position = offset;
+    this.paused = startPaused;
   }
 
   at(now: number): number {

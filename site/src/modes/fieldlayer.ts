@@ -10,11 +10,16 @@
 import type { Season } from "../data";
 import {
   bakeLayer, bakeResidence, developed, drawDeveloping, drawLayer, drawReveal,
-  drawWindowReveal, windowPinArrived, type WindowFoldClock,
+  drawWindowReveal, grainProfileFor, windowPinArrived, type WindowFoldClock,
 } from "../field";
 import { drawPin } from "../marks";
 import { DEVELOP_STATES, RESIDENCE_ALPHA } from "../scalars";
-import { WINDOW_BEATS } from "../timeline";
+import {
+  PLATE_WITHDRAW_SPAN,
+  WINDOW_BEATS,
+  progressInWindowSpan,
+  windowEntryProgress,
+} from "../window-score";
 import { seasonClock } from "./shared";
 import type { Frame } from "./types";
 
@@ -82,7 +87,7 @@ export interface FieldOpts {
  */
 function residenceEnvelope(phase: number): number {
   const night = WINDOW_BEATS.find((b) => b.id === "night")!;
-  const washFrom = WINDOW_BEATS.find((b) => b.id === "close")!.from;
+  const washFrom = PLATE_WITHDRAW_SPAN.from;
   // DELAYED to the game phase (session 17, the fourth audit's entry ruling,
   // Codex A11's measured reason: at the entry's one-frame test the residence
   // was part of a ground outweighing the tracked figure by orders of
@@ -93,7 +98,7 @@ function residenceEnvelope(phase: number): number {
   if (phase < night.from) return 0;
   if (phase < night.to) return developed((phase - night.from) / (night.to - night.from));
   if (phase < washFrom) return 1;
-  return 1 - developed((phase - washFrom) / (1 - washFrom));
+  return 1 - developed(progressInWindowSpan(phase, PLATE_WITHDRAW_SPAN));
 }
 
 /**
@@ -161,17 +166,21 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
   // ARRIVAL_TAIL the position sits at the ladder's top, where the drawn frame
   // is byte-identical to the finished layer the old path blitted.
   const ladder = developed(st.arrived) * DEVELOP_STATES;
+  const previousArrival = st.act === 3 ? windowEntryProgress(st.phase) : st.arrived;
 
   if (withPrevious && st.prev !== null) {
     const prevSeason = data.byYear.get(st.prev);
     const prevPts = data.points(st.prev);
     if (prevSeason && prevPts) {
+      const prevGrain = grainProfileFor(prevSeason.resolution.regime);
       // The pin is not part of the ladder: it occludes rather than adds, so it
       // keeps the linear fade the receding field used to share with it.
-      const fading = (1 - st.arrived) * dim;
+      const fading = (1 - previousArrival) * dim;
       const bakePrev = (strength: number) =>
-        bakeLayer(st.prev!, prevPts, coloured, view, dpr, pinCoordOf(prevSeason), strength);
-      if (opts.yieldMask && st.arrived < 1) {
+        bakeLayer(
+          st.prev!, prevPts, coloured, view, dpr, pinCoordOf(prevSeason), strength, prevGrain,
+        );
+      if (opts.yieldMask && previousArrival < 1) {
         // THE ENTRY YIELD: the receding layer draws into the scratch, the
         // wake erases locally, one blit carries the result. `lighter` over
         // transparent black premultiplies each develop state by its own
@@ -184,7 +193,10 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
         sctx.setTransform(1, 0, 0, 1, 0, 0);
         sctx.clearRect(0, 0, w, h);
         sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        drawDeveloping(sctx, view, DEVELOP_STATES - ladder, dim, bakePrev);
+        drawDeveloping(
+          sctx, view, DEVELOP_STATES - developed(previousArrival) * DEVELOP_STATES,
+          dim, bakePrev,
+        );
         sctx.save();
         sctx.globalCompositeOperation = "destination-out";
         opts.yieldMask(sctx);
@@ -194,7 +206,10 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
         ctx.drawImage(scratch, 0, 0, view.width, view.height);
         ctx.restore();
       } else {
-        drawDeveloping(ctx, view, DEVELOP_STATES - ladder, dim, bakePrev);
+        drawDeveloping(
+          ctx, view, DEVELOP_STATES - developed(previousArrival) * DEVELOP_STATES,
+          dim, bakePrev,
+        );
       }
       drawPin(ctx, view, pinFractionOf(prevSeason), pinCoordOf(prevSeason), {
         dpr, opacity: fading,
@@ -203,6 +218,7 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
   }
 
   const season = data.byYear.get(year)!;
+  const grain = grainProfileFor(season.resolution.regime);
   const pts = data.points(year);
   // THE WINDOW FOLD: the window season's base accumulates on its own measured
   // calendar wherever the reveal is on and the calendar shipped. CENSUS (no
@@ -215,17 +231,19 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
   if (pts) {
     if (dayPts && clock) {
       drawWindowReveal(ctx, view, clock, dim, year, pts, dayPts, coloured, dpr,
-        pinCoordOf(season), seedDay, windowLast);
+        pinCoordOf(season), seedDay, windowLast, grain);
     } else if (reveal && st.arrived < 1) {
       // THE PER-MARK ARRIVAL: while the season is arriving, its cells strike
       // in the record's own emphasis order, each at full tone. At
       // `st.arrived >= 1` this branch is dead and the path below draws the
       // finished layer exactly as stage A did — the tail and every boundary
       // handover frame are byte-identical to the judged development.
-      drawReveal(ctx, view, st.arrived, dim, year, pts, coloured, dpr, pinCoordOf(season));
+      drawReveal(
+        ctx, view, st.arrived, dim, year, pts, coloured, dpr, pinCoordOf(season), grain,
+      );
     } else {
       drawDeveloping(ctx, view, ladder, dim, (strength) =>
-        bakeLayer(year, pts, coloured, view, dpr, pinCoordOf(season), strength),
+        bakeLayer(year, pts, coloured, view, dpr, pinCoordOf(season), strength, grain),
       );
     }
   }

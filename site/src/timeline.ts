@@ -7,6 +7,11 @@
  */
 
 import type { Season } from "./data";
+import {
+  WINDOW_BEATS as SCORED_WINDOW_BEATS,
+  WINDOW_DURATION_SECONDS,
+  WINDOW_SEASON_CREST,
+} from "./window-score";
 
 /** The plan's six acts - the argument's structure. Distinct from the record's
  *  resolution regimes, which are measured in the data and layer on top. */
@@ -50,8 +55,14 @@ export const SEASON_SECONDS = 11;
  * of it directly, and both were wrong: the arithmetic had moved and the
  * sentence had not.
  */
+// Literal mirror required by pipeline/facts.py, which parses (rather than
+// executes) this file. All Window interiors live in window-score.ts; the guard
+// makes a stale parsed mirror a hard failure instead of a second schedule.
 const WINDOW_SECONDS = 150;
 export const WINDOW_YEAR = 2015;
+if (WINDOW_SECONDS !== WINDOW_DURATION_SECONDS) {
+  throw new Error("timeline.ts WINDOW_SECONDS has drifted from window-score.ts");
+}
 
 /**
  * The window's four beats, as fractions of its phase — THE CRESCENDO
@@ -64,19 +75,14 @@ export const WINDOW_YEAR = 2015;
  * gather-vs-release finding survives as presenter narration with its keyed
  * figures, undrawn.
  *
- * Kept here rather than inside the hands that draw them, because the rail
- * lists them too and a presenter stepping to "THE NIGHT" must land where the
- * hands agree the night begins. One definition, two readers.
+ * Defined in window-score.ts rather than inside any hand, because renderers,
+ * rail, keys, and probes all read them. Re-exported here for the long-standing
+ * schedule API.
  *
  * Names and fractions are AUTHORED SCORE and are proposed copy — flagged in
  * the session-14 packet for the artist's ruling, like every beat title.
  */
-export const WINDOW_BEATS = [
-  { id: "one", title: "one", from: 0.0, to: 0.1 },
-  { id: "night", title: "the night", from: 0.1, to: 0.28 },
-  { id: "season", title: "the season", from: 0.28, to: 0.813 },
-  { id: "close", title: "the close", from: 0.813, to: 1.0 },
-] as const;
+export const WINDOW_BEATS = SCORED_WINDOW_BEATS;
 
 export type WindowBeat = (typeof WINDOW_BEATS)[number];
 
@@ -94,13 +100,11 @@ export const ARRIVAL_TAIL = 0.62;
  * WHERE THE FILED RECORD RE-ASSERTS ITSELF, as a fraction of the window's
  * season beat — the crescendo's crest, where the accelerated calendar enters
  * its fastest passage. A phase anchor, not a material; first value flagged in
- * the session-14 packet. PROMOTED HERE from hand.ts in session 17 (the
- * fourth-audit numeral ruling): the window's 24·6 inscription now strikes at
- * this same crest, and one definition serves both readers — the kept points
- * coming up over the paint and the numeral striking into the season just
- * built cannot drift apart.
+ * the session-14 packet. Owned by window-score.ts; this compatibility export
+ * keeps older consumers on the same value. The window's 24·6 inscription and
+ * the kept points therefore cannot drift apart.
  */
-export const KEPT_CREST = 0.85;
+export const KEPT_CREST = WINDOW_SEASON_CREST;
 
 /** The season whose arrival is a cut rather than a drift: the record's rim
  *  blindness ends in one step, league-wide. Verified in the data, not chosen. */

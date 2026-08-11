@@ -15,7 +15,7 @@
  * interpretation being added to a record, which is what the league does and does
  * not show.
  *
- * THE VIEW OPENS ON BARE STONE. Artist's ruling, 2026-08-09: all seven ship OFF.
+ * THE VIEW OPENS ON BARE STONE. All eight operations ship OFF.
  * The audit had proposed LOCATE, CLASSIFY and INSCRIBE already on and that
  * proposal is superseded. It matters, and it is not fussiness — the argument
  * only reads if the starting point is the record with nothing done to it, so
@@ -73,6 +73,7 @@
  */
 
 import type { HeroShot } from "../data";
+import { contextDisplay, ROOM_TEXT_MIN_PX } from "../display";
 import { drawInscriptions, drawSlug } from "../inscription";
 import { BONE_RGB, SLUG_FAMILY } from "../palette";
 import { COURT } from "../plate";
@@ -97,13 +98,19 @@ import { drawActCue } from "./shared";
 import { firstCanvasStrokes, paintStroke, type Regimes } from "./hand";
 import { drawTerms, ledgerUtterances } from "./ledger";
 import { caliper } from "./measure";
-import { has, type StackOps } from "./operations";
+import {
+  has,
+  operationProgress,
+  stackMask,
+  type OpId,
+  type StackOps,
+} from "./operations";
 import type { Frame } from "./types";
 
 /**
  * Whether an operation that needs the optical feed can be applied at all here.
  *
- * Two of the seven can only be applied where that feed was public, and this is a
+ * Three of the eight can only be applied where that feed was public, and this is a
  * MEASURED availability rather than a rendering convenience: the corpus's span is
  * one season. Outside it they draw nothing, and the rail says why rather than
  * leaving a control that does nothing when pressed. An operation that cannot be
@@ -114,14 +121,17 @@ export function inWindow(f: Frame): boolean {
 }
 
 export function drawStackHand(f: Frame): void {
-  const ops: StackOps = f.stack;
+  const state = f.stack;
+  const ops: StackOps = stackMask(state);
+  const progress = (id: OpId): number => operationProgress(state, id);
 
   // 2. INSCRIBE THE SEASON — cut into the plate, so anything later settles over
   //    it. Held below its own hand's weight: here the numeral is one layer among
   //    seven rather than the thing the frame is about.
-  if (has(ops, "inscribe")) {
+  const inscribe = progress("inscribe");
+  if (inscribe > 0) {
     f.ctx.save();
-    f.ctx.globalAlpha = f.remains * STACK_INSCRIPTION_DIM;
+    f.ctx.globalAlpha = f.remains * STACK_INSCRIPTION_DIM * inscribe;
     drawInscriptions(f.ctx, f.view, f.inscriptions, f.st.t);
     f.ctx.restore();
   }
@@ -129,7 +139,9 @@ export function drawStackHand(f: Frame): void {
   // 3 and 4. ONE shot-material base, tinted by the league's regions or not.
   //    `coloured` is the whole of CLASSIFY: the same marks in the same places
   //    with the same counts, given the hue of the region the NBA filed them in.
-  if (has(ops, "locate")) {
+  const locate = progress("locate");
+  const classify = progress("classify");
+  if (locate > 0) {
     // THE BASE YIELDS UNDER THE TWO WINDOW OPERATIONS, and this is THE PLATE's
     // own rule rather than a new one: in Act III it dims the field because "the
     // rest of the league is still only dots, and the gestures have to be the
@@ -141,32 +153,54 @@ export function drawStackHand(f: Frame): void {
     // control. Verified against THE HAND at its own opening beat: the same
     // possession is exactly this faint there, so the answer was never to
     // brighten the paint past what the record deposits.
-    const yielding = (has(ops, "connect") || has(ops, "measure")
-      || has(ops, "join")) && inWindow(f);
-    drawSeasonField(f, {
-      coloured: has(ops, "classify"),
-      dim: f.remains * STACK_FIELD_DIM * (yielding ? STACK_WINDOW_FIELD_DIM : 1),
-    });
+    const yielding = (progress("connect") > 0 || progress("measure") > 0
+      || progress("join") > 0) && inWindow(f);
+    const dim = f.remains * STACK_FIELD_DIM * locate
+      * (yielding ? STACK_WINDOW_FIELD_DIM : 1);
+    // CLASSIFY is a modifier of the one base. During its short response the
+    // neutral and coloured cached surfaces crossfade; their weights sum to the
+    // same field, so the operation never creates a second-density flash.
+    if (classify < 1) drawSeasonField(f, { dim: dim * (1 - classify) });
+    if (classify > 0) drawSeasonField(f, { coloured: true, dim: dim * classify });
+  }
+  // A selected dependency must still answer on the audience canvas. With no
+  // located attempts there is honestly nothing to tint, so the visible result
+  // is that dependency stated in the plate's disclosure register—not a false
+  // coloured field and not a control that appears to do nothing.
+  if (classify > 0 && locate <= 0) {
+    drawSlug(
+      f.ctx,
+      f.view,
+      ["CLASSIFICATION REQUIRES LOCATED ATTEMPTS"],
+      { x: 0, y: COURT.y1 - STACK_DISCLOSURE_INSET * 2 },
+      f.remains * classify,
+      "aside",
+    );
   }
 
   // 5. CONNECT THE BODY — the window's trajectories, and only those. THE HAND's
   //    drops are its material ALTERNATIVE for the base, so offering them here
   //    would be a second rendering of the same shots.
-  if (has(ops, "connect") && inWindow(f)) drawConnect(f);
+  const connect = progress("connect");
+  if (connect > 0 && inWindow(f)) drawConnect(f, connect);
 
   // 6. MEASURE THE DEFENDER — sparse, and the selection is the pipeline's.
-  if (has(ops, "measure") && inWindow(f)) drawMeasure(f);
+  const measure = progress("measure");
+  if (measure > 0 && inWindow(f)) drawMeasure(f, measure);
 
   // 7. NAME THE ACTION — sparse action labels, over the court.
-  if (has(ops, "name")) drawName(f);
+  const name = progress("name");
+  if (name > 0) drawName(f, name);
 
   // 8. COUNT THE EVENT — a tick per category on the floor, the tally OUTSIDE it.
-  if (has(ops, "count")) drawCount(f);
+  const count = progress("count");
+  if (count > 0) drawCount(f, count);
 
   // 8b. JOIN THE INSTRUMENTS — the archive's two words about where, shot by
   //     shot. Table order is layer order, so the eighth operation draws after
   //     the seventh and before the disclosures, like every bit before it.
-  if (has(ops, "join") && inWindow(f)) drawQuarrel(f);
+  const join = progress("join");
+  if (join > 0 && inWindow(f)) drawQuarrel(f, join);
 
   // 9. Last, over everything.
   drawDisclosures(f, ops);
@@ -198,8 +232,8 @@ export function drawStackHand(f: Frame): void {
  * belongs here rather than there — changing a function six committed sweeps were
  * measured through, to suit a new caller, is how a hand gets moved by accident.
  */
-function drawConnect(f: Frame): void {
-  const { ctx, view, st, data, remains } = f;
+function drawConnect(f: Frame, progress: number): void {
+  const { ctx, view, data, remains } = f;
   const paint = data.paint;
   const strokes = data.strokes();
   if (!paint || !strokes) return;
@@ -221,7 +255,7 @@ function drawConnect(f: Frame): void {
   // time, and a composite that quietly brightened it would be drawing more ink
   // than the record deposited. What yields is the field underneath.
   ctx.globalAlpha = remains;
-  for (let i = 0; i < n; i++) paintStroke(ctx, view, strokes, i, st.phase, r);
+  for (let i = 0; i < n; i++) paintStroke(ctx, view, strokes, i, progress, r);
   ctx.restore();
 }
 
@@ -244,11 +278,11 @@ function drawConnect(f: Frame): void {
  * recovered set, and a proportion from that set shown without its scope is the
  * defect session 3 closed.
  */
-function drawMeasure(f: Frame): void {
+function drawMeasure(f: Frame, progress: number): void {
   const { ctx, view, data, remains } = f;
   const w = data.window;
   if (!w) return;
-  const a = remains * STACK_CALIPER_ALPHA;
+  const a = remains * STACK_CALIPER_ALPHA * progress;
   for (const h of w.contest.heroes as HeroShot[]) {
     const frames = h.track.filter((p): p is number[] => p !== null);
     const p = frames[frames.length - 1];
@@ -257,7 +291,7 @@ function drawMeasure(f: Frame): void {
     // The league's own name for the category this distance was cut into, at the
     // caliper's midpoint. `aside`: it annotates the mark above it.
     drawSlug(ctx, view, [h.bucket_name.toUpperCase()],
-      { x: (p[0]! + p[2]!) / 2, y: (p[1]! + p[3]!) / 2 }, remains, "aside",
+      { x: (p[0]! + p[2]!) / 2, y: (p[1]! + p[3]!) / 2 }, remains * progress, "aside",
       -view.s(STACK_GUTTER_TENTHS));
   }
 }
@@ -273,11 +307,14 @@ function drawMeasure(f: Frame): void {
  * is NOT composited, because it materialises the same shots the base already
  * has, which is the rule this whole view is built on.
  */
-function drawName(f: Frame): void {
+function drawName(f: Frame, progress: number): void {
   const year = f.st.year;
   if (year === null) return;
   const u = ledgerUtterances(f, year);
-  if (u) drawTerms(f, u.terms, u.elapsed, u.interval, STACK_NAME_DIM);
+  // NAME is a response, not a second season clock. Resolve the same measured
+  // register THE LEDGER uses to one deterministic final utterance and hold it;
+  // only its short operation-local reveal changes after the key press.
+  if (u) drawTerms(f, u.terms, u.heldElapsed, u.interval, STACK_NAME_DIM * progress);
 }
 
 /**
@@ -303,19 +340,21 @@ function drawName(f: Frame): void {
  * operation still while they talk about it, and a filing that changed underneath
  * them six times in one season would be the view arguing with its own controls.
  */
-function drawCount(f: Frame): void {
+function drawCount(f: Frame, progress: number): void {
   const { ctx, view, st, data, remains } = f;
   const season = data.byYear.get(st.year!);
   if (!season) return;
   const columns = Object.keys(data.taxonomyColumns);
   const taxonomy = season.active_taxonomy ?? columns[0]!;
   const zoneNames = data.samples.get(st.year!)?.zone_names ?? [];
-  const words = filing(season, taxonomy, st.arrived, zoneNames,
+  // COUNT is a static response in THE STACK: derive the completed filing once
+  // and reveal that result, rather than replaying THE CENSUS's season clock.
+  const words = filing(season, taxonomy, 1, zoneNames,
     season.vocabulary.covering_90pct?.[taxonomy] ?? 1);
   // No `layOut`: nothing is struck on the floor, so nothing needs a bearing
   // moved to make room, and the tick sits at the record's own place by
   // construction rather than by `strikeTicks` undoing a nudge.
-  strikeTicks(f, words, remains * STACK_TICK_ALPHA);
+  strikeTicks(f, words, remains * STACK_TICK_ALPHA * progress);
 
   // The margin. The plate hangs rather than fills, so the halfcourt leaves a
   // real gutter either side of it at every window size — the tally is set flush
@@ -334,15 +373,20 @@ function drawCount(f: Frame): void {
   // the record's longest phrases, which are the whole of the second curve — ran
   // off the left edge and was clipped mid-word.
   //
-  // Shrinking is the only honest lever. Truncating would cut the record's own
-  // words, which is the one thing this operation exists to show; wrapping would
-  // turn a tally into a paragraph; and moving the column right would put COUNT
-  // on the court, which is precisely what rule 8 and the NAME/COUNT exclusion
-  // forbid. So the whole column scales down together and stays outside the
-  // floor at every window size.
+  // Near mode keeps the full fitted tally. In room mode the same narrow gutter
+  // cannot honestly carry the DESCRIPTION taxonomy's longest rows at a 13px
+  // floor. The floor was previously paired with `fillText(..., maxWidth)`,
+  // which retained nominal height by crushing glyphs to roughly one third of
+  // their natural width. At distance that is worse than omission. The audience
+  // therefore receives a legible filing summary here while every category's
+  // magnitude remains visible in the court's ticks; the near profile retains
+  // the complete row-by-row tally.
   ctx.font = `${view.s(STACK_GUTTER_TENTHS)}px ${SLUG_FAMILY}`;
   const widest = rows.reduce((m, r) => Math.max(m, ctx.measureText(r).width), 1);
-  const px = view.s(STACK_GUTTER_TENTHS) * Math.min(1, (right - view.s(STACK_GUTTER_PAD_TENTHS)) / widest);
+  const gutterWidth = Math.max(1, right - view.s(STACK_GUTTER_PAD_TENTHS));
+  const room = contextDisplay(ctx) === "room";
+  const fitted = view.s(STACK_GUTTER_TENTHS) * Math.min(1, gutterWidth / widest);
+  const px = room ? Math.max(ROOM_TEXT_MIN_PX.aside, fitted) : fitted;
   if (px < 1) {
     ctx.restore();
     return;
@@ -350,22 +394,28 @@ function drawCount(f: Frame): void {
   ctx.font = `${px}px ${SLUG_FAMILY}`;
   ctx.textAlign = "right";
   ctx.textBaseline = "alphabetic";
+  const fillRow = (text: string, x: number, at: number): void => {
+    ctx.fillText(text, x, at);
+  };
   let y = view.sy(COURT.y1);
-  ctx.fillStyle = `rgba(${BONE_RGB}, ${remains * STACK_GUTTER_SUB_ALPHA})`;
+  ctx.fillStyle = `rgba(${BONE_RGB}, ${remains * STACK_GUTTER_SUB_ALPHA * progress})`;
   // Which of the record's own columns this filing IS. The record supplies the
   // name of its own field; this hand does not name it.
-  ctx.fillText(data.taxonomyColumns[taxonomy] ?? taxonomy, right, y);
+  fillRow(room ? taxonomy : data.taxonomyColumns[taxonomy] ?? taxonomy, right, y);
   y += px * 2.2;
-  ctx.fillStyle = `rgba(${BONE_RGB}, ${remains * STACK_GUTTER_ROW_ALPHA})`;
-  for (const row of rows) {
-    ctx.fillText(row, right, y);
-    y += px * 1.5;
-  }
+  ctx.fillStyle = `rgba(${BONE_RGB}, ${remains * STACK_GUTTER_ROW_ALPHA * progress})`;
   // The tail is a count, never a cloud — THE CENSUS's rule, kept.
   const rest = Object.keys(season.classification[taxonomy] ?? {}).length - named.length;
-  if (rest > 0) {
-    ctx.fillStyle = `rgba(${BONE_RGB}, ${remains * STACK_GUTTER_SUB_ALPHA})`;
-    ctx.fillText(`${rest} more · a tick and a count`, right, y + px * 0.6);
+  const shownRows = room
+    ? [`${named.length} NAMED`, ...(rest > 0 ? [`${rest} MORE`] : []), "TICK=COUNT"]
+    : rows;
+  for (const row of shownRows) {
+    fillRow(row, right, y);
+    y += px * 1.5;
+  }
+  if (!room && rest > 0) {
+    ctx.fillStyle = `rgba(${BONE_RGB}, ${remains * STACK_GUTTER_SUB_ALPHA * progress})`;
+    fillRow(`${rest} more · a tick and a count`, right, y + px * 0.6);
   }
   ctx.restore();
 }
@@ -387,10 +437,11 @@ function drawCount(f: Frame): void {
  * so the flood keeps a leading edge: records enter in the order quarrel.bin is
  * packed in — chronological, window.py's own sort, the same day order THE
  * MEASURE's flood walks window_measures.bin in — and at most QUARREL_BUDGET
- * are on the plate at once. `st.phase` is the window's own phase, so the entry
- * fraction is a pure function of `t`: no held state, nothing accumulates, and
- * a backward scrub rebuilds a smaller flood rather than remembering a larger
- * one. No cache, deliberately — the flood is at most QUARREL_BUDGET lineTo calls
+ * are on the plate at once. The caller supplies the entry progress: THE STACK
+ * uses its operation-local clock, while the packet candidate defaults to the
+ * Window phase. Either way it is a pure render input: no held state accumulates
+ * and a backward seek rebuilds a smaller flood. No cache, deliberately — the
+ * flood is at most QUARREL_BUDGET lineTo calls
  * from arrays data.ts already decoded, which is cheaper than any surface that
  * would need registering in probe/shared.ts:cold().
  */
@@ -400,12 +451,12 @@ const QUARREL_BUDGET = 400;
  *  composite (`plate.ts`), which only the shots probe can request — the
  *  gallery question of where the quarrel lives is the artist's, judged from
  *  captures, and nothing in the gallery path reaches it. */
-export function drawQuarrel(f: Frame): void {
-  const { ctx, view, st, data, remains } = f;
+export function drawQuarrel(f: Frame, progress = f.st.phase): void {
+  const { ctx, view, data, remains } = f;
   const w = data.window;
   const q = data.quarrel();
   if (!w || !q || !q.n) return;
-  const entered = Math.max(1, Math.min(q.n, Math.round(st.phase * q.n)));
+  const entered = Math.max(1, Math.min(q.n, Math.round(progress * q.n)));
   const from = Math.max(0, entered - QUARREL_BUDGET);
   const a = remains * QUARREL_ALPHA;
   if (a <= 0.01) return;

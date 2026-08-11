@@ -97,8 +97,18 @@
     },
     {
       "file": "main.ts",
-      "text": "(Act 0 ",
+      "contains": "(Act 0 ",
       "why": "a console.log for whoever is running the piece; never drawn. Its figures are already derived from the schedule."
+    },
+    {
+      "file": "navigator.ts",
+      "text": "h2",
+      "why": "a DOM heading tag name passed to createElement. Syntax, not copy."
+    },
+    {
+      "file": "navigator.ts",
+      "text": "h3",
+      "why": "a DOM heading tag name passed to createElement. Syntax, not copy."
     },
     {
       "file": "navigator.ts",

@@ -27,6 +27,13 @@ import {
   TRACE_W_IN_FLIGHT,
   TRACE_W_SCALE,
 } from "./scalars";
+import {
+  PLATE_GESTURE_DRAW_SECONDS,
+  PLATE_GESTURE_FADE_SECONDS,
+  PLATE_GESTURE_HOLD_SECONDS,
+  PLATE_GESTURE_LIFE_SECONDS,
+  plateGestureIgnitePhase,
+} from "./window-score";
 
 export interface Trace {
   game: string;
@@ -57,34 +64,21 @@ export interface TracesFile {
  * So each trace draws itself, holds, and fades, staggered so only two or three
  * share the plate at once.
  */
-const DRAW_S = 1.3;
-const HOLD_S = 2.2;
-const FADE_S = 2.4;
-const LIFE_S = DRAW_S + HOLD_S + FADE_S;
-/** Ignitions are spread across this much of the act. The remainder belongs to
- *  the terminal beat: the last gesture is still fading as the shell's three
- *  lines strike, and the closing takes whatever is left lit. The old value
- *  left the plate holding an empty-of-event frame inside the window — the
- *  leftover of this arithmetic, which both display audits hashed
- *  independently. Absence must be an event, not a remainder. */
-const SPREAD = 0.96;
-
 export interface BloomTiming {
   /** 0..1 through Act III. */
   phase: number;
   /** Seconds Act III lasts, so ignition can be spread across it. */
   duration: number;
-  /** 0..1 multiplier on every trace's ink — THE PLATE's yield while the game
-   *  phase holds the plate (session 15): two clocks on one surface otherwise,
-   *  an index-spread schedule against a date-anchored game. Default 1. */
+  /** Optional 0..1 multiplier on every trace's ink. Default 1. */
   dim?: number;
 }
 
 /** Where trace `i` of `n` ignites, as a fraction of the act's phase. One
  *  definition, two readers — the drawing below and the talk rail's PLATE
- *  interior (THE SECOND SCORE) — the same discipline as `WINDOW_BEATS`. */
+ *  interior. The score lives in window-score.ts; this alias preserves the
+ *  navigator's established API. */
 export function ignitePhase(i: number, n: number): number {
-  return (i / Math.max(1, n)) * SPREAD;
+  return plateGestureIgnitePhase(i, n);
 }
 
 /**
@@ -96,14 +90,16 @@ function traceState(i: number, n: number, timing: BloomTiming): { drawn: number;
   const t = phase * duration;
   const igniteAt = ignitePhase(i, n) * duration;
   const u = t - igniteAt;
-  if (u < 0 || u > LIFE_S) return { drawn: 0, alpha: 0 };
+  if (u < 0 || u > PLATE_GESTURE_LIFE_SECONDS) return { drawn: 0, alpha: 0 };
 
-  const drawn = Math.min(1, u / DRAW_S);
-  // On Jan 23 the window closes on whatever is still lit.
-  const closing = Math.max(0, Math.min(1, (phase - 0.94) / 0.06));
+  const drawn = Math.min(1, u / PLATE_GESTURE_DRAW_SECONDS);
   let alpha = 1;
-  if (u > DRAW_S + HOLD_S) alpha = 1 - (u - DRAW_S - HOLD_S) / FADE_S;
-  return { drawn, alpha: Math.max(0, alpha) * (1 - closing) };
+  if (u > PLATE_GESTURE_DRAW_SECONDS + PLATE_GESTURE_HOLD_SECONDS) {
+    alpha = 1 - (
+      u - PLATE_GESTURE_DRAW_SECONDS - PLATE_GESTURE_HOLD_SECONDS
+    ) / PLATE_GESTURE_FADE_SECONDS;
+  }
+  return { drawn, alpha: Math.max(0, alpha) };
 }
 
 /**
