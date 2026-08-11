@@ -15,11 +15,13 @@
     "check:numbers": "node scripts/check-numbers.mjs",
     "disclose": "node scripts/disclose.mjs",
     "check:public": "node scripts/check-public-data.mjs",
+    "deploy:pages": "npm run build && gh-pages -d dist --nojekyll -m \"pages deploy\"",
     "probe:purity": "node scripts/probe-run.mjs purity",
     "probe:perf": "node scripts/probe-run.mjs perf",
     "shots": "node scripts/shots.mjs"
   },
   "devDependencies": {
+    "gh-pages": "^6.3.0",
     "playwright": "^1.62.1",
     "typescript": "^5.7.2",
     "vite": "^6.0.5"
