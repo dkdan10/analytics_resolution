@@ -26,7 +26,7 @@ import { GAME_DRIED, OLD_YIELD_STRENGTH } from "../scalars";
 import { secondsFor } from "../timeline";
 import { drawSeasonField } from "./fieldlayer";
 import { HAND_PHASES } from "./hand";
-import { terminalShell } from "./shared";
+import { drawActCue, terminalShell } from "./shared";
 import { drawQuarrel } from "./stack";
 import type { Frame } from "./types";
 
@@ -293,4 +293,9 @@ export function drawPlateHand(f: Frame): void {
       );
     }
   }
+
+  // The boundaries named (S1), over everything: the plate has no native
+  // boundary event at either act.
+  drawActCue(f, 2);
+  drawActCue(f, 5);
 }

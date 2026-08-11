@@ -71,6 +71,7 @@ import {
 } from "../scalars";
 import { ARRIVAL_TAIL } from "../timeline";
 import { drawSeasonField } from "./fieldlayer";
+import { drawActCue } from "./shared";
 import type { Frame } from "./types";
 
 
@@ -642,6 +643,11 @@ export function drawCensusHand(f: Frame): void {
   // The full apparatus, verbatim, and only where somebody is working. This is
   // mode CONFIGURATION, not held state, so render(mode, t) stays pure.
   if (talk) drawTables(f, season);
+
+  // The boundaries named (S1): the census has no native boundary event —
+  // its taxonomy turnover happens most seasons, not at the acts.
+  drawActCue(f, 2);
+  drawActCue(f, 5);
 }
 
 // --- the tables, kept whole for the rail -------------------------------------

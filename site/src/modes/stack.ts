@@ -93,6 +93,7 @@ import {
 import { WINDOW_YEAR } from "../timeline";
 import { filing, strikeTicks } from "./census";
 import { drawSeasonField } from "./fieldlayer";
+import { drawActCue } from "./shared";
 import { firstCanvasStrokes, paintStroke, type Regimes } from "./hand";
 import { drawTerms, ledgerUtterances } from "./ledger";
 import { caliper } from "./measure";
@@ -169,6 +170,11 @@ export function drawStackHand(f: Frame): void {
 
   // 9. Last, over everything.
   drawDisclosures(f, ops);
+
+  // The boundaries named (S1): the stack composites hands, none of whose
+  // layers carry a boundary sign of their own here.
+  drawActCue(f, 2);
+  drawActCue(f, 5);
 }
 
 /**

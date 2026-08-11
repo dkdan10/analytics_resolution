@@ -13,6 +13,7 @@ import { ALL_OPS, bitOf, NO_OPS, OPERATIONS, type StackOps } from "../modes/oper
 import { clearLayers } from "../field";
 import { clearStamps } from "../marks";
 import { clearCensusCaches } from "../modes/census";
+import { ACT_CUE_SECONDS } from "../modes/shared";
 import { clearCanvas } from "../modes/hand";
 import { clearLedgerCaches } from "../modes/ledger";
 import { makeView } from "../plate";
@@ -131,11 +132,18 @@ export function beatsOf(schedule: Schedule): Beat[] {
     out.push({ id: "before-the-cut", at: cut.start - frame });
     out.push({ id: "after-the-cut", at: cut.start + frame });
   }
+  // The named boundaries (S1): mid-cue frames, derived from the schedule like
+  // every other beat, on the cut pair's precedent. One definition with the
+  // cue's own pacing (modes/shared.ts), so the probe cannot drift off it.
+  const actTwo = schedule.segments.find((s) => s.act === 2);
+  if (actTwo) out.push({ id: "act-two-boundary", at: actTwo.start + ACT_CUE_SECONDS / 2 });
   if (win) {
     for (const b of WINDOW_BEATS) {
       out.push({ id: `window-${b.id}`, at: win.start + win.duration * (b.from + b.to) * 0.5 });
     }
   }
+  const actFive = schedule.segments.find((s) => s.act === 5);
+  if (actFive) out.push({ id: "act-five-boundary", at: actFive.start + ACT_CUE_SECONDS / 2 });
   out.push({ id: "final-season", at: last.start + last.duration * 0.5 });
   out.push({ id: "coda", at: schedule.lastEnds + CODA_SECONDS * 0.5 });
   out.push({ id: "last-frame", at: schedule.duration - frame });

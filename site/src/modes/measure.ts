@@ -55,7 +55,7 @@ import {
 import { label } from "../textatlas";
 import { WINDOW_BEATS } from "../timeline";
 import { drawSeasonField } from "./fieldlayer";
-import { arrivedThrough, cumulativeByDay, seasonClock } from "./shared";
+import { arrivedThrough, cumulativeByDay, drawActCue, seasonClock } from "./shared";
 import type { Frame } from "./types";
 
 /** The four beats of Act III. Defined in timeline.ts, because the rail lists
@@ -605,4 +605,8 @@ export function drawMeasureHand(f: Frame): void {
     drawSlug(ctx, view, ["THE WINDOW STAGE HAS NOT BEEN RUN"], { x: 0, y: 300 },
       remains * 0.3);
   }
+
+  // The Act V boundary named (S1). Act II is omitted: the league's bucket
+  // names arriving on the annulus IS this hand's Act II event (drawNamesOnly).
+  drawActCue(f, 5);
 }

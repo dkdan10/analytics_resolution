@@ -16,6 +16,7 @@ import { drawInscriptions, drawSlug } from "../inscription";
 import { SEASON_SECONDS, secondsFor } from "../timeline";
 import type { Frame } from "./types";
 import { drawSeasonField } from "./fieldlayer";
+import { drawActCue } from "./shared";
 
 export function drawFieldHand(f: Frame): void {
   const { ctx, view, st, inscriptions, remains } = f;
@@ -47,4 +48,9 @@ export function drawFieldHand(f: Frame): void {
     const fade = Math.min(1, sIn / rampS) * Math.min(1, (spanS - sIn) / rampS) * remains;
     drawSlug(ctx, view, ["COLOURED BY THE NBA'S OWN ZONES"], { x: 0, y: 400 }, fade);
   }
+
+  // The boundaries named (S1): the cue's anchor sits clear of the zone
+  // attribution above.
+  drawActCue(f, 2);
+  drawActCue(f, 5);
 }

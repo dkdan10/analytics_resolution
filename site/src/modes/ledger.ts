@@ -49,7 +49,7 @@ import {
 import { actOf, ARRIVAL_TAIL, WINDOW_BEATS } from "../timeline";
 import { label } from "../textatlas";
 import { drawSeasonField } from "./fieldlayer";
-import { seasonClock } from "./shared";
+import { drawActCue, seasonClock } from "./shared";
 import type { Frame } from "./types";
 
 /** How many labels the calmest season shows, and the vocabulary breadth that
@@ -653,6 +653,10 @@ export function drawLedgerHand(f: Frame): void {
   // Act V shows them bare. That contrast IS the argument, so both call the
   // same code.
   if (st.act === 3 || st.act === 5) drawPublishedInstead(f, st.act === 3);
+
+  // The Act II boundary named (S1). Act V is omitted: the league's published
+  // names arriving over the scatter IS this hand's Act V event.
+  drawActCue(f, 2);
 }
 
 function drawLabels(

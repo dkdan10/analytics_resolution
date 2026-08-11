@@ -144,7 +144,7 @@ import {
 } from "../scalars";
 import { KEPT_CREST, secondsFor, WINDOW_BEATS, WINDOW_YEAR } from "../timeline";
 import { pinCoordOf } from "./fieldlayer";
-import { arrivedThrough, cumulativeByDay, seasonClock } from "./shared";
+import { arrivedThrough, cumulativeByDay, drawActCue, seasonClock } from "./shared";
 import type { Frame } from "./types";
 
 const ZONE = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
@@ -954,6 +954,11 @@ export function drawHandHand(f: Frame): void {
   }
 
   ctx.restore();
+
+  // The boundaries named (S1). The enclosure voice above shares this anchor
+  // but stands only on the first post-window season, clear of both cues.
+  drawActCue(f, 2);
+  drawActCue(f, 5);
 }
 
 /** How many strokes the first possession holds. One canvas is one corroborated

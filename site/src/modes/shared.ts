@@ -1,7 +1,10 @@
 /** Helpers every hand may need. */
 
 import type { Corpus } from "../data";
+import { drawSlug } from "../inscription";
 import { SEASON_CLOCK_K } from "../scalars";
+import { ACT_TITLES, type Act } from "../timeline";
+import type { Frame } from "./types";
 
 /**
  * THE SEASON BEAT'S CLOCK — the crescendo's one authored curve.
@@ -57,6 +60,45 @@ export function cumulativeByDay(owner: object, days: ArrayLike<number>, n: numbe
   for (let d = 1; d <= span; d++) out[d] = out[d]! + out[d - 1]!;
   cumulative.set(owner, out);
   return out;
+}
+
+/**
+ * THE ACT NAMES THE LOSS — the fourth audit's boundary finding, shipped with
+ * the score's own phrases (S1, artist ruling 2026-08-10). Acts II and V open
+ * as ordinary season arrivals: the record's own drift supplies no categorical
+ * sign that the condition changed, so the act's existing title enters once,
+ * over the handoff, at the rank reserved for what the piece is about. The
+ * string is ACT_TITLES uppercased at the pen — read from the score's source,
+ * never typed here; docs/build/typography-inventory.md carries the rank.
+ *
+ * Pure in t: the envelope is a smoothstep trapezoid over the act's opening
+ * seconds, derived from the schedule's own segment start. Composition, not
+ * grain — the pacing below is the boundary's own, declared like the prelude's
+ * (render.ts:ramp); the ink rides the registered voice rank, held to the
+ * in-plate voice weight the caliper and enclosure sentences carry.
+ *
+ * A hand with a native boundary event omits the duplicate: THE MEASURE
+ * already names Act II (drawNamesOnly) and THE LEDGER already arrives in
+ * Act V (drawPublishedInstead) — each calls this only for the act it lacks.
+ */
+export const ACT_CUE_SECONDS = 3;
+const CUE_EDGE = 0.8;
+const CUE_AT = { x: 0, y: 330 };
+
+function cueStep(x: number): number {
+  const c = Math.min(1, Math.max(0, x));
+  return c * c * (3 - 2 * c);
+}
+
+export function drawActCue(f: Frame, act: Act, at = CUE_AT): void {
+  const seg = f.schedule.segments.find((s) => s.act === act);
+  if (!seg) return;
+  const u = f.st.t - seg.start;
+  if (u <= 0 || u >= ACT_CUE_SECONDS) return;
+  const a = cueStep(u / CUE_EDGE)
+    * (1 - cueStep((u - (ACT_CUE_SECONDS - CUE_EDGE)) / CUE_EDGE));
+  drawSlug(f.ctx, f.view, [ACT_TITLES[seg.act].toUpperCase()], at,
+    f.remains * a * 0.45, "voice");
 }
 
 /** The empty archive dated the day the window closed.

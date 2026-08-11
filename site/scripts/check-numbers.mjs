@@ -129,6 +129,10 @@ const MARK_LAYERS = [
   //   derived. It feeds six of the seven views through one `drawSeasonField`
   //   call, so a literal written here is a literal in every hand at once.
   /^modes\/fieldlayer\.ts$/,
+  // Draws since S1 (the act cues). Its pacing and anchor are composition, out
+  // of pass-3 scope by the stated rule; the file is listed so a future
+  // material literal here cannot hide.
+  /^modes\/shared\.ts$/,
   // Session 15's two, added in the commit that CREATES them — the same
   // discipline, before the first material literal either one holds.
   //
