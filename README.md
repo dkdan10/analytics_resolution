@@ -3,6 +3,8 @@
 **The Analytics Resolution: How Quantifying the NBA Has Changed the Game** — paper and studio
 piece (**FADEAWAY**) for "Theories, Methods, and Experiments in Art and AI," Columbia.
 
+**Live:** <https://dkdan10.github.io/analytics_resolution/> (exhibit; add `?talk` for the rail).
+
 FADEAWAY is one monumental halfcourt that never moves while thirty seasons migrate out of its
 middle. Every material property of a mark comes from a measurement of that era's archive — grain is
 a measurement, not a mood.
