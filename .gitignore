@@ -27,8 +27,26 @@ docs/shots/
 # Session prompts for the audit remediation (working documents).
 docs/prompts/
 
+# The paper: working notes and the built manuscript.
+docs/paper/
+paper/
+
+# Planning documents. These steered the build; they are not what a reader of the
+# finished project needs, and they stay on disk rather than in the tree.
+# docs/build/findings.md is the exception and stays TRACKED - it is gate input
+# (most of qa.py's MEMORY_CLAIMS resolve only there), not an archive.
+docs/build-plan-v2.md
+docs/thesis-and-course-resources.md
+docs/build/session-*-packet.md
+docs/build/session-*-handoff.md
+
+# Probe verdicts: machine output, regenerable with `npm run probe:purity` and
+# `npm run probe:perf`. docs/probe/ is where a run lands (probe-run.mjs:OUT_DIR);
+# docs/build/probe/ was the committed archive.
+docs/probe/
+docs/build/probe/
+
 # Local tool state. .claude/launch.json IS committed - it is how the dev server
 # is started for the browser probes, and it belongs with them.
 .claude/*
 !.claude/launch.json
-docs/paper/
