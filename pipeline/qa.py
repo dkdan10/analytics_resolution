@@ -3,9 +3,8 @@
 
 Two jobs, and the second one is newer than the first.
 
-ONE. Regenerated aggregates must reproduce the measured table in
-docs/build-plan-v2.md section 1.6 EXACTLY. If those numbers differ, the pipeline
-is wrong, not the plan (CLAUDE.md ground truth).
+ONE. Regenerated aggregates must reproduce the acceptance table (TABLE_1_6,
+below) EXACTLY. If those numbers differ, the pipeline is wrong, not the table.
 
 TWO. Every artifact the piece ships must be PRESENT and SEMANTICALLY WHOLE. The
 gate used to certify the work with the window and paint stages deleted from
@@ -19,11 +18,13 @@ each historic defect on a copy and requires the check that owns it to go red.
 A note on the constants below. Several are test fixtures - numbers measured from
 a real run and pinned so a regression cannot pass quietly. Each says what
 measured it and when. None of them is a display figure; nothing here is quoted
-on screen (CLAUDE.md honesty rule).
+on screen (the honesty rule: a displayed number comes from a script output, never
+from a constant typed here).
 
 Usage: python3 pipeline/qa.py                  # the full shipping gate
        python3 pipeline/qa.py --no-mutations   # ... without the mutation suite
-       python3 pipeline/qa.py --no-raw         # data/shots/ absent: REDUCED
+       python3 pipeline/qa.py --no-raw         # a public clone (no raw dumps,
+                                               #   no working notes): REDUCED
        python3 pipeline/qa.py --spine-only     # the shot stage alone
        python3 pipeline/qa.py --only window,paint
        python3 pipeline/qa.py --processed DIR  # point every read at DIR
@@ -59,6 +60,7 @@ from common import (  # noqa: E402
     RESTRICTED_R,
     THREE_R,
     ZONE_NAMES,
+    dump_path,
     read_season_csv,
     require_env,
     zone_at,
@@ -96,7 +98,7 @@ from paint import (  # noqa: E402
     COINCIDENCE_SECONDS as COINCIDENCE_SECONDS_QA,
 )
 
-# Plan section 1.6, measured 2026-08-04 (test fixture, not display copy).
+# The acceptance table (TABLE_1_6), measured 2026-08-04 (test fixture, not display copy).
 EXPECTED_TOTAL_ATTEMPTS = 5_933_691
 EXPECTED_SEASONS = 30
 
@@ -110,12 +112,12 @@ TABLE_1_6 = {
     2024: ("9.7", "42.1"),
 }
 
-# Supporting measured claims stated elsewhere in the plan.
-EXPECTED_2025_ATTEMPTS = 219_160          # Appendix C
-EXPECTED_2025_MID = "10.0"                # section 1.6 note: "the floor"
-EXPECTED_1997_THREE = "16.0"              # section 3.1 Act I: the line's retreat
-EXPECTED_2022_MID = "11.9"                # section 3.1 Act IV: the collapse completes
-SHORT_SEASON_KATTEMPTS = {1998: 113, 2011: 161, 2019: 188}  # section 3.1
+# Supporting figures the acts rest on, measured with the table.
+EXPECTED_2025_ATTEMPTS = 219_160          # the season after the table
+EXPECTED_2025_MID = "10.0"                # the floor
+EXPECTED_1997_THREE = "16.0"              # Act I: the line's retreat
+EXPECTED_2022_MID = "11.9"                # Act IV: the collapse completes
+SHORT_SEASON_KATTEMPTS = {1998: 113, 2011: 161, 2019: 188}  # the three short seasons
 
 # Schedule math: 29 teams x 82 / 2 = 1189 through 2003-04; 30 teams -> 1230.
 # Overrides: 1998 lockout, 2011 lockout, 2012 BOS@IND cancellation (Boston
@@ -355,6 +357,20 @@ ZONE_AGREEMENT_FLOOR = 0.999
 # it did not do, and asserted when the group runs so it cannot drift.
 ZONE_VS_LEAGUE_CHECKS = 4
 
+# Two inputs are gitignored and absent from a public clone: the raw shot dumps
+# (data/shots/) and the working notes (MEMORY_DOCS). A failure on either names
+# an input this checkout does not have, not a defect in the pipeline. main()
+# says so; the exit stays 1, because a bare run that could not look is not a
+# green one. `--no-raw` is the flag that declares a clone and runs REDUCED.
+RAW_DUMP_PRESENT = "the 2015-16 shot dump is present"
+NOTES_PRESENT = "project memory is present"
+ABSENT_INPUT_HINTS = {
+    RAW_DUMP_PRESENT: "raw dumps absent (environment, not a pipeline defect): "
+                      "run pipeline/acquire.py or pass --no-raw",
+    NOTES_PRESENT: "project memory absent (local working notes, not a pipeline "
+                   "defect): pass --no-raw",
+}
+
 # points/*.bin files the league's OWN SHOT_ZONE_BASIC label per cell, not the
 # geometric reconstruction - the two are different claims and the piece needs
 # both (Rule 4: colour exposes the league's classification, it does not add
@@ -539,12 +555,17 @@ class Ctx:
     produces one clear red line instead of a traceback.
     """
 
-    def __init__(self, root, allow_raw=True, repo=None):
+    def __init__(self, root, allow_raw=True, repo=None, allow_absent_memory=False):
         self.root = Path(root)
         self.allow_raw = allow_raw
-        # Two groups read files OUTSIDE data/processed/ - the deploy allowlist
-        # under pipeline/, and CLAUDE.md. Both must be aimable at a copy, or
-        # the mutation suite cannot test the gates that read them.
+        # Only `--no-raw` sets this: a public clone has none of the working
+        # notes, and the memory group then checks README.md's claims alone and
+        # says how many it did not check. A bare run never allows it.
+        self.allow_absent_memory = allow_absent_memory
+        # Several groups read files OUTSIDE data/processed/ - the deploy
+        # allowlist under pipeline/, two site sources, README.md and, where
+        # present, the working notes in MEMORY_DOCS. All must be aimable at a
+        # copy, or the mutation suite cannot test the gates that read them.
         self.repo = Path(repo) if repo else REPO_ROOT
         self._json = {}
         self._bytes = {}
@@ -656,8 +677,8 @@ REQUIRED_ARTIFACTS = [
     # 1-ft lattice; a cell is a count of tracked positions, nothing else.
     Artifact("wash.bin", "bin"),
     # Ships identity on purpose - names, games, matchups - and that is the
-    # accepted tracking-publication decision recorded in CLAUDE.md, not an
-    # oversight. group_traces gates it as shipped.
+    # accepted tracking-publication decision (stated in README.md's Data &
+    # license section), not an oversight. group_traces gates it as shipped.
     Artifact("traces.json", "json"),
     Artifact("samples/season_{year}.json", "json", stamp=None, per_season=True),
     # Complete one-foot density grids. Superseded on screen by points/*.bin,
@@ -809,7 +830,7 @@ def group_spine(g, ctx):
     seasons = ctx.seasons(g)
     if not seasons:
         return
-    g.section("Acceptance vs build-plan section 1.6")
+    g.section("The acceptance table (TABLE_1_6)")
     g.check("season count", len(seasons), EXPECTED_SEASONS)
     g.check("total attempts", sum(r["attempts"] for r in seasons.values()),
             EXPECTED_TOTAL_ATTEMPTS)
@@ -878,7 +899,7 @@ def group_resolution(g, ctx):
 
     for year, want in sorted(EXPECTED_RA_ORIGIN.items()):
         if year in seasons:
-            g.check(f"{seasons[year]['season']} rim shots left unplaced",
+            g.check(f"{seasons[year]['season']} rim shots filed exactly at (0,0)",
                     pct(seasons[year]["resolution"]["ra_origin_share"]), want)
 
     uneven = [y for y in sorted(seasons) if seasons[y]["resolution"]["regime"] == "uneven"]
@@ -1652,11 +1673,16 @@ def group_zone_vs_league(g, ctx):
         g.info(f"--no-raw: data/shots/ not consulted, {ZONE_VS_LEAGUE_CHECKS} checks not run")
         return
     before = g.n_checks
+    # An explicit existence test, not `except FileNotFoundError`: the reader
+    # shells out to tar, and a missing tar raises the same error as a missing
+    # dump. A corrupt dump is a real problem and keeps its own line below.
+    if not dump_path(2015).exists():
+        g.fail(RAW_DUMP_PRESENT, f"{dump_path(2015)} absent - the raw dumps are gitignored")
+        return
     try:
         zdf = read_season_csv(2015, usecols=["LOC_X", "LOC_Y", "SHOT_ZONE_BASIC"])
     except Exception as e:  # noqa: BLE001
-        g.fail("the 2015-16 shot dump is readable",
-               f"{type(e).__name__}: {e} - pass --no-raw for a public clone without dumps")
+        g.fail("the 2015-16 shot dump is readable", f"{type(e).__name__}: {e}")
         return
 
     names = np.array(ZONE_NAMES)
@@ -3678,8 +3704,21 @@ def _decoder_parity(g, ctx):
 
 
 # The two files that together are the project's memory. A gated sentence may
-# live in either; see Claim.doc.
+# live in either; see Claim.doc. Both are gitignored local working notes, kept
+# on the author's machine: a bare run requires them, and `--no-raw` on a
+# checkout with NONE of them checks only README.md's claims and says how many
+# it did not check. A checkout with some but not all of them is a defect.
 MEMORY_DOCS = ("CLAUDE.md", "docs/build/findings.md")
+
+
+def notes_absent(repo=REPO_ROOT):
+    """NONE of the working notes is on disk: a public clone."""
+    return not any((Path(repo) / n).exists() for n in MEMORY_DOCS)
+
+
+def notes_only_claims():
+    """The claims that live only in the working notes, never in a public document."""
+    return [c for c in MEMORY_CLAIMS if set(c.docs) <= set(MEMORY_DOCS)]
 
 
 class Claim:
@@ -3708,6 +3747,10 @@ class Claim:
         # public front door and the release procedure, and a figure belongs to
         # one of them specifically.
         self.doc = doc
+
+    @property
+    def docs(self):
+        return (self.doc,) if isinstance(self.doc, str) else tuple(self.doc)
 
     def render(self, value):
         return self.template.format(self._format(value))
@@ -3748,11 +3791,12 @@ MEMORY_CLAIMS = [
           "quarrel_bin.off_plate", "comma"),
     Claim("`WINDOW_RECOVERY_FLOOR` in qa.py (**{}**)", "code", "WINDOW_RECOVERY_FLOOR", "f2"),
     Claim("`pipeline/checks/mutations.py` holds **{} defects**", "code", "MUTATION_CASES"),
-    # DEPLOY.md states the same count as evidence its checklist was run. It is the
-    # one number in that file worth pinning: the CHECK count moves whenever a gate
-    # is added and was deliberately deleted instead, per the note below - a number a
-    # document does not need is better deleted than pinned.
-    Claim("(**{} defects**", "code", "MUTATION_CASES", doc="DEPLOY.md"),
+    # README.md states the catalogue's size: len(CASES), the whole catalogue, not
+    # the number a public clone runs (the cases that edit the working notes are
+    # skipped there). The CHECK count is deliberately not pinned anywhere: it
+    # moves whenever a gate is added, and a number a document does not need is
+    # better deleted than pinned.
+    Claim("each of {} seeded defects", "code", "MUTATION_CASES", doc="README.md"),
 
     # --- THE SLATE (session 14): the night's artifact -------------------------
     Claim("`slate_index.bin` holds **{} paths**", "slate", "paths", "comma"),
@@ -3890,31 +3934,37 @@ def group_memory(g, ctx):
     are the ones that carry a number an artifact can settle.
     """
     g.section("Project memory")
-    docs = {}
-    wanted = sorted({n for c in MEMORY_CLAIMS
-                     for n in ((c.doc,) if isinstance(c.doc, str) else c.doc)})
+    wanted = sorted({n for c in MEMORY_CLAIMS for n in c.docs})
+    # Whitespace-normalised on both sides. These are hard-wrapped prose and get
+    # re-wrapped constantly; a gate that broke every time a sentence moved
+    # across a line boundary would be re-worded around rather than fixed.
+    docs = {n: " ".join((ctx.repo / n).read_text().split())
+            for n in wanted if (ctx.repo / n).exists()}
+    absent = notes_absent(ctx.repo)
+    if absent and not ctx.allow_absent_memory:
+        g.fail(NOTES_PRESENT, f"none of {', '.join(MEMORY_DOCS)} is in {ctx.repo} - "
+                              "they are gitignored local working notes")
+        return
     for name in wanted:
-        path = ctx.repo / name
-        if not path.exists():
-            g.fail(f"{name} is present", f"{path} missing")
+        # README.md missing, or SOME of the notes missing: a defect either way.
+        if name not in docs and not (absent and name in MEMORY_DOCS):
+            g.fail(f"{name} is present", f"{ctx.repo / name} missing")
             return
-        # Whitespace-normalised on both sides. These are hard-wrapped prose and
-        # get re-wrapped constantly; a gate that broke every time a sentence
-        # moved across a line boundary would be re-worded around rather than
-        # fixed.
-        docs[name] = " ".join(path.read_text().split())
 
-    unresolved, wrong = [], []
+    unresolved, wrong, skipped = [], [], 0
     for claim in MEMORY_CLAIMS:
-        value = _memory_value(g, ctx, claim)
+        value = _memory_value(g, ctx, claim)   # resolution runs for every claim
         if value is None:
             unresolved.append(f"{claim.source}:{claim.path}")
+            continue
+        where = [d for d in claim.docs if d in docs]
+        if not where:   # reachable only when the notes are absent AND allowed
+            skipped += 1
             continue
         if claim.fmt == "offsets":
             want = claim.template.format(_offsets_text(value))
         else:
             want = claim.render(value)
-        where = (claim.doc,) if isinstance(claim.doc, str) else claim.doc
         if not any(" ".join(want.split()) in docs[d] for d in where):
             wrong.append(f"{'|'.join(where)}:{claim.source}:{claim.path} -> {want!r}")
     g.check("every gated memory claim resolves to an artifact", unresolved, [])
@@ -3925,6 +3975,9 @@ def group_memory(g, ctx):
            f"paint.json, seasons.json, facts.json and the code "
            f"({', '.join(f'{n} in {d}' for d, n in sorted(by_doc.items()))}); the rest "
            f"of each file is reasoning and carries its artifact key inline")
+    if skipped:
+        g.info(f"project memory absent (local working notes): {skipped} claims resolve "
+               f"to their artifacts but are not checked against text; README.md's are")
 
 
 # --- group: the palette ------------------------------------------------------
@@ -4121,9 +4174,11 @@ SPINE_ONLY = ["spine", "resolution", "vocabulary", "shot_artifacts", "inventory"
 FAST_GROUPS = [k for k in GROUPS if k != "zone_vs_league"]
 
 
-def run_groups(names, root, allow_raw=True, quiet=False, repo=None):
+def run_groups(names, root, allow_raw=True, quiet=False, repo=None,
+               allow_absent_memory=False):
     g = Gate(quiet=quiet)
-    ctx = Ctx(root, allow_raw=allow_raw, repo=repo)
+    ctx = Ctx(root, allow_raw=allow_raw, repo=repo,
+              allow_absent_memory=allow_absent_memory)
     for name in names:
         g.group = name
         try:
@@ -4215,7 +4270,8 @@ def main():
     ap.add_argument("--spine-only", action="store_true",
                     help="the shot stage alone; NOT the shipping gate")
     ap.add_argument("--no-raw", action="store_true",
-                    help="data/shots/ is absent (a fresh public clone); NOT the shipping gate")
+                    help="a fresh public clone: data/shots/ and the local working notes "
+                         "are absent; NOT the shipping gate")
     ap.add_argument("--mutations", action="store_true",
                     help="the mutation suite alone")
     ap.add_argument("--no-mutations", action="store_true",
@@ -4257,6 +4313,9 @@ def main():
     reduced = []
     if args.no_raw:
         reduced.append(f"raw dumps absent, {ZONE_VS_LEAGUE_CHECKS} checks not run")
+        if "memory" in names and notes_absent():
+            reduced.append(f"project memory absent (local working notes), "
+                           f"{len(notes_only_claims())} claims not checked")
     if args.spine_only:
         reduced.append(f"--spine-only, {len(GROUPS) - len(SPINE_ONLY)} groups not run")
     if args.only:
@@ -4267,7 +4326,8 @@ def main():
     print(f"FADEAWAY acceptance gate - {len(names)} of {len(GROUPS)} groups"
           + (f"\n  REDUCED: {'; '.join(reduced)}" if reduced else ""))
 
-    g = run_groups(names, Path(args.processed), allow_raw=not args.no_raw)
+    g = run_groups(names, Path(args.processed), allow_raw=not args.no_raw,
+                   allow_absent_memory=args.no_raw)
     narrative(Path(args.processed))
 
     failures = list(g.failures)
@@ -4283,15 +4343,23 @@ def main():
         reduced.append("--no-mutations")
 
     if failures:
-        print(f"\nQA RED: {len(failures)} mismatch(es). The pipeline is wrong, not the plan.")
+        hints = [ABSENT_INPUT_HINTS[n] for _g, n, _a, _b in failures if n in ABSENT_INPUT_HINTS]
+        if hints and len(hints) == len(failures):
+            print(f"\nQA RED: {len(failures)} mismatch(es), each an input this checkout "
+                  f"does not have.")
+        else:
+            print(f"\nQA RED: {len(failures)} mismatch(es). The pipeline is wrong, not the "
+                  f"acceptance table.")
         for grp, name, _got, _want in failures:
             print(f"  [{grp}] {name}")
+        for h in hints:
+            print(f"  {h}")
         sys.exit(1)
+    verdict = f"{g.n_checks} checks, the acceptance table (TABLE_1_6) reproduced exactly."
     if reduced:
-        print(f"\nQA GREEN (REDUCED - {'; '.join(reduced)}): "
-              f"{g.n_checks} checks, section 1.6 reproduced exactly.")
+        print(f"\nQA GREEN (REDUCED - {'; '.join(reduced)}): {verdict}")
     else:
-        print(f"\nQA GREEN: {g.n_checks} checks, section 1.6 reproduced exactly.")
+        print(f"\nQA GREEN: {verdict}")
 
 
 if __name__ == "__main__":

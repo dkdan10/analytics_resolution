@@ -6,7 +6,7 @@ Reads data/shots/shotdetail_YYYY.tar.xz and writes to data/processed/:
   samples/season_YYYY.json   fixed-seed spatial sample (~2,000 halfcourt dots)
   grids/season_YYYY.json     1-ft binned attempt-density grid (for OT/transitions)
 
-Zone definitions (disclosed in wall text, plan section 1.6 / Appendix D):
+Zone definitions (disclosed in wall text; the acceptance table is TABLE_1_6 in qa.py):
   mid-range  = SHOT_ZONE_BASIC == "Mid-Range"   (the NBA's own zone taxonomy)
   3PT        = SHOT_TYPE == "3PT Field Goal"    (attempt type, not zone)
 These diverge in 1996-97: the shortened line (1994-97) put many 3PT attempts
@@ -115,11 +115,11 @@ SAMPLE_N = 2000
 GRID_X_EDGES = np.arange(-HALF_X_MAX, HALF_X_MAX + 1, 10)  # 50 one-foot bins
 GRID_Y_EDGES = np.arange(HALF_Y_MIN, HALF_Y_MAX + 1, 10)   # 47 one-foot bins
 
-# Season notes ship as data so the piece never hand-types a caveat (Appendix D).
+# Season notes ship as data so the piece never hand-types a caveat.
 # {games} is derived from the dump (games per team, asserted exact); {window}
 # comes from the SportVU probe artifact (a script output). The remaining dates
 # are external history, not derivable from this dataset: the shortened-line era
-# (plan section 1.6) and the BOS@IND cancellation date (Apr 15, 2013 Boston
+# and the BOS@IND cancellation date (Apr 15, 2013 Boston
 # Marathon bombing; verified in the dump as BOS/IND at 81 games each).
 SEASON_NOTES = {
     1996: "shortened 3PT line era (1994-97); clean baseline starts 1997-98",

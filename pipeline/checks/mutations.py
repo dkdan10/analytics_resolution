@@ -49,13 +49,17 @@ class Case:
     site source the gates read.
     """
 
-    def __init__(self, name, groups, catches, mutate, why, scope="processed"):
+    def __init__(self, name, groups, catches, mutate, why, scope="processed",
+                 needs_notes=False):
         self.name = name
         self.groups = groups
         self.catches = catches
         self.mutate = mutate
         self.why = why
         self.scope = scope
+        # A case that edits the working notes (MEMORY_DOCS) cannot run where
+        # they are absent - a public clone - and is SKIPPED there, by name.
+        self.needs_notes = needs_notes
 
 
 # --- helpers -----------------------------------------------------------------
@@ -1416,7 +1420,9 @@ def m_c1_terminus(d):
 # instruction, docs/build/findings.md for the record - and a gated claim may sit
 # in either. A mutation that only ever edits CLAUDE.md therefore stopped biting
 # the moment the sentence it targets moved: both of these survived the split
-# until they were taught to follow the claim rather than the filename.
+# until they were taught to follow the claim rather than the filename. Both
+# files are gitignored working notes; where neither is on disk, the two cases
+# that edit them are SKIPPED by run_mutations and counted in its verdict.
 _MEMORY_FILES = ("CLAUDE.md", "docs/build/findings.md")
 
 
@@ -1738,11 +1744,11 @@ CASES = [
 
     # --- session 3's gates, which read outside data/processed/ --------------
     Case("memory-figure", ["memory"], "every gated memory claim is what the artifact says",
-         m_memory_figure, "F-16: a figure in CLAUDE.md drifting from its own artifact",
-         scope="repo"),
+         m_memory_figure, "a figure in the working notes drifting from its own artifact",
+         scope="repo", needs_notes=True),
     Case("memory-missing", ["memory"], "every gated memory claim is what the artifact says",
-         m_memory_missing, "F-16: a gated claim reworded away instead of corrected",
-         scope="repo"),
+         m_memory_missing, "a gated claim reworded away instead of corrected",
+         scope="repo", needs_notes=True),
     Case("allowlist-extra", ["deploy"], "the allowlist the site reads is the table the gate holds",
          m_allowlist_extra, "F-07: publishing by editing a file instead of by deciding",
          scope="repo"),
@@ -1859,9 +1865,11 @@ def run_mutations(processed=PROCESSED_DIR, only=None, quiet=False):
 
     Returns True when every case is caught by the check that owns it.
     """
-    from qa import run_groups  # noqa: PLC0415
+    from qa import notes_absent, run_groups  # noqa: PLC0415
 
     cases = [BY_NAME[only]] if only else CASES
+    absent = notes_absent(REPO_ROOT)
+    skipped = [c for c in cases if c.needs_notes and absent]
     print(f"\nMutations: {len(cases)} defects, each against the check that owns it")
     results = []
     with tempfile.TemporaryDirectory() as tmp:
@@ -1883,7 +1891,7 @@ def run_mutations(processed=PROCESSED_DIR, only=None, quiet=False):
             (root / "data").mkdir(parents=True)
             shutil.copytree(pristine, root / "data" / "processed")
             (root / "pipeline").mkdir(exist_ok=True)
-            for rel in ("CLAUDE.md", "README.md", "DEPLOY.md",
+            for rel in ("CLAUDE.md", "README.md",
                         "docs/build/findings.md",
                         "pipeline/deploy_allowlist.json",
                         "site/src/inscription.ts", "site/src/palette.ts"):
@@ -1894,10 +1902,15 @@ def run_mutations(processed=PROCESSED_DIR, only=None, quiet=False):
                     shutil.copy2(src, dst)
 
         for c in cases:
+            if c in skipped:
+                print(f"  {'SKIPPED':<12} {c.name:<18} -> project memory absent "
+                      f"(local working notes)")
+                continue
             stage()
             work = root / "data" / "processed"
             c.mutate(root if c.scope == "repo" else work)
-            g = run_groups(c.groups, work, allow_raw=False, quiet=True, repo=root)
+            g = run_groups(c.groups, work, allow_raw=False, quiet=True, repo=root,
+                           allow_absent_memory=absent)
             named = any(c.catches in n for n in g.names())
             caught = bool(g.failures) and named
             results.append((c, caught, g))
@@ -1908,7 +1921,9 @@ def run_mutations(processed=PROCESSED_DIR, only=None, quiet=False):
                 print(f"       instead: {g.names()[:4] or 'nothing failed'}")
 
     bad = [c.name for c, ok, _ in results if not ok]
-    print(f"  {len(results) - len(bad)}/{len(results)} defects are caught by their own check")
+    tail = f" ({len(skipped)} skipped: project memory absent)" if skipped else ""
+    print(f"  {len(results) - len(bad)}/{len(results)} defects are caught by their own "
+          f"check{tail}")
     if bad:
         print(f"  MUTATIONS SURVIVED: {', '.join(bad)}")
     return not bad

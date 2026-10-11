@@ -108,8 +108,10 @@ python3 pipeline/qa.py --write-deploy-allowlist   # regenerate pipeline/deploy_a
 ```
 
 **The defect catalogue** lives in `pipeline/checks/mutations.py`. Every defect is reintroduced on a
-copy of `data/processed/` and each is required to be caught **by the named check that owns it** — a
-mutation caught only by some unrelated check is a failure of the suite, not a pass.
+copy of `data/processed/` and each of 120 seeded defects is required to be caught **by the named
+check that owns it** — a mutation caught only by some unrelated check is a failure of the suite, not
+a pass. The cases that edit the local working notes are skipped on a public clone, and the run
+names them.
 
 ```bash
 python3 pipeline/checks/mutations.py --list  # what each case is and which check owns it

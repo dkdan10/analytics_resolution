@@ -29,6 +29,11 @@ Every gate added to qa.py belongs in that catalogue. The real data/processed/ is
 never touched: a mutation root is assembled with its own copy of the processed
 tree and symlinks to the private and bulk directories.
 
+LOCAL ONLY. Each subprocess is a bare qa.py run, and a bare run needs the raw
+dumps (data/shots/) and the working notes (qa.MEMORY_DOCS), all gitignored. On
+a public clone, `qa.py --no-raw` runs the same catalogue in-process and names
+what it skipped.
+
 Usage: python3 pipeline/checks/break_gates.py [--case NAME] [--keep] [--list]
 """
 
@@ -63,7 +68,7 @@ def build_root(tmp):
         if src.exists():
             (root / "data" / name).symlink_to(src)
     for name in (".python-version", "requirements.txt", "CLAUDE.md", "README.md",
-                 "DEPLOY.md", "docs/build/findings.md"):
+                 "docs/build/findings.md"):
         if (REPO_ROOT / name).exists():
             (root / name).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(REPO_ROOT / name, root / name)
@@ -103,12 +108,15 @@ def main():
               f"{out.count('  PASS')} PASS, {out.count('  FAIL')} FAIL")
         if code != 0:
             print(out[-3000:])
-            sys.exit("the unmutated copy is already red - fix that first")
+            sys.exit("the unmutated copy is already red. If qa.py calls every failure an "
+                     "input this checkout does not have, this is a public clone: "
+                     "break_gates needs the raw dumps and the working notes; run "
+                     "qa.py --no-raw instead.")
 
         results = []
         pristine_repo = {
             rel: (Path(tmp) / "pristine-repo" / rel.replace("/", "_"))
-            for rel in ("CLAUDE.md", "README.md", "DEPLOY.md",
+            for rel in ("CLAUDE.md", "README.md",
                         "docs/build/findings.md",
                         "pipeline/deploy_allowlist.json")
         }
@@ -123,8 +131,9 @@ def main():
             for rel, keep in pristine_repo.items():
                 if keep.exists():
                     shutil.copy2(keep, root / rel)
-            # A repo-scope case mutates CLAUDE.md or the deploy allowlist,
-            # which live outside data/processed/ - both are in this root.
+            # A repo-scope case mutates README.md, the working notes or the
+            # deploy allowlist, which live outside data/processed/ - all are
+            # in this root.
             c.mutate(root if c.scope == "repo" else root / "data" / "processed")
             code, out = run_qa(root)
             named = any(ln.startswith("  FAIL") and c.catches in ln for ln in out.splitlines())
