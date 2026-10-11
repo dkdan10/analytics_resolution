@@ -355,10 +355,15 @@ function smooth(x: number): number {
  * pre-history would show minutes the clip does not claim. Default 0 draws
  * exactly what every existing caller drew.
  */
+
+/** The fields a stroke drawer reads. The paint, the slate and the game each
+ *  ship their own stroke table; any of them is drawable as long as it carries
+ *  these columns, so the drawers take the shape rather than one file's type. */
+export type StrokeGeometry = Pick<Strokes, "n" | "first" | "count" | "kind" | "x" | "y" | "dt" | "arc">;
 export function paintStroke(
   ctx: CanvasRenderingContext2D,
   view: View,
-  s: Strokes,
+  s: StrokeGeometry,
   i: number,
   drawn: number,
   r: Regimes,
@@ -465,7 +470,7 @@ let paintPaths = new WeakMap<object, WeakMap<View, Map<string, PaintPathCache>>>
  */
 function completedPaintCommands(
   view: View,
-  s: Strokes,
+  s: StrokeGeometry,
   i: number,
   r: Regimes,
 ): PaintCommand[] {
@@ -561,7 +566,7 @@ function completedPaintCommands(
 function drawCompletedPaintStroke(
   ctx: CanvasRenderingContext2D,
   view: View,
-  s: Strokes,
+  s: StrokeGeometry,
   i: number,
   r: Regimes,
 ): void {
@@ -606,9 +611,9 @@ function drawSlate(ctx: CanvasRenderingContext2D, view: View, sl: Slate,
       k++;
     }
     if (k >= n) {
-      drawCompletedPaintStroke(ctx, view, sl as unknown as Strokes, i, r);
+      drawCompletedPaintStroke(ctx, view, sl, i, r);
     } else {
-      paintStroke(ctx, view, sl as unknown as Strokes, i, k / n, r);
+      paintStroke(ctx, view, sl, i, k / n, r);
     }
   }
   ctx.restore();
@@ -914,7 +919,7 @@ export function drawHandHand(f: Frame): void {
           for (let i = 0; i < gm.n; i++) {
             const end = sp.start[i]! + sp.dur[i]!;
             if (end >= a && end < b) {
-              drawCompletedPaintStroke(c, view, gm as unknown as Strokes, i, r);
+              drawCompletedPaintStroke(c, view, gm, i, r);
             }
           }
         },
@@ -936,9 +941,9 @@ export function drawHandHand(f: Frame): void {
           ctx.globalAlpha = gEnv * (GAME_DRIED + (1 - GAME_DRIED) * wetness);
           const drawn = timeFrac(gm, i, gameFrame - at0);
           if (drawn >= 1) {
-            drawCompletedPaintStroke(ctx, view, gm as unknown as Strokes, i, r);
+            drawCompletedPaintStroke(ctx, view, gm, i, r);
           } else {
-            paintStroke(ctx, view, gm as unknown as Strokes, i, drawn, r);
+            paintStroke(ctx, view, gm, i, drawn, r);
           }
         }
         ctx.restore();
@@ -968,7 +973,7 @@ export function drawHandHand(f: Frame): void {
         // possession draws only from the possession's own first frame.
         const drawn = timeFrac(gm, i, clipUpto - at0);
         if (drawn > 0) {
-          paintStroke(ctx, view, gm as unknown as Strokes, i, drawn, r,
+          paintStroke(ctx, view, gm, i, drawn, r,
             timeFrac(gm, i, pos.f0 - at0), oneInk);
         }
       }

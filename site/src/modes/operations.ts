@@ -250,23 +250,3 @@ export function opForKey(key: string): Operation | null {
   return OPERATIONS.find((o) => o.key === key.toLowerCase()) ?? null;
 }
 
-/**
- * ALL RENDERINGS: every operation at once.
- *
- * DECIDED 2026-08-09, and it is the reason there is no timer anywhere in this
- * view. Of the three ways out — let the illegibility decay back
- * deterministically, cut to bare stone, or HOLD UNTIL RELEASED — the view
- * holds. So the argumentative event is not a transient at all — it is the
- * configuration with every bit set, and the presenter decides how long the
- * audience sits in it.
- *
- * What that buys, and it is worth saying plainly: a transient triggered "now"
- * smuggles wall-clock state into a pure render, and keeping it out would mean
- * carrying the invoking `t` in the configuration. Holding instead leaves no
- * `t0` to carry, no paused-clock semantics to disclose, and no arithmetic that
- * has to be trusted to return. The return is the previous mask, restored by
- * the rail, and it is byte-identical because it is the same number.
- */
-export function allOn(ops: StackOps): boolean {
-  return ops === ALL_OPS;
-}

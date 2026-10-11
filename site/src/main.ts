@@ -403,11 +403,13 @@ async function main(): Promise<void> {
 
   let clock: Clock;
   let nav: Navigator | null = null;
+  // The full work is one complete pass per gallery hand, in rotation order.
+  const GALLERY_PASSES = MODE_IDS.filter(isGalleryMode).length;
   if (overview) {
     clock = exhibitClock(0);
     credit.hidden = false;
     fullEntry.hidden = false;
-    fullEntry.textContent = `FULL ${fmtDuration(schedule.duration * 6)} WORK`;
+    fullEntry.textContent = `FULL ${fmtDuration(schedule.duration * GALLERY_PASSES)} WORK`;
     const fullUrl = new URL(location.href);
     fullUrl.search = "";
     fullUrl.searchParams.set("experience", "full");
@@ -680,7 +682,6 @@ function returnOnEscape(q: URLSearchParams, display: string): void {
 
 function fault(err: unknown): void {
   const reason = err instanceof Error ? err.message : String(err);
-  // eslint-disable-next-line no-console
   console.error("FADEAWAY did not start:", err);
 
   const q = new URLSearchParams(location.search);

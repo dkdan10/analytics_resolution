@@ -438,7 +438,6 @@ export function emit(id: string, report: unknown): void {
   pre.textContent = JSON.stringify(report, null, 2);
   document.body.replaceChildren(pre);
   document.body.classList.remove("exhibit");
-  // eslint-disable-next-line no-console
   console.log(report);
   (window as unknown as Record<string, unknown>)[id] = report;
 }

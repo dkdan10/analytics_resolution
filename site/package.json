@@ -4,21 +4,22 @@
   "version": "0.1.0",
   "type": "module",
   "engines": {
-    "node": "^20.0.0 || >=22.0.0"
+    "node": ">=22"
   },
   "scripts": {
     "sync-data": "node scripts/sync-data.mjs",
     "gate": "node scripts/zone-gate.mjs",
     "dev": "npm run sync-data && vite",
-    "build": "npm run sync-data && npm run check:numbers && npm run gate && npm run disclose -- --check && tsc --noEmit && vite build && npm run check:public",
+    "build": "npm run sync-data && npm test && vite build && npm run check:public",
     "preview": "vite preview",
     "check:numbers": "node scripts/check-numbers.mjs",
     "disclose": "node scripts/disclose.mjs",
     "check:public": "node scripts/check-public-data.mjs",
-    "deploy:pages": "npm run build && gh-pages -d dist --nojekyll -m \"pages deploy\"",
+    "deploy:pages": "npm run build && gh-pages -d dist --nojekyll --no-history -m \"Deploy site\"",
     "probe:purity": "node scripts/probe-run.mjs purity",
     "probe:perf": "node scripts/probe-run.mjs perf",
-    "shots": "node scripts/shots.mjs"
+    "shots": "node scripts/shots.mjs",
+    "test": "npm run check:numbers && npm run gate && npm run disclose -- --check && tsc --noEmit"
   },
   "devDependencies": {
     "gh-pages": "^6.3.0",

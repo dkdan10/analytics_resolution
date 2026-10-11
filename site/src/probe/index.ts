@@ -86,7 +86,6 @@ function fail(report: unknown): void {
   pre.textContent = JSON.stringify(report, null, 2);
   document.body.replaceChildren(pre);
   document.body.classList.remove("exhibit");
-  // eslint-disable-next-line no-console
   console.error(report);
   done(false);
 }

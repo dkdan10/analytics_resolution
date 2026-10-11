@@ -143,12 +143,6 @@ export function factNum(facts: FactsFile, key: string): number {
   return e.value;
 }
 
-export function factText(facts: FactsFile, key: string): string {
-  const e = facts.derived[key];
-  if (!e) throw new Error(`facts.json: derived.${key} missing`);
-  return String(e.value);
-}
-
 export function factExternal<T>(facts: FactsFile, key: string): T {
   const e = facts.external[key];
   if (!e) throw new Error(`facts.json: external.${key} missing`);
@@ -1197,7 +1191,6 @@ function lazy<T>(name: string, fetcher: () => Promise<T>): Lazy<T> {
       })
       .catch((e: unknown) => {
         failure = e instanceof Error ? e.message : String(e);
-        // eslint-disable-next-line no-console
         console.error(`FADEAWAY: ${name} will not be drawn - ${failure}`);
         return null;
       })

@@ -27,7 +27,6 @@ import { secondsFor } from "../timeline";
 import {
   PLATE_GAME_FROM_PHASE,
   PLATE_GAME_TO_PHASE,
-  PLATE_SHELL_FROM_PHASE,
   PLATE_SHELL_FULL_PHASE,
   PLATE_SHELL_SPAN,
   PLATE_WITHDRAW_SPAN,
@@ -38,11 +37,6 @@ import { drawSeasonField } from "./fieldlayer";
 import { drawActCue, terminalShell } from "./shared";
 import { drawQuarrel } from "./stack";
 import type { Frame } from "./types";
-
-/** Where in the window's phase the terminal shell strikes. Exported for the
- *  talk rail's PLATE interior (THE SECOND SCORE) — one definition, two
- *  readers. The source is window-score.ts; this alias preserves the rail API. */
-export const SHELL_PHASE = PLATE_SHELL_FROM_PHASE;
 
 /**
  * The entry yield's fixed two-width penumbra: the wake erases at full

@@ -100,10 +100,6 @@ export function windowEntryProgress(phase: number): number {
   return progressInWindowSpan(phase, WINDOW_ENTRY_SPAN);
 }
 
-export function windowEntryRemnant(phase: number): number {
-  return 1 - windowEntryProgress(phase);
-}
-
 const BEAT_SEASON = WINDOW_BEATS[2];
 const BEAT_CLOSE = WINDOW_BEATS[3];
 
