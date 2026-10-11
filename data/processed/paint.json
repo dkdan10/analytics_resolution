@@ -1,11 +1,11 @@
 {
   "generated_by": "pipeline/paint.py",
-  "generated_at": "2026-08-08T18:27:51+00:00",
+  "generated_at": "2026-10-11T20:00:04+00:00",
   "format_version": 2,
   "provenance": {
     "shots_source": "stats.nba.com shotchartdetail, bulk archive github.com/shufinskiy/nba_data",
     "sportvu_source": "NBA/STATS SportVU public 2015-16 release, github.com/linouk23/NBA-Player-Movements + mirrors (github.com/sealneaward/nba-movement-data, HF dcayton/nba_tracking_data_15_16)",
-    "license_note": "derived data only; bulk dumps are never committed (see CLAUDE.md data rights)"
+    "license_note": "derived data only; bulk dumps are never committed (see README.md, Data & license)"
   },
   "definitions": {
     "_authored": "Four things are chosen in this stage. A span length (5.0 s); the rule for WHICH corroborated shot of a game is painted, in full: the game's corroborated shots in ascending anchor residual, ties by ascending tracking event id; the first that also yields a complete canvas is painted. Complete means: the release frame and hoop re-derive to the ones the window stage corroborated; the whole span fits inside the event before the release; the ball is present in every frame of it; at least ten bodies are recorded in every frame of it; no two of those bodies are one detection reported under two ids; and at least eight distinct bodies survive the run floor. A game with no such shot is not painted; the shortest run still counted as a gesture (25 frames, alternate 3); and how close two bodies must stay before they are treated as one detection (0.35 ft for 0.5 s, alternate 0.1 ft). Every other property of a stroke is read off the record.",

@@ -1,10 +1,10 @@
 {
   "generated_by": "pipeline/aggregate.py",
-  "generated_at": "2026-08-10T18:59:56+00:00",
+  "generated_at": "2026-10-11T19:59:51+00:00",
   "provenance": {
     "shots_source": "stats.nba.com shotchartdetail, bulk archive github.com/shufinskiy/nba_data",
     "sportvu_source": "NBA/STATS SportVU public 2015-16 release, github.com/linouk23/NBA-Player-Movements + mirrors (github.com/sealneaward/nba-movement-data, HF dcayton/nba_tracking_data_15_16)",
-    "license_note": "derived data only; bulk dumps are never committed (see CLAUDE.md data rights)"
+    "license_note": "derived data only; bulk dumps are never committed (see README.md, Data & license)"
   },
   "taxonomy_columns": {
     "TYPE": "SHOT_TYPE",

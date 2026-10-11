@@ -1,11 +1,11 @@
 {
   "generated_by": "pipeline/acquire.py",
-  "fetched_at": "2026-08-06T06:40:42+00:00",
+  "fetched_at": "2026-10-11T20:01:18+00:00",
   "index_url": "https://raw.githubusercontent.com/shufinskiy/nba_data/main/list_data.txt",
   "provenance": {
     "shots_source": "stats.nba.com shotchartdetail, bulk archive github.com/shufinskiy/nba_data",
     "sportvu_source": "NBA/STATS SportVU public 2015-16 release, github.com/linouk23/NBA-Player-Movements + mirrors (github.com/sealneaward/nba-movement-data, HF dcayton/nba_tracking_data_15_16)",
-    "license_note": "derived data only; bulk dumps are never committed (see CLAUDE.md data rights)"
+    "license_note": "derived data only; bulk dumps are never committed (see README.md, Data & license)"
   },
   "files": {
     "1996-97": {

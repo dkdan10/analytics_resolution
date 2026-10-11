@@ -119,8 +119,8 @@ def der(value, frm):
 # These twelve were hard-coded in site/src/modes/ledger.ts, which is display copy
 # authoring its own content. They are names, not numbers, but they carry a
 # citation - the slug beneath them says the league publishes these - so they
-# belong in a sourced artifact like any other external fact. Each is cited to the
-# endpoint it comes from in docs/build-plan-v2.md section 1.4.
+# belong in a sourced artifact like any other external fact. Each carries the
+# stats.nba.com endpoint it comes from in its `source`.
 #
 # Nine are PtMeasureType values of LeagueDashPtStats; the other three come from
 # their own endpoints. TOUCHES is the one that is a measure WITHIN a type rather
@@ -200,7 +200,7 @@ def build():
             "2016-02-10",
             "the date by which the public moment endpoint was already dead - NOT the "
             "date it closed, which is not established",
-            "docs/build-plan-v2.md section 1.4-1.5, citing the earliest dated artifact: "
+            "the earliest dated artifact: "
             "github.com/bttmly/nba-movement issue #1, 10 February 2016, "
             "\"especially locations_getmoments, are no longer active\"",
             note=("the shutdown date itself is unknown. The corpus's last archive is "
@@ -225,8 +225,8 @@ def build():
             "the tracking measures the league publishes in place of the optical "
             "geometry it stopped releasing; THE LEDGER draws these names, with "
             "recomputed values inside the window and bare outside it",
-            "docs/build-plan-v2.md section 1.4-1.5 (LeagueDashPtStats PtMeasureType "
-            "values, PlayerDashPtShots, SynergyPlayTypes, HustleStats)",
+            "stats.nba.com endpoints: LeagueDashPtStats (PtMeasureType "
+            "values), PlayerDashPtShots, SynergyPlayTypes, HustleStats",
             note=("the league publishes VALUES for all of these; what it stopped "
                   "publishing is the geometry they are made from. The list is the "
                   "twelve the piece draws, not an exhaustive one: LeagueDashPtStats "

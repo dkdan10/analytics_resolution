@@ -195,7 +195,7 @@ PROVENANCE = {
         "NBA/STATS SportVU public 2015-16 release, github.com/linouk23/NBA-Player-Movements "
         "+ mirrors (github.com/sealneaward/nba-movement-data, HF dcayton/nba_tracking_data_15_16)"
     ),
-    "license_note": "derived data only; bulk dumps are never committed (see CLAUDE.md data rights)",
+    "license_note": "derived data only; bulk dumps are never committed (see README.md, Data & license)",
 }
 
 # Fixed sampling seed: the date the public tracking window opened (2015-10-27).

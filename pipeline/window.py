@@ -2052,7 +2052,7 @@ def reduce_all():
                 "states. The frame convention is verified against the record itself - the "
                 "mirrored alternative was scored and rejected by a wide margin, and matched "
                 "shots carry no systematic offset (the measurement is recorded at "
-                "to_shot_frame in pipeline/window.py and in docs/build/findings.md) - so "
+                "to_shot_frame in pipeline/window.py) - so "
                 "the segment is two instruments genuinely disagreeing about one event, not "
                 "a shared transform error. No game, no event, no player, no action, no "
                 "zone, no date and no clock leaves with it"
