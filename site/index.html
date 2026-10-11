@@ -4,6 +4,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>FADEAWAY</title>
+    <meta name="description" content="A browser artwork that draws the NBA's public shot record on one halfcourt that never moves, season by season, and shows how much the record could see. Made for a laptop screen." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="FADEAWAY" />
+    <meta property="og:description" content="A browser artwork that draws the NBA's public shot record on one halfcourt that never moves, season by season, and shows how much the record could see. Made for a laptop screen." />
+    <meta property="og:url" content="https://dkdan10.github.io/analytics_resolution/" />
+    <meta property="og:image" content="https://dkdan10.github.io/analytics_resolution/og/fadeaway.png" />
+    <meta property="og:image:alt" content="THE HAND at the close of the tracking window: real player trajectories as strokes on a dark halfcourt, coloured by the league's own zones" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <noscript><style>#startup { display: none; }</style></noscript>
     <style>
       :root {
         --ground: #0b0a09;
@@ -21,9 +31,76 @@
       #app { display: flex; height: 100vh; }
       canvas { display: block; flex: 1 1 auto; min-width: 0; height: 100vh; }
 
-      /* Exhibit mode: nothing on screen may look like it wants to be touched. */
+      /* Exhibit mode: nothing on screen may look like it wants to be touched.
+         A web visitor who moves a mouse gets the cursor back until it rests;
+         a wall machine with no pointer never shows one. */
       body.exhibit { cursor: none; }
+      body.exhibit.pointer-awake { cursor: auto; }
       body.exhibit #nav { display: none; }
+
+      /* Off-canvas text for assistive technology: the canvas carries the work,
+         so the page needs one sentence that says what it is. */
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      /* The overview's one line of credit: author, a way to the source, and the
+         data's provenance. Bottom-left; the FULL WORK link owns bottom-right. */
+      #credit {
+        position: fixed;
+        z-index: 12;
+        left: 20px;
+        bottom: 20px;
+        max-width: calc(100vw - 260px);
+        font: 12px/1.45 var(--mono);
+        letter-spacing: 0.12em;
+        color: rgba(232, 226, 214, 0.62);
+        text-shadow: 0 1px 8px #0b0a09;
+        pointer-events: none;
+      }
+      #credit a {
+        color: rgba(232, 226, 214, 0.86);
+        text-decoration: none;
+        border-bottom: 1px solid rgba(232, 226, 214, 0.35);
+        pointer-events: auto;
+      }
+      #credit a:hover, #credit a:focus-visible { color: var(--bone); }
+      #credit[hidden] { display: none; }
+      body.overview #asset-state { bottom: 52px; }
+
+      .noscript {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        margin: 0;
+        background: var(--ground);
+        color: rgba(232, 226, 214, 0.82);
+        font: 13px/1.6 var(--mono);
+        letter-spacing: 0.12em;
+        text-align: center;
+      }
+      .noscript a { color: var(--bone); }
+
+      /* The data's provenance, at the end of the rail, read from the artifact. */
+      #provenance {
+        margin: 14px 16px 0;
+        padding-top: 8px;
+        border-top: 1px solid rgba(232, 226, 214, 0.07);
+        font-size: 12px;
+        color: rgba(232, 226, 214, 0.6);
+        overflow-wrap: anywhere;
+      }
+      #provenance p { margin: 0 0 4px; }
+      #provenance .provenance-title { letter-spacing: 0.14em; color: rgba(232, 226, 214, 0.78); }
 
       /* Static first paint: present in the HTML before the module graph or a
          data request can begin. JS changes only the status word and removes it
@@ -345,10 +422,9 @@
          mid-word — a sentence sliced through the middle of a clause reads as a
          rendering fault, and the whole point of the line is that the artifact
          speaks for itself. The full text is one hover away in the title.
-         Session 13's readability pass (artist ruling): a definition the panel
-         exists to speak was set at the rail's faintest ink and one point below
-         its body size — readable ink and three lines now, still subordinate to
-         the operation's own name. */
+         A definition the panel exists to speak was once set at the rail's
+         faintest ink and one point below its body size; it now reads at body
+         ink, still subordinate to the operation's own name. */
       .op-def {
         display: none;
       }
@@ -489,13 +565,16 @@
       <p class="startup-title">FADEAWAY</p>
       <p class="startup-state">THE RECORD IS LOADING</p>
     </div>
-    <div id="app">
+    <main id="app">
+      <h1 class="visually-hidden">FADEAWAY: the NBA's public shot record, drawn season by season on one halfcourt that never moves.</h1>
       <aside id="nav" hidden></aside>
-      <canvas id="plate"></canvas>
-    </div>
+      <canvas id="plate" role="img" aria-label="FADEAWAY, an animated artwork: the NBA's public shot record drawn on a single unmoving halfcourt, era by era. Its text is drawn into the image."></canvas>
+    </main>
+    <noscript><p class="noscript">FADEAWAY draws itself with JavaScript, which is turned off here.<br /><a href="https://github.com/dkdan10/analytics_resolution">About the work</a></p></noscript>
     <div id="context-label" hidden></div>
     <div id="overview-title" hidden></div>
     <a id="full-entry" href="?experience=full" hidden>FULL WORK</a>
+    <footer id="credit" hidden>DANIEL KEINAN · <a href="https://github.com/dkdan10/analytics_resolution">ABOUT</a> · DATA: NBA.COM/STATS · SPORTVU</footer>
     <button id="asset-state" type="button" hidden>DEGRADED · RETRY</button>
     <script type="module" src="/src/main.ts"></script>
   </body>

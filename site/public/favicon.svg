@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- The ground and the pin: the plate's dark stone with one bone mark on it. -->
+  <rect width="32" height="32" fill="#0b0a09"/>
+  <circle cx="16" cy="16" r="3.2" fill="#e8e2d6"/>
+</svg>

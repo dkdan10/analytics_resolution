@@ -19,10 +19,10 @@ it paused, with keyboard control. It is made for a laptop screen, full-screen, a
 viewing distance.
 
 <p align="center">
-  <img src="images/plate-stop-plate-game.png" width="49%" alt="THE PLATE at the tracking window: shot attempts struck into one dark halfcourt">
-  <img src="images/hand-stop-hand-night.png" width="49%" alt="THE HAND: real player trajectories drawn as strokes, coloured by the league's zones">
+  <img src="images/plate-stop-window-crest.png" width="49%" alt="THE PLATE at the crest of the tracking window: tracked bodies and the ball over the filed shots, on one dark halfcourt">
+  <img src="images/hand-stop-hand-close.png" width="49%" alt="THE HAND at the close of the window: real player trajectories as strokes, coloured by the league's own zones">
 </p>
-<p align="center"><sub>THE PLATE at <code>?stop=plate.game</code> and THE HAND at <code>?stop=hand.night</code>, rendered by <code>npm run shots</code> at native exposure.</sub></p>
+<p align="center"><sub>THE PLATE at <code>?mode=plate&amp;stop=window.crest</code> and THE HAND at <code>?mode=hand&amp;stop=hand.close</code>, rendered by <code>npm run shots</code> at native exposure.</sub></p>
 
 FADEAWAY is the piece. `analytics_resolution` is its working title, kept as the repository name
 because the companion paper cites this URL.

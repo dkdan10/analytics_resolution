@@ -13,8 +13,19 @@ export interface Clock {
   at(now: number): number;
 }
 
-export function exhibitClock(startedAt: number, offset = 0): Clock {
-  return { mode: "exhibit", at: (now) => offset + (now - startedAt) / 1000 };
+/** The wall clock anchors on the first frame it is asked for, not on load: a
+ *  tab opened in the background gets no animation frames, so anchoring at load
+ *  would return the viewer to the middle of the piece. Elapsed time is clamped
+ *  at zero so the first frame can never wrap to the coda. */
+export function exhibitClock(offset = 0): Clock {
+  let startedAt: number | null = null;
+  return {
+    mode: "exhibit",
+    at: (now) => {
+      startedAt ??= now;
+      return offset + Math.max(0, now - startedAt) / 1000;
+    },
+  };
 }
 
 /** Seconds the fermata takes to draw the drift to a stop, and to release it. */

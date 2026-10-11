@@ -75,7 +75,14 @@ const candidate = flags.candidate ? String(flags.candidate) : null;
 
 const { chromium } = await import("playwright");
 await waitForServer(`http://localhost:${port}/`, 30_000);
-const browser = await chromium.launch({ channel: "chrome", headless: true });
+// The same GPU flags probe-run.mjs passes: under software rasterisation the
+// paint renders markedly darker, so a frame captured here would misrepresent
+// what a viewer sees. SHOTS_HEADED=1 opens a visible window for comparison.
+const browser = await chromium.launch({
+  channel: "chrome",
+  headless: process.env.SHOTS_HEADED !== "1",
+  args: ["--use-gl=angle", "--enable-gpu-rasterization", "--ignore-gpu-blocklist"],
+});
 const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
 const errors = [];
 page.on("pageerror", (e) => errors.push(String(e)));

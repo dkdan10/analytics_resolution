@@ -477,6 +477,7 @@ export class Navigator {
     this.scoreEl = document.createElement("div");
     this.scoreEl.id = "nav-score";
     this.list.append(this.scoreEl);
+    this.list.append(this.buildProvenance(data));
 
     // The closing year is the first season the record holds; the opening one is
     // the league's founding, the one date no dump can supply - which is Act 0.
@@ -576,6 +577,26 @@ export class Navigator {
    * be glyph-only divs that no keyboard could reach, and a new panel of
    * clickable divs would bring that defect back.
    */
+
+  /** The data's provenance, read from seasons.json's own provenance record
+   *  rather than typed here. Only the two source lines are drawn; the licence
+   *  note is a repository matter, not a wall text. */
+  private buildProvenance(data: Loaded): HTMLElement {
+    const box = document.createElement("section");
+    box.id = "provenance";
+    const title = document.createElement("p");
+    title.className = "provenance-title";
+    title.textContent = "DATA";
+    box.append(title);
+    for (const key of ["shots_source", "sportvu_source"]) {
+      const text = data.provenance[key];
+      if (!text) continue;
+      const line = document.createElement("p");
+      line.textContent = text;
+      box.append(line);
+    }
+    return box;
+  }
   private buildStack(data: Loaded): HTMLElement {
     const box = document.createElement("div");
     box.id = "stack";

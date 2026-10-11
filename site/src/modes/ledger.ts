@@ -881,11 +881,11 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
     if (v) {
       if (visible > 0.01) {
         ctx.globalAlpha = remains * LEAGUE_VALUE_ALPHA * visible;
-        // The recovered-set scope is the only multi-line value. In room mode
-        // place that block above its heading: below it sits the inner arc, and
-        // the prior layout ran this evidence through DRIVES at the completed
-        // crest. Near mode keeps the judged composition unchanged.
-        let vy = room && v.length > 1
+        // The recovered-set scope is the only multi-line value. Both display
+        // profiles place that block above its heading: below it sits the inner
+        // arc, and the earlier layout ran this evidence through DRIVES at the
+        // completed crest.
+        let vy = v.length > 1
           ? y - lab.height * 0.75 - v.length * px * 1.35
           : y + lab.height * 0.75;
         const valueLabels = v.map((line) => label(
@@ -896,13 +896,13 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
           ),
           dpr,
         ));
-        const blockWidth = room && valueLabels.length > 1
+        const blockWidth = valueLabels.length > 1
           ? Math.max(...valueLabels.map((valueLabel) => valueLabel.width))
           : 0;
         for (const vl of valueLabels) {
           // A scoped value is one evidence block, not two unrelated captions.
-          // Give both lines a common left edge in the room profile so the
-          // shorter share reads immediately with its longer scope statement.
+          // Both lines share a left edge so the shorter share reads at once
+          // with its longer scope statement.
           const vx = blockWidth > 0 ? x - blockWidth / 2 : x - vl.width / 2;
           ctx.drawImage(vl.canvas, vx, vy, vl.width, vl.height);
           vy += vl.height;

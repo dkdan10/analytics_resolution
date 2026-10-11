@@ -56,6 +56,7 @@ const startupState = startup.querySelector(".startup-state")!;
 const contextLabel = document.getElementById("context-label")!;
 const overviewTitle = document.getElementById("overview-title")!;
 const fullEntry = document.getElementById("full-entry") as HTMLAnchorElement;
+const credit = document.getElementById("credit")!;
 const assetButton = document.getElementById("asset-state") as HTMLButtonElement;
 
 const target: Target = { ctx, view: makeView(1, 1), dpr: 1 };
@@ -403,7 +404,8 @@ async function main(): Promise<void> {
   let clock: Clock;
   let nav: Navigator | null = null;
   if (overview) {
-    clock = exhibitClock(performance.now(), 0);
+    clock = exhibitClock(0);
+    credit.hidden = false;
     fullEntry.hidden = false;
     fullEntry.textContent = `FULL ${fmtDuration(schedule.duration * 6)} WORK`;
     const fullUrl = new URL(location.href);
@@ -556,7 +558,9 @@ async function main(): Promise<void> {
     }
   } else {
     document.body.classList.add("exhibit");
-    clock = exhibitClock(performance.now(), selection.offset);
+    clock = exhibitClock(selection.offset);
+    wakePointer();
+    if (q.get("experience") === "full") returnOnEscape(q, displayProfile);
   }
 
   resize();
@@ -646,6 +650,34 @@ async function main(): Promise<void> {
  * degraded state and explicit retry surface; they never masquerade as an
  * intentionally sparse plate.
  */
+/** Milliseconds of rest before a revealed cursor hides again. */
+const POINTER_IDLE_MS = 2000;
+
+/** Exhibit mode hides the cursor. A web visitor who moves a mouse gets it back
+ *  until it rests, the way a video player behaves; a wall machine with no
+ *  pointer input never sees it. Class toggles only: nothing here touches the
+ *  frame. */
+function wakePointer(): void {
+  let timer: number | undefined;
+  window.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "mouse" || (e.movementX === 0 && e.movementY === 0)) return;
+    document.body.classList.add("pointer-awake");
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => document.body.classList.remove("pointer-awake"), POINTER_IDLE_MS);
+  }, { passive: true });
+}
+
+/** On the full work, Escape returns to the overview. Limited to that route so a
+ *  direct address (a cited frame) keeps behaving as it always did. */
+function returnOnEscape(q: URLSearchParams, display: string): void {
+  const home = new URL(location.href);
+  home.search = "";
+  if (q.get("display")) home.searchParams.set("display", display);
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") location.assign(home.toString());
+  });
+}
+
 function fault(err: unknown): void {
   const reason = err instanceof Error ? err.message : String(err);
   // eslint-disable-next-line no-console
