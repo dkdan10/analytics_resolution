@@ -2,6 +2,8 @@
 
 *What the NBA's shot record could see, season by season.*
 
+[![verify: reduced gate + site build](https://github.com/dkdan10/analytics_resolution/actions/workflows/verify.yml/badge.svg?branch=master)](https://github.com/dkdan10/analytics_resolution/actions/workflows/verify.yml)
+
 FADEAWAY is a browser artwork made from the NBA's public shot data: 5,933,691 regular-season
 shot attempts over 30 seasons, from 1996-97 to 2025-26, plus the one stretch of 2015-16 for
 which the league's optical player tracking is public. Every attempt lands on a single halfcourt
