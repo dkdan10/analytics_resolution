@@ -4,8 +4,8 @@
  * imported anywhere: the pin, by modes/fieldlayer.ts, and the cache reset by
  * the purity probe, which needs to force a cold start. `drawMarks`, `stampsFor`
  * and `stamp` are the legacy two-hand sampler, and nothing calls them — since
- * commit e811cab THE FIELD bakes the population into one image (field.ts)
- * instead of stamping the fixed-seed sample.
+ * THE FIELD began baking the population into one image (field.ts) instead of
+ * stamping the fixed-seed sample. They are kept on purpose, not by oversight.
  *
  * The measured grain is no longer dormant, however. `field.ts` now carries the
  * same sharp/coarse distinction through the finished bake, reveals, deltas and
@@ -19,9 +19,9 @@
  * THE SHARED CLAIM. The four regimes in `resolution`
  * are measured ONLY over restricted-area shots — whether the record would say
  * *where at the rim* a layup happened. Away from the rim its precision is a
- * constant tenth of a foot in every season and every building (CLAUDE.md ground
- * truth), and the plan rejects coordinate precision as a driver for exactly
- * that reason. So the grain claims only what is measured:
+ * constant tenth of a foot in every season and every building, which is why
+ * coordinate precision is rejected as a resolution driver. So the grain claims
+ * only what is measured:
  *
  *   at the rim    the era's regime decides how a shot is drawn, because that is
  *                 where the regime was measured. In the uneven era the building
@@ -302,9 +302,10 @@ export function drawPin(
   const cy = view.sy(coord[1]);
 
   // A non-finite centre or radius dies inside createRadialGradient with a
-  // message naming nothing — the third audit's D-06 crash signature. Name the
-  // inputs instead: the unreproducible race becomes an attributable report,
-  // and no mark the arithmetic did not earn is ever drawn in its place.
+  // message naming nothing — the signature of an intermittent crash that once
+  // could not be attributed. Name the inputs instead: the unreproducible race
+  // becomes an attributable report, and no mark the arithmetic did not earn is
+  // ever drawn in its place.
   if (!Number.isFinite(cx) || !Number.isFinite(cy) || !Number.isFinite(r)) {
     throw new Error(
       `drawPin: non-finite geometry cx=${cx} cy=${cy} r=${r} arrived=${arrived} pinFraction=${pinFraction}`,

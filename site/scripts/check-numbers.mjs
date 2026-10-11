@@ -34,9 +34,10 @@
  *                 as wrong as a renderer doing it.
  *
  * Composition literals - fade windows, phase thresholds, slug positions, column
- * widths - are deliberately NOT in scope for pass 3. Session 5 recomposes most
- * of them, and the register is built so that scope can be widened by adding
- * sinks rather than by redesigning anything.
+ * widths - are deliberately NOT in scope for pass 3: they are composition, not
+ * material, and they move whenever the piece is recomposed. The register is
+ * built so that scope can be widened by adding sinks rather than by
+ * redesigning anything.
  *
  * Usage: npm run check:numbers   (also runs inside npm run build, before tsc)
  */
@@ -58,20 +59,22 @@ const SKIP_DISPLAY = [/^scalars\.ts$/, /^probe\//];
  *
  * These modules deposit the marks that stand for measurements, and "grain is a
  * measurement, not a mood" is a claim about exactly them. The list began as the
- * audit's own F-06 locations plus marks.ts (whose INK reaches the live pin
- * through INK_TOTAL) and modes/measure.ts (whose caliper is the most literal
- * mark-as-measurement in the piece), and every session since has widened it.
+ * files where inline material literals were first found, plus marks.ts (whose
+ * INK reaches the live pin through INK_TOTAL) and modes/measure.ts (whose
+ * caliper is the most literal mark-as-measurement in the piece), and it has
+ * been widened each time a renderer file was added.
  *
- * THE COUNT IS NOT WRITTEN HERE. This sentence said "these five modules" for
- * four sessions after the array below had twelve entries — a stale count inside
- * the file that IS the source of truth for the list. Read the array.
+ * THE COUNT IS NOT WRITTEN HERE. This sentence once said "these five modules"
+ * long after the array below had twelve entries — a stale count inside the
+ * file that IS the source of truth for the list. Read the array.
  *
- * OUT OF SCOPE, recorded as a limit rather than an oversight:
- * typography (inscription.ts, textatlas.ts), the engraving (plate.ts), the
- * tallies and labels (census.ts, ledger.ts), the rail, and every composition
- * literal - fade windows, phase thresholds, slug positions, column widths.
- * Session 5 recomposes most of those, and it can widen this list without
- * redesigning anything: add a file here, add its scalars to src/scalars.ts.
+ * OUT OF SCOPE when the list began, recorded as a limit rather than an
+ * oversight: typography (inscription.ts, textatlas.ts), the engraving
+ * (plate.ts), the tallies and labels (census.ts, ledger.ts), the rail, and every
+ * composition literal - fade windows, phase thresholds, slug positions, column
+ * widths. Several of those files have since been added below, which is the
+ * point: the list widens without redesigning anything - add a file here, add
+ * its scalars to src/scalars.ts.
  */
 const MARK_LAYERS = [
   /^field\.ts$/,
@@ -83,30 +86,30 @@ const MARK_LAYERS = [
   // today - it is caching machinery - but it is the file a future rebuild would
   // most naturally hide one in, which is exactly what this list is for.
   /^prefix\.ts$/,
-  // Typography is a material property too, and V-08 widened this list to reach
-  // it: `drawSlug`'s three ranks and the struck numeral's face and shadow are
+  // Typography is a material property too, so this list reaches it:
+  // `drawSlug`'s three ranks and the struck numeral's face and shadow are
   // authored, so they belong in the register like any other mark's alpha. The
   // file's composition literals - the strike/hold/migrate beats, the annulus,
-  // the weight curve - reach no material sink and are session 5b's.
+  // the weight curve - reach no material sink and stay out of pass 3's scope.
   /^inscription\.ts$/,
-  // Session 5b's three, added BEFORE the literals they are there to catch.
+  // These three were added BEFORE the literals they are there to catch.
   //
   // The failure this closes is invisible: the build stays green while rule 3's
   // enforcement quietly stops reaching new code, so a scalar written into an
   // uncovered file is not caught by anything and looks exactly like one that was
-  // checked. 5a registered fifteen authored scalars in modes/ledger.ts and left
-  // the file outside this list, which is that gap in its purest form.
+  // checked. modes/ledger.ts once had fifteen authored scalars registered while
+  // the file itself sat outside this list, which is that gap in its purest form.
   //
-  // ledger.ts — 5a's spoken register (V-04).
-  // census.ts — the filing (V-05): every word's size is a measured share and
+  // ledger.ts — THE LEDGER's spoken register.
+  // census.ts — the filing: every word's size is a measured share and
   //   the strike's own material lives in scalars.ts, not in the renderer.
-  // palette.ts — THE FIELD's seven hues (V-03). These reach `rgba(` by
+  // palette.ts — THE FIELD's seven hues. These reach `rgba(` by
   //   definition, and the point of the palette artifact is that the values are
   //   no longer written here at all.
   /^modes\/ledger\.ts$/,
   /^modes\/census\.ts$/,
   /^palette\.ts$/,
-  // Session 6's two, added in the commit that CREATES them and before the first
+  // These two were added in the commit that CREATES them and before the first
   // material literal either one holds — which is the whole discipline, because
   // the failure is silent in the safe-looking direction. A renderer outside this
   // list ships every inline radius and alpha green, and since nothing fails
@@ -121,19 +124,19 @@ const MARK_LAYERS = [
   //   list that only covers files that already failed is not a check.
   /^modes\/stack\.ts$/,
   /^modes\/operations\.ts$/,
-  // Session 5c's one, added in the commit BEFORE the coordinate it exists to
-  // catch — same discipline, third session running, and this time the file was
-  // already one edit away from holding a hardcoded (0,0).
+  // Added in the commit BEFORE the coordinate it exists to catch — the same
+  // discipline, and this time the file was already one edit away from holding a
+  // hardcoded (0,0).
   //
   // modes/fieldlayer.ts — where the pin's fraction and now its COORDINATE are
   //   derived. It feeds six of the seven views through one `drawSeasonField`
   //   call, so a literal written here is a literal in every hand at once.
   /^modes\/fieldlayer\.ts$/,
-  // Draws since S1 (the act cues). Its pacing and anchor are composition, out
+  // Draws the act cues. Its pacing and anchor are composition, out
   // of pass-3 scope by the stated rule; the file is listed so a future
   // material literal here cannot hide.
   /^modes\/shared\.ts$/,
-  // Session 15's two, added in the commit that CREATES them — the same
+  // These two were added in the commit that CREATES them — the same
   // discipline, before the first material literal either one holds.
   //
   // game.ts — THE GAME's timing, plate idiom and event punctuation: line
@@ -155,9 +158,9 @@ const MATERIAL_SINKS = [
   /\bview\.s\(/,
   // A material quantity being NAMED. field.ts deposits into a float buffer
   // rather than through the canvas API, so its splat radius, its tone curve and
-  // its overlap normaliser reach no sink above - and those are three of the
-  // literals the audit named. A material scalar is material wherever it is
-  // declared, so the declaration is a sink too.
+  // its overlap normaliser reach no sink above - and those three were among the
+  // first inline material literals found. A material scalar is material
+  // wherever it is declared, so the declaration is a sink too.
   /\b\w*(radius|alpha|width|gain|overlap|tone|ink|drip|bore|splotch|soft|ceiling|bead|excess|lit|rad|serif)\w*\s*=[^=]/i,
 ];
 
@@ -345,7 +348,7 @@ async function artifactNumbers() {
 /**
  * Numbers spelled as words. The rule is about the claim, not the glyph:
  * "eleven weeks" was as wrong as "11 weeks" would have been, and it lived
- * through three sessions precisely because nothing looking for digits saw it.
+ * as long as it did precisely because nothing looking for digits saw it.
  *
  * NINE AND ABOVE ONLY, and that line is drawn deliberately. Below it the words
  * are overwhelmingly structural rather than quantitative - "one body, one
@@ -364,12 +367,13 @@ const WORD_NUMBERS =
  * A bare one- or two-digit integer in a comment is below the floor: at two
  * digits the false-positive rate swamps the signal, so `9 in 1996-97, 48 by
  * 2024-25` is not caught by the digit rule and is caught, if at all, by the
- * word rule above. Those comments were rewritten by hand in session 3; a future
- * one is a reader's job. The check is a floor, not a proof.
+ * word rule above. Comments of that shape were rewritten by hand when this pass
+ * was written; a future one is a reader's job. The check is a floor, not a
+ * proof.
  */
 const SEASON_LABEL = /\d{4}-\d{2}(?:-\d{2})?/g;
 
-/** A citation, not a quantity: "section 1.4-1.5", "§3.2", "plan 1.6". */
+/** A citation, not a quantity: "section 1.4-1.5", "§3.2". */
 const SECTION_REF = /(?:section|§)\s*\d+(?:\.\d+)*(?:\s*-\s*\d+(?:\.\d+)*)?/gi;
 
 function commentNumbers(text) {

@@ -47,8 +47,8 @@ export const SHELL_PHASE = PLATE_SHELL_FROM_PHASE;
 /**
  * The entry yield's fixed two-width penumbra: the wake erases at full
  * OLD_YIELD_STRENGTH inside CORE_W times the residence's cell-splat radius,
- * and at PENUMBRA_A of it out to PENUMBRA_W — an eased edge with no filters,
- * per the approved session-17 design. The profile is the wake's shape, held
+ * and at PENUMBRA_A of it out to PENUMBRA_W — an eased edge with no filters.
+ * The profile is the wake's shape, held
  * constant like the strike beats; the STRENGTH is the one authored scalar,
  * declared in the register.
  */
@@ -68,7 +68,7 @@ export function drawPlateHand(f: Frame): void {
 
   // Act III dims the field slightly: the rest of the league is still only dots,
   // and the gestures have to be the brightest thing the window holds. The
-  // depth RELEASES across the early close (third audit D-01), then holds once
+  // depth RELEASES across the early close, then holds once
   // the shell is whole: the receipt needs a stable field behind it rather than
   // a background still changing during its terminal hold.
   const inWindow = st.act === 3 && data.traces !== null;
@@ -89,7 +89,7 @@ export function drawPlateHand(f: Frame): void {
     (inWindow ? 1 - 0.55 * Math.min(1, st.phase * 4) * (1 - fieldReleaseU) : 1) * remains;
 
   // THE GAME'S SHARE's clock, computed BEFORE the field goes down: the entry
-  // yield mask (session 17) needs the same reach the strokes below will
+  // yield mask needs the same reach the strokes below will
   // draw, and one computation serving both is what keeps the wake and the
   // stroke from drifting apart.
   const gf = data.gameFile;
@@ -113,7 +113,7 @@ export function drawPlateHand(f: Frame): void {
       })()
     : null;
 
-  // THE OLD SEASON YIELDS TO THE BODY (session 17, the entry ruling): while
+  // THE OLD SEASON YIELDS TO THE BODY at the window's entry: while
   // the previous season is still receding, its layer dries locally along
   // every body/ball vertex the clock has reached — the exact reach the
   // stroke loop below draws, walked through the same `strokePath`. An
@@ -121,11 +121,12 @@ export function drawPlateHand(f: Frame): void {
   // below 1, an eased two-width penumbra, widths derived from the
   // residence's own cell-splat radius.
   //
-  // THE WAKE'S DRIED MASS IS BAKED, NOT RESTROKED (perf, measured this
-  // session: restroking the whole web at wake widths twice per frame put
+  // THE WAKE'S DRIED MASS IS BAKED, NOT RESTROKED (perf, measured:
+  // restroking the whole web at wake widths twice per frame put
   // plate's window-night mean at 31 ms and window-season at 61 ms). The
   // finished strokes' wake accumulates in a `prefixSurface` mask — the
-  // plate.game surface's own steps, the F-04-clean recursion — drawn onto
+  // plate.game surface's own steps, the same purity-clean recursion of
+  // src/prefix.ts — drawn onto
   // the scratch as ONE `destination-out` blit; only the live edge and the
   // possession clip stroke per frame, the same handful the plate itself
   // draws. Erasure compounding is a product of (1 − a) factors, so grouping
@@ -191,7 +192,7 @@ export function drawPlateHand(f: Frame): void {
   // lived, under where the shots ended.
   drawSeasonField(f, { dim: fieldDim, residence: true, reveal: true, yieldMask });
 
-  // THE GAME'S SHARE (session 15 — the artist's strongest want: ALL the
+  // THE GAME'S SHARE (THE PLATE's brief, above all others: ALL the
   // information on the plate). The found game's every body and the ball, in
   // bone at the traces' own weights — bodies fainter and thinner, the ball
   // brighter and wider — with pass beads and shot anchors, phased by THE
@@ -199,11 +200,11 @@ export function drawPlateHand(f: Frame): void {
   // game on its eased clock through the shared season boundary, held dried
   // through the window and washed at the close. The ball residence beneath is
   // untouched, and there is deliberately NO body wash on this plate — two
-  // densities under one field would compete (rival flagged in the packet).
+  // densities under one field would compete.
   if (gm && gf && clock) {
     const { total, gameFrame, sp, pos, dryFrame, clipUpto } = clock;
-    // THE DRYING CLOCK (`dryFrame`) CONTINUES past the game's end (third
-    // audit D-02): the buzzer's stroke is not "just happening" for the rest
+    // THE DRYING CLOCK (`dryFrame`) CONTINUES past the game's end: the
+    // buzzer's stroke is not "just happening" for the rest
     // of the window. Past the game phase it advances at TRUE RATE — one
     // second of phase is one second of feed, the night's own convention — so
     // every stroke settles to GAME_DRIED within GAME_WET_S of presentation
@@ -258,7 +259,7 @@ export function drawPlateHand(f: Frame): void {
         }
       }
     }
-    // ALL the annotations persist on this plate (the artist's want), but they
+    // ALL the annotations persist on this plate (its brief, above), but they
     // DRY with the motion they mark: every mark at the dried register, then
     // the wet edge's and the possession's own at full, over it.
     drawGameEvents(ctx, view, gf, gameFrame, env * GAME_DRIED);
@@ -272,11 +273,11 @@ export function drawPlateHand(f: Frame): void {
       { phase: st.phase, duration: secondsFor(year) });
   }
 
-  // THE PACKET CANDIDATE, and nothing else. Reachable only through the shots
+  // THE QUARREL CANDIDATE, and nothing else. Reachable only through the shots
   // probe's request field (`types.ts:Frame.candidate`) — no URL parameter
   // feeds it, so the gallery and the talk cannot show this frame. Whether the
-  // quarrel lives here or stays in THE STACK's rail is the artist's call
-  // (session-10 packet); this exists so that call can be made from frames.
+  // quarrel lives here or stays in THE STACK's rail is an open composition
+  // decision; this exists so that decision can be made from captured frames.
   if (f.candidate === "quarrel" && inWindow) drawQuarrel(f);
 
   // The terminal beat. The public feed's last archive is a 32-byte shell: a file
@@ -301,7 +302,7 @@ export function drawPlateHand(f: Frame): void {
     }
   }
 
-  // The boundaries named (S1), over everything: the plate has no native
+  // The act boundaries named, over everything: the plate has no native
   // boundary event at either act.
   drawActCue(f, 2);
   drawActCue(f, 5);

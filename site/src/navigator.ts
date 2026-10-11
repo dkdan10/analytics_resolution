@@ -58,12 +58,12 @@ export interface Transport {
   inFermata(): boolean;
   /** The frame's citation in the piece's own grammar — `mode@t`, plus the
    *  `?ops=` token while THE STACK is pinned with operations applied. The
-   *  same grammar the shots harness and every session's evidence speak. */
+   *  same grammar the shots harness and the probe verdicts speak. */
   citation(): string;
   /** Step to the next hand, pinning it; wraps back to letting the loop rotate. */
   cycleMode(): void;
-  /** Pin one hand directly, or null to release to the rotation (session 17,
-   *  the rail trim): seven direct choices beside the cycle. */
+  /** Pin one hand directly, or null to release to the rotation: seven direct
+   *  choices beside the cycle. */
   pinMode(id: ModeId | null): void;
   /** THE STACK's operation mask, and whether the panel that drives it applies. */
   stack(): StackOps;
@@ -127,8 +127,7 @@ export interface WindowStop {
 }
 
 /**
- * THE SECOND SCORE (the second audit's Codex report §4.2; artist ruling
- * 2026-08-10): the rail's
+ * THE SECOND SCORE (decided 2026-08-10): the rail's
  * window row keeps its shared span, and keys `6`–`9` keep the four shared
  * beats in every hand — but the SUBORDINATE stops are the pinned hand's actual
  * interior, because the rail asserting one four-beat interior for all seven
@@ -163,7 +162,7 @@ export function windowSubStops(
     }));
 
   if (pinned === "census" && data.window) {
-    // TIME BELONGS TO THE COUNT (session 17): the rail lists the hand's own
+    // TIME BELONGS TO THE COUNT: the rail lists the hand's own
     // derived stop table — one definition, two readers, so the presenter's
     // map and the filing cannot disagree about where a beat begins.
     const season = data.byYear.get(WINDOW_YEAR);
@@ -188,7 +187,7 @@ export function windowSubStops(
     return span(LEDGER_WINDOW_STOPS.map((s) => ({ title: s.title, at: s.at })));
   }
   if (pinned === "hand") {
-    // THE FOUR SCALES (session 15): the hand's interior holds five real stops
+    // THE FOUR SCALES: the hand's interior holds five real stops
     // — the shared night beat splits into the game and the night at the
     // hand's own exported anchor. One definition, two readers.
     const phases = handWindowPhases(data.slateFile?.span.seconds ?? HAND_NIGHT_SECONDS);
@@ -247,25 +246,25 @@ export class Navigator {
   private shownStackKeys = false;
   private shownFermata = false;
 
-  /** THE FEED's arriving-count line (session 17): written on change only,
+  /** THE FEED's arriving-count line: written on change only,
    *  gone once every requested asset is resident. */
   private feedEl!: HTMLElement;
   private shownPending = "";
 
-  /** The direct hand choices (session 17): seven buttons beside the cycle. */
+  /** The direct hand choices: seven buttons beside the cycle. */
   private handBtns: { id: ModeId; el: HTMLButtonElement }[] = [];
   private shownPinBtn: ModeId | null | undefined = undefined;
 
-  /** The scrub's score ticks (session 17): acts and the cut are fixed; the
+  /** The scrub's score ticks: acts and the cut are fixed; the
    *  window's sub-stops rebuild with the pin. */
   private ticksEl!: HTMLElement;
   private fixedTicks: { at: number; cls: string }[] = [];
 
-  /** The CITE button's transient copied-state (session 17): a CSS class and
+  /** The CITE button's transient copied-state: a CSS class and
    *  a text swap, reverted on this timer — no state the canvas can see. */
   private citeTimer: number | null = null;
 
-  /** The ops panel's subtitle, state-aware since session 17. */
+  /** The ops panel's subtitle, state-aware: it counts what is applied. */
   private stackNote!: HTMLElement;
 
   constructor(
@@ -295,7 +294,7 @@ export class Navigator {
 
     // Glyph-only controls with a `title` are a mouse affordance and nothing
     // else: no name for a screen reader, no focus ring, nothing a presenter can
-    // reach without leaving the keyboard (audit V-09). Every control in the rail
+    // reach without leaving the keyboard. Every control in the rail
     // is now a real button with a spoken name, and the stylesheet gives all of
     // them a visible `:focus-visible` ring.
     const bar = document.createElement("div");
@@ -334,7 +333,7 @@ export class Navigator {
     this.fill = document.createElement("div");
     this.fill.className = "fill";
     scrub.append(this.fill);
-    // THE SCORE'S TICKS (session 17, the rail trim): the acts, the cut and
+    // THE SCORE'S TICKS: the acts, the cut and
     // the pinned hand's window stops struck into the slider itself, so the
     // scrub reads as the piece's own score rather than a bare strip.
     // Positions are the same absolute seconds the rows carry.
@@ -388,7 +387,7 @@ export class Navigator {
     this.readoutEl.id = "readout";
     head.append(this.readoutEl);
 
-    // THE FEED (session 17, the rail trim): while lazily-fetched assets a
+    // THE FEED: while lazily-fetched assets a
     // frame has asked for are still arriving, the rail says so — a cold seek
     // into the window reads as "the feed is arriving", not as a sparse
     // record. Gone on completion; the exhibit has no rail and is untouched.
@@ -408,7 +407,7 @@ export class Navigator {
     this.handEl = handBtn;
     head.append(handBtn);
 
-    // The direct choice (session 17, the rail trim): the seven hands, one
+    // The direct choice: the seven hands, one
     // press each, beside the cycle the muscle memory keeps. Pressing the
     // pinned one releases it back to the rotation.
     const hands = document.createElement("div");
@@ -430,8 +429,8 @@ export class Navigator {
 
     // The copy-frame helper: one press puts the frame on the clipboard in the
     // piece's own citation grammar — `mode@t`, with the `?ops=` token while
-    // THE STACK is pinned — the same words the shots harness and every
-    // session's evidence use, so a talk can cite the frame it is on. A real
+    // THE STACK is pinned — the same words the shots harness and the probe
+    // verdicts use, so a talk can cite the frame it is on. A real
     // button (the clipboard wants a user gesture anyway); fire-and-forget, no
     // async state held.
     const cite = document.createElement("button");
@@ -442,7 +441,7 @@ export class Navigator {
     cite.setAttribute("aria-label", "copy this frame's citation to the clipboard");
     cite.addEventListener("click", () => {
       void navigator.clipboard?.writeText(this.transport.citation());
-      // Confirmation (session 17, the rail trim): a transient copied-state —
+      // Confirmation: a transient copied-state —
       // CSS class and text swap, reverted on a timer. DOM only; nothing the
       // canvas can see, so purity is untouched.
       if (this.citeTimer !== null) window.clearTimeout(this.citeTimer);
@@ -560,7 +559,7 @@ export class Navigator {
   /**
    * THE STACK's panel: eight operations, each declaring what it reads.
    *
-   * WHAT KEEPS THIS FROM BEING THE SETTINGS PANEL THE AUDIT REFUSED. Every row
+   * WHAT KEEPS THIS FROM BEING A MERE SETTINGS PANEL. Every row
    * names an ACT performed on a record rather than a renderer or a visual
    * effect, and every row carries the artifact key it reads and the sentence
    * that artifact ships defining it. A viewer reading this panel is reading a
@@ -573,9 +572,9 @@ export class Navigator {
    * hidden flag change per frame, and only when they actually differ.
    *
    * Real buttons throughout, with `aria-pressed` and `aria-keyshortcuts` — the
-   * idiom V-09 established, and for its reason: the transport used to be
-   * glyph-only divs that no keyboard could reach, and a new panel of clickable
-   * divs would put that back one session after it was fixed.
+   * idiom the rest of the rail uses, and for its reason: the transport used to
+   * be glyph-only divs that no keyboard could reach, and a new panel of
+   * clickable divs would bring that defect back.
    */
   private buildStack(data: Loaded): HTMLElement {
     const box = document.createElement("div");
@@ -641,7 +640,7 @@ export class Navigator {
     // The argumentative event. It is not an eight-fold convenience: applying
     // every operation at once is the demonstration that maximal rendering is not
     // maximal access, and the plate becomes illegible on purpose. HOLD UNTIL
-    // RELEASED, by the artist's ruling — pressing again restores exactly the
+    // RELEASED, by design — pressing again restores exactly the
     // selection it was applied over.
     this.allBtn = document.createElement("button");
     this.allBtn.type = "button";
@@ -668,7 +667,7 @@ export class Navigator {
     if (ops === this.shownOps && year === this.shownStackYear) return;
     this.shownOps = ops;
     this.shownStackYear = year;
-    // The subtitle is state-aware (session 17): while anything is applied it
+    // The subtitle is state-aware: while anything is applied it
     // counts, so the panel's own words never claim a bare plate over an
     // operated one. The count and total both derive from the table.
     const available = (op: Operation): boolean =>
@@ -849,8 +848,8 @@ export class Navigator {
   /**
    * A segment row: a real button, not a clickable div.
    *
-   * Every stop in the piece is in this list, and until V-09 not one of them
-   * could be reached without a mouse - no tab order, no Enter, no name. The
+   * Every stop in the piece is in this list, and as clickable divs not one of
+   * them could be reached without a mouse - no tab order, no Enter, no name. The
    * markup is also built from nodes rather than from `innerHTML`: the label is
    * a season string out of an artifact, and a renderer that interpolates data
    * into markup is a habit worth not having even when today's data is safe.

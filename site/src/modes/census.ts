@@ -7,15 +7,13 @@
  * gutter; it is now a constellation of ticks that never changes its count
  * against one that breeds.
  *
- * WHAT THIS HAND WAS, AND WHY IT COULD NOT STAY (audit V-05). Two statistical
- * tables flanking a court chart, a wall of the smallest type on screen redrawn
- * every frame. Almost all of it disappeared at any distance, and close up it
- * read as an analytical
- * instrument — the clearest recurrence of the failure this project is named
- * against. The artist's ruling was that the information is valuable and the hand
- * stays: *"CENSUS holds valuable information but maybe it could have an
- * additional visual representation than only the tables being built
- * uniformily."*
+ * WHAT THIS HAND WAS, AND WHY IT COULD NOT STAY. Two statistical tables
+ * flanking a court chart, a wall of the smallest type on screen redrawn every
+ * frame. Almost all of it disappeared at any distance, and close up it read as
+ * an analytical instrument — the clearest recurrence of the failure this
+ * project is named against. The decision was that the information is valuable
+ * and the hand stays, given an ADDITIONAL visual representation rather than
+ * only the tables being built uniformly.
  *
  * SO THE TABLE BECAME THE COURT. Each of a taxonomy's categories is struck into
  * the plate as one word, at the mean distance and bearing of the shots the
@@ -23,7 +21,9 @@
  * measured share. One taxonomy is filed per season, so a viewer standing through
  * a pass watches the machine file basketball six different ways. Nothing is
  * deleted: over one pass all six of the old tables are shown in full, serialised
- * instead of stacked, and the literal apparatus is kept verbatim for the rail.
+ * instead of stacked, and the literal apparatus — absolute counts for every
+ * taxonomy, PLACEMENT, the window inventory — is listed in the talk rail's
+ * census panel (`navigator.ts`), off the audience's court.
  *
  * THERE IS NO AUTHORED POSITION AND NO AUTHORED PROPORTION IN THIS HAND. Every
  * place is `seasons.json:classification_place`; every size is a share; how many
@@ -32,7 +32,7 @@
  * derived by the pipeline from the vocabulary and the era. The five authored
  * scalars are in src/scalars.ts and none of them is a coordinate.
  *
- * AND THE WORDS WALK, which is the piece's whole thesis performed in the
+ * AND THE WORDS WALK, which is the piece's whole argument performed in the
  * census's own material rather than reported beside it: `2PT FIELD GOAL` moves
  * in, `3PT FIELD GOAL` moves out, `JUMP SHOT` migrates from the mid-range to the
  * arc, `MADE SHOT` and `MISSED SHOT` begin almost on top of each other and part.
@@ -137,8 +137,8 @@ export interface Filed {
  * A string's width in COURT TENTHS at a given cap height.
  *
  * Measured once per string at a fixed nominal size through a ruler of its own,
- * never through the live view. That is the invariant 5a established for THE
- * LEDGER and it holds for the same reason: if any of this geometry needed
+ * never through the live view. That is the invariant THE LEDGER keeps, and it
+ * holds here for the same reason: if any of this geometry needed
  * `view.scale`, the layout would differ between screens and the plate would file
  * the same season two ways.
  */
@@ -456,13 +456,13 @@ function strikeFooter(
 /**
  * The receipt: the active taxonomy's rows, printed AFTER the filing.
  *
- * ARTIST'S RULING, 2026-08-08, against the direction's recommendation of no
- * table in the gallery at all. The ruling was *"CENSUS holds valuable
- * information but maybe it could have an ADDITIONAL visual representation than
- * only the tables"* — additional, so the table is not necessarily gone — and
- * shown the two options with pictures they chose to keep a narrow one.
+ * Kept in the gallery by decision (2026-08-08), over the alternative of no
+ * table there at all. The floor is an ADDITIONAL visual representation of the
+ * census's information, not a replacement for the table — so the table is not
+ * necessarily gone — and of the two options, compared in pictures, the narrow
+ * one stays.
  *
- * WHAT MAKES THIS NOT THE THING THE AUDIT FAILED. It is one column, not two
+ * WHAT MAKES THIS NOT THE OLD TABLE'S FAILURE. It is one column, not two
  * blocks flanking the court; it carries the ACTIVE taxonomy only, not all six at
  * once; and it does not exist for most of the season. It fades in only once the
  * marks have landed (`phase > ARRIVAL_TAIL`), so it reads as a receipt printed
@@ -529,7 +529,7 @@ function drawReceipt(
  * strongest content in the census set in the smallest type on screen.
  */
 
-// --- TIME BELONGS TO THE COUNT (session 17, the three-instrument vote) -------
+// --- TIME BELONGS TO THE COUNT -----------------------------------------------
 //
 // The window's census stops used to split the act evenly, so the smallest
 // filing held the plate exactly as long as the largest — a plateau for the
@@ -602,12 +602,13 @@ function strikeMachineSaw(f: Frame, k: number): void {
     `${grown(inv.moments)} MOMENTS · ${grown(inv.miles_run)} MILES · ${grown(inv.touches)} TOUCHES`,
     `${grown(inv.passes)} PASSES · ${grown(inv.drives)} DRIVES · ${grown(inv.hours_tracked)} HOURS`,
   ], { x: 0, y: 130 }, remains * k);
-  // `voice` — THE FIFTH, and it is an artist's ruling rather than this file's
-  // decision (5a reserved the rank for four sentences and said not to move copy
-  // between ranks without asking). It earns it: the figure struck above is how
-  // many body positions the machine held, and the record kept one point per
-  // shot, which is the enclosure this whole piece is about, in one line.
-  // docs/build/typography-inventory.md carries the classification.
+  // `voice` — THE FIFTH sentence at that rank, a deliberate exception rather
+  // than this file's own choice: the rank is reserved for four sentences, and
+  // copy does not move between ranks casually. This one earns it: the figure
+  // struck above is how many body positions the machine held, and the record
+  // kept one point per shot, which is the enclosure this whole piece is about,
+  // in one line. The rank is the `"voice"` argument this call passes to
+  // `drawSlug`.
   drawSlug(ctx, view, [
     "THE RECORD KEPT",
     `${positions} POSITION PER SHOT`,
@@ -696,26 +697,28 @@ export function drawCensusHand(f: Frame): void {
   // season's marks would contradict a census reading "3 SHOTS CLASSIFIED".
   drawSeasonField(f, { dim: remains * CENSUS_FIELD_DIM, withPrevious: false });
 
-  // The boundaries named (S1): the census has no native boundary event —
+  // The boundaries named: the census has no native boundary event —
   // its taxonomy turnover happens most seasons, not at the acts.
   drawActCue(f, 2);
   drawActCue(f, 5);
 }
 
-// --- the tables, kept whole for the rail -------------------------------------
+// --- the canvas tables, kept whole -------------------------------------------
 //
-// THE ARTIST'S INSTRUCTION WAS THAT THE INFORMATION IS VALUABLE AND STAYS, and
-// it does, in two places. The gallery keeps the CONTENT, as the floor: every row
-// of the active taxonomy is a struck word, every row outside the named set is a
-// tick and a footer count, and over one pass all six of these tables are shown
-// in full. This is the literal apparatus — absolute counts, all six groups,
-// PLACEMENT, the window inventory — retained exactly as it was and drawn only
-// when the rail is present.
+// THE INFORMATION IS VALUABLE AND STAYS, and it does, in two places. The
+// gallery keeps the CONTENT, as the floor: every row of the active taxonomy is
+// a struck word, every row outside the named set is a tick and a footer count,
+// and over one pass all six of these tables are shown in full. The presenter
+// keeps the literal apparatus — absolute counts, all six groups, PLACEMENT, the
+// window inventory — which the talk rail's census panel builds from the same
+// classification maps (`navigator.ts`, `syncCensus`). The canvas version below,
+// `drawCensusApparatus`, is retained exactly as it was; it is exported, and no
+// hand calls it.
 //
-// PLACEMENT stays here and leaves the gallery. `Located / No place given` is
-// already drawn at full monumental scale in every hand — it IS the pin — and it
-// is already named in THE LEDGER. A two-row table of it beside the object itself
-// is the instrument failure in miniature.
+// PLACEMENT stays in the apparatus and leaves the gallery. `Located / No place
+// given` is already drawn at full monumental scale in every hand — it IS the
+// pin — and it is already named in THE LEDGER. A two-row table of it beside the
+// object itself is the instrument failure in miniature.
 
 interface Row {
   name: string;

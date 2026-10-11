@@ -4,15 +4,15 @@
  *
  * NOT a probe and never a gate: the probes compare pixels and this makes
  * pictures for a person. It exists because a screenshot grabbed off the running
- * clock is not a comparison at all — session 4 mis-diagnosed a paint balance
- * that way — and because "capture the same instant in two builds" has been done
- * by hand in every visual session so far.
+ * clock is not a comparison at all — a paint balance has already been
+ * mis-diagnosed that way — and because "capture the same instant in two builds"
+ * is otherwise done by hand, every time.
  *
  * It drives `renderTo` directly at an exact `t` onto a fixed offscreen surface,
  * the same way the purity probe does, so two runs of the same list are
  * comparable frame for frame.
  *
- *   node scripts/shots.mjs --out docs/shots/5b-census \
+ *   node scripts/shots.mjs --out docs/shots/census \
  *        --shots "census@32,census@152,census@376"
  *   node scripts/shots.mjs --list prelude          # a named set
  *
@@ -29,7 +29,7 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
 
-/** Named sets, so a session's evidence is a word rather than a paste. */
+/** Named sets, so a recurring comparison is a word rather than a paste. */
 const LISTS = {
   prelude: ["plate@0", "plate@4", "plate@8", "plate@12", "plate@18", "plate@23"],
   cut: ["plate@176.5", "plate@177.4", "plate@177.8", "plate@178", "plate@178.3", "plate@179"],
@@ -69,7 +69,7 @@ const port = Number(flags.port ?? 5173);
 const talk = Boolean(flags.talk);
 const display = flags.display ? String(flags.display) : undefined;
 const semanticStop = flags.stop ? String(flags.stop) : undefined;
-// A packet-candidate composition (see src/modes/types.ts:Frame.candidate).
+// A candidate composition (see src/modes/types.ts:Frame.candidate).
 // Applies to every shot in the run; the filename says so.
 const candidate = flags.candidate ? String(flags.candidate) : null;
 
@@ -106,9 +106,9 @@ for (const spec of shots) {
   try {
     dataUrl = await take();
   } catch (e) {
-    // The third audit's D-06: a 42-shot batch twice died on its FIRST frame
-    // with a non-finite drawPin gradient, then never again — a nondeterministic
-    // race, not a bad t. One retry distinguishes the two: a race passes on the
+    // A 42-shot batch twice died on its FIRST frame with a non-finite drawPin
+    // gradient, then never again — a nondeterministic race, not a bad t. One
+    // retry distinguishes the two: a race passes on the
     // second attempt (loudly, so the flake stays visible in the log), a real
     // defect fails twice and still kills the run.
     console.error(`shots: ${spec} threw once (${e}); retrying that frame`);

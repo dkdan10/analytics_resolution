@@ -94,8 +94,8 @@ def pick_games(n):
     Act III is a portrait of eleven weeks; sampling them evenly is the honest
     curation. The four empty 32-byte shells and the ten upstream-misnamed
     archives are excluded here (the misnamed ones are the entire Dec 5 slate -
-    see CLAUDE.md; they are skipped for tidiness, never pattern-filtered away
-    silently).
+    see MISNAMED_PREFIX in common.py; they are skipped for tidiness, never
+    pattern-filtered away silently).
     """
     entries = [e for e in api_listing() if e["name"].endswith(".7z") and e["size"] > 1024]
     usable = sorted(e for e in (x["name"] for x in entries) if _parse_name(e))
@@ -134,7 +134,7 @@ def ball_track(event):
     """Deduplicated ball path for one tracking event: [(ts, x, y, z), ...].
 
     Adjacent events overlap heavily (2.6x corpus-wide), so dedup on
-    (period, unix_ms) comes before anything else - plan section 1.2.
+    (period, unix_ms) comes before anything else.
     """
     seen = set()
     out = []
@@ -157,7 +157,7 @@ def find_shot(track):
     Arrival: the ball nearest a hoop while up at rim height. Release: walking
     back from there, the last moment the ball was low enough to be in a hand.
     No event label is used - the gesture is read off the physics, which is the
-    thesis stated backwards.
+    piece's argument stated backwards.
     """
     best = None
     for i, (_ts, x, y, z) in enumerate(track):

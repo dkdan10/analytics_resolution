@@ -97,7 +97,7 @@ export function cold(): void {
   // THE CENSUS's string ruler: a word's width in COURT TENTHS, measured once
   // per string at a fixed nominal size. Same trap as the line above.
   clearCensusCaches();
-  // THE WASH's lanes (session 15): the fold's accumulator and its front/delta
+  // THE WASH's lanes: the fold's accumulator and its front/delta
   // surfaces. Same trap again — an unregistered lane is a false PURE.
   clearWashes();
 }
@@ -132,7 +132,7 @@ export function beatsOf(schedule: Schedule): Beat[] {
     out.push({ id: "before-the-cut", at: cut.start - frame });
     out.push({ id: "after-the-cut", at: cut.start + frame });
   }
-  // The named boundaries (S1): mid-cue frames, derived from the schedule like
+  // The named act boundaries: mid-cue frames, derived from the schedule like
   // every other beat, on the cut pair's precedent. One definition with the
   // cue's own pacing (modes/shared.ts), so the probe cannot drift off it.
   const actTwo = schedule.segments.find((s) => s.act === 2);
@@ -161,10 +161,10 @@ export const MODES: readonly ModeId[] = MODE_IDS;
  * guaranteed to be cheap and empty — a control, and a necessary one, but not
  * coverage.
  *
- * The shape is the audit's own minimum: nothing on, each operation ALONE (so a
- * row that moves names the operation that moved it), and everything at once —
- * which is also the densest frame the view can produce, and therefore the one
- * the noise floor and the frame budget both have to be judged on. Every
+ * The shape is the minimum that counts as coverage: nothing on, each operation
+ * ALONE (so a row that moves names the operation that moved it), and everything
+ * at once — which is also the densest frame the view can produce, and therefore
+ * the one the noise floor and the frame budget both have to be judged on. Every
  * configuration is a real address, `?ops=lci`, so a row in the verdict can be
  * reopened in a browser exactly as it was measured.
  */
@@ -230,8 +230,8 @@ export async function forceResidency(
 }> {
   const wanted: [string, () => unknown][] = [
     ...data.seasons.map((s) => [`points/${s.year}`, () => data.points(s.year)] as [string, () => unknown]),
-    // The calendar (session 16): every season that declares one - today the
-    // window season alone - same rule, same commit as its loader.
+    // The calendar: every season that declares one - today the window season
+    // alone - same rule as the slate below, same commit as its loader.
     ...data.seasons.filter((s) => s.points_by_day).map(
       (s) => [`points_by_day/${s.year}`, () => data.pointsByDay(s.year)] as [string, () => unknown]),
     ["measures", () => data.measures()],
@@ -240,12 +240,12 @@ export async function forceResidency(
     // fetch is pending would compare an empty flood against a full one and
     // call the difference impurity. Resident before any hash, like the rest.
     ["quarrel", () => data.quarrel()],
-    // The slate too, for exactly the quarrel's reason (session 10's trap:
-    // a lazily-fetched binary joins this list in the same commit as its
-    // loader, or the probe hashes an empty night against a full one).
+    // The slate too, for exactly the quarrel's reason. The rule: a
+    // lazily-fetched binary joins this list in the same commit as its
+    // loader, or the probe hashes an empty night against a full one.
     ["slate", () => data.slate()],
-    // The four scales (session 15): the game and the wash, same rule, same
-    // commit as their loaders.
+    // The four scales: the game and the wash, same rule, same commit as their
+    // loaders.
     ["game", () => data.game()],
     ["wash", () => data.wash()],
   ];
@@ -329,9 +329,9 @@ export interface PixelDiff {
   firstPixel: { x: number; y: number } | null;
 }
 
-/** Reported in the audit's own terms: differing RGB channel bytes, their share,
- *  the largest delta and where the first one is. Alpha is skipped — the context
- *  is opaque, so it carries no information. */
+/** Reported in the terms every verdict uses: differing RGB channel bytes, their
+ *  share, the largest delta and where the first one is. Alpha is skipped — the
+ *  context is opaque, so it carries no information. */
 export function diffPixels(a: Uint8ClampedArray, b: Uint8ClampedArray, width: number): PixelDiff {
   let channels = 0;
   let maxDelta = 0;
@@ -376,7 +376,8 @@ export function diffPixels(a: Uint8ClampedArray, b: Uint8ClampedArray, width: nu
  *
  * So the floor is measured rather than assumed, under the same pressure the run
  * itself creates, and reported alongside every verdict. A difference below it
- * is not evidence of anything; F-04's is thirty-five times above it.
+ * is not evidence of anything; THE HAND's old accumulating canvas (the defect
+ * `prefix.ts` removes) measured thirty-five times above it.
  */
 export interface NoiseFloor {
   channels: number;
@@ -407,7 +408,8 @@ export function measureNoiseFloor(
 
 /** How far above the measured floor a difference has to sit to be the piece's
  *  rather than the browser's. Four times, and never fewer than a thousand
- *  channels — F-04 cleared it by more than an order of magnitude. */
+ *  channels — THE HAND's old accumulating canvas cleared it by more than an
+ *  order of magnitude. */
 export const NOISE_MARGIN = 4;
 
 /**

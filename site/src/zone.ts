@@ -4,7 +4,7 @@
  * of a shot: the same test that labels a shot labels a place, and a body
  * crossing the court crosses the league's own regions. That is the entire
  * footing on which THE HAND is allowed to use colour, and on which THE FIELD's
- * hue is a measurement rather than a choice (CLAUDE.md Rule 4).
+ * hue is a measurement rather than a choice: rule 4 (README, The rules).
  *
  * Which means this file cannot be allowed to drift from `pipeline/common.py`.
  * The Python copy is scored against the league's own labels over every one of

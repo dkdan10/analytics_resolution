@@ -79,9 +79,9 @@ from aggregate import (
 )  # noqa: E402
 
 # The rules' own constants, imported rather than restated: a gate that reads its
-# threshold out of the file it is checking is not a gate. Session 1 shipped four
-# of those, and the paint's residual gate compared paint.py's reported maximum
-# against paint.py's reported threshold.
+# threshold out of the file it is checking is not a gate. Four gates were once
+# built that way; the paint's residual gate, for one, compared paint.py's
+# reported maximum against paint.py's reported threshold.
 from window import (  # noqa: E402
     DISPERSION_MIN_CELLS_PER_SHOT,
     MAX_ANCHOR_RESIDUAL_FT,
@@ -157,9 +157,8 @@ for _y in range(1996, 2026):
 # WHICH refusal each season files, from the record's own made/missed column and
 # the share of the rim the pile swallows. `regime` is the resolution axis - how
 # much of the rim the record could place; this is the other axis - WHAT it
-# declines to place. Four regimes and this field were put to the artist together
-# on 2026-08-09 with the composition table in front of them, and the ruling was
-# four regimes with `kind` shipped beside them rather than a fifth label.
+# declines to place. Decision (2026-08-09), taken with the composition table in
+# view: four regimes, with `kind` shipped beside them rather than a fifth label.
 EXPECTED_SENTINEL_KINDS = {}
 for _y in range(1996, 2026):
     if _y <= 2009:
@@ -202,15 +201,16 @@ FIXED_TAXONOMIES = {
 }
 
 # The halfcourt box every shot artifact is clipped to, in tenths of a foot.
-# Widened two tenths each way from plan section 3.2 so grid bins are whole feet
-# and sample/grid totals assert equal (CLAUDE.md decisions log).
+# Widened two tenths each way from the box first specified, so grid bins are
+# whole feet and the sample and grid totals can be asserted equal.
 PLATE_X, PLATE_Y = (-250, 250), (-50, 420)
 
 # --- The window (pipeline/window.py) ----------------------------------------
 # The 2015-16 SportVU public release, measured 2026-08-06 and re-verified live.
 # 636 archives, four of them 32-byte shells, ten misnamed upstream: 632 games.
-# 622 is the number a filename filter produces, and it is the bug these gates
-# exist to catch (CLAUDE.md gotcha, and bloom.py still has it).
+# 622 is the number a filename filter produces (the ten misnamed Dec 5 2015
+# archives drop out), and it is the bug these gates exist to catch; bloom.py
+# still has it.
 EXPECTED_WINDOW_GAMES = 632
 EXPECTED_WINDOW_ARCHIVES = 636
 EXPECTED_WINDOW_SHELLS = 4
@@ -239,7 +239,7 @@ WINDOW_MAX_FG_BIAS_PP = 9.0
 # A court is 94 x 50 ft, so its longest diagonal is ~106 ft and no closest
 # defender can be further away than that. Derived from the floor, not chosen:
 # it is the bound that makes "every approach sample set to 999 ft" impossible
-# to ship, which is what the audit demonstrated the gate could not see.
+# to ship - a corruption an earlier version of this gate was shown to pass.
 MAX_ON_COURT_FT = math.hypot(94.0, 50.0)
 
 # Two independent paths to the release instant: the last sample of the approach
@@ -259,9 +259,9 @@ QUANTUM_FT = math.hypot(0.1, 0.1) + 0.05
 # window_measures.bin used to store the caliper in ONE BYTE of tenths, so
 # anything at or beyond 25.5 ft was filed at the ceiling: 30 of 48,330 records,
 # the longest of them 51.85 ft, all collapsed onto the same value while the
-# renderer read that value as a distance (audit F-05). Session 3 widened the
-# field to uint16, which nothing on a basketball floor can reach, and window.py
-# now stops rather than clips. So the count is ZERO and stays zero.
+# renderer read that value as a distance. The field is now uint16, which
+# nothing on a basketball floor can reach, and window.py stops rather than
+# clips. So the count is ZERO and stays zero.
 #
 # The encoding's adequacy is enforced where the bytes are written - window.py
 # dies on a caliper that does not fit - rather than by a check here that no
@@ -310,7 +310,7 @@ SLATE_VERTEX_LAYOUT = ("<hhHH", 8)
 # The slate is the misnamed ten: the archive count is pinned against
 # window.json's own misnamed_archives list where the group runs.
 
-# THE GAME's layouts (session 15), pinned for the slate's own reason: the
+# THE GAME's layouts, pinned for the slate's own reason: the
 # index is period-relative timing, a kind and a per-period anonymous slot and
 # NOTHING else - no player, no game id, no event, no clock - and only a pinned
 # layout refuses identity returning as an extra field with the declaration
@@ -322,7 +322,7 @@ BALL_SLOT_GAME = 255
 # with real measured frames; a dt above it means the split guard was bypassed.
 GAME_DT_MAX = 250
 
-# THE WASH's raster geometry (session 15), pinned rather than read from the
+# THE WASH's raster geometry, pinned rather than read from the
 # artifact: 1-ft cells of the shot frame, x -25..25, y -5..42, uint32 LE - the
 # same lattice the ball occupancy grid lives on. The day count is the corpus's
 # own game days, measured 2026-08-10 from the 632 filings; pinned so a raster
@@ -415,12 +415,13 @@ BYTE_COINCIDENCE_FT = 0.1
 # than chosen: paint.json publishes p99 speeds of 18.3 ft/s for bodies and 45
 # ft/s for the ball, and the splitter already cuts any step over MAX_STEP_FT per
 # frame. A shot ball leaves the hand at ~30 mph, so 75 ft/s is past anything a
-# basketball does and far below the 30-ft teleports F-02 was shipping.
+# basketball does and far below the 30-ft teleport lines an earlier stroke
+# reduction drew between samples.
 MAX_PAINT_SPEED_FT_S = 75.0
 
 # The held-out split is only evidence if it is drawn from most of the corpus and
 # the straight join actually reproduces on half of it. Both are regression
-# guards set below the measured values, not targets. Session 1's gate asked only
+# guards set below the measured values, not targets. An earlier gate asked only
 # that the figure EXISTED, which one testable game at 0.0001 satisfied.
 #
 # Measured 2026-08-08, over the FULL release set: 384 of 632 games testable
@@ -462,15 +463,15 @@ DECODER_SOURCES = {
 # mismatch has gone also fails, so whoever fixes it has to delete the waiver
 # rather than leave a dead exemption behind.
 #
-# THE TABLE IS EMPTY, and that is the finished state, not an oversight. Session
-# 1 re-encoded the paint binaries to fix F-02 and left site/src/data.ts on the
-# old widths deliberately - session 1 was pipeline-only - so `vertex` (6 vs 8)
-# and `stroke` (8 vs 11) sat here waived for three sessions. Session 4 landed
-# the reader and deleted them, which is what the reverse direction exists to
-# force. One consequence, stated rather than left to be discovered: while this
-# table is empty the reverse direction cannot be exercised by any mutation, so
-# the catalogue's decoder case now proves the FORWARD one - see
-# checks/mutations.py:m_paint_stale_reader.
+# THE TABLE IS EMPTY, and that is the finished state, not an oversight. When the
+# paint binaries were re-encoded to stop the stroke reduction inventing
+# teleport lines, site/src/data.ts deliberately stayed on the old widths until
+# its reader could follow, so `vertex` (6 vs 8) and `stroke` (8 vs 11) sat here
+# waived in the meantime. The new reader landed and deleted them, which is what
+# the reverse direction exists to force. One consequence, stated rather than
+# left to be discovered: while this table is empty the reverse direction cannot
+# be exercised by any mutation, so the catalogue's decoder case now proves the
+# FORWARD one - see checks/mutations.py:m_paint_stale_reader.
 DECODER_WAIVERS = {}
 
 # The parity fixture both zone implementations are checked against. Python
@@ -603,14 +604,14 @@ class Ctx:
 
 # --- the required inventory --------------------------------------------------
 # Held HERE, not in a manifest inside data/processed/: the gate must not take its
-# expectations from the thing it is checking. `public` is what session 3's deploy
-# allowlist (F-07) hangs off - flip a value, do not restructure the table.
+# expectations from the thing it is checking. `public` is what the deploy
+# allowlist hangs off - flip a value, do not restructure the table.
 
 class Artifact:
     def __init__(self, path, kind, public=True, stamp="generated_at", per_season=False):
         self.path = path
         self.kind = kind              # "json" | "bin"
-        self.public = public          # does the shipping build serve it? (session 3)
+        self.public = public          # does the shipping build serve it?
         self.stamp = stamp            # the header key carrying its generation time
         self.per_season = per_season
 
@@ -621,15 +622,15 @@ class Artifact:
 
 
 # THE DEPLOY SERVES THE ARTWORK. `public` is reviewed, one row at a time, and
-# the rule it was reviewed under is stated so a later session can apply it
+# the rule it was reviewed under is stated so a later change can apply it
 # rather than guess: an artifact ships if the piece FETCHES it, or if it is
 # provenance the piece cites on screen. Everything else stays in the repo -
 # which is public from deploy day - without being served to every visitor.
 #
-# Before session 3 there was no such list. site/scripts/sync-data.mjs was 22
-# lines of `rm -rf` then `cp -r`, so any file that appeared under
-# data/processed/ - a future private intermediate, a scratch export, a debug
-# dump - was published the moment it existed, and nobody decided that (F-07).
+# Before this list existed, site/scripts/sync-data.mjs was 22 lines of
+# `rm -rf` then `cp -r`, so any file that appeared under data/processed/ - a
+# future private intermediate, a scratch export, a debug dump - was published
+# the moment it existed, and nobody decided that.
 REQUIRED_ARTIFACTS = [
     Artifact("seasons.json", "json"),
     Artifact("facts.json", "json"),
@@ -662,17 +663,18 @@ REQUIRED_ARTIFACTS = [
     Artifact("slate.json", "json"),
     Artifact("slate_strokes.bin", "bin"),
     Artifact("slate_index.bin", "bin"),
-    # THE GAME (session 15): fetched - the game phase of the four scales draws
-    # it - so it ships. One archive, found by the disclosed corroboration
-    # argmax, every body and the ball with the paint's treatment; the matchup
-    # is re-derivable and ships in the selection block (identity-spectrum
-    # ratification flagged in session-15's packet), bodies carry only
-    # per-period first-appearance slots, and the pinned index layout keeps
-    # everything else out.
+    # THE GAME: fetched - the game phase of the four scales draws it - so it
+    # ships. One archive, found by the disclosed corroboration argmax, every
+    # body and the ball with the paint's treatment; the matchup is re-derivable
+    # and ships in the selection block, an open publication decision (a step
+    # between the slate's
+    # anonymity and traces.json's named-on-purpose, stated in the artifact's
+    # own `identity` sentence), bodies carry only per-period first-appearance
+    # slots, and the pinned index layout keeps everything else out.
     Artifact("game.json", "json"),
     Artifact("game_strokes.bin", "bin"),
     Artifact("game_index.bin", "bin"),
-    # THE WASH (session 15): fetched - the dried ground under all four scales -
+    # THE WASH: fetched - the dried ground under all four scales -
     # so it ships. One body-occupancy raster per game day, uint32 counts on the
     # 1-ft lattice; a cell is a count of tracked positions, nothing else.
     Artifact("wash.bin", "bin"),
@@ -685,8 +687,8 @@ REQUIRED_ARTIFACTS = [
     # which THE FIELD bakes every shot from; no renderer fetches these.
     Artifact("grids/season_{year}.json", "json", public=False, stamp=None,
              per_season=True),
-    # The near-complete native-coordinate multiset. PUBLICATION ACCEPTED by the
-    # artist, 2026-08-08: "points/*.bin does satisfy the project's standard."
+    # The near-complete native-coordinate multiset. PUBLICATION ACCEPTED,
+    # 2026-08-08: points/*.bin satisfies the project's publication standard.
     # It is a per-coordinate COUNT, not a per-shot row carrying identities,
     # dates or teams; the shot record is already public via stats.nba.com and
     # the shufinskiy mirror; and the work's argument - every shot renders -
@@ -694,15 +696,15 @@ REQUIRED_ARTIFACTS = [
     Artifact("points/season_{year}.bin", "bin", per_season=True),
     # The window season's calendar for the same multiset: one per-day COUNT
     # delta per (day, coordinate), summing exactly to points/season_2015.bin.
-    # PUBLIC because the piece fetches it (the third audit's re-clock, ruled by
-    # the artist 2026-08-10: the 2015-16 base accumulates on the record's own
-    # days). It adds a DAY to the per-coordinate counts - one step more dated
-    # than points/*.bin, far short of a per-shot row; the same shot dates are
-    # public per game via stats.nba.com, and the piece's argument - the one
-    # season whose true arrival order the record preserves is drawn in that
-    # order - cannot be made without the calendar. Reviewed, not defaulted.
+    # PUBLIC because the piece fetches it (the re-clock, decided 2026-08-10:
+    # the 2015-16 base accumulates on the record's own days). It adds a DAY to
+    # the per-coordinate counts - one step more dated than points/*.bin, far
+    # short of a per-shot row; the same shot dates are public per game via
+    # stats.nba.com, and the piece's argument - the one season whose true
+    # arrival order the record preserves is drawn in that order - cannot be
+    # made without the calendar. Reviewed, not defaulted.
     Artifact("points_by_day/season_2015.bin", "bin"),
-    # THE FIELD's hues and what they measurably separate by (audit V-03). NOT
+    # THE FIELD's hues and what they measurably separate by. NOT
     # served: nothing fetches it, and the piece cites no figure from it on
     # screen, which is the whole of the publish rule. The hues themselves live
     # in site/src/palette.ts, where an authored scalar belongs; this is the
@@ -876,7 +878,7 @@ def group_resolution(g, ctx):
     ], [])
 
     # THE CONTRADICTION THIS CLOSES. `regime` and `rim_sentinel` are two readings
-    # of one fact, and for two sessions they disagreed in the same green run: the
+    # of one fact, and they once disagreed in the same green run: the
     # regime called all ten of 2010-11..2019-20 `uniformly_sighted` while the
     # sentinel measured beside it says six of them pile 2.5-4.9% of the whole
     # season onto a coordinate next to the rim. Neither check could see the
@@ -1361,13 +1363,13 @@ def group_filing(g, ctx):
         g.info(f"{ex['season']} Restricted Area: {ra.get('n_placed'):,} of {ra['n']:,} shots "
                f"carry a place, mean {ra.get('dist_ft')} ft")
 
-    # --- the pin is followed (session 7, S2) ---------------------------------
+    # --- the pin is followed -----------------------------------------------
     # `samples/*.json:pin` and `classification_place` both derive from the one
-    # `resolution.rim_sentinel.coord` — the consequence 5c shipped so THE
-    # CENSUS cannot draw six seasons' refusals twice, once under the pin and
-    # once inside a category's mean position. It was true by construction the
-    # day it landed and protected by nothing; gated here so a regenerated
-    # artifact cannot quietly stop deriving both from one coordinate.
+    # `resolution.rim_sentinel.coord`, so THE CENSUS cannot draw six seasons'
+    # refusals twice, once under the pin and once inside a category's mean
+    # position. That is true by construction and would otherwise be protected
+    # by nothing; gated here so a regenerated artifact cannot quietly stop
+    # deriving both from one coordinate.
     pin_rows, unplaced = [], []
     for year, row in sorted(seasons.items()):
         label = row["season"]
@@ -1540,7 +1542,7 @@ def _points_by_day_gate(g, ctx, seasons):
     Three claims, three checks: the bytes are whole records filed in the fold
     order the row discloses; the calendar is the window's own (day0 at the
     window's first date, day 88 its last, the season's tail running to April);
-    and - the acceptance identity the artist's re-clock ruling requires - the
+    and - the acceptance identity the re-clock decision requires - the
     sum over days at every coordinate equals points/season_2015.bin at that
     coordinate, with the same zone byte. The fold the renderer draws is only as
     honest as this reconciliation, so it is exact, never approximate.
@@ -1762,7 +1764,7 @@ def zone_fixture_cases():
         add(LANE_HALF_W, y)
         add(-LANE_HALF_W, y)
     # The five coordinates where the league's own label and these polygons
-    # disagree, identified in the 2026-08-08 audit. A convention mismatch, and
+    # disagree, found 2026-08-08. A convention mismatch, and
     # both implementations must make it identically.
     for x, y in ((-32, 24), (40, 0), (-40, 138), (-1, 138), (61, 138)):
         add(float(x), float(y))
@@ -2221,8 +2223,8 @@ def _window_measures(g, ctx, w):
     # length - so the two must agree, and now they must agree for EVERY record.
     # There is no clipped set to exempt: the exemption is what let 30 records
     # ship a length 26 ft short of the distance printed beside it in the same
-    # row (F-05). Reintroducing the one-byte clip is a mutation, and this is the
-    # check that owns it.
+    # row. Reintroducing the one-byte clip is a mutation, and this is the check
+    # that owns it.
     geom = np.hypot(m["x"].astype(float) - m["dx"], m["y"].astype(float) - m["dy"]) / 10.0
     off = np.abs(geom - d) > QUANTUM_FT
     g.check("every caliper is the distance between its own endpoints", int(off.sum()), 0)
@@ -2379,8 +2381,9 @@ def _window_bias(g, w, seasons, m):
     # THE WALL TEXT IS TEMPLATED, so it can be recomposed here from the figures
     # it quotes rather than read back. THE MEASURE and THE LEDGER draw these two
     # strings verbatim, so a disclosure whose numerals have drifted from the
-    # measurement it discloses would be the F-12 defect wearing a fix's clothes -
-    # a sentence about selection bias that is itself no longer measured.
+    # measurement it discloses would reopen the undisclosed-bias gap wearing a
+    # fix's clothes - a sentence about selection bias that is itself no longer
+    # measured.
     g.check("the scope tag is the coverage it reports",
             bias["scope"],
             f"RECOVERED SET · {100 * bias['share_of_season']:.1f}% OF THE SEASON")
@@ -2466,7 +2469,7 @@ def _window_contest(g, w, m):
                f"recomputed from {m['n']:,} per-shot endpoint pairs is "
                f"{mean_release:.3f} ft")
 
-    # HEROES. F-09's criterion: no unmarked frame jump past the documented
+    # HEROES. The criterion: no unmarked frame jump past the documented
     # physical-continuity threshold. Two of the four shipped 40 ms teleports of
     # 16 and 22 ft before the shooter was bound at the release and followed.
     g.check("one hero per category", len(con["heroes"]), 4)
@@ -2517,7 +2520,7 @@ def _window_contest(g, w, m):
            f"shooter step {worst_s:.2f} ft, worst within-slot defender step "
            f"{worst_d:.2f} ft, switches {[h['defender_switches'] for h in con['heroes']]}")
 
-    # F-09's third criterion: the artifact must SAY whose body the gather follows.
+    # The gather criterion: the artifact must SAY whose body the gather follows.
     d = w["definitions"].get("closest_defender", "")
     g.holds("the artifact states whose body the gather variant follows",
             bool(d) and "SHOOTER" in d.upper(), f"{len(d)} chars")
@@ -2615,7 +2618,7 @@ def _stated_step_limits(w):
     half: the artifact must SAY, in public, what limit it was built to, and it
     must be the same number. Today that disclosure lives inside the
     `distance_run` definition rather than in one of its own; a dedicated hero
-    definition would read better and is noted in the session handoff.
+    definition would read better and remains an open improvement.
     """
     import re  # noqa: PLC0415
 
@@ -2755,9 +2758,9 @@ def group_paint(g, ctx):
             [p["corpus_date_first"], p["corpus_date_last"]])
     # `days_by_month` counts the DAYS the paint reaches in each month - paint.py
     # builds it from the set of distinct dates, so it sums to `days_covered` and
-    # not to `canvases`. It shipped as `canvases_by_month` through session 2 and
-    # was renamed here, because a key whose name states what its own value
-    # denies is exactly the defect F-16 is about.
+    # not to `canvases`. It once shipped as `canvases_by_month` and was renamed
+    # here, because a key whose name states what its own value denies plants a
+    # false belief in every reader who trusts the name.
     g.check("every painted day is counted in exactly one month",
             sum(p["days_by_month"].values()), p["days_covered"])
     g.info(f"painted days by month {p['days_by_month']} - {p['days_covered']} distinct "
@@ -2788,8 +2791,8 @@ def group_paint(g, ctx):
     if w is not None and offsets:
         # The paint's calendar against the window's. `days_inclusive` is derived
         # from window.json's corpus span, so a paint that ended early - the
-        # session-1b defect - would show here as a short span rather than only
-        # as a date comparison.
+        # defect that once stopped the painting on 3 January - would show here
+        # as a short span rather than only as a date comparison.
         g.check("the paint's calendar spans the window the corpus defines",
                 offsets[-1] + 1,
                 (_date.fromisoformat(w["corpus"]["date_last"])
@@ -2924,7 +2927,7 @@ def _paint_index(g, p, strokes, verts):
 
 
 def _paint_geometry(g, p, strokes, verts):
-    """F-02's invariants, asked of the bytes.
+    """The invariants that keep stroke reduction honest, asked of the bytes.
 
     A drawn segment may not exceed the arc measured for it; no arc may sit at
     the storage ceiling; the speeds the renderer's three regimes are bounded by
@@ -3353,7 +3356,8 @@ def group_game(g, ctx):
              gj["files"]["game_strokes"]["bytes_per_record"]],
             list(GAME_VERTEX_LAYOUT))
 
-    # No body identity. The matchup ships by flagged ruling; a body never does.
+    # No body identity. The matchup ships, its identity line an open publication
+    # decision (see pipeline/game.py's docstring); a body never does.
     text = json.dumps(gj).lower()
     g.check("the game names no body, no event and no wall clock",
             [k for k in ("player", "playerid", "player_id", "event_id",
@@ -3510,7 +3514,7 @@ def group_traces(g, ctx):
     """Act III's thirty-two curated gestures, which nothing gated at all.
 
     traces.json deliberately ships identity - the game, the player, the event -
-    and that is an accepted artist decision, so the paint's no-identity rule is
+    and that is an accepted decision, so the paint's no-identity rule is
     NOT extended here. bloom.py hits the GitHub API live and re-derives from the
     tracking archives, so this gates the committed artifact as it stands.
     """
@@ -3591,7 +3595,7 @@ def group_inventory(g, ctx):
 
     The required list lives HERE rather than in a manifest inside
     data/processed/, because a gate that takes its expectations from the thing
-    it is checking is not a gate. Session 3's deploy allowlist (F-07) hangs off
+    it is checking is not a gate. The deploy allowlist hangs off
     Artifact.public.
     """
     g.section("The processed inventory")
@@ -3624,14 +3628,14 @@ def group_inventory(g, ctx):
     g.check("every top-level artifact says what wrote it and when", headerless, [])
 
     # A new artifact must be added DELIBERATELY - which is precisely the hook
-    # session 3's deploy allowlist needs. Dotfiles are ignored and said so.
+    # the deploy allowlist needs. Dotfiles are ignored and said so.
     found = {str(p.relative_to(ctx.root)) for p in ctx.root.rglob("*")
              if p.is_file() and not any(part.startswith(".") for part in p.parts)}
     g.check("no unknown file has appeared under data/processed/",
             sorted(found - expected), [])
     g.info(f"{len(expected)} required artifacts, {sum(1 for a in REQUIRED_ARTIFACTS if a.public)} "
-           f"of {len(REQUIRED_ARTIFACTS)} kinds marked public; session 3 hangs the deploy "
-           f"allowlist and the dist/data test off this table")
+           f"of {len(REQUIRED_ARTIFACTS)} kinds marked public; the deploy "
+           f"allowlist and the dist/data test hang off this table")
 
     _decoder_parity(g, ctx)
 
@@ -3642,7 +3646,7 @@ def _decoder_parity(g, ctx):
     Nothing type-checks a byte layout, so this is the only automated detector
     that the two halves of the project disagree about a format. A mismatch fails
     unless a dated WAIVER names it; a waiver whose mismatch has gone also fails,
-    so the session that fixes one has to remove it.
+    so the change that fixes one has to remove it.
     """
     p = ctx.json(g, "paint.json")
     w = ctx.json(g, "window.json")
@@ -3689,16 +3693,17 @@ def _decoder_parity(g, ctx):
 
 
 # --- group: the memory ------------------------------------------------------
-# CLAUDE.md is a working memory file and its prose is why it works, so this does
-# not try to generate it. What it does is make the QUANTITATIVE half checkable:
-# each claim below is an exact substring of the file with one hole in it, and
-# the hole is filled from an artifact. A claim fails if the sentence has been
+# The documents gated here - the working notes in MEMORY_DOCS, and README.md -
+# are prose, and their prose is why they work, so this does not try to
+# generate them. What it does is make the QUANTITATIVE half checkable: each
+# claim below is an exact substring of a document with one hole in it, and the
+# hole is filled from an artifact. A claim fails if the sentence has been
 # reworded away from the gate OR if the artifact has moved underneath it.
 #
 # That second half is the one that matters. `attribution_agreement` was written
-# into CLAUDE.md as 0.8536 while window.json said 0.8573 - a hand-typed figure
-# that drifted from its own artifact inside a single session, which is the F-16
-# defect in miniature. Nothing could have caught it.
+# into the notes as 0.8536 while window.json said 0.8573 - a hand-typed figure
+# that drifted from its own artifact almost as soon as it was written, a
+# load-bearing false belief in miniature. Nothing could have caught it.
 #
 # The same idiom TABLE_1_6 uses: a fixture in the gate, not display copy.
 
@@ -3730,16 +3735,17 @@ class Claim:
                                    # | "seasons" (an aggregate over the table) | "code"
         self.path = path
         self.fmt = fmt
-        # WHICH DOCUMENT HAS TO SAY IT. Defaults to CLAUDE.md because that is
-        # where this mechanism started; README.md was added 2026-08-09 after a
-        # sweep found FOURTEEN stale or self-contradicting claims in it against
-        # roughly none in CLAUDE.md. That asymmetry was not luck: CLAUDE.md was
-        # gated and the README was gated by nothing at all, and the README is
-        # the file the public repo opens on.
+        # WHICH DOCUMENT HAS TO SAY IT. Defaults to the working notes
+        # (MEMORY_DOCS) because that is where this mechanism started; README.md
+        # was added 2026-08-09 after a sweep found FOURTEEN stale or
+        # self-contradicting claims in it against roughly none in the notes.
+        # That asymmetry was not luck: the notes were gated and the README was
+        # gated by nothing at all, and the README is the file the public repo
+        # opens on.
         # A claim may name ONE document, or a tuple of documents any of which may
-        # carry it. Project memory became two files on 2026-08-09 - CLAUDE.md for
-        # standing instruction, docs/build/findings.md for the record of how it
-        # was established - and a sentence moving between them is an editorial
+        # carry it. The notes became two files on 2026-08-09 - one for standing
+        # instruction, one for the record of how each figure was established -
+        # and a sentence moving between them is an editorial
         # act, not a claim changing. Pinning each claim to a file made every such
         # move a gate failure to be chased down by hand; naming the SET keeps the
         # assertion that matters (the sentence exists in memory and matches its
@@ -3771,7 +3777,7 @@ class Claim:
 
 
 MEMORY_CLAIMS = [
-    # --- the window's headline figures, all of which moved in session 1b ----
+    # --- the window's headline figures, each of which has moved before ------
     Claim("corpus recovery is `recovery.rate` **{}**", "window", "recovery.rate", "f4"),
     Claim("recovery **{}**", "window", "recovery.rate", "f4"),
     Claim("measured **{}** shots", "window", "recovery.measured", "comma"),
@@ -3780,11 +3786,11 @@ MEMORY_CLAIMS = [
     Claim("Median **{} ft** apart", "window", "disagreement.median_ft", "f2"),
     Claim("{}% differ by more than 15 ft", "window", "disagreement.beyond_15ft", "pct1"),
     Claim("**{}%** of detected shots at 6 ft", "window", "disagreement.within_6ft", "pct1"),
-    # The figure that was already adrift when session 3 opened.
+    # The figure once found adrift (the 0.8536 note in the memory group's header).
     Claim("`recovery.attribution_agreement` **{}**", "window",
           "recovery.attribution_agreement", "f4"),
     Claim("`recovery.event_offsets` is `{}`", "window", "recovery.event_offsets", "offsets"),
-    # THE QUARREL (session 10): the export's population, stated wherever the
+    # THE QUARREL: the export's population, stated wherever the
     # artifact is described, and the off-plate count the drawing does not clip.
     Claim("`quarrel.bin`, **{} records**, one per detected shot", "window",
           "quarrel_bin.records", "comma"),
@@ -3825,12 +3831,12 @@ MEMORY_CLAIMS = [
     Claim("a median {} ft apart", "window", "disagreement.median_ft", "f2", doc="README.md"),
     Claim("over {} detected shots", "window", "quarrel_bin.records", "comma", doc="README.md"),
 
-    # --- THE SLATE (session 14): the night's artifact -------------------------
+    # --- THE SLATE: the night's artifact ------------------------------------
     Claim("`slate_index.bin` holds **{} paths**", "slate", "paths", "comma"),
     Claim("**{} games** simultaneously in live play", "slate",
           "span.games_fully_live"),
 
-    # --- THE FOUR SCALES (session 15): the game and the wash ------------------
+    # --- THE FOUR SCALES: the game and the wash -----------------------------
     Claim("**{} corroborated shots** against the runner-up's", "game",
           "selection.corroborated"),
     Claim("`game_strokes.bin` carries **{} vertices**", "game", "vertices", "comma"),
@@ -3860,12 +3866,12 @@ MEMORY_CLAIMS = [
     Claim("{} in 2015-16", "season:2015", "vocabulary.categories_total", "comma"),
     Claim("{} in 2024-25**", "season:2024", "vocabulary.categories_total", "comma"),
 
-    # --- the pile, and the second instrument on it (5c) ---------------------
-    # Until this session NOTHING gated touched the sentinel, so the section of
-    # this document that carries the project's newest content claim was the one
-    # section unprotected by the mechanism that has caught every other drift.
+    # --- the pile, and the second instrument on it --------------------------
+    # Without this claim no memory claim would touch the sentinel, and the section
+    # of the notes that carries the project's newest content claim would be the
+    # one section unprotected by the mechanism that has caught every other drift.
     Claim("**{}** shots on `(0, 1)`", "season:2015", "resolution.rim_sentinel.n", "comma"),
-    # THE CALENDAR (session 16): the re-clock's artifact, stated where it is
+    # THE CALENDAR: the re-clock's artifact, stated where it is
     # described so the figures cannot drift from the shipped bytes.
     Claim("`points_by_day/season_2015.bin` — **{} records**", "season:2015",
           "points_by_day.records", "comma"),
@@ -3878,7 +3884,7 @@ MEMORY_CLAIMS = [
           "resolution.rim_sentinel.composition.Dunk Shot.share_of_type", "pct1"),
     Claim("**{}** of them it can see", "window",
           "sentinel_corroboration.sentinel.n", "comma"),
-    # THE RESIDENCE (session 7): the ball-occupancy under-layer's population.
+    # THE RESIDENCE: the ball-occupancy under-layer's population.
     Claim("**{}** measured ball-frames", "window", "occupancy.frames_total", "comma"),
     Claim("in **{}** different places", "window",
           "sentinel_corroboration.sentinel.distinct_cells", "comma"),
@@ -3908,16 +3914,17 @@ def _memory_value(g, ctx, claim):
             return WINDOW_RECOVERY_FLOOR
         if claim.path == "MUTATION_CASES":
             # The size of the defect catalogue, read from the catalogue. This
-            # sentence said 42 for a session after the catalogue reached 49 -
-            # the same drift F-16 exists to stop, in the section that explains
-            # how a gate earns belief.
+            # sentence once said 42 after the catalogue had reached 49 - the
+            # hand-typed drift this group exists to stop, in the section that
+            # explains how a gate earns belief.
             from checks.mutations import CASES  # noqa: PLC0415
 
             return len(CASES)
         if claim.path == "RING_FT":
             # The annulus the season numerals settle on, from the renderer that
-            # draws it. CLAUDE.md called it "the 16-ft annulus" for three
-            # sessions while inscription.ts drew it somewhere else.
+            # draws it. The notes once called it "the 16-ft annulus" while
+            # inscription.ts drew it somewhere else, so the figure is read from
+            # RING_R rather than restated.
             import re  # noqa: PLC0415
 
             src = (ctx.repo / "site" / "src" / "inscription.ts")
@@ -3967,7 +3974,7 @@ def _memory_value(g, ctx, claim):
 
 
 def _offsets_text(d):
-    """`{-2: 7, -1: 1, 0: 531, ...}` - the histogram as CLAUDE.md writes it."""
+    """`{-2: 7, -1: 1, 0: 531, ...}` - the histogram as the notes write it."""
     items = sorted(((int(k), v) for k, v in d.items()), key=lambda kv: kv[0])
     return "{" + ", ".join(f"{'+' if k > 0 else ''}{k}: {v}" for k, v in items) + "}"
 
@@ -4031,7 +4038,7 @@ def group_memory(g, ctx):
 def group_palette(g, ctx):
     """THE FIELD's hues, and whether the site is still drawing the ones measured.
 
-    The finding this gate closes (audit V-03) is not that the palette is bad -
+    The defect this gate closes is not that the palette is bad -
     it is that `palette.ts` ASSERTED a separation nobody had measured. So the
     two things worth gating are that the claim is a real computation, and that
     the values the claim is about are the values the piece draws.
@@ -4076,7 +4083,8 @@ def group_palette(g, ctx):
         from colorspacious import cspace_convert  # noqa: PLC0415
     except ImportError:
         # NOT a silent skip. A gate that quietly stops checking when a library
-        # is absent is the F-11 defect, so this is a failure with the fix in it.
+        # is absent stays green over exactly what it exists to catch, so this
+        # is a failure with the fix in it.
         g.fail("the palette's separation can be recomputed",
                "colorspacious is not installed; it is pinned in requirements.txt")
         return
@@ -4153,8 +4161,8 @@ def group_deploy(g, ctx):
     This group gates the FILE against the table. The `dist/data` test belongs to
     the toolchain that builds dist and lives in site/scripts/check-public-data.mjs,
     which `npm run build` runs after vite; putting it here would mean a check
-    that silently does nothing on a repo nobody has built, and session 2 removed
-    the last of those.
+    that silently does nothing on a repo nobody has built, and this gate
+    carries none of those.
     """
     g.section("The deploy allowlist")
     seasons = ctx.seasons(g)
@@ -4254,8 +4262,8 @@ def narrative(root):
     m24 = 100 * seasons[2024]["mid_share"]
     m15 = 100 * seasons[2015]["mid_share"]
     print("\nMeasured narrative beats (informational):")
-    print(f"  pre-camera slope 1996-97..2012-13: {(m96 - m12) / 16:.2f} pp/season (plan: ~0.7)")
-    print(f"  camera-era slope 2012-13..2019-20: {(m12 - m19) / 7:.2f} pp/season (plan: ~2.1)")
+    print(f"  pre-camera slope 1996-97..2012-13: {(m96 - m12) / 16:.2f} pp/season (projected: ~0.7)")
+    print(f"  camera-era slope 2012-13..2019-20: {(m12 - m19) / 7:.2f} pp/season (projected: ~2.1)")
     print(f"  collapse midpoint (39.9+9.7)/2 = {(m96 + m24) / 2:.1f}; "
           f"the window season sits at {m15:.1f}")
     c = seasons[1996]["contemporaneous"]

@@ -26,7 +26,7 @@ export function bone(alpha: number): string {
  * THE FIELD's hues — one per SHOT_ZONE_BASIC category, in the pipeline's own
  * ZONES order.
  *
- * The categories are the NBA's, not the artist's, and the wall text says so;
+ * The categories are the NBA's, not this piece's, and the wall text says so;
  * which hue stands for which is authored, and named and disclosed here:
  * colouring by zone does not add a classification, it exposes one the league
  * already imposed. Hue is therefore a measurement like every other material
@@ -41,9 +41,9 @@ export function bone(alpha: number): string {
  *
  * THIS COMMENT USED TO END "so the seven stay separable for colour-blind
  * viewers and survive a bright room." NOBODY HAD MEASURED THAT AND IT IS NOT
- * TRUE (audit V-03). The claim now lives where a claim belongs — in an artifact,
- * as script output: `pipeline/palette.py` reads these seven values out of THIS
- * FILE, measures every pairwise CAM02-UCS distance under normal vision and under
+ * TRUE. The claim now lives where a claim belongs — in an artifact, as script
+ * output: `pipeline/palette.py` reads these seven values out of THIS FILE,
+ * measures every pairwise CAM02-UCS distance under normal vision and under
  * simulated protanopia, deuteranopia and tritanopia, and writes
  * `data/processed/palette.json`. `qa.py` binds the two in both directions, so a
  * hue edited here without re-running that stage turns the gate red.

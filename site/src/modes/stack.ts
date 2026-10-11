@@ -3,8 +3,8 @@
  * WHY THIS IS ALLOWED TO EXIST, because the same idea in a slightly different
  * shape is the thing this project is built against.
  *
- * The audit considered a combined view that ran all six renderers together
- * behind six checkboxes and REJECTED it: "the renderers duplicate the same shot
+ * A combined view that ran all six renderers together behind six checkboxes
+ * was considered and REJECTED: "the renderers duplicate the same shot
  * geometry, compete for the same pixels, and would convert the gallery work into
  * a settings panel." That judgement stands and this view does not reopen it. The
  * difference is not the number of toggles, it is what the toggles NAME. A
@@ -16,14 +16,14 @@
  * not show.
  *
  * THE VIEW OPENS ON BARE STONE. All eight operations ship OFF.
- * The audit had proposed LOCATE, CLASSIFY and INSCRIBE already on and that
- * proposal is superseded. It matters, and it is not fussiness — the argument
+ * An earlier design had LOCATE, CLASSIFY and INSCRIBE already on, and that
+ * default is rejected. It matters, and it is not fussiness — the argument
  * only reads if the starting point is the record with nothing done to it, so
  * that everything on the plate afterwards is there because somebody named it. A
  * default that already has three operations applied is a picture the audience is
  * asked to accept before the talk begins.
  *
- * THE RULES THIS FILE OBEYS, all from the audit's composition section, in order:
+ * THE RULES THIS FILE OBEYS — the stack's composition order:
  *
  *   1  ground and court engraving       drawn by `renderTo`, before any hand
  *   2  incised season numerals          INSCRIBE
@@ -63,7 +63,7 @@
  * cheapest way to be right. Everything it composites is already cached by the
  * module that owns it (`field.ts`'s baked layers, the text atlas, THE LEDGER's
  * utterance memo, THE CENSUS's string ruler), all of which
- * `probe/shared.ts:cold()` already empties. If a later session adds one here it
+ * `probe/shared.ts:cold()` already empties. If a later change adds one here it
  * must be registered there in the same commit: an unregistered cache does not
  * produce a false IMPURE, it produces a false PURE, because every history then
  * shares the same stale cache and they agree with each other.
@@ -205,7 +205,7 @@ export function drawStackHand(f: Frame): void {
   // 9. Last, over everything.
   drawDisclosures(f, ops);
 
-  // The boundaries named (S1): the stack composites hands, none of whose
+  // The act boundaries named: the stack composites hands, none of whose
   // layers carry a boundary sign of their own here.
   drawActCue(f, 2);
   drawActCue(f, 5);
@@ -274,9 +274,9 @@ function drawConnect(f: Frame, progress: number): void {
  * composite that showed the whole approach would be drawing THE MEASURE's beat
  * rather than its material.
  *
- * F-12's disclosure travels with it, always. These four come out of the
- * recovered set, and a proportion from that set shown without its scope is the
- * defect session 3 closed.
+ * The recovered-set disclosure travels with it, always. These four come out of
+ * the recovered set, and a proportion from that set shown without its scope
+ * misstates the population it was measured over.
  */
 function drawMeasure(f: Frame, progress: number): void {
   const { ctx, view, data, remains } = f;
@@ -320,7 +320,7 @@ function drawName(f: Frame, progress: number): void {
 /**
  * COUNT THE EVENT — a tick on the floor, the tally in the margin.
  *
- * THIS IS WHERE TWO OF THE AUDIT'S RULES MEET, and the resolution is the same
+ * THIS IS WHERE TWO OF THE COMPOSITION RULES MEET, and the resolution is the same
  * one for both. "Census in an exterior gutter" (composition rule 8) and "NAME
  * and full COUNT should not occupy the court simultaneously" (a mutual
  * exclusion) are satisfied by the same decision: the NAMES and the numbers go
@@ -423,13 +423,12 @@ function drawCount(f: Frame, progress: number): void {
 /**
  * JOIN THE INSTRUMENTS — the archive's two words about where, shot by shot.
  *
- * Both audits proposed this drawable independently. The record holds two NBA
- * claims about the same shot in the same building on the same night: the
- * coordinate a courtside scorer filed, and where the optical feed says the
- * ball left the hand. The mark is the segment between them — SERIFLESS,
- * because it is not a measurement between bodies, it is a distance between
- * claims, and the caliper's serifs stay on the caliper. No figure per segment,
- * no histogram, no legend: the disclosure is one pipeline-templated statement
+ * The record holds two NBA claims about the same shot in the same building on
+ * the same night: the coordinate a courtside scorer filed, and where the
+ * optical feed says the ball left the hand. The mark is the segment between
+ * them — SERIFLESS, because it is not a measurement between bodies, it is a
+ * distance between claims, and the caliper's serifs stay on the caliper. No
+ * figure per segment, no histogram, no legend: the disclosure is one pipeline-templated statement
  * line (drawDisclosures), and the confession beside the flood carries the true
  * counts the way THE MEASURE's flood confesses its own budget.
  *
@@ -438,8 +437,8 @@ function drawCount(f: Frame, progress: number): void {
  * packed in — chronological, window.py's own sort, the same day order THE
  * MEASURE's flood walks window_measures.bin in — and at most QUARREL_BUDGET
  * are on the plate at once. The caller supplies the entry progress: THE STACK
- * uses its operation-local clock, while the packet candidate defaults to the
- * Window phase. Either way it is a pure render input: no held state accumulates
+ * uses its operation-local clock, while THE PLATE's quarrel candidate
+ * defaults to the Window phase. Either way it is a pure render input: no held state accumulates
  * and a backward seek rebuilds a smaller flood. No cache, deliberately — the
  * flood is at most QUARREL_BUDGET lineTo calls
  * from arrays data.ts already decoded, which is cheaper than any surface that
@@ -447,10 +446,10 @@ function drawCount(f: Frame, progress: number): void {
  */
 const QUARREL_BUDGET = 400;
 
-/** Exported for one caller besides this hand: THE PLATE's packet-candidate
+/** Exported for one caller besides this hand: THE PLATE's quarrel-candidate
  *  composite (`plate.ts`), which only the shots probe can request — the
- *  gallery question of where the quarrel lives is the artist's, judged from
- *  captures, and nothing in the gallery path reaches it. */
+ *  gallery question of where the quarrel lives is a composition decision
+ *  judged from captures, and nothing in the gallery path reaches it. */
 export function drawQuarrel(f: Frame, progress = f.st.phase): void {
   const { ctx, view, data, remains } = f;
   const w = data.window;
@@ -485,7 +484,8 @@ export function drawQuarrel(f: Frame, progress = f.st.phase): void {
 /**
  * What an applied operation owes the viewer, on the plate.
  *
- * PROVENANCE IS IN THE RAIL (artist's ruling, 2026-08-09) and this is not that.
+ * Provenance is drawn in the rail (decision, 2026-08-09); see navigator.ts.
+ * This is not that.
  * A disclosure is a claim the drawn material would be false without: whose
  * categories a colour exposes, and what population a percentage was measured
  * over. THE FIELD strikes the first and THE MEASURE the second in their own
@@ -502,9 +502,9 @@ function drawDisclosures(f: Frame, ops: StackOps): void {
   if (has(ops, "locate") && has(ops, "classify")) {
     lines.push("COLOURED BY THE NBA'S OWN ZONES");
   }
-  // F-12, and it travels with the calipers wherever they are drawn. The four
-  // heroes come out of the recovered set — a biased subset, over-representing
-  // shots that reach the rim, because a release is only found by following the
+  // The recovered-set scope travels with the calipers wherever they are drawn.
+  // The four heroes come out of the recovered set — a biased subset,
+  // over-representing shots that reach the rim, because a release is only found by following the
   // ball back from it. The string is TEMPLATED BY THE PIPELINE from the figures
   // it quotes (`window.json:bias.scope`); the site draws it and never composes
   // its own, so a re-run updates the wall text.
@@ -517,7 +517,7 @@ function drawDisclosures(f: Frame, ops: StackOps): void {
   const qScope = has(ops, "join") && inWindow(f) ? f.data.window?.quarrel_bin.scope : null;
   if (qScope) lines.push(qScope);
   if (!lines.length) return;
-  // `aside`: subordinate to the marks it describes. docs/build/typography-inventory.md.
+  // Rank `aside` (drawSlug's rank argument): subordinate to the marks it describes.
   drawSlug(ctx, view, lines, { x: 0, y: COURT.y1 - STACK_DISCLOSURE_INSET },
     remains, "aside");
 }

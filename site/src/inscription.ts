@@ -8,8 +8,8 @@
  * Inscriptions are drawn *under* the marks, because they are cut into the plate
  * rather than laid on it: the shots of every later season settle over them.
  *
- * Every figure here comes from data/processed (CLAUDE.md honesty rule). This
- * module formats numbers; it never authors them.
+ * Every figure here comes from data/processed (rule 1, honesty - README, The
+ * rules). This module formats numbers; it never authors them.
  */
 
 import type { Season } from "./data";
@@ -46,22 +46,22 @@ const STRIKE_AT = { x: 0, y: 200 };
 const RING_R = 172;
 
 /**
- * THE NUMBER LEAVES LAST (session 8, the second audit's C2-P1, accepted by the
- * artist). The season's frozen tail becomes the moment its measurement
- * withdraws: the numeral strikes as the marks finish arriving, stands central
- * through a short hold, and is the one thing moving through seconds that used
- * to hold a single frame — settling resident on the ring exactly as the next
- * season's marks land. Composition constants, not register entries (both
- * audits' ruling), and DERIVED rather than typed: the strike is arrival's end
- * (ARRIVAL_TAIL of an ordinary season) and the migration ends at the season
- * boundary, so nothing here can drift away from the schedule it inhabits. For
- * the window season the arc is different SINCE SESSION 17 (the fourth audit's
- * numeral ruling — both blind runs measured 24·6 as the loudest object at the
- * exact instant the found possession is smallest): the window's numeral WAITS,
- * strikes at the season beat's crest (window-score.ts:WINDOW_CREST_PHASE — the same
- * anchor THE HAND's kept points rise on), holds fully for its scored dwell,
- * then migrates only until the terminal shell becomes whole. It stays resident
- * through the shell's terminal hold, so the closing frame is genuinely stable.
+ * THE NUMBER LEAVES LAST. The season's frozen tail becomes the moment its
+ * measurement withdraws: the numeral strikes as the marks finish arriving,
+ * stands central through a short hold, and is the one thing moving through
+ * seconds that used to hold a single frame — settling resident on the ring
+ * exactly as the next season's marks land. Composition constants, not
+ * register entries (they time a figure and change no mark), and DERIVED
+ * rather than typed: the strike is arrival's end (ARRIVAL_TAIL of an ordinary
+ * season) and the migration ends at the season boundary, so nothing here can
+ * drift away from the schedule it inhabits. For the window season the arc is
+ * different, because two independent blind reviews both measured 24·6 as the
+ * loudest object at the exact instant the found possession is smallest: the
+ * window's numeral WAITS, strikes at the season beat's crest
+ * (window-score.ts:WINDOW_CREST_PHASE — the same anchor THE HAND's kept points
+ * rise on), holds fully for its scored dwell, then migrates only until the
+ * terminal shell becomes whole. It stays resident through the shell's
+ * terminal hold, so the closing frame is genuinely stable.
  * The possession enters decongested; the statistic strikes as a consequence
  * of the season just built.
  *
@@ -111,9 +111,9 @@ function fmtFt(ft: number): string {
   return Number.isInteger(ft) ? String(ft) : ft.toFixed(1);
 }
 
-/** A share -> a struck numeral, not a label with a percent sign. Exported since
- *  V-05: THE CENSUS says a share the same way the plate does, or the floor holds
- *  two conventions for one quantity. */
+/** A share -> a struck numeral, not a label with a percent sign. Exported
+ *  because THE CENSUS says a share the same way the plate does, or the floor
+ *  holds two conventions for one quantity. */
 export function struckFigure(share: number): string {
   return (100 * share).toFixed(1).replace(".", "·");
 }
@@ -210,8 +210,8 @@ function placementAt(ins: Inscription, t: number): Placement | null {
  * `rotation` lays the numeral tangent to the annulus, so the ring reads as a
  * garland around the void rather than a row of labels.
  *
- * Exported since V-05, because THE CENSUS strikes its categories into the same
- * floor by the same idiom - one engraved system rather than two. Its words are
+ * Exported because THE CENSUS strikes its categories into the same floor by
+ * the same idiom - one engraved system rather than two. Its words are
  * the same KIND of claim as a season's figure, so they are cut the same way.
  */
 export function strike(
@@ -248,14 +248,14 @@ export function strike(
 /**
  * Machine type: everything the piece says in words, at one of three ranks.
  *
- * THE DEFECT THIS EXISTS TO REMOVE (audit V-08). This function had ONE size and
+ * THE DEFECT THIS EXISTS TO REMOVE. This function used to have ONE size and
  * ONE alpha for every place it is called from, so "NO SHOT WAS GIVEN A
  * PLACE" — the sentence the piece opens on, alone over bare stone — was set
  * exactly like a date stamp ticking past during the flood, and at half whatever
  * alpha its caller asked for. The piece could not say anything loudly because it
- * had no loud. That is the whole of "the same typography is asked to be both
- * texture and argument": not that the texture is small, but that there was only
- * one voice.
+ * had no loud. That is the whole of the problem with asking one typography to
+ * be both texture and argument: not that the texture is small, but that there
+ * was only one voice.
  *
  *   voice      the four sentences the piece is ABOUT. At most one is ever up.
  *   statement  the default, and every other thing the piece states.
@@ -264,8 +264,9 @@ export function strike(
  *              they were while the sentences around them grow.
  *
  * Sizes are in court tenths, so type does not change with the window. Which
- * string is which rank is docs/build/typography-inventory.md, approved by the artist;
- * this function does not decide it and no string's CONTENT changes with rank.
+ * string is which rank is the `rank` argument its caller passes; the table
+ * assigning every drawn string a rank is kept in the local working notes.
+ * This function does not decide it, and no string's CONTENT changes with rank.
  */
 export type SlugRank = "voice" | "statement" | "aside";
 

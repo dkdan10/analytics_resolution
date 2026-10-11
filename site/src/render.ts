@@ -46,10 +46,10 @@ const PRELUDE_ENGRAVING = 0.62;
 /**
  * The one cut this piece is allowed, given the beat that says what it IS.
  *
- * THE DEFECT (audit V-01): "the discontinuity is visually strong, but it
- * currently reads as obliteration or reset before it reads as the end of
- * league-wide rim blindness." Measured with `?probe=shots`'s frame statistics
- * and recorded in CLAUDE.md: the lit-pixel count either side of the boundary is
+ * THE DEFECT: the discontinuity is visually strong, but on its own it reads as
+ * obliteration or reset before it reads as the end of league-wide rim
+ * blindness. Measured with `?probe=shots`'s frame statistics: the lit-pixel
+ * count either side of the boundary is
  * held EXACTLY unchanged for seconds, collapses to bare stone, and stays there
  * for about a second before the new season begins to arrive. A frozen frame, a
  * blackout, an empty plate. That is the shape of an asset reload, and a viewer
@@ -87,7 +87,7 @@ function drawCutBeat(
   if (k <= 0.01) return;
   const pct = (s: { resolution: { ra_origin_share: number } }): string =>
     (100 * s.resolution.ra_origin_share).toFixed(1);
-  // ABOVE the arc's crown, not on the strike line (third audit D-04): the
+  // ABOVE the arc's crown, not on the strike line: the
   // outgoing season's numeral holds and migrates through STRIKE_AT's band for
   // the beat's first three seconds, and the piece's one cut must not have its
   // cause statement overprinted by a migrating numeral. The band above the
@@ -114,7 +114,7 @@ export function renderTo(
   /** Which of THE STACK's operations are applied, plus operation-local
    * progress. URL/legacy callers default to a completed empty state. */
   stack: StackRenderState = completedStackState(NO_OPS),
-  /** A packet candidate for the shots probe only — see `types.ts:Frame`. No
+  /** A candidate composition for the shots probe only — see `types.ts:Frame`. No
    *  gallery caller passes it; defaulted null so every existing caller is
    *  byte-identical. */
   candidate: string | null = null,
@@ -135,9 +135,9 @@ export function renderTo(
     //
     // It used to reach full strength about a quarter of the way in, after which
     // NOTHING CHANGED AT ALL for well over half the prelude — the same lit-pixel
-    // count and the same mean, frame after identical frame (audit V-01, "too
-    // dark for too long... can be mistaken for inactive hardware"; the figures
-    // are in CLAUDE.md, from `?probe=shots`). The absence is the content and
+    // count and the same mean, frame after identical frame — too dark for too
+    // long, and easy to mistake for inactive hardware (the figures come from
+    // `?probe=shots`). The absence is the content and
     // stays; a still image is not the same thing as an absence, and that
     // difference is the whole finding.
     //
@@ -161,8 +161,8 @@ export function renderTo(
     const firstCharted = data.seasons[0]?.year;
     const founded = factExternal<number>(data.facts, "league_founded");
     // `voice`, both of them: the piece opens on this, alone, over bare stone,
-    // with nothing else competing (audit V-08). Splitting the timing changes no
-    // rank — docs/build/typography-inventory.md row 1 covers both lines.
+    // with nothing else competing. Splitting the timing changes no rank — both
+    // lines share the voice rank (rank table: local working notes).
     drawSlug(ctx, view, [`${founded} — ${firstCharted ?? ""}`],
       { x: 0, y: 232 }, ramp(p, 0.14, 0.30, 0.80, 0.97), "voice");
     drawSlug(ctx, view, ["NO SHOT WAS GIVEN A PLACE"],
@@ -182,8 +182,8 @@ export function renderTo(
   //
   // It used to stop a little short of nothing, so the last frame before the wrap
   // held a court and the first frame after it held none: the loop turned over on
-  // a visible step, in a piece whose whole coda exists so that it would not
-  // (audit F-13). The two ends have to agree, and the value they agree on is
+  // a visible step, in a piece whose whole coda exists so that it would not.
+  // The two ends have to agree, and the value they agree on is
   // zero, because the engraving's arrival over the prelude is a composed event -
   // the court recognised a beat after the image is - and starting the prelude
   // part-drawn would be cutting it.

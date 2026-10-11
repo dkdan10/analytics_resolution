@@ -1,14 +1,14 @@
 /** Loading and typing of the pipeline's derived JSON.
  *
  * Everything the piece can say comes from here. No figure is ever written into
- * the source (CLAUDE.md honesty rule) - if a number is on screen, it resolves to
- * a key in data/processed/.
+ * the source (the honesty rule - README, The rules) - if a number is on screen,
+ * it resolves to a key in data/processed/.
  */
 
-/** How finely the record could draw a given season. Measured, not assigned. */
 import type { TracesFile } from "./bloom";
 import { decodePoints, decodePointsByDay, type DayPoints, type Points } from "./field";
 
+/** How finely the record could draw a given season. Measured, not assigned. */
 export type Regime =
   | "uniformly_blind"
   | "uneven"
@@ -420,7 +420,7 @@ export interface WindowFile {
     frames_total: number;
     grid: Record<string, number>;
   };
-  /** THE WASH (session 15): one body-occupancy raster per game day, the dried
+  /** THE WASH: one body-occupancy raster per game day, the dried
    *  ground of the four scales. A cell is a count of tracked positions on the
    *  1-ft lattice, nothing else; clients fold the days — there is deliberately
    *  no corpus-wide second grid. */
@@ -500,8 +500,8 @@ export interface WindowFile {
  */
 export interface PaintFile {
   definitions: Record<string, string>;
-  /** The shape of the two binaries. Session 1 re-encoded both to stop `arc`
-   *  clipping and to carry the canvas and body a split run belongs to; the
+  /** The shape of the two binaries. The current version widens `arc` so it
+   *  cannot clip and carries the canvas and body a split run belongs to; the
    *  reader below refuses anything it does not recognise rather than
    *  best-effort a layout it was not written for. */
   format_version: number;
@@ -556,8 +556,8 @@ export interface Strokes {
   /** 0 = a body, 1 = the ball — the only row the feed gave a third dimension. */
   kind: Uint8Array;
   /** The body slot within that canvas, stable across the runs of one body.
-   *  After session 1 split every path at its discontinuities a body CAN be
-   *  several strokes, so a body is `(canvas, body)` and never a stroke count. */
+   *  The pipeline splits every path at its discontinuities, so a body CAN be
+   *  several strokes: a body is `(canvas, body)` and never a stroke count. */
   body: Uint8Array;
   /** Index into the corroborated corpus's own GAME-days - NOT days since the
    *  window opened, which is what `Measures.day` counts. The two scales differ
@@ -574,7 +574,7 @@ export interface Strokes {
   dt: Uint16Array;
   /** Tenths the body actually covered over that span, summed at the full 25 Hz
    *  BEFORE simplification, so speed is the true measured mean however few
-   *  control points survived. Widened from one byte in session 1: 24 stored
+   *  control points survived. Widened from one byte: 24 stored
    *  values had been pinned at the old ceiling. Nothing here may re-impose one. */
   arc: Uint16Array;
 }
@@ -592,8 +592,8 @@ const PAINT_FORMAT_VERSION = 2;
 
 /** A declared binary against the bytes that actually arrived.
  *
- *  Nothing type-checks a byte layout: the site decoded 6- and 8-byte paint
- *  records for two sessions after the pipeline moved to 8 and 11, and both
+ *  Nothing type-checks a byte layout: the site once kept decoding 6- and
+ *  8-byte paint records after the pipeline had moved to 8 and 11, and both
  *  `tsc --noEmit` and `npm run build` stayed clean while THE HAND rendered a
  *  starburst of garbage. So the reader states what it expects and stops. */
 function assertLayout(
@@ -684,7 +684,7 @@ export interface Measures {
    *
    *  This was one byte, so every distance past the byte's range was filed at
    *  its ceiling and read back as that distance, while the two endpoints stored
-   *  beside it described a much longer one (audit F-05). It is now uint16 and
+   *  beside it described a much longer one. It is now uint16 and
    *  the pipeline stops rather than clips, so there is no ceiling to normalise
    *  against and nothing may divide by one. `contest.caliper_ft` carries the
    *  measured distribution a renderer should scale against instead. */
@@ -797,7 +797,7 @@ export function decodeSlate(vbuf: ArrayBuffer, ibuf: ArrayBuffer, s: SlateFile):
 /** THE GAME's summary (`game.json`): one archive found by the disclosed
  *  corroboration argmax, every body and the ball at the paint's treatment.
  *  The matchup is re-derivable and ships in the selection block (flagged
- *  identity-spectrum ruling); no body is ever named — a stroke carries a
+ *  identity-spectrum decision); no body is ever named — a stroke carries a
  *  per-period first-appearance slot, the ball at pipeline/game.py:BALL_BODY. */
 export interface GameFile {
   date: string;
@@ -1074,7 +1074,7 @@ export interface Loaded {
    *  state change, so this remains finite and inspectable. */
   assetErrors(): string[];
   /** Every lazily-fetched asset a frame has ASKED for that has not yet
-   *  arrived (session 17, THE FEED readout): the rail says the piece is
+   *  arrived (THE FEED readout): the rail says the piece is
    *  still filling rather than leaving a cold seek to read as a sparse
    *  record. Probing NEVER fetches — only assets some draw call already
    *  requested appear — and the list empties on completion. */
@@ -1093,7 +1093,7 @@ export interface Loaded {
   provenance: Record<string, string>;
   /**
    * `seasons.json:definitions` — the pipeline's own sentence for each key it
-   * ships. Carried into the site by session 6 because THE STACK's rail states,
+   * ships. Carried into the site because THE STACK's rail states,
    * beside every operation, what the artifact behind it means; and a definition
    * copied into a TypeScript string is a definition that will go stale, which is
    * the honesty rule applied to prose rather than to a number. `window.json` and
@@ -1446,7 +1446,7 @@ export async function load(): Promise<Loaded> {
         if (windowYear !== undefined) {
           // The Window opens with the preceding season still present for its
           // scored entry withdrawal. Preload BOTH sides of that
-          // handoff; otherwise a direct Window stop can paint its first frame
+          // handover; otherwise a direct Window stop can paint its first frame
           // without the outgoing field and only request it after the audience
           // is already looking.
           const pointYears = [windowYear, seasons[windowIndex - 1]?.year]

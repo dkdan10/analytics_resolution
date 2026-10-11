@@ -24,8 +24,8 @@ is strictly decreasing across adjacent moments at normal spacing (a frozen
 clock is a timeout or a held ball; a pair straddling a feed dropout says
 nothing about the seconds inside the gap). The span maximizes, in order: the
 count of games live for every second of it, then the total live seconds across
-all ten. Its length is the one authored quantity, from the accepted proposal
-(`docs/audits/second-audit-claude.md` 3A); everything else is argmax.
+all ten. Its length is the one authored quantity, from the accepted review
+proposal (local working notes); everything else is argmax.
 
 A MEASURED CORRECTION the kill-test made to the proposal's premise: the ten
 games tip off across the whole evening, so all ten are never live at once. At
@@ -70,7 +70,8 @@ SPORTVU_DIR = RAW_DIR / "sportvu"
 # exactly the ones found.
 SLATE_DATE = "2015-12-05"
 
-# The span's length in seconds — the one authored quantity (audit 3A's spec).
+# The span's length in seconds — the one authored quantity (the accepted
+# proposal's spec; see the module docstring).
 SPAN_SECONDS = 15
 
 # A liveness pair must be adjacent moments at normal spacing. Beyond this the

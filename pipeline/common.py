@@ -82,7 +82,7 @@ SEASON_START_YEARS = list(range(1996, 2026))
 INDEX_URL = "https://raw.githubusercontent.com/shufinskiy/nba_data/main/list_data.txt"
 
 # The shufinskiy index lists github.com/.../raw/ URLs, which 403 from sandboxed
-# environments; raw.githubusercontent.com serves the same blobs (plan Appendix A2).
+# environments; raw.githubusercontent.com serves the same blobs.
 URL_REWRITE = (
     "https://github.com/shufinskiy/nba_data/raw/main/",
     "https://raw.githubusercontent.com/shufinskiy/nba_data/main/",
@@ -101,7 +101,8 @@ CORPUS_RAW = (
 # 10 archives (the entire Dec 5, 2015 slate) are misnamed upstream with this
 # literal prefix glued onto the normal MM.DD.YYYY.VIS.at.HOME.7z name. Strip it;
 # never pattern-filter on the date, or those 10 games vanish silently
-# (found 2026-08-06; falsifies plan section 1.1's naming claim for those games).
+# (found 2026-08-06: the corpus's usual naming convention does not hold for
+# those games).
 MISNAMED_PREFIX = "2016.NBA.Raw.SportVU.Game.Logs"
 
 # The size of an archive that exists and holds nothing. Four of the 636.
@@ -139,9 +140,9 @@ CORNER_Y = (THREE_R ** 2 - CORNER_X ** 2) ** 0.5
 HALFCOURT_Y = 417.5
 
 # THE PLATE'S REACH - the halfcourt box every artifact is clipped to and the box
-# `site/src/plate.ts:COURT` draws. The plan's section 3.2 clips LOC_Y to
+# `site/src/plate.ts:COURT` draws. The original design clipped LOC_Y to
 # [-52, 418]; this widens it two tenths each way so the grid's bins are whole
-# feet and the sample and grid totals assert equal (CLAUDE.md, 2026-08-06).
+# feet and the sample and grid totals assert equal (decided 2026-08-06).
 #
 # It lived only in aggregate.py, which was fine while aggregate.py was the only
 # thing that clipped. THE CENSUS's filing made it a question the GATE has to ask

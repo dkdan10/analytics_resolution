@@ -245,9 +245,9 @@ def check_touches():
     mv = measure_movement(fs, touch_chains(fs, 3.5, GAP), GAP)
     ok("the same hand-off beyond the gap is not a pass", mv["passes"] == 0, str(mv["passes"]))
 
-    # A DRIVE is directed. The audit's own case: a touch that starts near the
-    # rim, goes out past the drive radius, and ends in between. Undirected, that
-    # is a drive; it is not one.
+    # A DRIVE is directed. The case that exposed the undirected reading: a touch
+    # that starts near the rim, goes out past the drive radius, and ends in
+    # between. Undirected, that is a drive; it is not one.
     n = 30
     path = ([(HOOP_RIGHT_X - 7.7, HOOP_Y)] * 10
             + [(HOOP_RIGHT_X - 42.0, HOOP_Y)] * 10

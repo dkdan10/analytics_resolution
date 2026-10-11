@@ -59,7 +59,7 @@ export function drawFieldHand(f: Frame): void {
   drawSeasonField(f, { coloured: true, dim: remains, residence: true, reveal: true });
 
   // Whose categories these are, named on the plate rather than only on a wall.
-  // Clocked in SECONDS, not phase (third audit, FIELD improvement 3): the
+  // Clocked in SECONDS, not phase: the
   // attribution held a few seconds in an ordinary season but nearly a minute in
   // the dilated window — the longest-lived sentence in the piece, over the act
   // with the most competing material. Ordinary seasons retain their judged

@@ -376,11 +376,11 @@ function drawOrphaned(f: Frame, w: WindowFile | null): void {
 
 // --- Act III, four beats -----------------------------------------------------
 
-/** ONE — a single shot, its caliper closing in real geometry. SINGULAR by the
- *  crescendo ruling: the beat is one measure made watchable, and the crowd it
- *  used to share the beat with (one hero per category) belongs to the flood
- *  now. The first hero is the mechanical choice — flagged in the session-14
- *  packet, one line to change. */
+/** ONE — a single shot, its caliper closing in real geometry. SINGULAR because
+ *  Act III is scored as a crescendo (decided 2026-08-10): the beat is one
+ *  measure made watchable, and the crowd it used to share the beat with (one
+ *  hero per category) belongs to the flood now. The first hero is the
+ *  mechanical choice — provisional, and one line to change. */
 function beatOne(f: Frame, w: WindowFile, k: number): void {
   const { ctx, view, remains } = f;
   const h: HeroShot | undefined = w.contest.heroes[0];
@@ -414,8 +414,8 @@ function beatOne(f: Frame, w: WindowFile, k: number): void {
 
   // The number changing as the defender closes — struck along the caliper's
   // PERPENDICULAR, pushed out just far enough that it can never cross the
-  // defender's ring (third audit D-16: the terminal state of a Very Tight
-  // measure held over a third of the beat with the numeral through the ring's stroke).
+  // defender's ring (otherwise the terminal state of a Very Tight measure holds
+  // the numeral through the ring's stroke for a third of the beat).
   // For a long caliper the offsets reduce to the composition's own 14 and 22.
   const dist = Math.hypot(p[2]! - p[0]!, p[3]! - p[1]!) / 10;
   const mx = (p[0]! + p[2]!) / 2;
@@ -495,7 +495,8 @@ function beatNight(f: Frame, w: WindowFile, k: number, m: Measures | null): void
 
 /** THE SEASON — every measure the corpus holds, accelerating into the flood.
  *
- *  The volume beat the cut ruling made this hand about: the whole recovered
+ *  The volume beat — this hand is about how much raw data the league gathers
+ *  (see THE INSTANT, below, for what was cut to keep it so): the whole recovered
  *  set arrives on its REAL calendar, compressed through the register's one
  *  authored easing (`seasonClock`), so the beat opens near the night's own
  *  pace and closes with weeks passing in a second — the machine's scale
@@ -536,7 +537,7 @@ function beatSeason(f: Frame, w: WindowFile, k: number, m: Measures | null): voi
   const drawn = Math.min(CALIPER_BUDGET, reached);
   // The span is the corpus's own, and the second line no longer implies the
   // recovered set stands for the season: it says what the set IS. Both strings
-  // are templated by the pipeline from the figures they quote (audit F-12).
+  // are templated by the pipeline from the figures they quote.
   const days = factNum(f.data.facts, "window.days_inclusive");
   drawSlug(ctx, view, [
     `${drawn.toLocaleString()} DRAWN OF ${reached.toLocaleString()} MEASURED`,
@@ -557,14 +558,14 @@ function beatSeason(f: Frame, w: WindowFile, k: number, m: Measures | null): voi
   }
 }
 
-// THE INSTANT left the plate by the crescendo's first ruling (2026-08-10,
-// findings.md "Three rulings — the crescendo"): the approach-hairline
-// band-cut drawing and `THE LEAGUE DOES NOT PUBLISH WHICH INSTANT IT MEANS`
-// are cut — the reasoning is volume, not doubt. The gather-vs-release
-// finding survives as presenter narration (docs/paper/presenter-score.md,
-// Movement III) with its keyed figures intact, and the `gather_rule` and
-// `approach_curve_ft` keys stay shipped in window.json, undrawn, like the
-// rest of the unshown inventory.
+// THE INSTANT is not drawn (decided 2026-08-10). When Act III became a
+// crescendo, the approach-hairline band-cut drawing and `THE LEAGUE DOES NOT
+// PUBLISH WHICH INSTANT IT MEANS` were cut — the reasoning is volume, not
+// doubt: this hand shows how much raw data the league gathers, not a nuanced
+// claim about what defines a contest. The gather-vs-release finding is not
+// lost: it survives as spoken narration in the talk, with its keyed figures
+// intact, and the `gather_rule` and `approach_curve_ft` keys stay shipped in
+// window.json, undrawn, like the rest of the unshown inventory.
 
 /**
  * THE CLOSE — the corpus's last archive. Everything goes but the figures.
@@ -655,7 +656,7 @@ export function drawMeasureHand(f: Frame): void {
       remains * 0.3);
   }
 
-  // The Act V boundary named (S1). Act II is omitted: the league's bucket
+  // The Act V boundary named. Act II is omitted: the league's bucket
   // names arriving on the annulus IS this hand's Act II event (drawNamesOnly).
   drawActCue(f, 5);
 }

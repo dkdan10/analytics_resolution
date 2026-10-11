@@ -1,5 +1,5 @@
 /**
- * THE GAME — the second of the four scales, drawn (session 15).
+ * THE GAME — the second of the four scales, drawn.
  *
  * One found archive (`game.json` + the two binaries), every body and the
  * ball, laid on the game's own clock. This module owns the TIMING arithmetic
@@ -273,7 +273,7 @@ function drawCompletedGameEvents(
 
 /**
  * The stroke's vertex path, begun on the ctx — ONE walk for every consumer.
- * `plateStroke` styles and strokes it; the entry yield mask (session 17)
+ * `plateStroke` styles and strokes it; the entry yield mask
  * strokes the same path wider in `destination-out`, and sharing the walk is
  * what guarantees the wake and the stroke cannot drift apart. Returns false
  * when the stroke has no path to draw.
@@ -338,7 +338,7 @@ export function plateStroke(
  *  the game's clock later replaces record-for-record. `sinceFrame` narrows
  *  the punctuation to the wet edge: THE HAND lets an annotation dry away
  *  with the motion it marked (the filed record's drops are what persists
- *  there), while THE PLATE — ALL the information, the artist's want — omits
+ *  there), while THE PLATE — ALL the information, by design — omits
  *  it and keeps every mark. */
 export function drawGameEvents(
   ctx: CanvasRenderingContext2D,

@@ -1,6 +1,6 @@
 /** An accumulating layer that is never extended in place.
  *
- * THE DEFECT THIS EXISTS TO REMOVE (audit F-04). THE HAND kept one module-level
+ * THE DEFECT THIS EXISTS TO REMOVE. THE HAND used to keep one module-level
  * canvas and, when the playhead moved forward, drew the newly-arrived marks
  * onto it; when the playhead moved back it threw the canvas away and rebuilt.
  * The two paths draw the same marks in the same order onto a surface that
@@ -124,11 +124,12 @@ export function prefixSurface(
     // two calls - came back byte-identical. In the running piece it did NOT: the
     // purity probe found `forward` and `backward` differing from a cold render
     // at a mean delta of about one, reproducing to the channel across two runs
-    // with a stable control (the counts are in docs/build/probe/, not here). A
-    // canvas that has been drawn on, cleared and drawn on again through a long
-    // render sequence is not bit-identical to a virgin one of the same size -
-    // the browser moves its backing between paths as pressure changes, and
-    // nothing at this level can see that happen.
+    // with a stable control (regenerable with npm run probe:purity; verdicts
+    // are not committed). A canvas that has been drawn on, cleared and drawn
+    // on again through a long render sequence is not bit-identical to a
+    // virgin one of the same size - the browser moves its backing between
+    // paths as pressure changes, and nothing at this level can see that
+    // happen.
     //
     // So no surface is ever reused. Every step allocates, is written once, and
     // is read only as the source of the next step. That makes the byte content

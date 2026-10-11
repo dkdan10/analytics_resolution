@@ -28,8 +28,8 @@ const CHECKER = resolve(here, "check-numbers.mjs");
 /**
  * Which files pass 3 actually reaches, read out of the checker itself.
  *
- * Never restated. The line this feeds hardcoded five module names and was seven
- * entries stale by session 6 — in the one script whose entire purpose is to stop
+ * Never restated. The line this feeds once hardcoded five module names and fell
+ * seven entries stale — in the one script whose entire purpose is to stop
  * a disclosure drifting from the thing it discloses. Parsed rather than imported
  * because check-numbers.mjs runs its whole check on import.
  */

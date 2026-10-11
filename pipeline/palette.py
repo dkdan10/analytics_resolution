@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""What THE FIELD's seven hues actually separate by, measured (audit V-03).
+"""What THE FIELD's seven hues actually separate by, measured.
 
 `site/src/palette.ts` used to claim, in its own header, that the seven "stay
 separable for colour-blind viewers and survive a bright room". Nobody had
@@ -75,8 +75,9 @@ GROUND_HEX = "0b0a09"
 
 # The simulations. Machado, Oliveira & Fernandes (2009) as colorspacious
 # implements it; severity 100 is the dichromat end of each anomaly.
-# Tritanomaly is included even though the audit only ran the two common ones:
-# it is one more line and a claim about "colour-blind viewers" that quietly
+# Tritanomaly is included even though the earlier colour-vision check ran only
+# the two common ones: it is one more line and a claim about "colour-blind
+# viewers" that quietly
 # means "two of the three kinds" is the sort of thing this project exists not
 # to do.
 CONDITIONS = {
@@ -136,8 +137,8 @@ def adjacent_zones():
     LEFT CORNER 3 and RIGHT CORNER 3 are among the closest pairs in every
     condition, and they are separated by the whole width of the paint - a viewer
     is never asked to tell those two apart, because they are never in the same
-    place. Shipping this stops a later session from waving that argument at the
-    numbers without evidence, AND stops it from rescuing a pair the argument
+    place. Shipping this stops anyone later from waving that argument at the
+    numbers without evidence, AND stops them from rescuing a pair the argument
     does not cover: under deuteranopia the worst pair is RIGHT CORNER 3 against
     ABOVE THE BREAK 3, which share a boundary.
 

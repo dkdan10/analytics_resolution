@@ -13,7 +13,7 @@
     {
       "file": "palette.ts",
       "text": "232, 226, 214",
-      "why": "the plate's bone, as RGB channels. A colour, not a quantity the record measured - and palette.ts names, isolates and discloses the whole scheme in its own header (CLAUDE.md rule 3). Out of the mark layers' scope; session 5 owns the palette."
+      "why": "the plate's bone, as RGB channels. A colour, not a quantity the record measured - and palette.ts names, isolates and discloses the whole scheme in its own header, as rule 3 (README, The rules) requires. Out of the mark layers' scope."
     },
     {
       "file": "palette.ts",
@@ -113,7 +113,7 @@
     {
       "file": "navigator.ts",
       "contains": "1-5 ACTS",
-      "why": "KEY_HINTS: the presenter's keyboard, printed in the rail so a shortcut nobody is told about is not one (audit V-09). The digits are the NAMES OF KEYS - 0 the start, 1-5 the acts, 6-9 the window's four beats - not a quantity the record measured, and the beats they reach are derived from Navigator.starts(), which is derived from the schedule. Rail only: exhibit never builds it."
+      "why": "KEY_HINTS: the presenter's keyboard, printed in the rail so a shortcut nobody is told about is not one. The digits are the NAMES OF KEYS - 0 the start, 1-5 the acts, 6-9 the window's four beats - not a quantity the record measured, and the beats they reach are derived from Navigator.starts(), which is derived from the schedule. Rail only: exhibit never builds it."
     },
     {
       "file": "modes/operations.ts",
@@ -186,11 +186,6 @@
       "file": "probe/perf.ts",
       "contains": "16.7",
       "why": "the frame budget in ms at 60 Hz. The instrument's own yardstick."
-    },
-    {
-      "file": "marks.ts",
-      "text": "811",
-      "why": "the digits of a git commit id (e811cab) cited in prose - an identifier, not a measurement. First flagged when THE GAME shipped and 811 became an artifact value (a period-relative frame in game.json, session 15)."
     }
   ],
   "words": [
@@ -259,7 +254,7 @@
     {
       "file": "modes/hand.ts",
       "text": "const GAME_SPLIT = 4 / 9;",
-      "why": "a phase anchor like KEPT_CREST and SHELL_PHASE - where the shared night beat subdivides, a composition constant, not a material. 4/9 of the shared beat gives the night sub-beat exactly the slate's true-rate span (Codex A4, session 17). The sink pattern only matches because SPLIT contains LIT."
+      "why": "a phase anchor like KEPT_CREST and SHELL_PHASE - where the shared night beat subdivides, a composition constant, not a material. 4/9 of the shared beat gives the night sub-beat exactly the slate's true-rate span. The sink pattern only matches because SPLIT contains LIT."
     }
   ]
 }

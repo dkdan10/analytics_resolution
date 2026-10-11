@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Reintroduce each defect on a COPY of the repo and require qa.py to go red.
 
-A gate you cannot break is not evidence. Session 1 shipped four gates carrying
-its own acceptance criteria that could not fail under any mutation:
+A gate you cannot break is not evidence. This file exists because gates once
+shipped that encoded their stage's own acceptance criteria and could not fail
+under any mutation:
 
   D1  a hard tautology - one term a count >= 0, the other an `all()` over a
       sequence decide_offset empties before it is written
@@ -12,9 +13,12 @@ its own acceptance criteria that could not fail under any mutation:
   D4  paint.py's reported maximum compared against paint.py's reported threshold
   D5  nothing decoded paint_strokes.bin at all
 
-Session 2 found seven more of the same kind - the window and paint stages could
-be DELETED from disk, or served as equal-length runs of zeros, and the gate
-still printed GREEN.
+The D-labels name the defect classes; the catalogue's case names (D1-votes,
+D3-heldout, ...) carry them.
+
+Seven more of the same kind followed - the window and paint stages could be
+DELETED from disk, or served as equal-length runs of zeros, and the gate still
+printed GREEN.
 
 This file is the end-to-end half of the demonstration. The defect catalogue
 lives in checks/mutations.py and is shared:

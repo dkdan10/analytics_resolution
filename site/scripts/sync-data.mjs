@@ -4,7 +4,7 @@
  * This used to be `rm -rf dest` followed by `cp -r src dest`, which meant every
  * file under data/processed/ was published the moment it existed — a future
  * private intermediate, a scratch export, a debug dump. Nobody had decided
- * that (audit F-07). The defect was never the payload; it was
+ * that. The defect was never the payload; it was
  * publish-by-default.
  *
  * The list is now explicit and reviewed, one row at a time, in

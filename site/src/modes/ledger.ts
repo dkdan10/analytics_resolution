@@ -75,10 +75,10 @@ const MAX_LABELS = 240;
  * What the league publishes *instead of* the geometry, once the raw feed closes.
  *
  * The names used to be written out here, which is display copy authoring its
- * own content. They now come from `facts.json:external.published_instead`,
- * where each one carries the endpoint it is cited to - PtMeasureType values of
- * LeagueDashPtStats, plus PlayerDashPtShots, SynergyPlayTypes and HustleStats,
- * all from docs/build-plan-v2.md section 1.4-1.5.
+ * own content. They now come from `facts.json:external.published_instead` -
+ * PtMeasureType values of LeagueDashPtStats, plus PlayerDashPtShots,
+ * SynergyPlayTypes and HustleStats, each cited, with its endpoint, in its
+ * `source` field there.
  *
  * An earlier version of this slug read "THE VALUES ARE NOT PUBLIC", and that
  * was false. The league does publish values for all of them. What it stopped
@@ -115,11 +115,11 @@ function windowValues(w: WindowFile | null): Map<string, string[]> {
   if (widest) {
     // A recovered-set proportion, so it is shown as one: the share carries the
     // scope tag the pipeline templated from its own coverage figure, and the
-    // reader is never handed it as if it described the season (audit F-12).
-    // TWO LINES since session 16 (third audit D-09): the tagged value was the
-    // row's widest string and stood struck through its neighbour's value for
-    // the whole close — the two honesty-load-bearing strings destroying each
-    // other. The share leads; the scope stands beneath it.
+    // reader is never handed it as if it described the season.
+    // TWO LINES, because on one line the tagged value is the row's widest
+    // string and stands struck through its neighbour's value for the whole
+    // close — the two honesty-load-bearing strings destroying each other. The
+    // share leads; the scope stands beneath it.
     const share = `${(100 * widest.share).toFixed(1)}% ${widest.name.toUpperCase()}`;
     out.set("CLOSEST DEFENDER",
       w.bias.scope ? [share, `· ${w.bias.scope}`] : [share]);
@@ -192,11 +192,12 @@ function labelBudget(season: Season): number {
 
 // --- THE SPOKEN TERM ---------------------------------------------------------
 //
-// The audit read this hand's failure as COUNT — "dozens of labels" — and asked
-// for a small sequence of monumental terms instead. Both halves of that are
-// wrong for this piece. The count is the one part of the hand that is measured:
-// it is `words_covering_90pct`, which is the hand's whole argument. And a
-// curated word list is authored content, which rule 3 forbids outright.
+// The obvious reading of this hand's failure is COUNT — "dozens of labels" —
+// with a small sequence of monumental terms as the cure. Both halves of that
+// are wrong for this piece. The count is the one part of the hand that is
+// measured: it is `words_covering_90pct`, which is the hand's whole argument.
+// And a curated word list is authored content, which rule 3 (README, The
+// rules) forbids outright.
 //
 // Measured instead, the failure is SCALE and DWELL. Every label is half a foot
 // tall on a floor tens of feet deep, and in the calmest season each one
@@ -273,7 +274,7 @@ function smoothstep(x: number): number {
  *
  * Computed over the corpus at load, never written down: a hand-typed constant in
  * `bloom.ts` survived two re-runs while contradicting the artifact it came from,
- * and CLAUDE.md forbids the pattern by name.
+ * and the first rule (README, The rules) forbids exactly that pattern.
  */
 let refShare = 0;
 function referenceShare(seasons: Season[]): number {
@@ -515,8 +516,8 @@ const PIN_CAPTION_DROP = 30;
  * Until 2026-08-09 the refusal's one caption was in nobody's collision set —
  * `utterancesFor`'s fixed obstacles were the league boxes only, `drawLabels`'
  * live set was terms plus league boxes — so in the act the piece dilates a
- * birth term's margin line and a scatter label struck straight through it
- * (second audit, O1). The rect joins both sets now, from this one derivation.
+ * birth term's margin line and a scatter label struck straight through it.
+ * The rect joins both sets now, from this one derivation.
  *
  * Every input is the season's: the sentinel's final count (the caption's widest
  * state — conservative while the count is still growing, and free of `t`), the
@@ -556,7 +557,7 @@ function pinCaptionBox(season: Season): Box | null {
  * year. THE STACK's NAME THE ACTION is the second caller this file has ever had.
  * Had it computed its own obstacle set, the memo would have handed whichever
  * hand asked FIRST its own layout and the other hand a layout built for someone
- * else, silently, for the rest of the page session — and the purity probe could
+ * else, silently, for the life of the page — and the purity probe could
  * not have caught it, because both hands would be consistent with themselves.
  *
  * So there is one derivation and both hands call it. That the two hands then
@@ -608,16 +609,16 @@ export function ledgerUtterances(
 }
 
 /**
- * THE LEDGER CLOSES (session 17 — both fourth-audit runs and the third
- * audit's pacing branch voted day-keyed; the artist ruled D6 for withdrawal).
+ * THE LEDGER CLOSES, day-keyed (decided 2026-08-10): in the close the ledger
+ * withdraws rather than holding, paced on the window's own calendar.
  * The close un-writes the register the way the season wrote it: the WRITING
  * PHASE run backwards on the register's own easing —
  * `pRem(closeU) = ARRIVAL_TAIL × (1 − seasonClock(closeU))` — so every
  * departure is statable on the calendar the fold keeps, and strict reverse
  * arrival order IS reverse calendar order. The naive 89-day unwind was
  * measured and rejected: everything the ledger wrote arrived early in the
- * calendar, which leaves most of the close silent — the exact quiet the
- * three votes condemn. Draw-time only: the year-keyed utterance memo and
+ * calendar, which leaves most of the close silent — exactly the dead air the
+ * close must not have. Draw-time only: the year-keyed utterance memo and
  * every exported symbol are untouched (THE STACK is a second caller), and
  * the close's first frame is byte-identical to the pre-close frame because
  * `1 − seasonClock(0)` is exactly 1.
@@ -679,7 +680,7 @@ export function drawLedgerHand(f: Frame): void {
     // the raw mirrored easing — accelerando mirrored, motion every second of
     // the close. Deliberately NOT re-wrapped in the arrival's smoothstep:
     // its zero derivative at the boundary would hold the conveyor still for
-    // the close's first seconds, the exact dead air the three votes condemn
+    // the close's first seconds, exactly the dead air the close must not have
     // (measured: two share8-zero seconds with it, none without). Value
     // continuity at the boundary — the byte-identity that matters — needs
     // only rem(0) = 1, which the raw easing gives exactly.
@@ -705,7 +706,7 @@ export function drawLedgerHand(f: Frame): void {
   // same code.
   if (st.act === 3 || st.act === 5) drawPublishedInstead(f, st.act === 3);
 
-  // The Act II boundary named (S1). Act V is omitted: the league's published
+  // The Act II boundary named. Act V is omitted: the league's published
   // names arriving over the scatter IS this hand's Act V event.
   drawActCue(f, 2);
 }
@@ -839,7 +840,8 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
   // the last figure written is the first to leave and every heading stands
   // absent at wash 1. Act V later rebuilds the surviving bare headings from
   // this same function. Per-NAME, never per-line: a scope tag departing separately
-  // from its share would re-create D-09. Each departure is statable on the
+  // from its share would leave, for a moment, a recovered-set share standing
+  // without the scope that keeps it honest. Each departure is statable on the
   // fold's own calendar — value i completes leaving when the reverse clock
   // reads (i / names) of the window's days.
   const rem = closeRemnant(f);
@@ -874,7 +876,7 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
 
     // The value, when there is one to show, struck beneath its own name —
     // line by line, so a scope-tagged value stacks instead of running wide
-    // into its neighbour's figure (third audit D-09).
+    // into its neighbour's figure.
     const v = values.get(text);
     if (v) {
       if (visible > 0.01) {

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""SportVU corpus verification probe (Act III feasibility, plan sections 1.1-1.2).
+"""SportVU corpus verification probe (Act III feasibility).
 
 Three checks, each a live measurement, none load-bearing for the shot spine:
   1. Corpus listing: the 636-archive directory on linouk23/NBA-Player-Movements,
      including the four 32-byte empty shells and the total compressed size.
   2. Proof archive: download 10.28.2015.NOP.at.POR.7z (skipped if mirrored
-     locally), byte-exact size check against the plan's measurement.
+     locally), byte-exact size check against the measurement in EXPECTED.
   3. Parse: extract and parse the game JSON; assert the schema facts the
      Act III parser will be built on (dedup ratio, 25 Hz, ball-z-only 3D).
 
@@ -50,8 +50,8 @@ PROOF_JSON = "0021500015.json"
 
 # 10 archives (the entire Dec 5, 2015 slate) are misnamed upstream with this
 # literal prefix glued onto the normal MM.DD.YYYY.VIS.at.HOME.7z name. The
-# Act III mirror must strip it, never pattern-filter names (found 2026-08-06;
-# falsifies the plan section 1.1 naming claim for those 10 games).
+# Act III mirror must strip it, never pattern-filter names (found 2026-08-06:
+# the corpus's usual naming convention does not hold for those 10 games).
 MISNAMED_PREFIX = "2016.NBA.Raw.SportVU.Game.Logs"
 
 # The size of an archive that exists and holds nothing. The piece names this
@@ -59,7 +59,8 @@ MISNAMED_PREFIX = "2016.NBA.Raw.SportVU.Game.Logs"
 # literal typed into the renderer.
 EMPTY_SHELL_BYTES = 32
 
-# Plan section 1.1 / 1.2, measured 2026-08-04 (misnamed count measured 2026-08-06).
+# The corpus as measured for Act III feasibility, 2026-08-04 (misnamed count
+# measured 2026-08-06). Every live check below must reproduce these.
 EXPECTED = {
     "archive_count": 636,
     "empty_shell_count": 4,
@@ -260,9 +261,9 @@ def main():
     write_json(PROCESSED_DIR / "sportvu_probe.json", record)
 
     if failures:
-        print(f"\nPROBE RED: {len(failures)} mismatch(es) vs plan sections 1.1-1.2.")
+        print(f"\nPROBE RED: {len(failures)} mismatch(es) vs the expected corpus measurements.")
         sys.exit(1)
-    print("\nPROBE GREEN: corpus live, schema as measured in the plan.")
+    print("\nPROBE GREEN: corpus live, schema as measured for feasibility.")
 
 
 if __name__ == "__main__":

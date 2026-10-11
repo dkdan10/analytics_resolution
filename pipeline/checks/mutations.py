@@ -2,10 +2,10 @@
 """The defect catalogue: one mutation, one gate that must catch it.
 
 A gate you cannot break is not evidence. Every entry here reintroduces a defect
-that once shipped green - or that the 2026-08-08 audit demonstrated could ship
-green - on a COPY of data/processed/, and names the exact check that has to go
-red. A mutation caught only by some unrelated check is a FAILURE of the suite,
-not a pass: that distinction is the whole point.
+that once shipped green - or that a 2026-08-08 review of the gate showed could
+ship green - on a COPY of data/processed/, and names the exact check that has
+to go red. A mutation caught only by some unrelated check is a FAILURE of the
+suite, not a pass: that distinction is the whole point.
 
 The catalogue is defined once and consumed twice:
 
@@ -39,14 +39,15 @@ class Case:
     `catches` is matched as a SUBSTRING of the printed FAIL line, so a check
     whose name carries a measured detail in parentheses still matches.
 
-    `scope` is which directory `mutate` is handed. Session 2's contract was
+    `scope` is which directory `mutate` is handed. The original contract was
     `mutate(processed_dir)` and every defect lived under data/processed/, which
-    would have left session 3's two new gates - the deploy allowlist under
-    pipeline/, and the memory claims in CLAUDE.md - as the only gates outside
-    the catalogue. An unstated exception is how "add a gate, add its defect"
-    decays, so the contract widened instead: `scope="repo"` hands `mutate` a
-    repo-shaped root holding data/processed/, CLAUDE.md, the allowlist and the
-    site source the gates read.
+    would have left the gates that read outside it - the deploy allowlist under
+    pipeline/, and the memory claims in README.md and the working notes - as
+    the only gates outside the catalogue. An unstated exception is how "add a
+    gate, add its defect" decays, so the contract widened instead:
+    `scope="repo"` hands `mutate` a repo-shaped root holding data/processed/,
+    README.md, the working notes, the allowlist and the site source the gates
+    read.
     """
 
     def __init__(self, name, groups, catches, mutate, why, scope="processed",
@@ -106,8 +107,9 @@ def _delete(name):
 
 
 # --- the mutations -----------------------------------------------------------
-# Numbered as in the session brief; the eight the audit measured surviving the
-# old gate are marked (audit).
+# Many of these once passed an earlier, weaker form of the gate - a size or
+# presence check where a decode was needed - and their docstrings or `why`
+# lines say so.
 
 
 def m_zero_measures(d):
@@ -457,8 +459,10 @@ def m_zero_points_day(d):
 def m_points_day_one_shot(d):
     """One extra shot on one day at one coordinate.
 
-    The exact per-coordinate reconciliation the 2026-08-10 re-clock ruling
-    requires must catch a single displaced unit, or it is not exact.
+    The re-clock (decided 2026-08-10) folds the window season onto its own
+    measured days, and its acceptance identity is an exact per-coordinate
+    reconciliation with the season's points. That reconciliation must catch a
+    single displaced unit, or it is not exact.
     """
     from aggregate import DAY_POINT_DTYPE  # noqa: PLC0415
 
@@ -513,7 +517,7 @@ def m_truncate_points_day(d):
 
 
 def m_approach_999(d):
-    """Every approach sample set to 999 ft. (audit)
+    """Every approach sample set to 999 ft.
 
     The old check asked whether the curve was LONG ENOUGH, which 999 satisfies
     as readily as 4.72 does.
@@ -524,7 +528,7 @@ def m_approach_999(d):
 
 
 def m_bucket_bounds(d):
-    """Every contest bound replaced with 99-100 ft. (audit)
+    """Every contest bound replaced with 99-100 ft.
 
     Nothing recomputed a record's category from its own distance, so the bounds
     were decorative.
@@ -536,7 +540,7 @@ def m_bucket_bounds(d):
 
 
 def m_bias_zero(d):
-    """The recovery bias gap replaced with zero. (audit)
+    """The recovery bias gap replaced with zero.
 
     Detection follows the ball back from the rim, so the recovered set CANNOT
     be unbiased; a zero here is the one value the artifact must not be able to
@@ -563,8 +567,9 @@ def m_overlap_strokes(d):
 def m_hero_jump(d):
     """A hero track given a single 20 ft frame-to-frame jump.
 
-    F-09: two of the four shipped 40 ms teleports of 16 and 22 ft, because the
-    shooter was re-selected every frame rather than bound at the release.
+    Two of the four heroes once shipped 40 ms teleports of 16 and 22 ft,
+    because the shooter was re-selected every frame rather than bound at the
+    release.
     """
     w = _load(d, "window.json")
     tr = w["contest"]["heroes"][0]["track"]
@@ -679,14 +684,13 @@ def m_covering_90_split(d):
     _save(d, "seasons.json", s)
 
 
-# --- the eleven V-05 gates that had no owning defect (session 7, S1) ---------
+# --- the filing's place, taxonomy and schedule gates -------------------------
 #
-# "Add a gate, add its defect" is the law and nobody staged these eleven when
-# sessions 5b's two V-05 commits added the gates. Each mutation below is
-# surgical on purpose - it corrupts exactly what its gate reads, so the RED
-# proves the named check and not a neighbour - but surgical is style, not the
-# rule: run_mutations counts a case caught when its named check fails, whatever
-# else fails beside it.
+# "Add a gate, add its defect" holds for each of these eleven gates. Each
+# mutation below is surgical on purpose - it corrupts exactly what its gate
+# reads, so the RED proves the named check and not a neighbour - but surgical
+# is style, not the rule: run_mutations counts a case caught when its named
+# check fails, whatever else fails beside it.
 
 def _season_row(s, year):
     """The one season row a surgical mutation edits."""
@@ -826,9 +830,9 @@ def m_schedule_description(d):
 def m_pin_unfollow(d):
     """A pinned sample row is released back into the scatter.
 
-    The exact double-count 5c closed, reintroduced: a shot the pin already
-    carries is drawn again as an ordinary mark, and labelled by THE LEDGER
-    as if the record had placed it.
+    The exact double-count the pin-follow gate exists to close, reintroduced:
+    a shot the pin already carries is drawn again as an ordinary mark, and
+    labelled by THE LEDGER as if the record had placed it.
     """
     sj = _load(d, "samples/season_2015.json")
     sj["pin"][sj["pin"].index(1)] = 0
@@ -895,7 +899,7 @@ def m_sentinel_sighted(d):
 def m_regime_vs_sentinel(d):
     """A season filing a displaced refusal, labelled as one that sees.
 
-    THE CONTRADICTION THIS SESSION CLOSED, PUT BACK. `resolution.regime` said
+    A CLOSED CONTRADICTION, PUT BACK. `resolution.regime` once said
     `uniformly_sighted` for all ten of 2010-11..2019-20 while `rim_sentinel` in
     the same dict said six of them pile several per cent of the season on a
     coordinate beside the rim - two keys of one artifact disagreeing about one
@@ -959,7 +963,7 @@ def m_pile_vocabulary(d):
     `share_of_type` is the measurement the whole composition finding rests on -
     that 97.7% of every shot the record calls a Dunk Shot in 2015-16 sits on one
     cell. A share above 1 is arithmetically impossible and would go straight into
-    CLAUDE.md as a finding if nothing asked.
+    the working notes as a finding if nothing asked.
     """
     s = _load(d, "seasons.json")
     for row in s["seasons"]:
@@ -973,7 +977,7 @@ def m_pile_vocabulary(d):
 def m_caption_population(d):
     """The pin's caption composed out of two different populations.
 
-    WHAT THIS SESSION'S P0 ACTUALLY WAS. `refused_action_types` was derived at
+    A P0, PUT BACK. `refused_action_types` was derived at
     the exact origin while the pin stands on the sentinel, so in 2017-18 it named
     the ten Driving Layups still filed at (0,0) against the 3,649 Tip Layups
     piled six tenths of a foot away. THE LEDGER composes the pin's label from the
@@ -1033,14 +1037,15 @@ def m_readme_figure(d):
     """A figure in README.md drifting from its own artifact.
 
     THE FILE THE PUBLIC REPO OPENS ON, and until 2026-08-09 it was gated by
-    nothing whatever while CLAUDE.md's figures were gated by thirty claims. That
-    asymmetry was not luck: a sweep of the README found fourteen stale or
-    self-contradicting claims - a defect count seven sessions old, a check-group
-    count four short, a sweep described as taking minutes that takes ten seconds,
-    and one paragraph duplicated with its two copies disagreeing. Most were
-    deleted rather than pinned, because a number a document does not need is
-    better removed than gated; the few it genuinely has to state are claims now,
-    and this is what one of them going stale looks like.
+    nothing whatever while the working notes' figures were gated by thirty
+    claims. That asymmetry was not luck: a sweep of the README found fourteen
+    stale or self-contradicting claims - a defect count long out of date, a
+    check-group count four short, a sweep described as taking minutes that
+    takes ten seconds, and one paragraph duplicated with its two copies
+    disagreeing. Most were deleted rather than pinned, because a number a
+    document does not need is better removed than gated; the few it genuinely
+    has to state are claims now, and this is what one of them going stale
+    looks like.
     """
     p = d / "README.md"
     p.write_text(p.read_text().replace("out of all 632 games", "out of all 640 games"))
@@ -1087,7 +1092,8 @@ def m_palette_verdict(d):
     right and only the CLAIM about them is wrong. FLIPPED rather than set,
     so the defect is a lie whichever way the shipped palette actually
     measures - an absolute `True` became a no-op the day the palette
-    cleared its target (2026-08-10, RUST-HELD applied).
+    cleared its target (2026-08-10, when palette_search.py's RUST_HELD
+    constraints were applied).
     """
     p = _load(d, "palette.json")
     p["meets_target"] = not p["meets_target"]
@@ -1101,8 +1107,9 @@ def m_palette_source_drift(d):
     data/processed/ - the two halves the gate exists to bind. The edit is
     RELATIVE (first ZONE_RGB entry, last channel nudged by one) rather than a
     hard-coded string swap: the old absolute replace silently became a no-op
-    when the palette's hues changed (2026-08-10, RUST-HELD applied), and a
-    mutation that mutates nothing is a defect the suite cannot see.
+    when the palette's hues changed (2026-08-10, when palette_search.py's
+    RUST_HELD constraints were applied), and a mutation that mutates nothing
+    is a defect the suite cannot see.
     """
     import re
 
@@ -1141,14 +1148,14 @@ def m_zone_byte(d):
 def m_unknown_file(d):
     """An unexpected file under data/processed/.
 
-    A new artifact must be added deliberately - that is the hook session 3's
-    deploy allowlist hangs off.
+    A new artifact must be added deliberately - that is the hook the deploy
+    allowlist hangs off.
     """
     (d / "leftover_scratch.json").write_text('{"note": "not in the required inventory"}\n')
 
 
 def m_paint_residual(d):
-    """Canvases eighty times past the corroboration threshold. (session 1b, D4)
+    """Canvases eighty times past the corroboration threshold.
 
     The old gate compared paint.json's reported max against paint.json's
     reported max_allowed, so raising both left it green.
@@ -1160,7 +1167,10 @@ def m_paint_residual(d):
 
 
 def m_chord(d):
-    """Sixty vertices drawing forty-foot chords against a tenth of arc. (D5)"""
+    """Sixty vertices drawing forty-foot chords against a tenth of arc.
+
+    The stroke bytes were once never decoded at all, so nothing could see this.
+    """
     p = _load(d, "paint.json")
     rec = p["files"]["vertices"]["record"]
     size = struct.calcsize(rec)
@@ -1186,12 +1196,12 @@ def m_measures_count(d):
 
 
 def m_clip(d):
-    """F-05 itself, put back: the caliper clipped to one byte of tenths.
+    """The one-byte clip, put back: the caliper clipped to one byte of tenths.
 
-    This is what shipped through session 2 - 30 records whose stored length was
-    25.5 ft while the two coordinates in the same row described up to 51.85 ft,
-    and a renderer that read the clipped value as a distance. The endpoint
-    cross-check is what has to see it.
+    This once shipped: 30 records whose stored length was 25.5 ft while the
+    two coordinates in the same row described up to 51.85 ft, and a renderer
+    that read the clipped value as a distance. The endpoint cross-check is what
+    has to see it.
     """
     w = _load(d, "window.json")
     mb = w["measures_bin"]
@@ -1226,7 +1236,8 @@ def m_caliper_p99(d):
 
     Rule 3: a mark's material properties derive from a measurement. If p99 can
     drift from the distribution it summarises, the splotch radius has quietly
-    stopped being a measurement of anything - which is F-05 in a new costume.
+    stopped being a measurement of anything - which is the one-byte clip in a
+    new costume.
     """
     w = _load(d, "window.json")
     w["contest"]["caliper_ft"]["p99"] = 25.5
@@ -1236,9 +1247,10 @@ def m_caliper_p99(d):
 def m_bias_disclosure(d):
     """The wall text drifting from the measurement it discloses.
 
-    F-12's fix is a templated string the piece draws verbatim. A coverage figure
-    edited in the artifact - or left behind by a re-run - puts an unmeasured
-    number on a public wall, which is the defect the fix exists to prevent.
+    The disclosure is a templated string the piece draws verbatim. A coverage
+    figure edited in the artifact - or left behind by a re-run - puts an
+    unmeasured number on a public wall, which is the defect the template exists
+    to prevent.
     """
     w = _load(d, "window.json")
     w["bias"]["disclosure"][0] = w["bias"]["disclosure"][0].replace("23.2%", "48.0%")
@@ -1295,11 +1307,11 @@ def m_day_past_calendar(d):
 def m_paint_stale_reader(d):
     """The two halves of the project disagreeing about a byte layout.
 
-    Nothing type-checks a record width: site/src/data.ts decoded 6- and 8-byte
-    paint records for three sessions after the pipeline moved to 8 and 11, and
+    Nothing type-checks a record width: site/src/data.ts once went on decoding
+    6- and 8-byte paint records after the pipeline moved to 8 and 11, and
     `tsc --noEmit` and `npm run build` both stayed clean while THE HAND drew a
     starburst of garbage. This re-declares the paint records at those old widths
-    against the reader session 4 landed.
+    against the current reader.
 
     It used to prove the REVERSE direction - a dated waiver outliving the
     mismatch it names - which is what it caught while data.ts was still on the
@@ -1314,9 +1326,9 @@ def m_paint_stale_reader(d):
 
 
 def m_d1_votes(d):
-    """D1: a non-zero offset accepted on far too few votes.
+    """A non-zero offset accepted on far too few votes.
 
-    Session 1's gate read `votes.games_under_min >= 0 and all(... for k, v in
+    The original gate read `votes.games_under_min >= 0 and all(... for k, v in
     event_offsets if abs(k) == 12)`. The first term is a count and cannot be
     negative; the second filters the offset distribution to the search
     boundary, which decide_offset converts to zero before counting, so `all()`
@@ -1333,7 +1345,7 @@ def m_d1_votes(d):
 
 
 def m_d1_lift(d):
-    """D1: an accepted shift with no lift over the straight join."""
+    """An accepted shift with no lift over the straight join."""
     w = _load(d, "window.json")
     a = w["recovery"]["accepted_offsets"]
     a[0]["at_zero"] = a[0]["votes"]
@@ -1341,7 +1353,7 @@ def m_d1_lift(d):
 
 
 def m_d2_boundary(d):
-    """D2: four hundred games whose argmax landed on the search boundary.
+    """Four hundred games whose argmax landed on the search boundary.
 
     The shipped gate read offsets_on_search_boundary, which is zero however
     narrow the search is. The number that reveals it was printed, never gated.
@@ -1352,7 +1364,7 @@ def m_d2_boundary(d):
 
 
 def m_d3_heldout(d):
-    """D3: one testable game, agreeing essentially never.
+    """One testable game, agreeing essentially never.
 
     The old gate asked only that held_out_agreement was not None and
     held_out_games > 0.
@@ -1367,14 +1379,14 @@ def m_d3_heldout(d):
 
 
 def m_d3_aggregate(d):
-    """D3: the headline agreement moved without the evidence moving."""
+    """The headline agreement moved without the evidence moving."""
     w = _load(d, "window.json")
     w["recovery"]["held_out_agreement"] = 0.99
     _save(d, "window.json", w)
 
 
 def m_a1_searched(d):
-    """A1: games decided on the anchor-keyed vector, where zero cannot lose."""
+    """Games decided on the anchor-keyed vector, where zero cannot lose."""
     w = _load(d, "window.json")
     total = sum(w["recovery"]["searched"].values())
     w["recovery"]["searched"] = {"full": total - 445, "direct": 445}
@@ -1382,10 +1394,10 @@ def m_a1_searched(d):
 
 
 def m_b_coincident(d):
-    """B: two body slots of one canvas that are one detection reported twice.
+    """Two body slots of one canvas that are one detection reported twice.
 
-    A merged track is perfectly continuous, so every check session 1 added -
-    including the full-rate realignment in check_strokes - passes on it.
+    A merged track is perfectly continuous, so every continuity and alignment
+    check - including the full-rate realignment in check_strokes - passes on it.
     """
     p = _load(d, "paint.json")
     srec = p["files"]["index"]["record"]
@@ -1409,7 +1421,7 @@ def m_b_coincident(d):
 
 
 def m_b_shipped_min(d):
-    """B: a shipped canvas whose two closest bodies sat inside the rule.
+    """A shipped canvas whose two closest bodies sat inside the rule.
 
     The byte gate works at the storage quantum, because simplification moves
     the drawn line; this is the rule at the precision it was measured at.
@@ -1420,17 +1432,17 @@ def m_b_shipped_min(d):
 
 
 def m_c1_terminus(d):
-    """C1: the paint stops three weeks short of the window's closure."""
+    """The paint stops three weeks short of the window's closure."""
     p = _load(d, "paint.json")
     p["date_last"] = "2016-01-03"
     _save(d, "paint.json", p)
 
 
-# Project memory is TWO files since 2026-08-09 - CLAUDE.md for standing
-# instruction, docs/build/findings.md for the record - and a gated claim may sit
-# in either. A mutation that only ever edits CLAUDE.md therefore stopped biting
-# the moment the sentence it targets moved: both of these survived the split
-# until they were taught to follow the claim rather than the filename. Both
+# Project memory is TWO files since 2026-08-09 - one for standing instruction,
+# one the record of how the piece was built (the same two files as
+# qa.MEMORY_DOCS) - and a gated claim may sit in either. A mutation that only
+# ever edits the first stops biting the moment the sentence it targets moves to
+# the second, so both of these follow the claim rather than the filename. Both
 # files are gitignored working notes; where neither is on disk, the two cases
 # that edit them are SKIPPED by run_mutations and counted in its verdict.
 _MEMORY_FILES = ("CLAUDE.md", "docs/build/findings.md")
@@ -1453,8 +1465,8 @@ def m_memory_figure(d):
     """A quantitative claim in project memory drifting from its own artifact.
 
     Exactly what happened to `recovery.attribution_agreement`, which was written
-    into the file as 0.8536 while window.json said 0.8573 - inside one session,
-    with nothing able to see it.
+    into the notes as 0.8536 while window.json said 0.8573, with nothing able
+    to see it.
     """
     _mutate_memory(d, "`recovery.rate` **0.4545**", "`recovery.rate` **0.5545**")
 
@@ -1467,7 +1479,7 @@ def m_memory_missing(d):
 def m_allowlist_extra(d):
     """A private artifact quietly added to the list the deploy reads.
 
-    F-07 in one line: publishing by editing a file instead of by deciding.
+    The defect in one line: publishing by editing a file instead of by deciding.
     """
     p = d / "pipeline" / "deploy_allowlist.json"
     a = json.loads(p.read_text())
@@ -1484,32 +1496,32 @@ def m_allowlist_drop(d):
 
 
 CASES = [
-    # --- the three deletions the audit proved survive -------------------------
+    # --- whole artifacts deleted, which a presence-blind gate once passed -----
     Case("delete-window", ["inventory"], "every required artifact is present",
          _delete("window.json"),
-         "(audit) the whole window stage could be deleted and the gate stayed green"),
+         "the whole window stage deleted, which an earlier gate passed green"),
     Case("delete-measures", ["inventory"], "every required artifact is present",
-         _delete("window_measures.bin"), "(audit) same, for the caliper binary"),
+         _delete("window_measures.bin"), "same, for the caliper binary"),
     Case("delete-paint", ["inventory"], "every required artifact is present",
-         _delete("paint.json"), "(audit) same, for the paint"),
+         _delete("paint.json"), "same, for the paint"),
     Case("delete-strokes", ["inventory"], "every required artifact is present",
-         _delete("paint_strokes.bin"), "(audit) same, for the stroke vertices"),
+         _delete("paint_strokes.bin"), "same, for the stroke vertices"),
     Case("delete-index", ["inventory"], "every required artifact is present",
-         _delete("paint_index.bin"), "(audit) same, for the stroke index"),
+         _delete("paint_index.bin"), "same, for the stroke index"),
     Case("delete-traces", ["inventory"], "every required artifact is present",
-         _delete("traces.json"), "(audit) traces.json appeared nowhere in the gate"),
+         _delete("traces.json"), "same, for traces.json, which once appeared nowhere in the gate"),
 
     # --- zeroed, randomised, truncated ---------------------------------------
     Case("zero-measures", ["window"], "the published attempt counts are the ones in the file",
-         m_zero_measures, "(audit) equal-length zeros satisfied a size check exactly"),
+         m_zero_measures, "equal-length zeros, which satisfy a size check exactly"),
     Case("zero-strokes", ["paint"], "the painted seconds are the frames the file actually carries",
-         m_zero_strokes, "(audit) the stroke bytes were never opened"),
+         m_zero_strokes, "equal-length zeros in stroke bytes an earlier gate never opened"),
     Case("zero-index", ["paint"], "the canvas ids are a dense range",
-         m_zero_index, "(audit) the index was validated by byte length"),
+         m_zero_index, "equal-length zeros in an index once validated only by byte length"),
     Case("zero-points", ["shot_artifacts"], "samples/grids/points consistent with seasons.json",
-         m_zero_points, "already caught before this session; kept as a regression"),
+         m_zero_points, "equal-length zeros; always caught, kept as a regression"),
 
-    # --- the filing (V-05): places are load-bearing geometry now --------------
+    # --- the filing: places are load-bearing geometry -------------------------
     Case("filing-drop", ["filing"],
          "every category the tally counts has a place, and no place has no category",
          m_filing_drop, "a category with no place is a word the census silently does not strike"),
@@ -1530,7 +1542,7 @@ CASES = [
          "the ledger's label budget is the census's DESCRIPTION budget",
          m_covering_90_split, "two hands stop reading one measurement"),
 
-    # --- the eleven V-05 gates that had no owning defect (session 7, S1) ------
+    # --- the filing's place, taxonomy and schedule gates ----------------------
     Case("place-degenerate", ["filing"],
          "no category carries a degenerate place",
          m_place_degenerate,
@@ -1567,7 +1579,7 @@ CASES = [
          m_schedule_description,
          "a vocabulary change claimed for a season that held still"),
 
-    # --- the pin is followed (session 7, S2) ----------------------------------
+    # --- the pin is followed --------------------------------------------------
     Case("pin-unfollow", ["filing"],
          "every sample pin row is the sentinel's cell, and every cell row is pinned",
          m_pin_unfollow,
@@ -1578,7 +1590,7 @@ CASES = [
          m_unplaced_drift,
          "a category quietly places a slice of the pile the pin already carries"),
 
-    # --- where the record's refusal actually is (5b) --------------------------
+    # --- where the record's refusal actually is -------------------------------
     Case("sentinel-move", ["filing"],
          "origin_snapped is the refusal only when the refusal is at the origin",
          m_sentinel_move,
@@ -1591,7 +1603,7 @@ CASES = [
          "the seasons in which the record refuses no rim shot at all",
          m_sentinel_sighted, "a refusing season relabelled as a sighted one"),
 
-    # --- the pile is not one thing, and the regime says so (5c) ---------------
+    # --- the pile is not one thing, and the regime says so --------------------
     Case("regime-vs-sentinel", ["resolution"],
          "no season is labelled as placing every rim shot while its sentinel refuses",
          m_regime_vs_sentinel,
@@ -1613,7 +1625,7 @@ CASES = [
          m_caption_population,
          "the pin's count from one population and its name from another"),
 
-    # --- the second instrument on the record's own refusal (5c) ---------------
+    # --- the second instrument on the record's own refusal --------------------
     Case("corroboration-stale", ["window"],
          "the corroborated coordinate is the one the record was measured to pile on",
          m_corroboration_stale, "evidence left describing a coordinate that has moved"),
@@ -1631,10 +1643,10 @@ CASES = [
     Case("readme-figure", ["memory"],
          "every gated memory claim is what the artifact says",
          m_readme_figure,
-         "the file the public repo opens on, gated by nothing until 5c",
+         "a figure drifting in the file the public repo opens on",
          scope="repo"),
 
-    # --- the palette (V-03): the claim, and the values it is about ------------
+    # --- the palette: the claim, and the values it is about -------------------
     Case("palette-collide", ["palette"], "every condition clears the declared floor",
          m_palette_collide, "two of the league's categories drawn in one colour"),
     Case("palette-stale", ["palette"], "every filed separation is what the metric gives",
@@ -1665,16 +1677,16 @@ CASES = [
 
     # --- values that were never compared against anything --------------------
     Case("approach-999", ["window"], "every approach sample is a distance this floor can hold",
-         m_approach_999, "(audit) the check asked for length, not for meaning"),
+         m_approach_999, "a curve of the right length and no meaning"),
     Case("bucket-bounds", ["window"],
          "every record's category follows from its own distance and the published bounds",
-         m_bucket_bounds, "(audit) nothing reclassified a record from its own distance"),
+         m_bucket_bounds, "decorative bounds: no record reclassified from its own distance"),
     Case("bias-zero", ["window"], "the gap is the difference between the two figures beside it",
-         m_bias_zero, "(audit) the bias could be declared absent, which it cannot be"),
+         m_bias_zero, "the recovery bias declared absent, which an earlier gate allowed and it cannot be"),
     Case("overlap-strokes", ["paint"], "the stroke index partitions the vertex array",
          m_overlap_strokes, "two strokes sharing vertices, same file length"),
     Case("hero-jump", ["window"], "no hero's bound shooter makes a step no body could make",
-         m_hero_jump, "F-09: a 20 ft step inside one 40 ms frame"),
+         m_hero_jump, "a 20 ft step inside one 40 ms frame"),
     Case("season-share", ["spine"], "2015-16 mid-range share",
          m_season_share, "the ground truth moved by a thousandth"),
     Case("zone-byte", ["shot_artifacts"],
@@ -1686,7 +1698,7 @@ CASES = [
     Case("points-day-one-shot", ["shot_artifacts"],
          "points_by_day reconciles with points/season_2015.bin per coordinate",
          m_points_day_one_shot,
-         "the re-clock ruling's acceptance identity: one unit off, red"),
+         "the re-clock's acceptance identity: one unit off, red"),
     Case("points-day-stray-day", ["shot_artifacts"],
          "points_by_day carries the window's own calendar",
          m_points_day_stray_day, "a day the season never played"),
@@ -1697,27 +1709,27 @@ CASES = [
          "points_by_day is filed in its fold order, whole records",
          m_truncate_points_day, "a record lost off the season's tail"),
     Case("unknown-file", ["inventory"], "no unknown file has appeared under data/processed/",
-         m_unknown_file, "the hook session 3's deploy allowlist hangs off"),
+         m_unknown_file, "an undeclared artifact - the hook the deploy allowlist hangs off"),
 
-    # --- the defects session 1b closed, kept as regressions ------------------
+    # --- paint defects that once shipped, kept as regressions ----------------
     Case("paint-residual", ["paint"],
          "no canvas ships an anchor residual over the corroboration threshold",
-         m_paint_residual, "D4: a file checked against itself"),
+         m_paint_residual, "a file checked against itself"),
     Case("chord", ["paint"], "no drawn segment exceeds the arc measured for it",
-         m_chord, "D5: nothing had ever opened paint_strokes.bin"),
+         m_chord, "chords no arc allows, in bytes nothing used to open"),
 
-    # --- new invariants this session adds ------------------------------------
+    # --- each figure is what the bytes beneath it say ------------------------
     Case("measures-count", ["window"], "measures.bin holds the record count it declares",
          m_measures_count, "the declared count and the file's contents parting company"),
     Case("clip", ["window"], "every caliper is the distance between its own endpoints",
-         m_clip, "F-05: the one-byte clip, put back"),
+         m_clip, "the one-byte caliper clip, put back"),
     Case("ceiling", ["window"], "no caliper is filed at the encoding's ceiling",
          m_ceiling, "a caliper the encoding could not say"),
     Case("caliper-p99", ["window"], "every published caliper percentile is the one in the file",
          m_caliper_p99, "the reference a mark's radius is measured against, detached"),
     Case("bias-disclosure", ["window"],
          "the disclosure the piece draws is composed of the figures beside it",
-         m_bias_disclosure, "F-12: wall text drifting from its own measurement"),
+         m_bias_disclosure, "wall text drifting from its own measurement"),
     Case("trace-anchor", ["traces"], "every trace's release point is the residual it reports",
          m_trace_anchor, "a gesture drawn at a dot it does not belong to"),
     Case("occupancy-share", ["window"], "every band's share is its own count",
@@ -1730,33 +1742,33 @@ CASES = [
     Case("day-past-calendar", ["paint"], "every stroke's day names a day the calendar has",
          m_day_past_calendar, "a day index past the end of the calendar it indexes"),
 
-    # --- the four unfailable gates session 1b replaced -----------------------
-    # These arrived in break_gates.py, which is where they were first shown to
-    # go red. They live here now so the fast in-process suite covers them too,
-    # and break_gates runs the same list end to end through a real subprocess.
+    # --- window and paint gates that once could not fail ---------------------
+    # These were first shown to go red in break_gates.py. They live here so the
+    # fast in-process suite covers them too, and break_gates runs the same list
+    # end to end through a real subprocess.
     Case("D1-votes", ["window"], "no accepted shift falls below the minimum vote count",
-         m_d1_votes, "D1: a hard tautology - a count >= 0 and an all() over nothing"),
+         m_d1_votes, "an offset accepted on too few votes - the old gate was a tautology"),
     Case("D1-lift", ["window"],
          "every accepted shift clears the straight join by the declared factor",
-         m_d1_lift, "D1: an accepted shift with no lift over the straight join"),
+         m_d1_lift, "an accepted shift with no lift over the straight join"),
     Case("D2-boundary", ["window"],
          "no game's argmax was refused for landing on the search boundary",
-         m_d2_boundary, "D2: a count that is zero by construction stood in for the real one"),
+         m_d2_boundary, "boundary argmaxes, once hidden behind a count zero by construction"),
     Case("D3-heldout", ["window"], "the held-out split is drawn from most of the corpus",
-         m_d3_heldout, "D3: 'the figure exists' passed with one game agreeing 0.0001"),
+         m_d3_heldout, "'the figure exists' passed with one game agreeing 0.0001"),
     Case("D3-aggregate", ["window"], "the held-out aggregate is the split it summarises",
-         m_d3_aggregate, "D3: the headline moved without the evidence moving"),
+         m_d3_aggregate, "the headline moved without the evidence moving"),
     Case("A1-searched", ["window"], "every game's offset was decided on the full release set",
-         m_a1_searched, "A1: 445 games decided on a vector where zero could not lose"),
+         m_a1_searched, "445 games decided on a vector where zero could not lose"),
     Case("B-coincident", ["paint"], "no canvas draws two bodies inside one coordinate quantum",
          m_b_coincident, "Rule 7: one detection painted twice, perfectly continuous"),
     Case("B-shipped-min", ["paint"],
          "no shipped canvas holds two bodies closer than the rule allows",
          m_b_shipped_min, "Rule 7 at the precision it was measured at"),
     Case("C1-terminus", ["paint"], "the paint reaches the window's opening and its closure",
-         m_c1_terminus, "C1: THE HAND stopping three weeks short of what it is about"),
+         m_c1_terminus, "THE HAND stopping three weeks short of what it is about"),
 
-    # --- session 3's gates, which read outside data/processed/ --------------
+    # --- gates that read outside data/processed/ ----------------------------
     Case("memory-figure", ["memory"], "every gated memory claim is what the artifact says",
          m_memory_figure, "a figure in the working notes drifting from its own artifact",
          scope="repo", needs_notes=True),
@@ -1764,16 +1776,16 @@ CASES = [
          m_memory_missing, "a gated claim reworded away instead of corrected",
          scope="repo", needs_notes=True),
     Case("allowlist-extra", ["deploy"], "the allowlist the site reads is the table the gate holds",
-         m_allowlist_extra, "F-07: publishing by editing a file instead of by deciding",
+         m_allowlist_extra, "publishing by editing a file instead of by deciding",
          scope="repo"),
     Case("allowlist-drop", ["deploy"], "the allowlist the site reads is the table the gate holds",
-         m_allowlist_drop, "F-07: an artifact the piece fetches, silently unpublished",
+         m_allowlist_drop, "an artifact the piece fetches, silently unpublished",
          scope="repo"),
 
-    # --- session 10: THE QUARREL, the first artifact added under the allowlist
-    # mechanism, so its defects are also the mechanism's first test ------------
+    # --- THE QUARREL, the first artifact added under the allowlist mechanism,
+    # so its defects are also the mechanism's first test ------------------------
     Case("delete-quarrel", ["inventory"], "every required artifact is present",
-         _delete("quarrel.bin"), "the export both audits asked for, deleted whole"),
+         _delete("quarrel.bin"), "the two instruments' disagreement, deleted whole"),
     Case("zero-quarrel", ["window"],
          "the shipped bytes reproduce disagreement.median_ft within the storage quantum",
          m_zero_quarrel,
@@ -1797,7 +1809,7 @@ CASES = [
          "the quarrel's scope line quotes its own population and centre",
          m_quarrel_scope, "wall text drifting from the artifact it rides in"),
 
-    # --- session 14: THE SLATE, the night's artifact --------------------------
+    # --- THE SLATE, the night's artifact --------------------------------------
     Case("delete-slate", ["inventory"], "every required artifact is present",
          _delete("slate_strokes.bin"), "the night's paths, deleted whole"),
     Case("zero-slate", ["slate"],
@@ -1815,7 +1827,7 @@ CASES = [
     Case("slate-overrun", ["slate"], "every slate path fits inside the found span",
          m_slate_overrun, "one path pushed past the span the night declares"),
 
-    # --- session 15: THE GAME and THE WASH, the four scales' artifacts --------
+    # --- THE GAME and THE WASH, the four scales' artifacts --------------------
     Case("delete-game", ["inventory"], "every required artifact is present",
          _delete("game_strokes.bin"), "the game's strokes, deleted whole"),
     Case("zero-game", ["game"],
@@ -1892,7 +1904,7 @@ def run_mutations(processed=PROCESSED_DIR, only=None, quiet=False):
         root = Path(tmp) / "work"
 
         # A repo-shaped root, not a bare processed directory: the `memory`,
-        # `deploy` and `palette` groups read CLAUDE.md,
+        # `deploy` and `palette` groups read README.md, the working notes,
         # pipeline/deploy_allowlist.json and two site source files, and a gate
         # that cannot be aimed at a copy cannot be mutation-tested at all.
         #

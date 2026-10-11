@@ -13,7 +13,7 @@ import {
   WINDOW_SEASON_CREST,
 } from "./window-score";
 
-/** The plan's six acts - the argument's structure. Distinct from the record's
+/** The piece's six acts - the argument's structure. Distinct from the record's
  *  resolution regimes, which are measured in the data and layer on top. */
 export type Act = 0 | 1 | 2 | 3 | 4 | 5;
 
@@ -49,11 +49,11 @@ export const SEASON_SECONDS = 11;
  * THE FOUR CONSTANTS IN THIS FILE ARE THE SCHEDULE'S ONLY SOURCE.
  * `pipeline/facts.py` reads them out of this source, multiplies them against
  * the season count in seasons.json, and emits `facts.json:derived.loop.seconds`
- * and `loop.clock`. Every statement of the runtime - in the README, in
- * CLAUDE.md, in the rail - resolves back here, and qa.py gates the prose
- * against it. This comment used to state the loop length and the window's share
- * of it directly, and both were wrong: the arithmetic had moved and the
- * sentence had not.
+ * and `loop.clock`. Every statement of the runtime - in the README, in the
+ * local working notes, in the rail - resolves back here, and qa.py gates the
+ * prose against it. This comment used to state the loop length and the
+ * window's share of it directly, and both were wrong: the arithmetic had
+ * moved and the sentence had not.
  */
 // Literal mirror required by pipeline/facts.py, which parses (rather than
 // executes) this file. All Window interiors live in window-score.ts; the guard
@@ -66,21 +66,21 @@ if (WINDOW_SECONDS !== WINDOW_DURATION_SECONDS) {
 
 /**
  * The window's four beats, as fractions of its phase — THE CRESCENDO
- * (artist rulings, 2026-08-10; findings.md "Three rulings — the crescendo").
+ * (decided 2026-08-10).
  *
  * A scale crescendo: one possession, then one night — the Dec 5 slate, the
  * misnamed games the archive nearly lost — then the whole season
  * accelerating over its real calendar, then the close unchanged. THE INSTANT
- * is cut by ruling: the reasoning is volume, not doubt, and the
- * gather-vs-release finding survives as presenter narration with its keyed
- * figures, undrawn.
+ * is cut: the reasoning is volume, not doubt, and the gather-vs-release
+ * finding survives as spoken narration in the talk, with its keyed figures,
+ * undrawn.
  *
  * Defined in window-score.ts rather than inside any hand, because renderers,
  * rail, keys, and probes all read them. Re-exported here for the long-standing
  * schedule API.
  *
- * Names and fractions are AUTHORED SCORE and are proposed copy — flagged in
- * the session-14 packet for the artist's ruling, like every beat title.
+ * Names and fractions are AUTHORED SCORE and are proposed copy — provisional
+ * and open to revision, like every beat title.
  */
 export const WINDOW_BEATS = SCORED_WINDOW_BEATS;
 
@@ -99,10 +99,10 @@ export const ARRIVAL_TAIL = 0.62;
 /**
  * WHERE THE FILED RECORD RE-ASSERTS ITSELF, as a fraction of the window's
  * season beat — the crescendo's crest, where the accelerated calendar enters
- * its fastest passage. A phase anchor, not a material; first value flagged in
- * the session-14 packet. Owned by window-score.ts; this compatibility export
- * keeps older consumers on the same value. The window's 24·6 inscription and
- * the kept points therefore cannot drift apart.
+ * its fastest passage. A phase anchor, not a material; its value is an
+ * authored first choice, open to revision. Owned by window-score.ts; this
+ * compatibility export keeps older consumers on the same value. The window's
+ * 24·6 inscription and the kept points therefore cannot drift apart.
  */
 export const KEPT_CREST = WINDOW_SEASON_CREST;
 

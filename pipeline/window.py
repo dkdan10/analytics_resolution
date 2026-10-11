@@ -27,7 +27,10 @@ Two disciplines run through all of it:
 
 Staged for survivability: every game writes its own artifact under
 data/window/games/, so a 632-game run resumes where it stopped and one bad
-archive costs one game rather than the run. Nothing here calls die().
+archive costs one game rather than the run. The per-game derive never calls
+die(): a failure inside one archive is caught and reported as that game's
+error. die() is reserved for the probe gate and the reduce, where a missing
+input or a broken invariant has to stop the whole stage.
 
 Writes data/processed/window.json (derived, committable) and
 data/processed/window_measures.bin. Bulk archives stay in data/raw/ and are
@@ -868,7 +871,7 @@ def measure_occupancy(frames):
     read in the same bands. Available only here, because this is the only
     period with a ball to follow.
 
-    THE WASH's half (session 15): every tracked body as well, folded toward its
+    THE WASH's half: every tracked body as well, folded toward its
     OWN nearer hoop - the ball grid's rule applied per body - on the same 1-ft
     lattice. Counted whether or not the moment carries a ball, because the
     bodies are tracked whether or not the ball is.
@@ -1161,8 +1164,8 @@ def derive_game(archive_path, anchors_by_game, label):
         "occupancy_bands": occupancy["bands"],
         "occupancy_total": occupancy["total"],
         "occupancy_grid": {f"{k[0]},{k[1]}": v for k, v in occupancy["grid"].items()},
-        # THE WASH's per-game half: exactly two keys, so the session-15
-        # determinism tripwire can state its own pass condition.
+        # THE WASH's per-game half: exactly two keys, so the determinism
+        # tripwire can state its own pass condition.
         "body_grid": {f"{k[0]},{k[1]}": v for k, v in occupancy["body_grid"].items()},
         "body_total": occupancy["body_total"],
         "measures": measures,
@@ -1306,7 +1309,8 @@ def load_anchors():
 # Per-shot record in window_measures.bin. Shooter and defender in the shot
 # record's own frame (tenths, hoop at origin), the caliper's length, and the
 # category it was filed under. No player identities and no trajectories: the
-# frame-level record never leaves this machine (CLAUDE.md data rights).
+# frame-level record never leaves this machine (data rights: rule 6, README,
+# The rules).
 MEASURE_REC = "<hhhhHBBB"  # x, y, dx, dy, dist_tenths, bucket, made, day
 MEASURE_BYTES = 13
 
@@ -1342,7 +1346,7 @@ WASH_Y0, WASH_Y1 = -5, 42
 # This was one byte - 25.5 ft - under a comment claiming no defender the caliper
 # draws is further away than that. The comment was false by 26.35 ft: 30 of
 # 48,330 records had endpoint geometries beyond 25.5 ft and all of them collapsed
-# onto the same byte, the longest of them 51.85 ft (audit F-05). A uint16 costs
+# onto the same byte, the longest of them 51.85 ft. A uint16 costs
 # one byte per record and cannot be reached by anything on a basketball floor -
 # the longest diagonal of a 94 x 50 ft court is ~106 ft, or 1,065 tenths - so the
 # encoding no longer decides anything. Reaching this ceiling is now a hard stop
@@ -1519,7 +1523,7 @@ def measure_sentinel_corroboration(anchors):
         "games": games,
         "filed_season": filed_season,
         "instrument": "SportVU optical tracking, 2015-16 public release",
-        # CORRECTED 2026-08-09 by this session's own adversarial pass. This field
+        # CORRECTED 2026-08-09 by an adversarial re-check. This field
         # used to read "the shooter's feet at release, which the join does not
         # constrain", and that was false: the join bounds the BALL to 6 ft of the
         # filed coordinate and the ball sits above the shooter, so the feet are
@@ -1910,7 +1914,7 @@ def reduce_all():
         # it. `why` is the full statement and is too long for the plate; these
         # are what THE MEASURE and THE LEDGER actually draw, so the piece
         # discloses the selection in the same frame as any figure taken from it
-        # rather than composing a sentence of its own (audit F-12).
+        # rather than composing a sentence of its own.
         "scope": (
             f"RECOVERED SET · {100 * bias_share:.1f}% OF THE SEASON"
             if measured else None
@@ -2203,8 +2207,8 @@ def reduce_all():
             # scale a mark against: THE HAND draws each shot as a splotch whose
             # radius rises with how open the shooter was, and it used to
             # normalise that against 255 - the old one-byte storage ceiling -
-            # which was a property of the file format and not of basketball
-            # (audit F-05). The renderer now normalises at p99 and draws the
+            # which was a property of the file format and not of basketball.
+            # The renderer now normalises at p99 and draws the
             # 1% beyond it at the maximum radius, so the reference is a measured
             # property of the distribution being drawn.
             "caliper_ft": {
@@ -2269,7 +2273,7 @@ def reduce_all():
             "frames_total": occupancy_total,
             "grid": dict(sorted(occupancy_grid.items())),
         },
-        # THE WASH (session 15): the four scales' dried ground. One raster per
+        # THE WASH: the four scales' dried ground. One raster per
         # game day; the renderer folds them, and the fold's subset->superset
         # ordering is BY MEASURE because every scale sums the same cells.
         "wash": {

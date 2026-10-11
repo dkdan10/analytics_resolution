@@ -109,7 +109,7 @@ function resize(): void {
 /**
  * The presenter's keyboard.
  *
- * Two keyboard gaps named by the audit, both closed here: the window's four beats had no key at
+ * Two keyboard gaps, both closed here: the window's four beats had no key at
  * all — the one segment long enough to have an inside, and the only way in was
  * to find it with a mouse — and neither did the hand. Beats take the digits
  * straight after the acts, so the number row reads as the piece's own order:
@@ -139,9 +139,9 @@ function bindTalkKeys(
   schedule: Schedule,
   cycleMode: () => void,
   stack: StackKeys,
-  /** The prev/next STOP walk the transport buttons already use (session 17,
-   *  the rail trim): `,`/`.` step the same score the rail shows — sub-stops
-   *  included — instead of a fixed season-length jump. */
+  /** The prev/next STOP walk the transport buttons already use: `,`/`.` step
+   *  the same score the rail shows — sub-stops included — instead of a fixed
+   *  season-length jump. */
   nudgeStop: (dir: -1 | 1) => void,
 ): void {
   // The four SHARED beats, straight from the one definition. Deliberately not
@@ -202,10 +202,10 @@ function bindTalkKeys(
       case "w":
         clock.seek(seekTo(2015, schedule));
         break;
-      // The one cut the piece allows, one key away (session 17, the rail
-      // trim). `x` — the cut mark; NOT `c`, which is THE STACK's CLASSIFY
-      // while the stack is pinned, and a key that changes meaning with the
-      // pin is a trap. Choice packet-flagged.
+      // The one cut the piece allows, one key away. `x` — the cut mark; NOT
+      // `c`, which is THE STACK's CLASSIFY while the stack is pinned, and a
+      // key that changes meaning with the pin is a trap. The key choice is
+      // provisional.
       case "x":
         clock.seek(seekTo(CUT_YEAR, schedule));
         break;
@@ -359,7 +359,7 @@ async function main(): Promise<void> {
   // draws the whole record. THE STACK opens on bare stone and is driven entirely
   // from the rail and the keyboard, neither of which exists on a wall machine —
   // so `/?mode=stack` there would pin an empty plate with no way out of it.
-  // Artist's ruling, 2026-08-09: require talk or nav. An ignored `?mode=` falls
+  // Decision (2026-08-09): require talk or nav. An ignored `?mode=` falls
   // back to the rotation, which is the same thing a misspelt one has always done.
   // A semantic stop is a complete address: it selects both the frame and the
   // hand that makes that frame meaningful. A conflicting legacy `?mode=` may
@@ -378,11 +378,11 @@ async function main(): Promise<void> {
    */
   let ops: StackOps = parseOps(q.get("ops"));
   /** URL-loaded operations are complete. Entries appear here only for controls
-   * invoked during this session, where the value is their monotonic UI-clock
+   * invoked since the page loaded, where the value is their monotonic UI-clock
    * t0. Operation feedback still runs while the score itself is paused. */
   const opStarted = new Map<OpId, number>();
   /** What ALL RENDERINGS was applied over, so releasing it returns to exactly
-   *  that. The artist chose hold-until-released over a decaying transient, which
+   *  that. Hold-until-released was chosen over a decaying transient, which
    *  is why the return is a remembered NUMBER and not an arithmetic — restoring
    *  it is byte-identical because it is the same configuration. */
   let beforeAll: StackOps = ops;
@@ -420,7 +420,7 @@ async function main(): Promise<void> {
       modeOverride = i >= MODE_IDS.length ? null : MODE_IDS[i]!;
     };
     // The prev/next STOP walk — ONE implementation for the transport buttons
-    // and the `,`/`.` keys (session 17). Recomputed per press, never
+    // and the `,`/`.` keys. Recomputed per press, never
     // captured: the stop list follows the pinned hand (THE SECOND SCORE).
     // Step by segment INDEX, never by elapsed seconds — a seek leaves the
     // clock running, and any time-window test makes each press depend on how
@@ -468,7 +468,7 @@ async function main(): Promise<void> {
         address();
       },
       all: () => {
-        // Hold until released (artist's ruling): the argumentative event IS the
+        // Hold until released, by design: the argumentative event IS the
         // configuration with every bit set, and the presenter decides how long
         // the audience sits in it. Pressing again restores the previous mask.
         const availableMask = OPERATIONS.reduce(
@@ -538,7 +538,7 @@ async function main(): Promise<void> {
         // so the gallery behaviour is always one click away. Same function the
         // H key calls.
         cycleMode,
-        // The direct choice (session 17, the rail trim): the seven hands as
+        // The direct choice: the seven hands as
         // one press each, beside the cycle the muscle memory keeps. Null
         // releases the pin back to the rotation.
         pinMode: (id) => {
@@ -631,7 +631,7 @@ async function main(): Promise<void> {
 }
 
 /**
- * The one thing a viewer should ever see go wrong (audit F-15).
+ * The one thing a viewer should ever see go wrong.
  *
  * `main()` was launched with a bare `void main();`, so an initialisation failure
  * left a black canvas and a console nobody in a gallery is reading. That is the

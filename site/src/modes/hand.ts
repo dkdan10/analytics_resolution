@@ -68,7 +68,7 @@
  * deliberate departure: a stroke crossing an earlier stroke must cover it, or
  * the canvas is a glow instead of a painting.
  *
- * ONE DOCUMENTED EXCEPTION INSIDE THE EXCEPTION (session 15): THE WASH — the
+ * ONE DOCUMENTED EXCEPTION INSIDE THE EXCEPTION: THE WASH — the
  * four scales' dried ground — blits `lighter` inside its own save/restore
  * (src/wash.ts). The wash is not paint; it is the ground the strokes dry
  * into, and a ground that occluded the drops beneath it would invert the
@@ -81,8 +81,8 @@
  * moved forward, calling that "a rebuild, not a memory". It was a memory: the
  * purity probe found `forward` differing from a cold render by tens of
  * thousands of channels at every window beat while `backward` and `continuous`
- * agreed, which is the signature of a surface drawn on across two JS turns
- * (audit F-04). Both layers now accumulate through `src/prefix.ts`, whose one
+ * agreed, which is the signature of a surface drawn on across two JS turns.
+ * Both layers now accumulate through `src/prefix.ts`, whose one
  * invariant is that a cached surface is built in a single burst onto a cleared
  * canvas and never drawn on again. See that file for why that is the strong
  * form and how the recursion makes forward and backward the same picture.
@@ -165,7 +165,7 @@ const BONE = BONE_RGB.split(",").map((v) => Number(v.trim()));
  *
  * This file used to announce DRIP as "the one authored scalar", eight lines
  * above a comment recording that BORE had been looked at by eye — which was two
- * claims and only one of them true (audit F-06). DRIP is the brush's flow rate
+ * claims and only one of them true. DRIP is the brush's flow rate
  * and BORE its width, and both were chosen; the regime boundaries and the
  * splotch scale are measured and come from the artifacts; RAYLEIGH is physics.
  * Each is classified and disclosed in the register, with what it controls.
@@ -284,7 +284,7 @@ function scatterOrder(owner: object, n: number): Int32Array {
 
 /** The five real stops of this hand's window interior, exported for the rail
  *  (THE SECOND SCORE) — one definition, two readers, the `WINDOW_BEATS`
- *  discipline. Titles are copy, proposed in the session-15 packet. */
+ *  discipline. Titles are display copy, defined in window-score.ts. */
 export const HAND_PHASES = HAND_WINDOW_PHASES;
 
 /** Where the window is, as the five states this hand's interior actually
@@ -350,7 +350,7 @@ function smooth(x: number): number {
  *
  * `drawn` is how much of it has been laid so far, which is what makes the
  * gesture read as a gesture rather than as a shape that appears. `fromDrawn`
- * (session 15) starts the walk mid-stroke — THE GAME's nested possession is a
+ * starts the walk mid-stroke — THE GAME's nested possession is a
  * TIME-clip of a longer record, and a clip that drew a stroke's whole
  * pre-history would show minutes the clip does not claim. Default 0 draws
  * exactly what every existing caller drew.
@@ -639,7 +639,7 @@ function drawSlate(ctx: CanvasRenderingContext2D, view: View, sl: Slate,
  * `window.json:contest.caliper_ft.p99`, the 99th percentile of the very
  * distribution being drawn. It used to be the old one-byte STORAGE CEILING of
  * window_measures.bin, a property of the file format rather than of basketball,
- * which also silently clipped the longest calipers onto one value (audit F-05).
+ * which also silently clipped the longest calipers onto one value.
  */
 function bakeWindowDrops(
   ctx: CanvasRenderingContext2D,
@@ -787,21 +787,21 @@ export function drawHandHand(f: Frame): void {
     bakeWindowDrops(ctx, view, m, w, Math.floor(upto / DROP_STEP) * DROP_STEP, upto);
     ctx.restore();
 
-    // (THE NIGHT's calipers-as-drops over-pass moved BELOW the game surface
-    // draw — session 15: the record's endpoints must read over the motion
+    // (THE NIGHT's calipers-as-drops over-pass lives BELOW the game surface
+    // draw in this function: the record's endpoints must read over the motion
     // ground, not under it. See the block after the strokes.)
   } else {
-    // THE PREVIOUS SHEET RECEDES UNDER THE NEW RECORD (session 8, audit O2).
+    // THE PREVIOUS SHEET RECEDES UNDER THE NEW RECORD.
     // The drop layer drew only the current year, so the plate bared to the
     // engraving at every season turnover — unsanctioned mini-cuts in a piece
     // whose one cut is 2010-11, and THE CENSUS documents its identical
     // emptying where this hand had no sentence. Now the outgoing season's
     // COMPLETED sheet fades beneath the incoming season's accumulating drops:
-    // the incoming side stays an accumulation (the thing the artist kept this
-    // hand for), only the outgoing is a fade, matching the pin's own linear
+    // the incoming side stays an accumulation (the thing this hand is kept
+    // for), only the outgoing is a fade, matching the pin's own linear
     // recession. The sheet reuses the exact prefix key the season had while it
     // was current, so crossing a boundary extends that surface by at most one
-    // step and scrubbing backwards rebuilds by the F-04 recursion. Scoped to
+    // step and scrubbing backwards rebuilds by src/prefix.ts's recursion. Scoped to
     // the season branch: the boundary INTO the window is Act III's staged
     // opening (bare plate, then one possession laid slowly), a deliberate
     // exception recorded here rather than an omission.
@@ -847,9 +847,8 @@ export function drawHandHand(f: Frame): void {
     };
 
     // THE WASH — the four scales' dried ground, beneath every stroke. It
-    // clears WITH the feed material at the close (the session-15 packet's
-    // recommended ruling): the drops alone survive, so "the record keeps
-    // endpoints" stays literal on the final frames.
+    // clears WITH the feed material at the close: the drops alone survive,
+    // so "the record keeps endpoints" stays literal on the final frames.
     const washFile = data.wash();
     const gf = data.gameFile;
     const wmeta = w ? w.wash : null;
@@ -858,7 +857,7 @@ export function drawHandHand(f: Frame): void {
       if (win.seasonU > 0 || win.dayFrac > 0) {
         // The season: per-day rasters fold beneath the accelerating calendar,
         // the night's own day pre-seeded and SKIPPED in the sweep (no double
-        // add). The handoff from the night phase is exact by construction —
+        // add). The handover from the night phase is exact by construction —
         // the fold's ground opens as the seed's own conversion.
         drawWashFold(ctx, view, dpr, washFile, wmeta, gf.day, win.dayFrac, ground);
       } else {
@@ -895,7 +894,7 @@ export function drawHandHand(f: Frame): void {
       const total = gameTotalFrames(gf);
       const pos = possessionFrames(gf);
       const gameFrame = win.game > 0 ? gameClock(win.game) * total : 0;
-      // THE DRYING CLOCK CONTINUES past the game's end (third audit D-02),
+      // THE DRYING CLOCK CONTINUES past the game's end,
       // at TRUE RATE — the night's own convention — so the buzzer's strokes
       // and beads settle to the dried register within GAME_WET_S of
       // presentation time instead of standing "just painted" all window.
@@ -953,7 +952,7 @@ export function drawHandHand(f: Frame): void {
       // record, no double-deposit and no recede.
       const oneFrames = st.phase * secondsFor(WINDOW_YEAR) * gf.hz;
       const clipUpto = Math.min(pos.f1, pos.f0 + oneFrames);
-      // ONE_INK: the beat-local envelope (third audit F1 / §1(d) #4). Full
+      // ONE_INK: the beat-local envelope (declared in src/scalars.ts). Full
       // through the ONE beat, fading out across the game phase as the eased
       // walk re-lays the same records at the conserved flow — no pop at the
       // handover, and no boosted segment survives past the beat it argues.
@@ -986,9 +985,9 @@ export function drawHandHand(f: Frame): void {
     const offsets = paint.day_offsets;
     const last = offsets[offsets.length - 1] ?? 0;
     const cum = cumulativeByDay(s, s.day, s.n, (d) => offsets[d] ?? 0, last);
-    // The paint arrives with the season's calendar alone (session 15): the
-    // opening beat's material is now the game artifact's possession above —
-    // the paint's own first canvas no longer doubles it. The day-exclusive
+    // The paint arrives with the season's calendar alone: the opening
+    // beat's material is the game artifact's possession above, and the
+    // paint's own first canvas does not double it. The day-exclusive
     // arrival opens the season beat empty, so nothing is resident until the
     // calendar takes over.
     const laid = arrivedThrough(cum, (win.dayFrac / (span + 1)) * (last + 1));
@@ -1016,8 +1015,8 @@ export function drawHandHand(f: Frame): void {
     // THE NIGHT: the slate — every trackable body of the Dec 5 games at the
     // found span of maximum simultaneous play, moving at true rate (one
     // second of phase is one second of night), laid with the paint's own
-    // physics. It PERSISTS once settled (session 15: its settling is
-    // content, and the old recede was the reset the artist rejects) — the
+    // physics. It PERSISTS once settled (its settling is content, and a
+    // recede would be the kind of reset the piece rejects) — the
     // close's wash is the one clearing, through the same `wet` multiplier
     // the paint already carries. The viewer is meant to fail to watch it:
     // one possession at this scale is followable — the opening phase proves
@@ -1035,8 +1034,8 @@ export function drawHandHand(f: Frame): void {
     // THE NIGHT's own endings: the slate date's calipers-as-drops, layering
     // through the night phase's sub-ramp — drawn ABOVE the game's dried
     // surface, because the record's endpoints must read over the motion
-    // ground, not under it. NO RECEDE (session 15: the old NIGHT_RECEDE fade
-    // was the "preemptive reset" the four scales reject). The season's own
+    // ground, not under it. NO RECEDE (a fade here would be the
+    // "preemptive reset" the four scales reject). The season's own
     // prefix re-lays these records byte-exactly as its calendar reaches
     // them, so the over-pass retires by INDEX SUBTRACTION — the range below
     // is empty by arithmetic once the calendar passes the slate's day —
@@ -1079,11 +1078,11 @@ export function drawHandHand(f: Frame): void {
   // These drops are the RECOVERED set, not the season: a release is only found
   // by following the ball back from the rim, and every made shot reaches it. THE
   // MEASURE and THE LEDGER disclose that; this hand presents the same subset as
-  // a picture of 2015-16 and said nothing. The line is templated by the pipeline
+  // a picture of 2015-16 and would otherwise say nothing. The line is templated by the pipeline
   // from the figures it quotes and drawn verbatim - the piece never composes it.
-  // REBOUND to the layer it qualifies (third audit D-17): the disclosure
-  // scopes the DROPS, which persist through the close — so its alpha no longer
-  // carries (1 - wash), and it stands beside the drops at the close's end when they
+  // BOUND to the layer it qualifies: the disclosure scopes the DROPS,
+  // which persist through the close — so its alpha does not carry
+  // (1 - wash), and it stands beside the drops at the close's end when they
   // most resemble a picture of the season. Anchored at the top of the plate,
   // outside the orange mass that made it illegible at the crest.
   if (inWindow && w?.bias.scope && win) {
@@ -1103,7 +1102,7 @@ export function drawHandHand(f: Frame): void {
 
   ctx.restore();
 
-  // The boundaries named (S1). The enclosure voice above shares this anchor
+  // The act boundaries named. The enclosure voice above shares this anchor
   // but stands only on the first post-window season, clear of both cues.
   drawActCue(f, 2);
   drawActCue(f, 5);

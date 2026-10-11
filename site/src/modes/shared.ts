@@ -28,8 +28,8 @@ export function seasonClock(u: number): number {
  * Day-exclusive at the integers: `arrivedThrough(cum, 0)` is 0 and a day's
  * marks land DURING its own passage, so the season beat opens empty and
  * crescendos to everything at `span + 1` — the window's inclusive day count.
- * (The pre-crescendo reading returned day zero's whole population at frac 0,
- * which is what quietly defeated the opening beat's "one possession" ramp.)
+ * (A day-inclusive reading returns day zero's whole population at frac 0,
+ * which quietly defeats the opening beat's "one possession" ramp.)
  */
 export function arrivedThrough(cum: Int32Array, dayFrac: number): number {
   const span = cum.length - 1;
@@ -43,8 +43,8 @@ export function arrivedThrough(cum: Int32Array, dayFrac: number): number {
 /**
  * The cumulative-by-day table both day-keyed hands pace on: how many records
  * carry each calendar-day offset, prefix-summed. Derived from the asset and
- * cached against it — a derived cache, which the fifth rule allows; nothing
- * here is accumulated across frames.
+ * cached against it — a derived cache, which the fifth rule (README, The
+ * rules) allows; nothing here is accumulated across frames.
  */
 const cumulative = new WeakMap<object, Int32Array>();
 
@@ -63,13 +63,14 @@ export function cumulativeByDay(owner: object, days: ArrayLike<number>, n: numbe
 }
 
 /**
- * THE ACT NAMES THE LOSS — the fourth audit's boundary finding, shipped with
- * the score's own phrases (S1, artist ruling 2026-08-10). Acts II and V open
- * as ordinary season arrivals: the record's own drift supplies no categorical
- * sign that the condition changed, so the act's existing title enters once,
- * over the handoff, at the rank reserved for what the piece is about. The
- * string is ACT_TITLES uppercased at the pen — read from the score's source,
- * never typed here; docs/build/typography-inventory.md carries the rank.
+ * THE ACT NAMES THE LOSS — the act boundaries named in the score's own
+ * phrases (decided 2026-08-10). Acts II and V open as ordinary season
+ * arrivals: the record's own drift supplies no categorical sign that the
+ * condition changed, so the act's existing title enters once, over the
+ * crossing into the act, at the rank reserved for what the piece is about.
+ * The string is ACT_TITLES uppercased at the pen — read from the score's
+ * source, never typed here; the rank is the `"voice"` argument passed to
+ * `drawSlug` below.
  *
  * Pure in t: the envelope is a smoothstep trapezoid over the act's opening
  * seconds, derived from the schedule's own segment start. Composition, not

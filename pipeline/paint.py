@@ -9,8 +9,8 @@ A stroke is one body over the five seconds before one verified shot. Not a
 particle, not a flow field, not a simulation: every vertex is a position the
 machine recorded, and the whole stroke is traceable back to one release the
 window stage already corroborated against the coordinate the record filed
-independently. That is the condition CLAUDE.md sets for this hand existing at
-all - "survives only if every stroke stays one traceable record".
+independently. That is the condition for this hand existing at all - rule 7
+(README, The rules): every stroke stays one traceable record.
 
 THE SHOT IS TAKEN, NOT FOUND. This stage does not go looking for a possession.
 It reads the corroborated set the window stage wrote for that game - the shots
@@ -42,9 +42,10 @@ body, so `arc >= chord` holds by construction on every segment that ships.
 WHAT SHIPS carries no identity: no player, no game, no event, no clock. Control
 points in the plate's own folded halfcourt frame, a day index, a canvas index,
 a body slot within that canvas, and the two measurements above. A game, a
-player, or a possession's timing cannot be reconstructed from it (CLAUDE.md
-data rights; plan section 1.7). The join that produced each canvas IS kept, in
-full, under data/window/ - which is gitignored and never leaves this machine.
+player, or a possession's timing cannot be reconstructed from it (the paint's
+no-identity rule; README, Deploying, and what is public). The join that
+produced each canvas IS kept, in full, under data/window/ - which is gitignored
+and never leaves this machine.
 
 Writes data/processed/paint_strokes.bin, paint_index.bin and paint.json.
 
@@ -288,7 +289,7 @@ def stroke_from(path, eps_tenths, split_over=None):
     segment can no longer span two zones, so the zone read at a vertex is the
     zone of the whole span that ends there.
 
-    `split_over` (session 15): with the default None a span longer than
+    `split_over`: with the default None a span longer than
     MAX_VERTEX_FRAMES refuses the whole run - byte-identical to every artifact
     shipped before the kwarg existed. Set to a frame count, an over-long span
     is instead SPLIT at real measured frames of the path itself (a game-length
@@ -559,8 +560,8 @@ def current_selection():
     paint run skipped canvases that already existed. Nothing stamped a canvas
     with the run that produced it, so a superseded intermediate shipped beside
     current ones and every summary derived from it - including the residual
-    maximum qa.py reads - described a canvas the selection had not chosen. Two
-    of commit 47113a6's 252 canvases were exactly that.
+    maximum qa.py reads - described a canvas the selection had not chosen. In
+    one earlier run, two shipped canvases were exactly that.
 
     So the selection is written out by the paint run and read back here, each
     canvas carries the digest of the corroborated set it was derived from, and
@@ -818,7 +819,7 @@ def reduce_all():
         # four canvases painted on one day contributes 1. It shipped as
         # `canvases_by_month` and summed to `days_covered` (85) rather than to
         # `canvases` (249) - a key whose name states what the artifact denies,
-        # which is the honesty defect in a different file (audit F-16).
+        # which is the honesty defect in a different file.
         "days_by_month": {
             k: v for k, v in sorted(Counter(d[:7] for d in dates).items())
         },
@@ -945,7 +946,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--games", type=int, default=250)
     ap.add_argument("--jobs", type=int, default=3,
-                    help="parallel games; this stage is memory-bound, see CLAUDE.md")
+                    help="parallel games; this stage is memory-bound, see README "
+                         "(Running the pipeline)")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--reduce", action="store_true",
                     help="fold the per-game canvases into the shipped artifacts and stop")

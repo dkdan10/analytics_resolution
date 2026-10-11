@@ -1,12 +1,12 @@
 /** Harness B — what one frame of each hand actually costs.
  *
- * Audit finding F-14: THE HAND's splotches iterate tens of thousands of records
- * and issue an individual `beginPath`/`arc`/`fill` per mark, every animation
- * frame. The audit estimated the cost with a controlled browser proxy; this
- * harness measures it directly, and measures it far worse, because the proxy
- * was not drawing at the gallery's device pixel ratio. Run it rather than
- * quoting it — the numbers live in the report this prints, not in this comment.
- * The fix is session 4's; this is the instrument it will be graded against.
+ * The cost it was built for: THE HAND's splotches iterate tens of thousands of
+ * records and issue an individual `beginPath`/`arc`/`fill` per mark, every
+ * animation frame. A first estimate of that cost used a controlled browser
+ * proxy; this harness measures it directly, and measures it far worse, because
+ * the proxy was not drawing at the gallery's device pixel ratio. Run it rather
+ * than quoting it — the numbers live in the report this prints, not in this
+ * comment. Any fix to that cost is graded against this instrument.
  *
  * Two passes per beat, deliberately separate:
  *
@@ -126,14 +126,14 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
   /**
    * THE STACK IS TIMED AT ITS DENSEST CONFIGURATION, NEVER AT ITS DEFAULT.
    *
-   * Its default is bare stone — every operation off, by the artist's ruling —
+   * Its default is bare stone — every operation off, by design —
    * which is the cheapest frame in the whole piece. Timing it there would report
    * a hand that costs nothing and say nothing about the frame a presenter can
    * actually build, and the acceptance criterion is explicitly about the densest
    * configuration shipped. So the perf probe asks for ALL RENDERINGS: eight
    * operations composited at once, which is the most this view can ever be asked
    * to draw. Every other hand ignores the argument and is timed exactly as it
-   * was before session 6.
+   * was before THE STACK's configuration axis existed.
    */
   const dense = (m: ModeId): StackOps => {
     const cs = configsOf(m);
@@ -234,13 +234,13 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
     framesPerBeat: frames,
     warmupFrames: WARMUP,
     residency,
-    // The `caveat` field that stood here through session 3 said the `hand` rows
-    // were measured on a stale decode of paint_strokes.bin and were not a valid
-    // baseline. That was true and is not any more: session 4 landed the reader,
-    // and `decodeStrokes` now asserts the layout against paint.json before it
-    // reads a byte. An instrument that goes on disclaiming a defect it no longer
-    // has is the same class of error this project audits itself for, so the
-    // field is GONE rather than reworded - and its absence is the claim.
+    // There is deliberately no `caveat` field. One used to stand here saying
+    // the `hand` rows were measured on a stale decode of paint_strokes.bin and
+    // were not a valid baseline. That was true and is not any more: the reader
+    // was fixed, and `decodeStrokes` now asserts the layout against paint.json
+    // before it reads a byte. An instrument that goes on disclaiming a defect it
+    // no longer has is the same class of error this project checks itself for,
+    // so the field is GONE rather than reworded - and its absence is the claim.
     byMode,
     rows,
   };

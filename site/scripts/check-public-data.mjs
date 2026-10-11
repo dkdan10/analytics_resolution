@@ -6,14 +6,15 @@
  * stale artifact left behind by an older sync, or an asset rule that copies
  * something else would all get past the copier and still be published.
  *
- * Three assertions, straight from audit F-07's acceptance criteria:
+ * Three assertions, which together are what "published by decision, not by
+ * default" means:
  *
  *   a  every public artifact is present under dist/data
  *   b  no artifact marked private is
  *   c  nothing under dist/data is absent from the list entirely
  *
- * (b) is the one that was failing before session 3, because the copier took the
- * whole directory. That is the point of it.
+ * (b) is the one that failed when the copier took the whole directory. That is
+ * the point of it.
  *
  * Run by `npm run build` after vite, so a deploy that would publish something
  * nobody listed does not complete.

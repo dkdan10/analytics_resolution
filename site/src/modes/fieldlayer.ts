@@ -36,11 +36,12 @@ export interface FieldOpts {
    *  ground their registers, and a glow under their type would be one more
    *  thing to read around rather than the ground disagreeing with the marks. */
   residence?: boolean;
-  /** THE ENTRY YIELD MASK (session 17, the fourth audit's entry ruling —
-   *  PLATE only, the hand where the collision was measured and the only
-   *  reveal hand drawing the strokes). When present, the PREVIOUS season's
-   *  layer composites through a per-frame scratch: its exposure states drawn
-   *  in, then this callback erases along every body/ball vertex the clock
+  /** THE ENTRY YIELD MASK, at the window's entry — PLATE only: the hand
+   *  where the collision between the receding season and the arriving
+   *  strokes was measured, and the only reveal hand drawing the strokes.
+   *  When present, the PREVIOUS season's layer composites through a
+   *  per-frame scratch: its exposure states drawn in, then this callback
+   *  erases along every body/ball vertex the clock
    *  has reached (`destination-out`; the caller sets its own widths and
    *  strengths), then ONE `lighter` blit — so the old field locally dries in
    *  the strokes' wake while untouched marks persist whole and the no-clear
@@ -48,32 +49,32 @@ export interface FieldOpts {
    *  monotone stroke prefix, recomputed from scratch every frame; nothing
    *  survives between frames. */
   yieldMask?: (ctx: CanvasRenderingContext2D) => void;
-  /** THE PER-MARK ARRIVAL (session 9, stage B): the arriving season's cells
+  /** THE PER-MARK ARRIVAL (stage B of the two-stage arrival; stage A is the
+   *  development, below): the arriving season's cells
    *  surface individually in the record's own emphasis order — descending
-   *  filed count — instead of developing as one image. THE PLATE and THE
-   *  FIELD (the hands the artist named), and since S2 LEDGER and MEASURE:
+   *  filed count — instead of developing as one image. On in THE PLATE and
+   *  THE FIELD by design, and also in LEDGER and MEASURE:
    *  they share the plate's bone reveal surface (same cache key), and the
    *  measured budget said yes — no new surfaces, every probed frame inside
    *  budget. THE CENSUS stays on stage A BY MEASUREMENT: with the reveal it
    *  showed a deterministic over-budget stall on the frame after the first
    *  mid-season step crossing at after-the-cut, an order of magnitude past
    *  the same crossing in every other hand (mechanism unattributed; the
-   *  measured figures are in the session-9 handoff) — so the hand that
+   *  measured figures are in the local working notes) — so the hand that
    *  already documents its own withPrevious exception keeps one more. THE
    *  STACK's locate base is deliberately left on stage A — a talk-mode
-   *  instrument, outside the named scope. Recession keeps A's develop-out in
-   *  every hand, as ratified. SINCE SESSION 16: in the window season this
+   *  instrument, outside the reveal's chosen scope. Recession keeps A's
+   *  develop-out in every hand, by design. In the window season this
    *  same flag routes to THE WINDOW FOLD — the base accumulates on the
    *  record's own calendar instead of the emphasis-order arrival (the
-   *  re-clock ruling); the two no-reveal hands keep the shared envelope,
-   *  documented above. */
+   *  re-clock; see windowBaseClock); the two no-reveal hands keep the shared
+   *  envelope, documented above. */
   reveal?: boolean;
 }
 
 /**
- * The residence's whole-layer envelope. (Until session 16 this was the only
- * thing `t` drove in this file; the window fold's clock below is the second,
- * and both read the shared beat table.)
+ * The residence's whole-layer envelope. (The window fold's clock below is the
+ * other thing `t` drives in this file, and both read the shared beat table.)
  *
  * Since the crescendo: rise through "one" and "the night", held through "the
  * season", washed by "the close" — the ground where the ball lived is
@@ -88,12 +89,12 @@ export interface FieldOpts {
 function residenceEnvelope(phase: number): number {
   const night = WINDOW_BEATS.find((b) => b.id === "night")!;
   const washFrom = PLATE_WITHDRAW_SPAN.from;
-  // DELAYED to the game phase (session 17, the fourth audit's entry ruling,
-  // Codex A11's measured reason: at the entry's one-frame test the residence
-  // was part of a ground outweighing the tracked figure by orders of
-  // magnitude). "One" opens on bare stone plus the possession alone; the
-  // dwelling rises with the game/night expansion — game start to night's
-  // end, derived from the shared beat table, no new scalar — and is complete
+  // DELAYED to the game phase, for a measured reason: at the window entry's
+  // one-frame test the residence was part of a ground outweighing the
+  // tracked figure by orders of magnitude. "One" opens on bare stone plus
+  // the possession alone; the dwelling rises with the game/night expansion
+  // — game start to night's end, derived from the shared beat table, no new
+  // scalar — and is complete
   // before the season floods over it, as before.
   if (phase < night.from) return 0;
   if (phase < night.to) return developed((phase - night.from) / (night.to - night.from));
@@ -102,11 +103,11 @@ function residenceEnvelope(phase: number): number {
 }
 
 /**
- * THE WINDOW FOLD's clock (session 16, the re-clock ruling): where the base
+ * THE WINDOW FOLD's clock (the re-clock): where the base
  * sits on the window's own calendar, from the shared beat table and the same
  * `seasonClock` the drops keep — one clock in Act III, base and foreground
  * agreeing about what day it is. "One" opens with none of the season's
- * endings (and, since session 17, none of the residence — the dwelling is
+ * endings (and none of the residence — the dwelling is
  * delayed to the game phase); the night's day rises through the game+night
  * span as one continuous arrival; the season beat folds the window's days;
  * the close floods the remainder and holds the finished layer. Null wherever
@@ -157,9 +158,10 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
     );
   }
 
-  // THE DEVELOPMENT (session 8): arrival is a position in the exposure
-  // ladder, not a global alpha — the incoming season develops like a print
-  // (rim flare out of the dark first, faintest texture last) and the outgoing
+  // THE DEVELOPMENT (stage A of the two-stage arrival): arrival is a
+  // position in the exposure ladder, not a global alpha — the incoming
+  // season develops like a print (rim flare out of the dark first, faintest
+  // texture last) and the outgoing
   // one sinks the same ladder in reverse (texture first, flare last). One
   // position drives both, so the plate's total light hands over continuously;
   // `developed` keeps the same easing the old crossfade had, and past
@@ -223,7 +225,7 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
   // THE WINDOW FOLD: the window season's base accumulates on its own measured
   // calendar wherever the reveal is on and the calendar shipped. CENSUS (no
   // reveal, stage A by measurement) and STACK (talk instrument) keep the
-  // shared arrival envelope — the two documented exceptions, packet-flagged.
+  // shared arrival envelope — the two documented exceptions (FieldOpts.reveal).
   const dayPts = reveal && st.act === 3 && season.points_by_day ? data.pointsByDay(year) : null;
   const clock = dayPts ? windowBaseClock(st.phase, season) : null;
   const seedDay = data.slateFile?.day ?? -1;

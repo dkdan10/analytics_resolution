@@ -1,8 +1,9 @@
 /** The material register — one source of truth for every number behind a mark.
  *
- * CLAUDE.md's third rule: grain is a measurement, not a mood. Every material
- * property of a mark derives from a measured property of the record, and any
- * scalar that genuinely cannot be measured is NAMED, ISOLATED AND DISCLOSED.
+ * Rule 3 (README, The rules): grain is a measurement, not a mood. Every
+ * material property of a mark derives from a measured property of the record,
+ * and any scalar that genuinely cannot be measured is NAMED, ISOLATED AND
+ * DISCLOSED.
  *
  * The first two-thirds of that were only half true. Radius multipliers, falloff
  * exponents, luminance floors, opacity caps, bead caps, pooling multipliers and
@@ -36,8 +37,8 @@
  * renderer: add a file to that list and its scalars have to come from here.
  *
  * SCOPE IS DELIBERATELY PARTIAL AND SAYING SO IS PART OF THE DISCLOSURE. The
- * list covers the layers that deposit marks, plus (since V-08) the type ranks
- * the piece speaks at, plus (since 5b) `modes/ledger.ts`, `modes/census.ts` and
+ * list covers the layers that deposit marks, plus the type ranks the piece
+ * speaks at (`inscription.ts`), plus `modes/ledger.ts`, `modes/census.ts` and
  * `palette.ts`. It does NOT cover composition — where a slug sits, how long a
  * numeral holds before it migrates, which act a thing appears in.
  *
@@ -47,15 +48,15 @@
  * strings and its hairlines as interpolated `rgba(...)` templates, and adding
  * that file to the list flagged neither.
  *
- * WHAT V-03 ACTUALLY DID, because this comment claimed the opposite for two
- * sessions: the seven hues ARE still written in source, in `palette.ts:ZONE_RGB`,
- * and that is deliberate — an authored scalar's home is source (rule 3), and
- * `pipeline/palette.py` READS them out of there and measures them, with `qa.py`
- * binding the two in both directions. What moved into an artifact is the CLAIM
- * about them, not the values. Pass 1 sees them as strings and each is waived in
- * `numbers-allowlist.json` with a reason. The two engraving alphas are declared
- * below. The blind spot itself remains: a scalar smuggled into a string literal
- * is caught by nothing.
+ * WHAT MEASURING THE PALETTE ACTUALLY CHANGED, because this comment once
+ * claimed the opposite: the seven hues ARE still written in source, in
+ * `palette.ts:ZONE_RGB`, and that is deliberate — an authored scalar's home is
+ * source (rule 3), and `pipeline/palette.py` READS them out of there and
+ * measures them, with `qa.py` binding the two in both directions. What moved
+ * into an artifact is the CLAIM about them, not the values. Pass 1 sees them
+ * as strings and each is waived in `numbers-allowlist.json` with a reason. The
+ * two engraving alphas are declared below. The blind spot itself remains: a
+ * scalar smuggled into a string literal is caught by nothing.
  */
 
 type Entry =
@@ -104,9 +105,9 @@ export const SCALARS = {
       "PROPORTIONAL TO J2(2*pi*K), whose argument is K and nothing else — the " +
       "spacing cancels because the radius is a multiple of it. That response has " +
       "ZEROS at 0.8174, 1.3396, 1.8494 and 2.3548 (j2,n / 2*pi) and SIDELOBES " +
-      "BETWEEN THEM. The old 1.45 sat on a sidelobe, which is why sessions 5a and " +
-      "5b both reported the record's own grid beating through the field at every " +
-      "window size and neither could say why. This is the third zero: the lowest " +
+      "BETWEEN THEM. The old 1.45 sat on a sidelobe, which is why earlier probe " +
+      "sweeps reported the record's own grid beating through the field at every " +
+      "window size and none could say why. This is the third zero: the lowest " +
       "that also INCREASES neighbour bleed, which is the other half of what this " +
       "scalar is for. Two limits, stated because an earlier version of this line " +
       "overclaimed both. The K-only result is a CONTINUOUS one and the kernel is " +
@@ -133,8 +134,8 @@ export const SCALARS = {
 
   // --- the development — the path a season takes to its measured image -----
   //
-  // THE DEVELOPMENT (session 8, stage A of the artist's two-stage arrival
-  // repair): a season no longer FADES in — it develops, like a print. The
+  // THE DEVELOPMENT (stage A of the two-stage arrival repair): a season no
+  // longer FADES in — it develops, like a print. The
   // layer is baked at a ladder of exposure states, each the same tone curve at
   // a scaled strength, and arrival crossfades up the ladder instead of ramping
   // one finished image's opacity. Because the tone curve is compressive, an
@@ -173,12 +174,12 @@ export const SCALARS = {
 
   // --- the per-mark arrival — the order the record's emphasis surfaces in --
   //
-  // THE PER-MARK ARRIVAL (session 9, stage B of the artist's two-stage arrival
-  // repair): during arrival the season's cells no longer surface as one
+  // THE PER-MARK ARRIVAL (stage B of the two-stage arrival repair): during
+  // arrival the season's cells no longer surface as one
   // developing image — they ARRIVE, individually at the head and in bands at
   // the tail, each at its full measured tone. THE ORDER IS NOT AUTHORED: cells
   // arrive by descending filed count — the record's own emphasis, the
-  // most-filed coordinate first (artist ruling, 2026-08-09) — with ties broken
+  // most-filed coordinate first (decided 2026-08-09) — with ties broken
   // by a stated deterministic rule (nearest the rim first, then y, then x).
   // `points/*.bin` holds no time, so the order claims nothing chronological:
   // it is the record's emphasis, not its calendar. Only the PACE of reveal is
@@ -191,7 +192,7 @@ export const SCALARS = {
       "how many quantized batches a season's per-mark arrival lands in. The " +
       "order within them is the record's own — descending filed count — and " +
       "the population and tones are the measured ones; this only sets the " +
-      "grain of the landing. Since session 13 the steps BLEND (artist ruling): " +
+      "grain of the landing. The steps BLEND (chosen over the hard step): " +
       "each batch rises over its interval at the linear fractional part of " +
       "the arrival envelope — no batch strikes whole — and at every integer " +
       "boundary the frame is exactly the folded prefix. Fewer steps and the " +
@@ -216,11 +217,11 @@ export const SCALARS = {
   //
   // THE RESIDENCE: where the ball LIVED, under where the shots ENDED, drawn
   // only for the one act whose feed survives (window.json:occupancy — one-foot
-  // cells over every parsed ball frame). Both independent display audits named
-  // this artifact the most deserving unshown material and proposed the same
-  // placement. The layer is bone, always — the ball belongs to no zone — and
-  // the only thing t drives is a whole-layer envelope; per-cell animation
-  // would author a chronology the aggregate never measured.
+  // cells over every parsed ball frame). Two independent reviews of the
+  // display named this artifact the most deserving unshown material and
+  // proposed the same placement. The layer is bone, always — the ball belongs
+  // to no zone — and the only thing t drives is a whole-layer envelope;
+  // per-cell animation would author a chronology the aggregate never measured.
   RESIDENCE_TONE_K: {
     class: "authored",
     value: 400,
@@ -244,20 +245,20 @@ export const SCALARS = {
       "lower it and the window's ground goes back to bare stone.",
   },
 
-  // --- the entry yield — the old season under arriving bodies (session 17) -
+  // --- the entry yield — the old season under arriving bodies --------------
   //
-  // THE OLD SEASON YIELDS TO THE BODY (fourth audit, Codex's measured entry
-  // collision; the artist's entry ruling, 2026-08-10). At the window's entry
-  // the previous season's completed field outweighed the arriving possession
-  // by orders of magnitude at the one-frame test. The ruled repair keeps the
-  // no-clear recession and adds a LOCAL drying: the prior layer composites
-  // through a per-frame mask that erases part of it along every body/ball
-  // vertex the clock has reached — an accumulating patina in the strokes'
-  // own wake, never a tracking spotlight. Untouched old marks persist whole;
-  // the wake dries the ground toward wash-tone rather than clearing it. The
-  // wake's radius is DERIVED from the residence's cell-splat radius — the
-  // occupancy grain, the scale at which the window already says "the game
-  // lived here" — so only the strength is authored.
+  // THE OLD SEASON YIELDS TO THE BODY (decided 2026-08-10, against a measured
+  // entry collision). At the window's entry the previous season's completed
+  // field outweighed the arriving possession by orders of magnitude at the
+  // one-frame test. The repair keeps the no-clear recession — the transition
+  // must stay a recession, never a cut — and adds a LOCAL drying: the prior
+  // layer composites through a per-frame mask that erases part of it along
+  // every body/ball vertex the clock has reached — an accumulating patina in
+  // the strokes' own wake, never a tracking spotlight. Untouched old marks
+  // persist whole; the wake dries the ground toward wash-tone rather than
+  // clearing it. The wake's radius is DERIVED from the residence's
+  // cell-splat radius — the occupancy grain, the scale at which the window
+  // already says "the game lived here" — so only the strength is authored.
   OLD_YIELD_STRENGTH: {
     class: "authored",
     value: 0.65,
@@ -268,16 +269,16 @@ export const SCALARS = {
       "both passes; below 1 the old marks always survive to a wash tone). " +
       "At 0 the entry collision returns — the possession drawn into an " +
       "undimmed prior field; at 1 the wake CLEARS the old season along the " +
-      "paths, which the entry ruling forbids: the transition must stay a " +
+      "paths, which the entry rule forbids: the transition must stay a " +
       "recession, never a cut.",
   },
 
-  // --- the wet day — the window fold's visible front (session 17) ----------
+  // --- the wet day — the window fold's visible front -----------------------
   //
-  // THE WET DAY (fourth audit, both blind runs independently, ruled
-  // 2026-08-10): the window's season fold is honest but sub-liminal — a
-  // single day's ink, spread over the whole court, lands below the
-  // per-second visibility threshold at every instant of the beat.
+  // THE WET DAY (decided 2026-08-10, on a problem two independent blind
+  // reviews both reported): the window's season fold is honest but
+  // sub-liminal — a single day's ink, spread over the whole court, lands
+  // below the per-second visibility threshold at every instant of the beat.
   // So the live calendar day's records draw WET: each lands at an EXCESS above
   // its folded tone increment and dries back to exactly that increment as the
   // calendar advances. The excess is a multiple of the increment already
@@ -296,7 +297,7 @@ export const SCALARS = {
       "drying back to exactly that increment. At 0 the front vanishes and " +
       "the season beat returns to its sub-liminal fold; low and the front " +
       "sinks under the finished game web; high and the live day outshines " +
-      "the accumulated season it is filing into. Probe-chosen in session 17: " +
+      "the accumulated season it is filing into. Probe-chosen: " +
       "the smallest value whose front sustains the ledger-interior " +
       "visibility class at a median-sized day.",
   },
@@ -409,8 +410,8 @@ export const SCALARS = {
       "radius against the baked field. This was the sample size the ink rule was " +
       "calibrated on, kept when THE FIELD switched from the 2,000-dot sample to " +
       "every shot so that the pin's weight did not move. It is a calibration " +
-      "reference now and no longer reads anything, which session 5 may want to " +
-      "re-derive from the layer it is balanced against.",
+      "reference now and no longer reads anything, and could be re-derived " +
+      "from the layer it is balanced against.",
   },
   PIN_CORE_ALPHA: {
     class: "authored",
@@ -567,7 +568,7 @@ export const SCALARS = {
       "ink multiplier on THE HAND's possession clip through the ONE beat, fading " +
       "out across the game phase as the walk re-lays the same records. DRIP is " +
       "tuned for thousands of strokes and a LONE possession at that flow sits " +
-      "within ~20/255 of the plate's black (third audit F1: the beat's argument " +
+      "within ~20/255 of the plate's black (measured: the beat's argument " +
       "was not on screen). This KNOWINGLY bends the one-conserved-DRIP rule for " +
       "exactly one beat, and says so here; the capped segment ceiling still " +
       "applies above it.",
@@ -699,7 +700,7 @@ export const SCALARS = {
     controls:
       "how strongly the kept coordinates come back up over the painting at " +
       "the season beat's crest (timeline.ts:KEPT_CREST — THE INSTANT, which this " +
-      "line used to name, was cut by the crescendo ruling). Five seconds of " +
+      "line used to name, was cut when the crescendo replaced it). Five seconds of " +
       "body were recorded and one point was filed, and this is that point " +
       "asserting itself over the gesture it stands for. Nothing new is drawn " +
       "at all: it is the same layer composited a second time, above instead " +
@@ -719,7 +720,7 @@ export const SCALARS = {
       "how open the shooter was, and this is the caliper length that reaches " +
       "SPLOTCH_MAX_R; the ~1% of shots beyond it draw at the maximum. It used to " +
       "be 255 — the old one-byte STORAGE CEILING of window_measures.bin, a " +
-      "property of the file format and not of basketball (audit F-05). It is now " +
+      "property of the file format and not of basketball (the one-byte clip). It is now " +
       "the 99th percentile of the measured distribution the hand is drawing.",
     from: "window.json:contest.caliper_ft.p99",
   },
@@ -802,14 +803,15 @@ export const SCALARS = {
   },
   // THE INSTANT's scalars (INSTANT_LINE_ALPHA, INSTANT_CUT_ALPHA,
   // INSTANT_BAND_HALF_W, BUCKET_NAME_TENTHS, BUCKET_LABEL_ALPHA, HERO_TAIL)
-  // left the register with the beat they controlled — the crescendo's cut
-  // ruling, 2026-08-10. An entry whose `controls` line names a drawing that no
+  // left the register with the beat they controlled, which the crescendo cut
+  // on 2026-08-10. An entry whose `controls` line names a drawing that no
   // longer exists is a disclosure lying about the piece.
   // Typography inside a mark layer. Declared here because these two modules
   // are in the check's scope and every draw-affecting number in them should be
   // findable in one place - but `material: false` says what they are: the type
   // beside a mark, not the mark. The rest of the piece's typography is
-  // composition and is out of scope until session 5 (see check-numbers.mjs).
+  // composition and stays outside pass 3 unless its file is listed in
+  // check-numbers.mjs's MARK_LAYERS.
   FIGURE_SUB_ALPHA: {
     class: "authored",
     value: 0.55,
@@ -848,7 +850,7 @@ export const SCALARS = {
     material: false,
     controls:
       "the scatter's alpha ceiling, dropped from what it was so it sits UNDER " +
-      "the spoken register rather than competing with it. This is the audit's " +
+      "the spoken register rather than competing with it. This is a display review's " +
       "'secondary residue', and it is still every label the hand ever drew - " +
       "what changed is that there is now something above it.",
   },
@@ -963,10 +965,11 @@ export const SCALARS = {
       "the name. It was nearly the same size as the name and did not read as " +
       "subordinate to it.",
   },
-  // Alphas that were inline in modes/ledger.ts. 5a registered that hand's
-  // spoken register here and left the FILE outside check-numbers.mjs's
-  // MARK_LAYERS, so these were never asked for. They are here because 5b widened
-  // the list, which is the only reason anyone found them.
+  // Alphas that used to be inline in modes/ledger.ts. That hand's spoken
+  // register (the sizes above) was registered here while the FILE sat outside
+  // check-numbers.mjs's MARK_LAYERS, so these were never asked for. They are
+  // here because the list was widened to the file, which is the only reason
+  // anyone found them.
   TERM_MARGIN_ALPHA: {
     class: "authored",
     value: 0.7,
@@ -1045,7 +1048,7 @@ export const SCALARS = {
       "the essential court lines and the marks they hold.",
   },
 
-  // --- modes/census.ts — the filing (V-05) ---------------------------------
+  // --- modes/census.ts — the filing ----------------------------------------
   //
   // NO POSITION AND NO PROPORTION IS AUTHORED IN THIS HAND. Every place on the
   // plate comes from `seasons.json:classification_place` and every size from a
@@ -1074,10 +1077,10 @@ export const SCALARS = {
       "than a coincidence: a struck category is never smaller than a label on a " +
       "single datapoint, because below that it has stopped being a monument and " +
       "become THE LEDGER's grain. " +
-      "AT THIS VALUE IT BINDS ON NOTHING, and that is the artist's decision, " +
+      "AT THIS VALUE IT BINDS ON NOTHING, and that is a deliberate decision, " +
       "taken against a measurement. It was first set high enough to keep only the " +
       "three or four largest words - which cost DESCRIPTION most of its " +
-      "vocabulary while the five fixed taxonomies lost nothing - and the ruling " +
+      "vocabulary while the five fixed taxonomies lost nothing - and the decision " +
       "was to have the whole named set on the floor and accept the smaller type. " +
       "So `vocabulary.covering_90pct` is what decides the count again, exactly as " +
       "the direction specifies, and this only stops a degenerate case: the " +
@@ -1230,7 +1233,7 @@ export const SCALARS = {
       "the line beneath it, naming how many categories in how many taxonomies. " +
       "Subordinate, because it describes the machine rather than counting shots.",
   },
-  // --- inscription.ts — how loudly the plate is allowed to speak (V-08) -----
+  // --- inscription.ts — how loudly the plate is allowed to speak -----------
   //
   // `drawSlug` is the only way the piece says anything in words, and until now
   // it had ONE size and ONE alpha for every place it is called from: the
@@ -1240,8 +1243,9 @@ export const SCALARS = {
   // resolves to data/processed/ or to a cited entry in facts.json.
   //
   // Sizes are in COURT TENTHS, like every other grain in the piece, so type does
-  // not change with the window. The inventory that assigns every drawn string in
-  // the piece to a rank is docs/build/typography-inventory.md.
+  // not change with the window. A string's rank is the `rank` argument its
+  // caller passes to drawSlug; the table assigning every drawn string in the
+  // piece a rank is kept in the local working notes.
   SLUG_VOICE_TENTHS: {
     class: "authored",
     value: 9,
@@ -1329,9 +1333,9 @@ export const SCALARS = {
   // Every one of these is a COMPOSITE weight: how loudly a layer speaks when it
   // is one of eight rather than the whole frame. They are authored, they are
   // material, and the reason they exist at all is that material tuned to own a
-  // frame is too loud inside a composite - which is the audit's "an all-on
-  // default dissolves the court into proof-of-capability spectacle", answered
-  // with numbers rather than with a promise.
+  // frame is too loud inside a composite - the risk that an all-on default
+  // dissolves the court into proof-of-capability spectacle, answered with
+  // numbers rather than with a promise.
   STACK_FIELD_DIM: {
     class: "authored",
     value: 0.78,
@@ -1457,7 +1461,7 @@ export const SCALARS = {
     material: true,
     controls:
       "the easing of the season beat's clock over the window's REAL calendar " +
-      "(the crescendo, session 14): day(u) = (e^(k·u) − 1)/(e^k − 1) of the " +
+      "(the crescendo): day(u) = (e^(k·u) − 1)/(e^k − 1) of the " +
       "89 inclusive days. The calendar underneath is measured — which marks " +
       "arrive on which day, and the four days nobody played stay dead at " +
       "speed — and only this easing is authored. Material because it decides " +
@@ -1467,7 +1471,7 @@ export const SCALARS = {
       "rate, larger makes the closing weeks a blur.",
   },
 
-  // --- THE FOUR SCALES (session 15): the game and the wash -------------------
+  // --- THE FOUR SCALES: the game and the wash ------------------------------
   WASH_TONE_K: {
     class: "authored",
     value: 400,
@@ -1476,7 +1480,7 @@ export const SCALARS = {
       "the wash's tone curve: how fast a cell's share of the corpus's tracked " +
       "positions saturates toward full brightness, 1 − e^(−k·share) — the " +
       "residence's own idiom at the wash's grain. Every scale reads the SAME " +
-      "curve against the SAME corpus total, which is what makes each handoff " +
+      "curve against the SAME corpus total, which is what makes each change of scale " +
       "subset→superset by measure. Lower and a single game's ground vanishes " +
       "under the season's; higher and the season flattens to a uniform glow.",
   },
@@ -1509,11 +1513,10 @@ export const SCALARS = {
       "how far a game stroke dims once the wet edge has passed it — the " +
       "drying, distinct from the wash beneath. 1 leaves the whole game as " +
       "bright as its newest gesture and the eye loses the edge; too low and " +
-      "the game exists only at its leading seconds. The plan's first value " +
+      "the game exists only at its leading seconds. The first value tried " +
       "was 0.45, and the first frames falsified it: a whole game's strokes " +
       "at that ink saturate into a solid zone-coloured poster that buries " +
-      "the filed record beneath — the measured correction is the session-15 " +
-      "packet's to ratify.",
+      "the filed record beneath — the value here is the measured correction.",
   },
   PASS_MARK_R: {
     class: "authored",
@@ -1523,7 +1526,7 @@ export const SCALARS = {
       "a pass bead's radius in court tenths at view scale: the measured " +
       "instant the ball reached its receiver, punctuated without being " +
       "narrated. Larger and ~580 beads become the drawing; smaller and the " +
-      "annotation the artist asked for is invisible.",
+      "annotation is invisible.",
   },
   PASS_MARK_ALPHA: {
     class: "authored",
@@ -1543,10 +1546,10 @@ export const SCALARS = {
 // gets a number.
 //
 // Named exports rather than lookups: these sit inside per-vertex loops that
-// already cost THE HAND a tenth of a second a frame (audit F-14), and a
-// property read per mark is not a thing to add there. `measured` entries have
-// no value and deliberately appear nowhere below — the renderer reads them from
-// the artifact, which is what makes them measurements.
+// already cost THE HAND a tenth of a second a frame, and a property read per
+// mark is not a thing to add there. `measured` entries have no value and
+// deliberately appear nowhere below — the renderer reads them from the
+// artifact, which is what makes them measurements.
 
 export const TONE_K: number = SCALARS.TONE_K.value;
 export const TONE_CEILING: number = SCALARS.TONE_CEILING.value;

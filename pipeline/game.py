@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """THE GAME — one full game of tracked bodies, the second of the four scales.
 
-Session 15's ladder is one possession → one game → one night → the window, each
-level literally containing the last. This stage ships the game: every tracked
-body and the ball across one archive, treated exactly as the paint treats a
-possession — cut at discontinuities, Douglas-Peucker at the record's own
+The piece's ladder of scales is one possession → one game → one night → the
+window, each level literally containing the last. This stage ships the game:
+every tracked body and the ball across one archive, treated exactly as the paint
+treats a possession — cut at discontinuities, Douglas-Peucker at the record's own
 coordinate quantum, zone crossings forced — with one addition the scale forces:
 a span longer than paint.py:MAX_VERTEX_FRAMES is SPLIT at real measured frames
 (paint.py:stroke_from's split_over kwarg) rather than refused, because a body
@@ -16,15 +16,15 @@ shots — the count of releases the tracking feed and the shot record agree on,
 exactly as window.py filed them per game. The rule and every count it compared
 ship in `game.json:selection`; the argmax must be unique or this stage stops.
 
-WHERE THE IDENTITY LINE SITS (flagged for ratification, not decided here): the
-game is nameable — ten public archive names ship in the selection block, and
-the winner is re-derivable from the disclosed rule — which sits between the
-slate's anonymity and traces.json's named-on-purpose. Bodies are NOT named:
-a stroke carries a per-period anonymous slot (first appearance order inside
-that period, ball = 255). Game-scoped slots were REJECTED: a slot that holds
-across periods carries a minutes-pattern that can be read against the public
-box score, which is identity by another name. Per-period scoping is the
-disclosed compromise.
+WHERE THE IDENTITY LINE SITS (an open publication decision, flagged rather than
+decided here): the game is nameable — ten public archive names ship in the
+selection block, and the winner is re-derivable from the disclosed rule — which
+sits between the slate's anonymity and traces.json's named-on-purpose. Bodies
+are NOT named: a stroke carries a per-period anonymous slot (first appearance
+order inside that period, ball = 255). Game-scoped slots were REJECTED: a slot
+that holds across periods carries a minutes-pattern that can be read against
+the public box score, which is identity by another name. Per-period scoping is
+the disclosed compromise.
 
 THE FOLD is per ball-half segment with hysteresis. A game's play alternates
 ends; folding every body toward one fixed hoop would draw half the game as a
@@ -472,7 +472,7 @@ def main():
         "identity": (
             "the matchup is re-derivable from the disclosed selection rule and "
             "ships in it - between the slate's anonymity and the traces' "
-            "named-on-purpose, flagged for ratification. No body is named: a "
+            "named-on-purpose, an open publication decision. No body is named: a "
             "stroke carries a per-period first-appearance slot (ball = 255); "
             "game-scoped slots were rejected because a slot held across "
             "periods reads against the public box score as a minutes pattern"

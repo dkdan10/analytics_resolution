@@ -1,6 +1,6 @@
 {
   "generated_by": "pipeline/game.py",
-  "generated_at": "2026-08-10T10:14:20+00:00",
+  "generated_at": "2026-10-11T20:30:21+00:00",
   "date": "2015-12-05",
   "day": 39,
   "day0": "2015-10-27",
@@ -13837,7 +13837,7 @@
     "fold": "each body toward its own nearer hoop - the wash's own rule, so this game's cells are a subset of its night's"
   },
   "treatment": "cut at every step over paint.py:MAX_STEP_FT, every feed gap over the game's own modal spacing times window.py:FRAME_GAP_FACTOR, and every fold boundary; runs under paint.py:MIN_RUN_FRAMES dropped; Douglas-Peucker at paint.py:SIMPLIFY_FT with zone crossings forced, exactly as the paint; spans over paint.py:MAX_VERTEX_FRAMES split at real measured frames (stroke_from's split_over), never refused and never interpolated",
-  "identity": "the matchup is re-derivable from the disclosed selection rule and ships in it - between the slate's anonymity and the traces' named-on-purpose, flagged for ratification. No body is named: a stroke carries a per-period first-appearance slot (ball = 255); game-scoped slots were rejected because a slot held across periods reads against the public box score as a minutes pattern",
+  "identity": "the matchup is re-derivable from the disclosed selection rule and ships in it - between the slate's anonymity and the traces' named-on-purpose, an open publication decision. No body is named: a stroke carries a per-period first-appearance slot (ball = 255); game-scoped slots were rejected because a slot held across periods reads against the public box score as a minutes pattern",
   "files": {
     "game_strokes": {
       "path": "game_strokes.bin",

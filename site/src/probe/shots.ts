@@ -1,12 +1,11 @@
 /** Exact frames, for looking at — the third diagnostic, and the only one whose
  *  output is for a person rather than for a comparison.
  *
- * Every visual session so far has judged compositions from screenshots grabbed
- * off the RUNNING clock, which is not a comparison at all: the piece is a pure
- * function of one float, so "the same frame" means the same `t`. Session 4
- * mis-diagnosed a paint balance that way and 5a's handoff says so in as many
- * words. This renders through `renderTo` at an exact `t` onto a fixed offscreen
- * surface, exactly as the purity probe does, and hands back a PNG.
+ * Judging a composition from screenshots grabbed off the RUNNING clock is not a
+ * comparison at all: the piece is a pure function of one float, so "the same
+ * frame" means the same `t`, and a paint balance has already been mis-diagnosed
+ * that way. This renders through `renderTo` at an exact `t` onto a fixed
+ * offscreen surface, exactly as the purity probe does, and hands back a PNG.
  *
  * IT IS NOT A GATE AND MUST NEVER BECOME ONE. It compares nothing and asserts
  * nothing; `?probe=purity` is what says whether pixels moved. This says what the
@@ -44,8 +43,8 @@ export interface ShotRequest {
    *  picture of THE STACK is always a picture of bare stone, which is the one
    *  frame nobody needs a driver to imagine. */
   ops?: string;
-  /** A packet candidate (`types.ts:Frame.candidate`). This request field is
-   *  the ONLY door to it: main.ts parses no URL parameter into the frame, so
+  /** A candidate composition (`types.ts:Frame.candidate`). This request field
+   *  is the ONLY door to it: main.ts parses no URL parameter into the frame, so
    *  a candidate composition exists in captures and nowhere else. */
   candidate?: string;
 }
@@ -53,12 +52,12 @@ export interface ShotRequest {
 /**
  * Install `window.__shot`, which the driver calls once per frame.
  *
- * A FRESH SURFACE PER FRAME, and that is not tidiness. 5a established that
- * Chrome does not rasterise a canvas's second pass the way it rasterises its
- * first, which is what made three sessions of purity verdicts measure the
- * destination rather than the piece. Two frames taken for comparison must
- * therefore be drawn on canvases in identical condition, and the cheapest way
- * to guarantee that is to never reuse one.
+ * A FRESH SURFACE PER FRAME, and that is not tidiness. Chrome does not
+ * rasterise a canvas's second pass the way it rasterises its first — measured,
+ * not assumed — and that is what made the purity probe's early verdicts measure
+ * the destination rather than the piece (purity.ts, "TWO DESTINATIONS"). Two
+ * frames taken for comparison must therefore be drawn on canvases in identical
+ * condition, and the cheapest way to guarantee that is to never reuse one.
  *
  * `cold()` before each, so a picture shows what a viewer arriving at that
  * instant would see rather than what a viewer who scrubbed there would.
@@ -99,11 +98,11 @@ export async function shotsProbe(env: Env): Promise<void> {
     draw(r, false).canvas.toDataURL("image/png");
 
   /**
-   * WHAT A FRAME WEIGHS, which is the only honest way to look for the passage
-   * V-01 calls "accidentally blank or stalled".
+   * WHAT A FRAME WEIGHS, which is the only honest way to look for a passage
+   * that is accidentally blank or stalled.
    *
    * A person cannot watch the whole loop and say where the dead stretch was; a
-   * luminance profile over it can, and 5a settled THE MEASURE's dead interval
+   * luminance profile over it can, and THE MEASURE's dead interval was settled
    * with exactly this kind of count. `lit` counts pixels above the ground by
    * more than one 8-bit level, so it measures what a viewer can actually see
    * rather than what the buffer contains.

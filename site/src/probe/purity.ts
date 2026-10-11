@@ -2,7 +2,7 @@
  *
  * The piece's fifth rule says it is: scrubbing backwards REBUILDS, it never
  * remembers. Derived caches are allowed; accumulated state is not. That claim
- * had never been tested, and the 2026-08-08 audit found it false for THE HAND,
+ * had never been tested, and a review on 2026-08-08 found it false for THE HAND,
  * which extends one module-level canvas in 64-stroke blocks: two frames of the
  * same instant, reached along different histories, do not match. Run this to
  * see by how much; the count belongs in the report, not in a comment that will
@@ -22,7 +22,7 @@
  * Exact bytes, not screenshots. `getImageData` has no capture noise, so a
  * difference reported here is a difference in what was drawn.
  *
- * TWO DESTINATIONS, AND ONLY ONE OF THEM CARRIES THE VERDICT (session 5a).
+ * TWO DESTINATIONS, AND ONLY ONE OF THEM CARRIES THE VERDICT.
  *
  * Every history above differs in a second way nobody had separated out: how
  * many render passes the DESTINATION canvas has received before the readback.
@@ -30,8 +30,8 @@
  * Chrome does not rasterise pass two of a canvas identically to pass one, so
  * that difference alone moves pixels — and it is not the piece.
  *
- * It was measured rather than argued. At the beat this probe had been calling
- * THE PLATE impure since session 2, the drawing commands the renderer issues
+ * It was measured rather than argued. At the beat where earlier versions of
+ * this probe called THE PLATE impure, the drawing commands the renderer issues
  * are identical op for op under every history, the field layers it composites
  * are byte-identical, and the frames still differ. Identical inputs, identical
  * command stream, different pixels: whatever that is, no change to a renderer
@@ -51,21 +51,24 @@
  * The surface arm is kept rather than deleted for two reasons. It is the only
  * arm that would notice a hand accumulating into the target context itself
  * (`renderTo` opens by filling the whole surface opaque, so nothing does today
- * — but nothing enforces it either), and the sweeps sessions 2 to 4 committed
- * are surface-arm numbers, so dropping it would strand the evidence they left.
+ * — but nothing enforces it either), and every sweep taken before the renderer
+ * arm existed is a surface-arm number, so dropping it would strand the evidence
+ * those sweeps left.
  *
  * A capture method that reported everything identical whatever happened would
  * be worse than the confound it replaced. This one was checked against a staged
- * impurity before it was believed; the check is written up in the session 5a
- * handoff.
+ * impurity before it was believed; the check is written up in the local working
+ * notes.
  *
- * THE HAND IS EXPECTED TO FAIL. That is audit finding F-04 and it belongs to
- * session 4. This harness exists to measure it, not to hide it.
+ * THE HAND IS THE CASE THIS WAS BUILT FOR. Its old module-level canvas, extended
+ * in blocks as the playhead advanced, is the impurity described at the top of
+ * this comment; the renderer-side fix lives in `prefix.ts`, not here. This
+ * harness exists to measure it, not to hide it.
  *
  * WHAT IS AND IS NOT ESTABLISHED — read this before trusting a verdict.
  * THE HAND's impurity is measured, at the window beats, and reproduced on every
  * version of this harness. The other five hands are NOT yet proven clean: no
- * completed calibrated sweep of all six exists. What session 2 had was an
+ * completed calibrated sweep of all six exists. The earliest evidence was an
  * uncalibrated run in which all six read impure INCLUDING the prelude, where
  * `renderTo` returns before any hand is called and the frame is therefore
  * mode-independent — which is what exposed the instrument rather than the
@@ -73,7 +76,7 @@
  * clean. An earlier version of this comment said the extraction "was shown to
  * have moved nothing: the five pure hands come back byte-identical". That was
  * asserting an unproven result inside the source of the instrument that would
- * prove it, which is exactly the honesty defect this project audits itself for.
+ * prove it, which is exactly the honesty defect this project checks itself for.
  *
  * So: run a full sweep before changing a renderer, and read the noise floor
  * before reading a verdict.
@@ -137,7 +140,7 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
    * bit-stable across memory pressure, so the run measures its own noise floor
    * (see below) and only calls a difference the piece's when it clears it. On
    * this machine the floor is ~60,000 channels at a maximum delta of 8, and
-   * F-04's is thirty-five times that.
+   * THE HAND's old accumulating canvas measured thirty-five times that.
    *
    * `&exact=1` — software rasterisation, pinned. The floor drops to zero and a
    * single differing channel is real, but a 2560x1440 frame costs an order of
@@ -147,7 +150,7 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
   const exact = q.get("exact") === "1";
   /** The surface arm's destination: ONE canvas for the whole run, exactly as
    *  this probe has always had, so its numbers stay comparable with the sweeps
-   *  sessions 2 to 4 committed. */
+   *  taken before the renderer arm existed. */
   const surface = makeTarget(exact);
   // Narrowed the same way the perf probe is, and an unmatched name throws
   // rather than silently sweeping nothing. A full sweep is the default.
@@ -165,8 +168,8 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
   const base = schedule.duration;
 
   // `ops` is threaded through EVERY draw here, defaulting to none, so the six
-  // hands that ignore it are measured exactly as they were before session 6 and
-  // their committed sweeps stay comparable.
+  // hands that ignore it are measured exactly as they were before THE STACK's
+  // configuration axis existed, and their earlier sweeps stay comparable.
   const drawOn = (tg: Target, t: number, mode: ModeId, ops: StackOps = 0) =>
     renderTo(tg, t, data, schedule, inscriptions, mode,
       false, false, completedStackState(ops), null, display);
@@ -208,10 +211,10 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
   /**
    * THE TOGGLE ROUND-TRIP — the one question no seek test can ask.
    *
-   * The audit's purity requirement has two halves. "Backward and forward
-   * scrubbing are pixel-identical for the same configuration and `t`" is what
-   * the four histories above test. "No toggle may retain artistic state between
-   * frames" is a different claim on a different axis, and nothing in this probe
+   * The purity requirement has two halves. "Backward and forward scrubbing
+   * are pixel-identical for the same configuration and `t`" is what the four
+   * histories above test. "No toggle may retain visual state between frames"
+   * is a different claim on a different axis, and nothing in this probe
    * could see it: every history varies `t` at a fixed configuration, and this
    * varies the CONFIGURATION at a fixed `t`.
    *
@@ -263,8 +266,8 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
   // MEASURED ON THE HEAVIEST FRAME IN THE SWEEP, not the cheapest. It used to
   // render `beats[0]` — the prelude, where `renderTo` returns before any hand
   // is called and the plate is bare — and then apply that floor to frames
-  // carrying tens of thousands of marks. Session 2's handoff named this as a
-  // limit of the instrument and it turns out to matter: a bare frame's floor
+  // carrying tens of thousands of marks. That was first recorded as a known
+  // limit of the instrument, and it turns out to matter: a bare frame's floor
   // came back at zero channels on this machine while a window beat's is
   // thousands, so the cheap floor promoted the browser's own jitter on a heavy
   // frame into a finding about the piece. The floor is a property of the FRAME,
@@ -279,8 +282,8 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
   // THE STACK's densest configuration, not its default, is what the floor has to
   // be characterised on: its default is bare stone and therefore the cheapest
   // frame in the piece, so a floor taken there would be measured on an empty
-  // plate and applied to a full one — the same mistake session 4 corrected when
-  // the floor was being taken on the prelude.
+  // plate and applied to a full one — the same mistake as taking the floor on
+  // the prelude, corrected above.
   const heaviestOps = (m: ModeId): StackOps => {
     const cs = configsOf(m);
     return cs[cs.length - 1]!.ops;
@@ -403,7 +406,7 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
         ...(renderer.diffs ? { diffs: renderer.diffs } : {}),
         // Reported, never verdict-bearing: this arm cannot tell the piece's
         // memory from the destination canvas's. It is here because it is what
-        // the committed sweeps of sessions 2 to 4 measured.
+        // every sweep taken before the renderer arm measured.
         surfaceArm: { verdict: surfaceVerdict, ...surfaceArm },
       });
       if (surfaceVerdict === "IMPURE") surfaceImpure++;
@@ -472,8 +475,8 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
       renderer: "the history warms the renderer's caches on a scratch surface; "
         + "the frame under test is drawn on a virgin one, so the destination is "
         + "in the same condition in every history and a difference is the piece's",
-      surface: "history and frame share one destination, as this probe did "
-        + "through session 4 - reported for continuity with those sweeps, and "
+      surface: "history and frame share one destination, as this probe's earlier "
+        + "sweeps did - reported for continuity with those sweeps, and "
         + "not verdict-bearing, because a canvas does not rasterise its second "
         + "pass the way it rasterised its first",
     },

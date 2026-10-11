@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""The choice apparatus for V-03's open half: candidate palettes, measured (session 11).
+"""The choice palette.py leaves open: candidate palettes, measured.
 
 WHAT THIS IS AND IS NOT. `palette.json` says, gated, that the shipped seven hues
-do not reach the seven-way separation target; the second audit measured that the
-target is REACHABLE under the piece's own taste constraints (second-audit-claude
-C6-P2). Choosing hues is taste, taste is the artist's, and this tool decides
-nothing: it is an instrument of choice, not of acceptance. It is deliberately
-NOT wired into `qa.py` — same standing as `pipeline/checks/` — and it writes
-nothing under `data/processed/`. The shipped truth stays `palette.json`.
+do not reach the seven-way separation target; an earlier independent review of
+the palette measured that the target is REACHABLE under the piece's own taste
+constraints (`--search audit-base`, `AUDIT_BASE`, `AUDIT_SEED` and `audit_walk`
+are named for that review). Choosing hues is taste, taste is the author's, and
+this tool decides nothing: it is an instrument of choice, not of acceptance. It
+is deliberately NOT wired into `qa.py` — same standing as `pipeline/checks/` —
+and it writes nothing under `data/processed/`. The shipped truth stays
+`palette.json`.
 
 THE METRIC IS THE PIPELINE'S OWN, imported rather than restated: this file takes
 `separation()`, `CONDITIONS`, `read_site_palette()`, `adjacent_zones()`,
@@ -16,20 +18,20 @@ it emits is measured on the instrument the gate already trusts (colorspacious
 CAM02-UCS; Machado/Oliveira/Fernandes CVD at severity 100; normal + protan +
 deutan + tritan). A candidate measured under any other instrument would not be a
 candidate. Constraints are expressed in CIECAM02 JCh (hue angle h, chroma C,
-lightness J) — the audit's own idiom for "the rust family", "gold", "grey".
+lightness J) — the review's own idiom for "the rust family", "gold", "grey".
 
-THE AUDIT'S RESULT IS REPRODUCED BEFORE ANYTHING NEW IS GENERATED. The second
-audit's own search script survives in its scratchpad and `--search audit-base`
+THE REVIEW'S RESULT IS REPRODUCED BEFORE ANYTHING NEW IS GENERATED. The
+review's own search script survives in its scratchpad and `--search audit-base`
 is a verbatim port of it: same seed (19961997), same proposal distribution, same
 accept-if-better walk, same constraint set, same temperature handling (the decay
 is skipped when a proposal fails constraints — a quirk, kept, because
 reproduction means the loop as it ran, not as it would be tidied). Run it and it
-must print the audit's base figure; the session-11 packet quotes both sides.
-The audit's second figure (rust-held, 17.864) came from a constraint variant
-whose exact windows did not survive; RUST_HELD below declares this session's own
-windows as data, anchored on the shipped hues' measured JCh, and the packet
-quotes the two numbers side by side as what they are — the same stated
-constraints, two formalisations.
+must print the review's base figure; the local working notes quote both sides.
+The review's second figure (rust-held, 17.864) came from a constraint variant
+whose exact windows did not survive; RUST_HELD below declares this file's own
+windows as data, anchored on the shipped hues' measured JCh, and the two numbers
+are quoted side by side as what they are — the same stated constraints, two
+formalisations.
 
 EVERY CANDIDATE IS MEASURED AT THE VALUES THAT WOULD SHIP. The search walks in
 continuous sRGB, but `ZONE_RGB` holds 8-bit integers, so each candidate is
@@ -48,19 +50,21 @@ says which versions produced it.
     python3 pipeline/palette_search.py --apply shipped       # restore from git
 
 `--apply` rewrites the seven quoted triples inside `site/src/palette.ts`'s
-ZONE_RGB block IN THE WORKING TREE, for judgment captures and — if the artist
-picks a candidate — as the first, mechanical link of the application chain
-(session-5c handoff §2): ZONE_RGB -> `python3 pipeline/palette.py` -> the seven
-`display` entries in `site/scripts/numbers-allowlist.json` -> `npm run disclose`
--> gates -> sweeps. It never touches git; `git checkout -- site/src/palette.ts`
-is the undo. The hue-family comments beside the triples are artist copy and are
-deliberately NOT rewritten by --apply: after a real application they must be
-re-read against the new hues by a person.
+ZONE_RGB block IN THE WORKING TREE, for judgment captures and — if the author
+picks a candidate — as the first, mechanical link of the application chain:
+ZONE_RGB -> `python3 pipeline/palette.py` -> the seven `display` entries in
+`site/scripts/numbers-allowlist.json` -> `npm run disclose` -> gates -> sweeps.
+It never touches git; `git checkout -- site/src/palette.ts` is the undo. The
+hue-family comments beside the triples are authored copy and are deliberately
+NOT rewritten by --apply: after a real application they must be re-read against
+the new hues by a person.
 
 Reads:  site/src/palette.ts (the shipped hues, via palette.read_site_palette),
-        docs/build/palette-search/candidates.json (--apply only)
-Writes: docs/build/palette-search/candidates.json, candidates.md (--emit);
+        OUT_DIR/candidates.json (--apply only)
+Writes: OUT_DIR/candidates.json, candidates.md (--emit);
         site/src/palette.ts working tree (--apply only, never committed by it)
+OUT_DIR (below) is a local, gitignored directory: the candidate table is an
+instrument of choice and never ships.
 """
 
 import argparse
@@ -89,10 +93,11 @@ from common import REPO_ROOT, ZONE_NAMES, die  # noqa: E402
 from colorspacious import cspace_convert  # noqa: E402
 import colorspacious  # noqa: E402
 
+# A local, gitignored directory (see the module docstring).
 OUT_DIR = REPO_ROOT / "docs" / "build" / "palette-search"
 PALETTE_TS = REPO_ROOT / "site" / "src" / "palette.ts"
 
-# The audit's seed, verbatim (the first charted season twice over).
+# The review's seed, verbatim (the first charted season twice over).
 AUDIT_SEED = 19961997
 
 # --- constraint sets, declared as data --------------------------------------
@@ -102,10 +107,10 @@ AUDIT_SEED = 19961997
 # RA h 74.5 C 43.0, Paint h 54.0 C 50.9, Mid-Range h 32.9 C 65.2,
 # LC3 h 212.6, RC3 h 234.8, AB3 h 264.1, Backcourt C 3.3.
 
-# The audit's base set, verbatim from its surviving script: warm through the
+# The review's base set, verbatim from its surviving script: warm through the
 # middle, cool along the arc, RA the brightest thing on the floor, Backcourt
-# near-grey, everything clearly brighter than the ground. Load-bearing per the
-# 5c handoff: warm-middle/cool-arc is what carries the migration reading.
+# near-grey, everything clearly brighter than the ground. Load-bearing:
+# warm-middle/cool-arc is what carries the migration reading.
 AUDIT_BASE = {
     "hue_windows": {0: (20.0, 100.0), 1: (20.0, 100.0), 2: (20.0, 100.0),
                     3: (180.0, 300.0), 4: (180.0, 300.0), 5: (180.0, 300.0)},
@@ -115,10 +120,10 @@ AUDIT_BASE = {
     "j_min": 25.0,
 }
 
-# This session's rust-held set: the audit's stated additions ("Mid-Range h
+# This file's rust-held set: the review's stated additions ("Mid-Range h
 # 15-50, C >= 25, RA gold, paint orange"), formalised. The rust window and its
-# chroma floor are the audit's own words; gold and orange are declared as
-# windows bracketing the shipped anchors (74.5 and 54.0), and the audit's
+# chroma floor are the review's own words; gold and orange are declared as
+# windows bracketing the shipped anchors (74.5 and 54.0), and the review's
 # C >= 25 floor is applied to all three warm pins because a family pin without
 # a chroma floor pins nothing — a grey has no meaningful hue angle.
 RUST_HELD = {
@@ -215,17 +220,17 @@ def worst_adjacent(rgb01, touching):
 
 
 # --- the walks ---------------------------------------------------------------
-# Accept-if-better with a shrinking Gaussian proposal — the audit's own walk,
+# Accept-if-better with a shrinking Gaussian proposal — the review's own walk,
 # kept: it is not a true annealer (no uphill acceptance) and nobody here claims
 # optimality; the bar is feasibility (maximin >= target after rounding) and
-# reproducibility, and the audit's basin figures are existence proofs.
+# reproducibility, and the review's basin figures are existence proofs.
 
 
 def audit_walk(start01, cset, seed, iters=4000, t0=0.12, t_floor=0.02,
                decay=0.9995):
-    """Verbatim port of the audit's loop, generalised only in its constraint
+    """Verbatim port of the review's loop, generalised only in its constraint
     set. RNG consumption order and the constraint-skip of the temperature decay
-    are preserved exactly — `--search audit-base` must reproduce the audit's
+    are preserved exactly — `--search audit-base` must reproduce the review's
     figure from the same seed, and does."""
     rng = np.random.default_rng(seed)
     best = np.asarray(start01).copy()
@@ -336,11 +341,11 @@ def emit():
     shipped01 = np.asarray(shipped255, dtype=float) / 255.0
     touching = set(adjacent_zones())
 
-    print("reproduction first (the audit's base run, verbatim port):")
+    print("reproduction first (the review's base run, verbatim port):")
     base01, base_score = audit_walk(shipped01, AUDIT_BASE, AUDIT_SEED)
-    print(f"  audit-base maximin {base_score:.3f} (float, the audit's own figure)")
+    print(f"  audit-base maximin {base_score:.3f} (float, the review's own figure)")
 
-    print("rust-held (this session's declared windows):")
+    print("rust-held (this file's declared windows):")
     rust01, rust_score = audit_walk(shipped01, RUST_HELD, AUDIT_SEED)
     print(f"  rust-held maximin {rust_score:.3f} (float)")
 
@@ -381,7 +386,7 @@ def emit():
         measure_candidate("RUST-HELD",
                           np.round(np.asarray(rust01) * 255).astype(int).tolist(),
                           shipped01, touching,
-                          "maximum maximin under this session's rust-held "
+                          "maximum maximin under this file's rust-held "
                           "windows; the far point, more saturated than shipped"),
     ]
 
@@ -393,8 +398,8 @@ def emit():
     doc = {
         "generated_by": "pipeline/palette_search.py --emit",
         "_why": (
-            "V-03's open half: candidate palettes for the artist's eye, every "
-            "figure measured by pipeline/palette.py's own instrument on the "
+            "The palette's open question: candidate palettes for the "
+            "author's eye, every figure measured by pipeline/palette.py's own instrument on the "
             "rounded integer values that would ship. This file decides "
             "nothing; the shipped truth is data/processed/palette.json and "
             "keeping the shipped palette is a listed option."
@@ -418,11 +423,13 @@ def emit():
         },
         "reproduction": {
             "audit_base_maximin_float": round(base_score, 3),
-            "audit_stated_base": "second-audit-claude.md C6-P2, base constraints",
-            "note": "the audit's own scratchpad script, ported verbatim (seed "
-                    "19961997); the audit's rust-held figure used constraint "
+            "audit_stated_base": "the independent palette review's stated base "
+                                 "constraints (local working notes)",
+            "note": "the review's own scratchpad script, ported verbatim (seed "
+                    "19961997); the review's rust-held figure used constraint "
                     "windows that did not survive its scratchpad — this file's "
-                    "RUST_HELD declares its own, and the packet quotes both.",
+                    "RUST_HELD declares its own, and the local working notes "
+                    "quote both.",
         },
         "constraint_sets": {
             name: {
@@ -529,7 +536,8 @@ def apply_candidate(name):
     PALETTE_TS.write_text(new_src)
     print(f"applied {name} to the WORKING TREE at {PALETTE_TS.relative_to(REPO_ROOT)}")
     print("  (undo: git checkout -- site/src/palette.ts; the gate stays red "
-          "until pipeline/palette.py and the allowlist follow — 5c §2)")
+          "until pipeline/palette.py and the allowlist follow — see the "
+          "application chain in this file's docstring)")
 
 
 def main():

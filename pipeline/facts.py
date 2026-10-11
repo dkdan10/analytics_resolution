@@ -2,8 +2,8 @@
 """Stage 5 - the facts the dumps cannot supply, and the display facts derived.
 
 Every number the piece puts on screen has to resolve to a key in
-data/processed/ (CLAUDE.md honesty rule). Most of them already did. A residue
-did not, and it was authored in the renderers instead:
+data/processed/ (rule 1, honesty: README, The rules). Most of them already did.
+A residue did not, and it was authored in the renderers instead:
 
   1946                the league's founding, which no shot dump reaches back to
   22-FT               the three-point line of 1994-97
@@ -30,8 +30,9 @@ The schedule is the interesting one. `site/src/timeline.ts` is the only place
 the piece's durations are declared, so this stage READS those four constants out
 of the TypeScript and multiplies them against the season count in seasons.json.
 That gives the loop exactly one source of truth, which is what lets qa.py gate
-the prose in CLAUDE.md and README.md against the code rather than against a
-number somebody remembered.
+the prose in README.md, and in the local working notes where present (qa.py's
+MEMORY_DOCS), against the code rather than against a number somebody
+remembered.
 
 Usage: python3 pipeline/facts.py
 """

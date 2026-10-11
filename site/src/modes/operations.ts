@@ -20,8 +20,8 @@
  * NO DEFINITION TEXT IS WRITTEN HERE EITHER. `definitionKey` names an artifact
  * and a key inside its own `definitions` block, and the rail reads the sentence
  * out of `data/processed/` at run time. A definition copied into source is a
- * definition that will go stale, which is CLAUDE.md's first rule applied to
- * prose rather than to a number.
+ * definition that will go stale, which is the first rule (README, The rules)
+ * applied to prose rather than to a number.
  */
 
 import { STACK_OPERATION_DURATIONS_SECONDS } from "../window-score";
@@ -41,12 +41,12 @@ export const OPERATIONS = [
     durationSeconds: STACK_OPERATION_DURATIONS_SECONDS.locate,
     /** What the operation does to the record, in the rail, under its title. */
     does: "puts every shot where the record says it happened, and piles the ones it would not place",
-    // The rail's LOCATE row quoted `ra_origin_share` while session 6 shipped,
+    // No STACK string may assert `rim_sentinel` unless a second instrument has
+    // seen it. The rail's LOCATE row once quoted `ra_origin_share` instead,
     // because that key is about the exact origin and was corroborated while the
-    // sentinel was not — the artist's rule was that no STACK string may assert
-    // `rim_sentinel` until a second instrument had seen it. Session 5c earned
-    // it: window.json:sentinel_corroboration. The definition this now quotes
-    // carries the verdict AND the scope limit, which is why the swap is safe.
+    // sentinel was not. The sentinel is corroborated now
+    // (window.json:sentinel_corroboration), and the definition this quotes
+    // carries the verdict AND the scope limit, which is why quoting it is safe.
     reads: ["points/season_YYYY.bin", "seasons[].resolution.rim_sentinel"],
     definition: ["seasons", "resolution.rim_sentinel"],
   },
@@ -60,9 +60,9 @@ export const OPERATIONS = [
     reads: ["seasons[].zones", "palette.ts:ZONE_RGB"],
     definition: ["paint", "zone"],
     /** A MODIFIER, not a layer. It re-tints the base LOCATE draws and never
-     *  draws a second field, which is the audit's rule that neutral density,
-     *  coloured density and splotches are one material choice rather than three
-     *  overlays. With LOCATE off there is nothing to tint and nothing happens. */
+     *  draws a second field, because neutral density, coloured density and
+     *  splotches are one material choice rather than three overlays. With
+     *  LOCATE off there is nothing to tint and nothing happens. */
     requires: "locate",
   },
   {
@@ -126,14 +126,13 @@ export const OPERATIONS = [
     does: "lays a hairline from each filed coordinate to the feed's ball at release — the archive's two words about where one shot happened",
     reads: ["quarrel.bin", "window.json:quarrel_bin"],
     definition: ["window", "quarrel"],
-    /** Both audits proposed this operation independently (THE QUARREL /
-     *  THE PARALLAX): the join that made CONNECT and MEASURE possible
-     *  re-numbered games by a voted integer — how many, and out of how many,
-     *  is `window.json:recovery.games_offset` against `corpus.games_parsed` —
-     *  and shipped its confession keys drawn by nothing. This is its honest
-     *  drawable, the per-shot disagreement the join measures, and like the
-     *  other two feed operations it can only be applied where the feed is
-     *  public. */
+    /** THE QUARREL, as an operation. The join that made CONNECT and MEASURE
+     *  possible re-numbered games by a voted integer — how many, and out of
+     *  how many, is `window.json:recovery.games_offset` against
+     *  `corpus.games_parsed` — and ships confession keys that nothing else
+     *  draws. This is the join's honest drawable, the per-shot disagreement it
+     *  measures, and like the other two feed operations it can only be
+     *  applied where the feed is public. */
     windowOnly: true,
   },
 ] as const;
@@ -142,12 +141,12 @@ export type Operation = (typeof OPERATIONS)[number];
 export type OpId = Operation["id"];
 
 /**
- * The configuration, as the audit asked for it: a bitmask.
+ * The configuration: a bitmask.
  *
- * "Represent the operation selection as the mode configuration. Rendering
- * remains a pure function of `(modeConfiguration, t)`; no toggle may accumulate
- * artistic state between frames." A number satisfies that by construction — it
- * is passed in, never read back, and nothing downstream can write to it.
+ * The operation selection IS the mode configuration, so rendering remains a
+ * pure function of `(modeConfiguration, t)` and no toggle may accumulate state
+ * between frames. A number satisfies that by construction — it is passed in,
+ * never read back, and nothing downstream can write to it.
  *
  * The bit is the operation's INDEX IN THE TABLE ABOVE, which is also the layer
  * order, so the mask reads bottom-up and no bit position is written anywhere.
@@ -254,19 +253,19 @@ export function opForKey(key: string): Operation | null {
 /**
  * ALL RENDERINGS: every operation at once.
  *
- * ARTIST'S RULING, 2026-08-09, and it is the reason there is no timer anywhere
- * in this view. Asked whether the illegibility should decay back deterministically,
- * cut to bare stone, or HOLD UNTIL RELEASED, the artist chose hold. So the
- * argumentative event is not a transient at all — it is the configuration with
- * every bit set, and the presenter decides how long the audience sits in it.
+ * DECIDED 2026-08-09, and it is the reason there is no timer anywhere in this
+ * view. Of the three ways out — let the illegibility decay back
+ * deterministically, cut to bare stone, or HOLD UNTIL RELEASED — the view
+ * holds. So the argumentative event is not a transient at all — it is the
+ * configuration with every bit set, and the presenter decides how long the
+ * audience sits in it.
  *
- * What that buys, and it is worth saying plainly: the audit warned that a
- * transient triggered "now" smuggles wall-clock state into a pure render, and
- * prescribed carrying the invoking `t` in the configuration to keep it out. Under
- * the artist's form there is no `t0` to carry, no paused-clock semantics to
- * disclose, and no arithmetic that has to be trusted to return. The return is
- * the previous mask, restored by the rail, and it is byte-identical because it
- * is the same number.
+ * What that buys, and it is worth saying plainly: a transient triggered "now"
+ * smuggles wall-clock state into a pure render, and keeping it out would mean
+ * carrying the invoking `t` in the configuration. Holding instead leaves no
+ * `t0` to carry, no paused-clock semantics to disclose, and no arithmetic that
+ * has to be trusted to return. The return is the previous mask, restored by
+ * the rail, and it is byte-identical because it is the same number.
  */
 export function allOn(ops: StackOps): boolean {
   return ops === ALL_OPS;

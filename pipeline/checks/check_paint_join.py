@@ -8,11 +8,11 @@ projects the release-frame ball position into the shot record's own frame, and
 compares it with the coordinate the 2015-16 shot dump filed at
 `tracking event id + this game's event offset`.
 
-The claim being checked is the one paint.py's docstring makes and CLAUDE.md
-repeats: that every stroke is traceable back to one release already corroborated
-against a coordinate the record filed independently. Before this session it was
-false for a majority of canvases - the stage accepted an offset it never used
-and painted the first event that yielded a plausible rim flight.
+The claim being checked is the one paint.py's docstring makes and rule 7
+(README, The rules) rests on: that every stroke is traceable back to one release
+already corroborated against a coordinate the record filed independently. It was
+once false for a majority of canvases - the stage accepted an offset it never
+used and painted the first event that yielded a plausible rim flight.
 
 SLOW: parses every painted archive.
 

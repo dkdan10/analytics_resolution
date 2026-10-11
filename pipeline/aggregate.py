@@ -161,7 +161,7 @@ SHORTENED_LINE_YEARS = {1996}
 SHORTENED_LINE_FT = 22.0
 
 # Fallback for the window span if the probe artifact is absent; measured in
-# pipeline/sportvu_probe.py, which gates this exact value (plan section 1.1).
+# pipeline/sportvu_probe.py, which gates this exact value.
 WINDOW_FALLBACK = ("2015-10-27", "2016-01-23")
 
 
@@ -532,7 +532,7 @@ def measure_contemporaneous(year, df):
 def measure_schema(year):
     """How wide the record is per shot, measured from the dump's own header.
 
-    CLAUDE.md asserts that the per-shot field count does NOT grow - "same 24
+    The piece asserts that the per-shot field count does NOT grow - "same 24
     columns in all 30 seasons" - while the vocabulary does. That was a claim
     nobody had checked, and it is the honest counterweight to the second curve:
     Act V's crowding comes from richer DESCRIPTION, never from more fields. So
@@ -631,7 +631,7 @@ def measure_classification(df):
 def measure_classification_place(df, pin_coord):
     """Where on the floor each of the record's own categories actually sits.
 
-    THE MEASUREMENT THE FILING RESTS ON (V-05). THE CENSUS used to be two
+    THE MEASUREMENT THE FILING RESTS ON. THE CENSUS used to be two
     statistical tables flanking the court; it is now struck INTO the court, one
     word per category at the place the record itself put that category's shots.
     Nothing here is a layout: every position on the plate is this measurement,
@@ -884,9 +884,10 @@ def aggregate_season(year):
     }
 
     points = build_points(year, half, row)
-    # The window season also ships its calendar (the third audit's re-clock,
-    # ruled 2026-08-10). Identified by the window span's own first year rather
-    # than a second 2015 literal.
+    # The window season also ships its calendar (the re-clock decided
+    # 2026-08-10: its base reveal accumulates on the record's measured days).
+    # Identified by the window span's own first year rather than a second 2015
+    # literal.
     window_year = int(WINDOW_FALLBACK[0][:4])
     points_by_day = build_points_by_day(year, half, row, points) if year == window_year else None
     return row, sample, grid, points, points_by_day
@@ -954,14 +955,13 @@ def build_points(year, half, row):
 
 
 # The window season only. One record per (day, occupied coordinate), 11 bytes,
-# little-endian. Commissioned by the third audit and ruled by the artist
-# 2026-08-10: the 2015-16 base reveal re-accumulates on the record's own
-# measured days instead of the authored emphasis-order arrival, and this is the
-# artifact that carries the calendar. `day` is days since the window's first
-# date (2015-10-27, the same anchor window.py's three dated binaries share) and
-# runs to the season's own end in April - day 88 is the window's last day, days
-# beyond it are the enclosure's remainder - which overflows the uint8 idiom
-# window.py uses, so uint16.
+# little-endian. Decision (2026-08-10): the 2015-16 base reveal re-accumulates
+# on the record's own measured days instead of the authored emphasis-order
+# arrival, and this is the artifact that carries the calendar. `day` is days
+# since the window's first date (2015-10-27, the same anchor window.py's three
+# dated binaries share) and runs to the season's own end in April - day 88 is
+# the window's last day, days beyond it are the enclosure's remainder - which
+# overflows the uint8 idiom window.py uses, so uint16.
 DAY_POINT_DTYPE = np.dtype([
     ("day", "<u2"),
     ("x", "<i2"), ("y", "<i2"),

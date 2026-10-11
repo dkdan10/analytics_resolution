@@ -22,7 +22,7 @@
  */
 
 import { BONE_RGB, ZONE_RGB } from "./palette";
-import { COURT, type View } from "./plate";
+import { type View } from "./plate";
 import {
   COARSE_R,
   DEVELOP_STATES,
@@ -370,16 +370,16 @@ function coarseShare(
  *
  *  `img`, when given, mirrors every touched pixel into 8-bit as it lands —
  *  the reveal's quantization, kept INSIDE the splat so a reveal step pays for
- *  the pixels its batch touches rather than a full-frame conversion (measured
- *  this session: the full-frame path put a step's cost at 2-4x the frame
- *  budget; this path fits). The mirror is idempotent — the last write to a
+ *  the pixels its batch touches rather than a full-frame conversion (measured:
+ *  the full-frame path put a step's cost at 2-4x the frame budget; this path
+ *  fits). The mirror is idempotent — the last write to a
  *  pixel is the clamp of its final accumulated value, the exact assignment
  *  `quantize` would make — so mirroring during the fold and converting after
  *  it produce the same bytes. The mirror also stamps the pixel opaque: under
  *  `lighter` a transparent pixel and an opaque black one contribute the same
  *  nothing, so a mirrored surface may start as transparent black — one native
- *  fill — instead of paying a per-pixel alpha pass (measured this session:
- *  that pass was most of a delta refold's cost). For the reveal's persistent
+ *  fill — instead of paying a per-pixel alpha pass (measured: that pass was
+ *  most of a delta refold's cost). For the reveal's persistent
  *  img, whose alpha is already opaque, the write re-stamps the byte it
  *  already holds. */
 function splatCell(
@@ -489,7 +489,7 @@ function splatGrainedCell(
  * repair, not an optimisation taste: each bake used to allocate a ~44 MB
  * float accumulator and a ~15 MB ImageData and drop both, and the major GC
  * collecting them landed as a frame several times the budget in the middle
- * of a season (measured this session at census@after-the-cut, with the pause
+ * of a season (measured at census@after-the-cut, with the pause
  * moving between runs — the classic signature). Both buffers are fully
  * overwritten
  * before every read — the accumulator by `fill(0)` and the fold, the image by
@@ -655,8 +655,8 @@ export function drawDeveloping(
   // The lower state is skipped exactly when its weight is zero — `frac` is 1
   // only at the ladder's top, where the finished state draws alone. drawLayer
   // would skip the blit anyway, so no pixel depends on this; what it stops is
-  // the zero-weight ARGUMENT cold-baking a state nobody ever draws (measured
-  // this session: a full-plate bake on the first tail frame, at alpha 0). An
+  // the zero-weight ARGUMENT cold-baking a state nobody ever draws (measured:
+  // a full-plate bake on the first tail frame, at alpha 0). An
   // alpha-threshold guard was tried here and reverted: it deferred REAL bakes
   // from a hand's first frame to the first frame their alpha cleared the
   // blit's own floor, which moved the cost from a season's opening — where
@@ -668,12 +668,13 @@ export function drawDeveloping(
 }
 
 /**
- * THE PER-MARK ARRIVAL (session 9, stage B of the artist's arrival repair).
+ * THE PER-MARK ARRIVAL (stage B of the two-stage arrival; stage A is THE
+ * DEVELOPMENT's exposure crossfade).
  *
  * During arrival a season's cells no longer surface as one developing image —
  * they ARRIVE, each at its full measured tone, in THE RECORD'S OWN EMPHASIS
- * ORDER: descending filed count, the most-filed coordinate first (artist
- * ruling, 2026-08-09 — explicitly not THE HAND's declared scatter). Ties —
+ * ORDER: descending filed count, the most-filed coordinate first (decided
+ * 2026-08-09 — explicitly not THE HAND's declared scatter). Ties —
  * equal counts — break by a stated deterministic rule: nearest the rim first
  * (x² + y², exact in integers), then y, then x; coordinates are unique per
  * cell, so the order is total and stable. The pin's cell and empty cells are
@@ -685,8 +686,9 @@ export function drawDeveloping(
  * is the record's emphasis, not its calendar. The order is MEASURED; only the
  * pace (REVEAL_STEPS, REVEAL_CURVE in the register) is composition.
  *
- * THE ACCUMULATOR IS ADVANCED IN PLACE, AND THAT IS SOUND WHERE THE CANVAS
- * VERSION (prefix.ts, F-04) WAS NOT: the fold is pure JS float arithmetic.
+ * THE ACCUMULATOR IS ADVANCED IN PLACE, AND THAT IS SOUND WHERE EXTENDING A
+ * CANVAS IN PLACE (the defect prefix.ts removes) WAS NOT: the fold is pure JS
+ * float arithmetic.
  * Per pixel, the sequence of additions is the emphasis order itself, identical
  * whether a prefix arrives in one call or across many — IEEE addition is
  * deterministic and no rasteriser touches the numbers until `quantize`, which
@@ -736,7 +738,8 @@ function revealOrder(pts: Points, pin: [number, number] | null): Int32Array {
  *  `cells` cells, its 8-bit mirror, and the one canvas that carries them.
  *
  *  THE CANVAS IS PERSISTENT AND WRITTEN ONLY BY `putImageData`, and that is
- *  why reusing it does not reopen F-04. What prefix.ts measured was
+ *  why reusing it does not reopen the in-place-extension defect prefix.ts
+ *  exists to remove. What prefix.ts measured was
  *  RASTERISED drawing — vector fills and `drawImage` composites, whose bytes
  *  the browser may produce differently as a canvas's backing moves between
  *  paths. `putImageData` is not rasterisation: it replaces every pixel of the
@@ -828,9 +831,9 @@ function revealLayer(
   return r.layer;
 }
 
-/** THE CROSSFADE (session 13, by the artist's ruling — the session-9 packet's
- *  named rival, now taken): a batch no longer strikes at its full tone on a
- *  floor crossing; it RISES over its interval. The arriving batch is its own
+/** THE CROSSFADE (chosen over the hard step): a batch no longer strikes at
+ *  its full tone on a floor crossing; it RISES over its interval. The
+ *  arriving batch is its own
  *  delta layer — the bake is linear in cells, so
  *  `layer(prefix_{s+1}) = layer(prefix_s) + layer(batch_s)` in float exactly —
  *  drawn above the folded base at an alpha that is the LINEAR fractional part
@@ -929,19 +932,19 @@ function deltaLayer(
 
 /**
  * Draw a season mid-arrival: the reveal replaces THE DEVELOPMENT's exposure
- * crossfade for the arriving season only (recession keeps A's develop-out, as
- * ratified). `arrived` is the arrival envelope itself — `st.arrived`, which
- * reaches 1 exactly at ARRIVAL_TAIL, so THE NUMBER LEAVES LAST's ratified
- * timing still lands the numeral against arrival's end.
+ * crossfade for the arriving season only (recession keeps stage A's
+ * develop-out, by design). `arrived` is the arrival envelope itself —
+ * `st.arrived`, which reaches 1 exactly at ARRIVAL_TAIL, so THE NUMBER LEAVES
+ * LAST's settled timing still lands the numeral against arrival's end.
  *
- * SINCE SESSION 13 THE STEPS BLEND (the crossfade above): the folded prefix of
+ * THE STEPS BLEND (the crossfade above): the folded prefix of
  * the floor's step draws as the base, and the NEXT batch rises over it at the
  * linear fractional part of the same envelope. At every integer boundary the
  * frame is exactly the folded prefix — the delta contributes nothing at alpha
  * 0 — and at the top and past it the surface drawn is `bakeLayer`'s own
  * finished canvas, so the tail endpoint frames are byte-identical to the
  * judged bake by construction, not by arithmetic luck. Between boundaries the
- * frames are new, which is the ruling's point. The delta's bake is skipped
+ * frames are new, which is the crossfade's point. The delta's bake is skipped
  * while its draw would be skipped (the blit's own alpha floor) so its cold
  * cost lands a frame after the base's advance, never stacked on it; no pixel
  * depends on that timing.
@@ -965,7 +968,7 @@ export function drawReveal(
   // boundary, where the season's cold work (the order, the accumulator)
   // already lives — so its one cold cost sits in the frame a viewer and a
   // probe can attribute rather than surprising the middle of the season
-  // (measured in session 9: left lazy, it landed a full-plate bake at the
+  // (measured: left lazy, it landed a full-plate bake at the
   // reveal's top step, mid-window). Warm frames pay a cache hit; no pixel
   // depends on when this ran.
   const top = bakeLayer(year, pts, coloured, view, dpr, pin, 1, grain);
@@ -995,7 +998,8 @@ export function drawReveal(
 }
 
 /**
- * THE WINDOW FOLD (session 16, the third audit's re-clock, ruled 2026-08-10).
+ * THE WINDOW FOLD (the window's re-clock onto its measured days, decided
+ * 2026-08-10).
  *
  * The window season's base no longer arrives in the authored emphasis order:
  * it accumulates on the record's own measured days, the same calendar the
@@ -1004,7 +1008,7 @@ export function drawReveal(
  * pre-seed — its endings rise through the game+night span as one continuous
  * arrival), then every other window day on the season clock, then the
  * post-window remainder as ONE staged step at the close (the enclosure made
- * visible on the base itself — an artist-flagged content claim). Within a day
+ * visible on the base itself — a deliberate content claim). Within a day
  * the artifact's own emphasis order stands; no intra-day chronology exists to
  * borrow.
  *
@@ -1306,8 +1310,8 @@ function windowFoldLayer(
 }
 
 /**
- * THE WET DAY (session 17, the fourth audit's convergent proposal, ruled
- * 2026-08-10). The fold above is honest but sub-liminal: a single day's ink,
+ * THE WET DAY (decided 2026-08-10). The fold above is honest but
+ * sub-liminal: a single day's ink,
  * spread across the whole court, sits below the per-second visibility
  * threshold for the entire season beat. So the live calendar day's arrived
  * records — plus the trailing WINDOW_WET_DAYS — draw at an EXCESS above their
@@ -1608,9 +1612,9 @@ export function clearLayers(): void {
  * corpus on one-foot cells; `frames_total` is the population a cell's share is
  * read against. The shot record is an account of endings, and for the one act
  * whose feed survives, this layer carries the between: the mid-range, emptying
- * of endings, is seen to be a place the game never left. Both independent
- * display audits named this artifact the most deserving unshown material and
- * proposed this placement.
+ * of endings, is seen to be a place the game never left. Two independent
+ * reviews of the display named this artifact the most deserving unshown
+ * material and proposed this placement.
  *
  * Same discipline as `bakeLayer`: float accumulation, one `putImageData`,
  * cached under a key carrying everything that affects its pixels, cleared by
@@ -1629,7 +1633,7 @@ const CELL_TENTHS = 10;
 
 /** The residence's cell-splat radius in device pixels — the occupancy grain,
  *  the scale at which the window already says "the game lived here". The
- *  entry yield's wake (session 17) derives its stroke widths from this, so
+ *  entry yield's wake derives its stroke widths from this, so
  *  the mask has no radius of its own to author. */
 export function residenceSplatRadius(view: View, dpr: number): number {
   const spacing = view.s(CELL_TENTHS) * dpr;
@@ -1736,10 +1740,4 @@ export function drawLayer(
   ctx.globalAlpha = Math.min(1, alpha);
   ctx.drawImage(layer.canvas, 0, 0, view.width, view.height);
   ctx.restore();
-}
-
-/** Guard: the court box the pipeline clips to, so a stray coordinate is caught
- *  rather than silently drawn off-plate. */
-export function withinCourt(x: number, y: number): boolean {
-  return x >= COURT.x0 && x <= COURT.x1 && y >= COURT.y0 && y <= COURT.y1;
 }

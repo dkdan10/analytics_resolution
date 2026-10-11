@@ -1,23 +1,25 @@
 /**
- * THE WASH — the dried ground of the four scales (session 15).
+ * THE WASH — the dried ground of the four scales.
  *
  * One body-occupancy raster per game day (`wash.bin`), folded in FIXED ORDER
  * into a cell-space float accumulator and converted to pixels through the
  * residence's own splat kernel and a compressive tone curve read against the
  * CORPUS total. Every scale — the game's grid, the night's raster, the
  * season's fold — converts through the same curve against the same total, so
- * game ≤ night ≤ season holds cell-wise BY MEASURE and each handoff is
- * subset → superset rather than a crossfade between unrelated pictures.
+ * game ≤ night ≤ season holds cell-wise BY MEASURE and each change of scale
+ * is subset → superset rather than a crossfade between unrelated pictures.
  *
  * Per-day 8-bit layers were REJECTED at design (the sub-8-bit trap: a single
  * game day's share of the corpus quantizes to zero and whole days vanish).
  * Instead: float accumulation, one conversion per applied day, front + delta
  * canvases so a mid-day frame crossfades the arriving day up over the ground
- * (the session-13 arrival idiom). Integer-boundary frames are EXACT by
- * construction — when a day completes, the front is reconverted from the
- * accumulator and the delta is retired, so no boundary pixel ever depends on
- * the crossfade path. A dead day contributes no delta and its frames are
- * byte-identical to the ground at any speed.
+ * (the same front/delta crossfade field.ts uses for the per-mark arrival —
+ * THE CROSSFADE there).
+ * Integer-boundary frames are EXACT by construction — when a day completes,
+ * the front is reconverted from the accumulator and the delta is retired, so
+ * no boundary pixel ever depends on the crossfade path. A dead day
+ * contributes no delta and its frames are byte-identical to the ground at any
+ * speed.
  *
  * Purity: every cached surface is a pure function of its key — geometry, DPR,
  * the artifact's identity, the seed day and the count of applied days. A
