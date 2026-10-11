@@ -1046,6 +1046,16 @@ def m_readme_figure(d):
     p.write_text(p.read_text().replace("out of all 632 games", "out of all 640 games"))
 
 
+def m_readme_attempts(d):
+    """The README's headline attempt count drifting from the season table.
+
+    The lede states the corpus size; the claim aggregates it from seasons.json
+    at check time, so a hand-edited total goes red here.
+    """
+    p = d / "README.md"
+    p.write_text(p.read_text().replace("5,933,691 regular-season", "5,933,690 regular-season"))
+
+
 def m_palette_collide(d):
     """Two of the seven hues become the same colour.
 
@@ -1614,6 +1624,10 @@ CASES = [
          "the corroboration says how little of the season it reaches",
          m_corroboration_scope, "one of six seasons reported as the whole finding"),
 
+    Case("readme-attempts", ["memory"],
+         "every gated memory claim is what the artifact says",
+         m_readme_attempts, "the README's headline attempt count drifting from the table",
+         scope="repo"),
     Case("readme-figure", ["memory"],
          "every gated memory claim is what the artifact says",
          m_readme_figure,

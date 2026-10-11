@@ -3726,7 +3726,8 @@ class Claim:
 
     def __init__(self, template, source, path, fmt="raw", doc=MEMORY_DOCS):
         self.template = template   # exact text, with a single {} for the value
-        self.source = source       # "window" | "paint" | "slate" | "facts" | "season:YYYY" | "code"
+        self.source = source       # "window" | "paint" | "slate" | "facts" | "season:YYYY"
+                                   # | "seasons" (an aggregate over the table) | "code"
         self.path = path
         self.fmt = fmt
         # WHICH DOCUMENT HAS TO SAY IT. Defaults to CLAUDE.md because that is
@@ -3797,6 +3798,32 @@ MEMORY_CLAIMS = [
     # moves whenever a gate is added, and a number a document does not need is
     # better deleted than pinned.
     Claim("each of {} seeded defects", "code", "MUTATION_CASES", doc="README.md"),
+
+    # --- README.md: the public front door states its figures, and each is gated.
+    # A new README figure is a new Claim here, in the same commit, or Rule 1 is
+    # broken quietly. `seasons` aggregates over the whole season table.
+    Claim("{} regular-season shot attempts", "seasons", "attempts_total", "comma",
+          doc="README.md"),
+    Claim("over {} seasons, from 1996-97 to 2025-26", "facts", "season.count",
+          doc="README.md"),
+    Claim("falls from {}% of attempts in 1996-97", "season:1996", "mid_share", "pct1",
+          doc="README.md"),
+    Claim("to {}% in 2015-16", "season:2015", "mid_share", "pct1", doc="README.md"),
+    Claim("and {}% in 2025-26", "season:2025", "mid_share", "pct1", doc="README.md"),
+    Claim("the event numberings disagree in {} of", "window", "recovery.games_offset",
+          doc="README.md"),
+    Claim("of the {} tracked games", "window", "corpus.games_parsed", "comma",
+          doc="README.md"),
+    Claim("one of the {} seasons that file the pile away from the origin", "seasons",
+          "displaced_refusal_seasons", doc="README.md"),
+    Claim("from the {} shots the join recovers", "window", "recovery.measured", "comma",
+          doc="README.md"),
+    Claim("files {}% of its shots at the rim on a single coordinate", "season:1996",
+          "resolution.rim_sentinel.share_of_rim", "pct1", doc="README.md"),
+    Claim("does not use the word Fadeaway until {}", "seasons", "first_season_saying:Fadeaway",
+          doc="README.md"),
+    Claim("a median {} ft apart", "window", "disagreement.median_ft", "f2", doc="README.md"),
+    Claim("over {} detected shots", "window", "quarrel_bin.records", "comma", doc="README.md"),
 
     # --- THE SLATE (session 14): the night's artifact -------------------------
     Claim("`slate_index.bin` holds **{} paths**", "slate", "paths", "comma"),
@@ -3898,6 +3925,24 @@ def _memory_value(g, ctx, claim):
                 return None
             m = re.search(r"^const RING_R = (\d+);", src.read_text(), re.M)
             return round(int(m.group(1)) / 10, 1) if m else None
+        return None
+
+    if claim.source == "seasons":
+        # An aggregate over the whole season table rather than one row.
+        seasons = ctx.seasons(g)
+        if not seasons:
+            return None
+        rows = [seasons[y] for y in sorted(seasons)]
+        if claim.path == "attempts_total":
+            return sum(r["attempts"] for r in rows)
+        if claim.path == "displaced_refusal_seasons":
+            return sum(1 for r in rows
+                       if (r["resolution"].get("rim_sentinel") or {}).get("is_refusal")
+                       and not (r["resolution"].get("rim_sentinel") or {}).get("at_origin"))
+        if claim.path.startswith("first_season_saying:"):
+            word = claim.path.split(":", 1)[1]
+            return next((r["season"] for r in rows
+                         if any(word in w for w in r["vocabulary"]["words_list"])), None)
         return None
 
     if claim.source.startswith("season:"):

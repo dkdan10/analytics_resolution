@@ -19,17 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-NOTE ON THE DATA. This licence covers the CODE. The derived data committed under
-data/processed/ is a transformation of records published by the NBA via
-stats.nba.com (bulk archive: shufinskiy/nba_data) and of the public 2015-16
-SportVU tracking release (linouk23/NBA-Player-Movements and mirrors,
-play-by-play via sealneaward/nba-movement-data). No bulk raw data is committed
-here. See README.md ("Provenance") and CLAUDE.md ("Data rights").
-
-NOTE ON AGPL. CLAUDE.md's sixth ground rule requires that any code importing
-ultralytics (AGPL) live isolated in its own clearly-marked subfolder. Nothing in
-this tree imports it, so no such folder exists; this note records why there is
-nothing to look for.
