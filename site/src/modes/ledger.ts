@@ -196,8 +196,8 @@ function labelBudget(season: Season): number {
 // with a small sequence of monumental terms as the cure. Both halves of that
 // are wrong for this piece. The count is the one part of the hand that is
 // measured: it is `words_covering_90pct`, which is the hand's whole argument.
-// And a curated word list is authored content, which rule 3 (README, The
-// rules) forbids outright.
+// And a curated word list is authored content, which rule 3
+// (docs/verification.md) forbids outright.
 //
 // Measured instead, the failure is SCALE and DWELL. Every label is half a foot
 // tall on a floor tens of feet deep, and in the calmest season each one
@@ -274,7 +274,7 @@ function smoothstep(x: number): number {
  *
  * Computed over the corpus at load, never written down: a hand-typed constant in
  * `bloom.ts` survived two re-runs while contradicting the artifact it came from,
- * and the first rule (README, The rules) forbids exactly that pattern.
+ * and the first rule (docs/verification.md) forbids exactly that pattern.
  */
 let refShare = 0;
 function referenceShare(seasons: Season[]): number {

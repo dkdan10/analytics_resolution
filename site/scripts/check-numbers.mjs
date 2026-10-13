@@ -1,7 +1,7 @@
 /**
  * The honesty check, at source level.
  *
- * The first rule (README, The rules) is that every displayed or quoted number comes from a
+ * The first rule (docs/verification.md) is that every displayed or quoted number comes from a
  * script output and never from a keystroke, and its third is that every material
  * property of a mark derives from a measurement. Neither was enforced by
  * anything, and both had failed in the shipped source: "ELEVEN WEEKS" for a
@@ -506,7 +506,7 @@ async function main() {
   if (findings.length) {
     console.error(
       `\ncheck-numbers: ${findings.length} finding(s) across ${files.length} files.\n` +
-        `Every number the piece shows or quotes resolves to data/processed/ (rule 1, README),\n` +
+        `Every number the piece shows or quotes resolves to data/processed/ (rule 1, docs/verification.md),\n` +
         `and every material scalar is declared in src/scalars.ts (rule 3).`,
     );
     process.exit(1);

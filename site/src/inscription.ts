@@ -8,8 +8,8 @@
  * Inscriptions are drawn *under* the marks, because they are cut into the plate
  * rather than laid on it: the shots of every later season settle over them.
  *
- * Every figure here comes from data/processed (rule 1, honesty - README, The
- * rules). This module formats numbers; it never authors them.
+ * Every figure here comes from data/processed (rule 1, honesty -
+ * docs/verification.md). This module formats numbers; it never authors them.
  */
 
 import type { Season } from "./data";
@@ -55,8 +55,8 @@ const RING_R = 172;
  * rather than typed: the strike is arrival's end (ARRIVAL_TAIL of an ordinary
  * season) and the migration ends at the season boundary, so nothing here can
  * drift away from the schedule it inhabits. For the window season the arc is
- * different, because two independent blind reviews both measured 24·6 as the
- * loudest object at the exact instant the found possession is smallest: the
+ * different, because the struck 24·6 would otherwise be the loudest object
+ * at the exact instant the found possession is smallest: the
  * window's numeral WAITS, strikes at the season beat's crest
  * (window-score.ts:WINDOW_CREST_PHASE — the same anchor THE HAND's kept points
  * rise on), holds fully for its scored dwell, then migrates only until the
@@ -65,7 +65,7 @@ const RING_R = 172;
  * The possession enters decongested; the statistic strikes as a consequence
  * of the season just built.
  *
- * What this costs, accepted with the commission: the numeral no longer
+ * What this costs, and it is accepted: the numeral no longer
  * coexists centrally with mid-arrival marks — the marks finish, and the
  * number answers.
  */
@@ -264,8 +264,8 @@ export function strike(
  *              they were while the sentences around them grow.
  *
  * Sizes are in court tenths, so type does not change with the window. Which
- * string is which rank is the `rank` argument its caller passes; the table
- * assigning every drawn string a rank is kept in the local working notes.
+ * string is which rank is the `rank` argument its caller passes, so the call
+ * sites are the only table of which string speaks at which rank.
  * This function does not decide it, and no string's CONTENT changes with rank.
  */
 export type SlugRank = "voice" | "statement" | "aside";

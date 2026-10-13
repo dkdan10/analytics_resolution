@@ -1612,9 +1612,7 @@ export function clearLayers(): void {
  * corpus on one-foot cells; `frames_total` is the population a cell's share is
  * read against. The shot record is an account of endings, and for the one act
  * whose feed survives, this layer carries the between: the mid-range, emptying
- * of endings, is seen to be a place the game never left. Two independent
- * reviews of the display named this artifact the most deserving unshown
- * material and proposed this placement.
+ * of endings, is seen to be a place the game never left.
  *
  * Same discipline as `bakeLayer`: float accumulation, one `putImageData`,
  * cached under a key carrying everything that affects its pixels, cleared by

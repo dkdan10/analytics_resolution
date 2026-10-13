@@ -24,14 +24,13 @@ is strictly decreasing across adjacent moments at normal spacing (a frozen
 clock is a timeout or a held ball; a pair straddling a feed dropout says
 nothing about the seconds inside the gap). The span maximizes, in order: the
 count of games live for every second of it, then the total live seconds across
-all ten. Its length is the one authored quantity, from the accepted review
-proposal (local working notes); everything else is argmax.
+all ten. Its length is the one authored quantity; everything else is argmax.
 
-A MEASURED CORRECTION the kill-test made to the proposal's premise: the ten
-games tip off across the whole evening, so all ten are never live at once. At
-the found instant five games are fully live and a sixth holds partial feed —
-the artifact's `span` block states what was found, and the piece's caption
-material comes from there, never from the proposal's prose.
+WHAT THE MEASUREMENT CORRECTS: the ten games tip off across the whole evening,
+so all ten are never live at once. At the found instant five games are fully
+live and a sixth holds partial feed — the artifact's `span` block states what
+was found, and the piece's caption material comes from there, never from an
+assumption about the night.
 """
 import argparse
 import datetime
@@ -70,8 +69,8 @@ SPORTVU_DIR = RAW_DIR / "sportvu"
 # exactly the ones found.
 SLATE_DATE = "2015-12-05"
 
-# The span's length in seconds — the one authored quantity (the accepted
-# proposal's spec; see the module docstring).
+# The span's length in seconds — the one authored quantity (see the module
+# docstring).
 SPAN_SECONDS = 15
 
 # A liveness pair must be adjacent moments at normal spacing. Beyond this the

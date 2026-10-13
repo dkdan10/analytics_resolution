@@ -98,7 +98,7 @@ if (unlisted.length) {
 if (bad) {
   console.error(
     "\ncheck-public-data: the deploy would publish something nobody reviewed.\n" +
-      "Data rights (README.md, Data & license): the repository is public, and what it serves is decided.",
+      "Data rights (README.md, Layout, data and license): the repository is public, and what it serves is decided.",
   );
   process.exit(1);
 }

@@ -16,15 +16,14 @@ shots — the count of releases the tracking feed and the shot record agree on,
 exactly as window.py filed them per game. The rule and every count it compared
 ship in `game.json:selection`; the argmax must be unique or this stage stops.
 
-WHERE THE IDENTITY LINE SITS (an open publication decision, flagged rather than
-decided here): the game is nameable — ten public archive names ship in the
-selection block, and the winner is re-derivable from the disclosed rule — which
-sits between the slate's anonymity and traces.json's named-on-purpose. Bodies
-are NOT named: a stroke carries a per-period anonymous slot (first appearance
-order inside that period, ball = 255). Game-scoped slots were REJECTED: a slot
-that holds across periods carries a minutes-pattern that can be read against
-the public box score, which is identity by another name. Per-period scoping is
-the disclosed compromise.
+WHERE THE IDENTITY LINE SITS: the game is nameable — ten public archive names
+ship in the selection block, and the winner is re-derivable from the disclosed
+rule — which sits between the slate's anonymity and traces.json's
+named-on-purpose. Bodies are NOT named: a stroke carries a per-period anonymous
+slot (first appearance order inside that period, ball = 255). Game-scoped slots
+were REJECTED: a slot that holds across periods carries a minutes-pattern that
+can be read against the public box score, which is identity by another name.
+Per-period scoping is the disclosed compromise.
 
 THE FOLD is per ball-half segment with hysteresis. A game's play alternates
 ends; folding every body toward one fixed hoop would draw half the game as a

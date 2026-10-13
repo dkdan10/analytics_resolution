@@ -49,11 +49,9 @@ export const SEASON_SECONDS = 11;
  * THE FOUR CONSTANTS IN THIS FILE ARE THE SCHEDULE'S ONLY SOURCE.
  * `pipeline/facts.py` reads them out of this source, multiplies them against
  * the season count in seasons.json, and emits `facts.json:derived.loop.seconds`
- * and `loop.clock`. Every statement of the runtime - in the README, in the
- * local working notes, in the rail - resolves back here, and qa.py gates the
- * prose against it. This comment used to state the loop length and the
- * window's share of it directly, and both were wrong: the arithmetic had
- * moved and the sentence had not.
+ * and `loop.clock`. Any statement of the runtime, in the rail or in prose,
+ * resolves back here through that artifact rather than being typed from memory;
+ * this comment deliberately states no duration of its own.
  */
 // Literal mirror required by pipeline/facts.py, which parses (rather than
 // executes) this file. All Window interiors live in window-score.ts; the guard

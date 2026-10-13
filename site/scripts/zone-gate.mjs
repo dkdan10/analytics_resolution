@@ -5,7 +5,7 @@
  * one rule — the league's seven SHOT_ZONE_BASIC regions read as a partition of
  * the FLOOR. THE HAND colours a stroke by the region it is crossing and THE
  * FIELD colours a mark by the region it landed in, so if the copies drift the
- * colour stops being a measurement (rule 4, README).
+ * colour stops being a measurement (rule 4, docs/verification.md).
  *
  * Both are checked against one committed fixture, and neither toolchain runs
  * the other's:

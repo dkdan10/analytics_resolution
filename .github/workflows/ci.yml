@@ -1,8 +1,8 @@
-name: "verify: reduced gate + site build"
+name: "CI"
 
-# Verifies; never publishes. A public clone has no raw dumps and none of the
-# author's working notes, so the gate runs reduced and says what it skipped.
-# Deploys happen from the author's machine with the full gate.
+# Verifies and never publishes. A public clone has no raw dumps, so the gate
+# runs reduced and says what it skipped. Deploys run from a machine with the
+# raw dumps, via npm run deploy:pages.
 
 on:
   push:
@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: "verify-${{ github.ref }}"
+  group: "ci-${{ github.ref }}"
   cancel-in-progress: true
 
 jobs:

@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""The choice palette.py leaves open: candidate palettes, measured.
+"""Palette search: candidate palettes, measured with palette.py's colour model.
 
-WHAT THIS IS AND IS NOT. `palette.json` says, gated, that the shipped seven hues
-do not reach the seven-way separation target; an earlier independent review of
-the palette measured that the target is REACHABLE under the piece's own taste
-constraints (`--search audit-base`, `AUDIT_BASE`, `AUDIT_SEED` and `audit_walk`
-are named for that review). Choosing hues is taste, taste is the author's, and
-this tool decides nothing: it is an instrument of choice, not of acceptance. It
-is deliberately NOT wired into `qa.py` — same standing as `pipeline/checks/` —
-and it writes nothing under `data/processed/`. The shipped truth stays
-`palette.json`.
+WHAT THIS IS AND IS NOT. A search harness for the choice palette.py leaves
+open. It walks sRGB for seven-hue palettes that clear the seven-way separation
+target under the piece's own taste constraints, and measures every candidate
+with the same colour model `pipeline/palette.py` uses for the shipped hues.
+Choosing hues is taste, taste is the author's, and this tool decides nothing:
+it is an instrument of choice, not of acceptance. It is deliberately NOT wired
+into `qa.py` — same standing as `pipeline/checks/` — and it writes nothing under
+`data/processed/`. The shipped truth stays `palette.json`.
 
 THE METRIC IS THE PIPELINE'S OWN, imported rather than restated: this file takes
 `separation()`, `CONDITIONS`, `read_site_palette()`, `adjacent_zones()`,
@@ -18,20 +17,17 @@ it emits is measured on the instrument the gate already trusts (colorspacious
 CAM02-UCS; Machado/Oliveira/Fernandes CVD at severity 100; normal + protan +
 deutan + tritan). A candidate measured under any other instrument would not be a
 candidate. Constraints are expressed in CIECAM02 JCh (hue angle h, chroma C,
-lightness J) — the review's own idiom for "the rust family", "gold", "grey".
+lightness J) — the natural idiom for "the rust family", "gold", "grey".
 
-THE REVIEW'S RESULT IS REPRODUCED BEFORE ANYTHING NEW IS GENERATED. The
-review's own search script survives in its scratchpad and `--search audit-base`
-is a verbatim port of it: same seed (19961997), same proposal distribution, same
-accept-if-better walk, same constraint set, same temperature handling (the decay
-is skipped when a proposal fails constraints — a quirk, kept, because
-reproduction means the loop as it ran, not as it would be tidied). Run it and it
-must print the review's base figure; the local working notes quote both sides.
-The review's second figure (rust-held, 17.864) came from a constraint variant
-whose exact windows did not survive; RUST_HELD below declares this file's own
-windows as data, anchored on the shipped hues' measured JCh, and the two numbers
-are quoted side by side as what they are — the same stated constraints, two
-formalisations.
+THE BASE RUN COMES FIRST. `--search base`, and the first step of
+`--emit`, walks from the shipped hues under the base constraint set (BASE_SET)
+with a fixed seed (19961997): the same proposal distribution, accept-if-better
+walk and temperature handling on every run (the decay is skipped when a
+proposal fails constraints — a quirk, kept, because changing it would change
+every figure the seed produces). It shows whether the target is reachable under
+the base taste constraints before anything closer to the shipped hues is
+searched for. RUST_HELD below declares a stricter variant's windows as data,
+anchored on the measured JCh of the hues shipped when it was declared.
 
 EVERY CANDIDATE IS MEASURED AT THE VALUES THAT WOULD SHIP. The search walks in
 continuous sRGB, but `ZONE_RGB` holds 8-bit integers, so each candidate is
@@ -44,10 +40,10 @@ in it. Two runs of `--emit` must produce byte-identical files; if they do not,
 the environment changed (numpy/colorspacious version — recorded) and the output
 says which versions produced it.
 
-    python3 pipeline/palette_search.py --search audit-base   # the reproduction
+    python3 pipeline/palette_search.py --search base         # the base run
     python3 pipeline/palette_search.py --emit                # the candidate set
     python3 pipeline/palette_search.py --apply NEAREST       # working tree only
-    python3 pipeline/palette_search.py --apply shipped       # restore from git
+    python3 pipeline/palette_search.py --apply shipped       # refuses; names the git undo
 
 `--apply` rewrites the seven quoted triples inside `site/src/palette.ts`'s
 ZONE_RGB block IN THE WORKING TREE, for judgment captures and — if the author
@@ -97,8 +93,8 @@ import colorspacious  # noqa: E402
 OUT_DIR = REPO_ROOT / "docs" / "build" / "palette-search"
 PALETTE_TS = REPO_ROOT / "site" / "src" / "palette.ts"
 
-# The review's seed, verbatim (the first charted season twice over).
-AUDIT_SEED = 19961997
+# The search seed: the first charted season, 1996-97, as digits.
+SEED = 19961997
 
 # --- constraint sets, declared as data --------------------------------------
 # Zones by index: 0 RA, 1 Paint, 2 Mid-Range, 3 LC3, 4 RC3, 5 AB3, 6 Backcourt.
@@ -107,11 +103,11 @@ AUDIT_SEED = 19961997
 # RA h 74.5 C 43.0, Paint h 54.0 C 50.9, Mid-Range h 32.9 C 65.2,
 # LC3 h 212.6, RC3 h 234.8, AB3 h 264.1, Backcourt C 3.3.
 
-# The review's base set, verbatim from its surviving script: warm through the
-# middle, cool along the arc, RA the brightest thing on the floor, Backcourt
-# near-grey, everything clearly brighter than the ground. Load-bearing:
-# warm-middle/cool-arc is what carries the migration reading.
-AUDIT_BASE = {
+# The base set: warm through the middle, cool along the arc, RA the brightest
+# thing on the floor, Backcourt near-grey, everything clearly brighter than the
+# ground. Load-bearing: warm-middle/cool-arc is what carries the migration
+# reading.
+BASE_SET = {
     "hue_windows": {0: (20.0, 100.0), 1: (20.0, 100.0), 2: (20.0, 100.0),
                     3: (180.0, 300.0), 4: (180.0, 300.0), 5: (180.0, 300.0)},
     "chroma_min": {},
@@ -120,12 +116,12 @@ AUDIT_BASE = {
     "j_min": 25.0,
 }
 
-# This file's rust-held set: the review's stated additions ("Mid-Range h
-# 15-50, C >= 25, RA gold, paint orange"), formalised. The rust window and its
-# chroma floor are the review's own words; gold and orange are declared as
-# windows bracketing the shipped anchors (74.5 and 54.0), and the review's
-# C >= 25 floor is applied to all three warm pins because a family pin without
-# a chroma floor pins nothing — a grey has no meaningful hue angle.
+# The rust-held set: the base set with the three warm zones pinned to their
+# families — Mid-Range to rust (h 15-50, C >= 25), RA to gold, Paint to orange.
+# Gold and orange are declared as windows bracketing the anchors shipped when
+# the set was declared (74.5 and 54.0), and the C >= 25 floor is applied to all
+# three warm pins because a family pin without a chroma floor pins nothing — a
+# grey has no meaningful hue angle.
 RUST_HELD = {
     "hue_windows": {0: (60.0, 95.0), 1: (40.0, 70.0), 2: (15.0, 50.0),
                     3: (180.0, 300.0), 4: (180.0, 300.0), 5: (180.0, 300.0)},
@@ -135,7 +131,8 @@ RUST_HELD = {
     "j_min": 25.0,
 }
 
-CONSTRAINT_SETS = {"audit-base": AUDIT_BASE, "rust-held": RUST_HELD}
+# The keys are the `--search` choices.
+CONSTRAINT_SETS = {"base": BASE_SET, "rust-held": RUST_HELD}
 
 # The composite level the disclosure names: field.ts's tone curve is
 # exponential and most of the record sits faint, so palette.json recomputes its
@@ -220,18 +217,18 @@ def worst_adjacent(rgb01, touching):
 
 
 # --- the walks ---------------------------------------------------------------
-# Accept-if-better with a shrinking Gaussian proposal — the review's own walk,
-# kept: it is not a true annealer (no uphill acceptance) and nobody here claims
-# optimality; the bar is feasibility (maximin >= target after rounding) and
-# reproducibility, and the review's basin figures are existence proofs.
+# Accept-if-better with a shrinking Gaussian proposal. It is not a true
+# annealer (no uphill acceptance) and nothing here claims optimality; the bar is
+# feasibility (maximin >= target after rounding) and reproducibility, and every
+# figure a walk reaches is an existence proof, not an optimum.
 
 
-def audit_walk(start01, cset, seed, iters=4000, t0=0.12, t_floor=0.02,
-               decay=0.9995):
-    """Verbatim port of the review's loop, generalised only in its constraint
-    set. RNG consumption order and the constraint-skip of the temperature decay
-    are preserved exactly — `--search audit-base` must reproduce the review's
-    figure from the same seed, and does."""
+def greedy_walk(start01, cset, seed, iters=4000, t0=0.12, t_floor=0.02,
+                decay=0.9995):
+    """Maximise maximin under a constraint set. RNG consumption order and the
+    constraint-skip of the temperature decay are fixed: changing either changes
+    every figure a seed produces, so a given seed and constraint set print the
+    same figure on every run under the pinned versions."""
     rng = np.random.default_rng(seed)
     best = np.asarray(start01).copy()
     best_score, _ = maximin(best)
@@ -341,16 +338,16 @@ def emit():
     shipped01 = np.asarray(shipped255, dtype=float) / 255.0
     touching = set(adjacent_zones())
 
-    print("reproduction first (the review's base run, verbatim port):")
-    base01, base_score = audit_walk(shipped01, AUDIT_BASE, AUDIT_SEED)
-    print(f"  audit-base maximin {base_score:.3f} (float, the review's own figure)")
+    print("base run first (the base constraint set, fixed seed):")
+    base01, base_score = greedy_walk(shipped01, BASE_SET, SEED)
+    print(f"  base maximin {base_score:.3f} (float)")
 
     print("rust-held (this file's declared windows):")
-    rust01, rust_score = audit_walk(shipped01, RUST_HELD, AUDIT_SEED)
+    rust01, rust_score = greedy_walk(shipped01, RUST_HELD, SEED)
     print(f"  rust-held maximin {rust_score:.3f} (float)")
 
     # NEAREST starts from the base basin (feasible) and walks toward shipped.
-    near01, near_cost = nearest_walk(base01, shipped01, AUDIT_BASE, AUDIT_SEED + 1)
+    near01, near_cost = nearest_walk(base01, shipped01, BASE_SET, SEED + 1)
     print(f"  nearest total distance {near_cost:.2f} (float)")
 
     # The BALANCED caps are derived, not chosen: the total-distance axis runs
@@ -362,8 +359,8 @@ def emit():
     caps = [lo + (hi - lo) / 3.0, lo + 2.0 * (hi - lo) / 3.0]
     bal = []
     for k, cap in enumerate(caps):
-        b01, b_score = capped_walk(near01, shipped01, AUDIT_BASE, cap,
-                                   AUDIT_SEED + 2 + k)
+        b01, b_score = capped_walk(near01, shipped01, BASE_SET, cap,
+                                   SEED + 2 + k)
         bal.append(b01)
         print(f"  balanced-{k + 1} maximin {b_score:.3f} under cap {cap:.2f} (float)")
 
@@ -405,10 +402,10 @@ def emit():
             "keeping the shipped palette is a listed option."
         ),
         "determinism": {
-            "seed": AUDIT_SEED,
-            "derived_seeds": {"nearest": AUDIT_SEED + 1,
-                              "balanced-1": AUDIT_SEED + 2,
-                              "balanced-2": AUDIT_SEED + 3},
+            "seed": SEED,
+            "derived_seeds": {"nearest": SEED + 1,
+                              "balanced-1": SEED + 2,
+                              "balanced-2": SEED + 3},
             "numpy": np.__version__,
             "colorspacious": colorspacious.__version__,
             "note": "no timestamps by design: two runs must be byte-identical "
@@ -421,15 +418,13 @@ def emit():
             "target": SEPARATION_TARGET,
             "source": "pipeline/palette.py (imported, not restated)",
         },
-        "reproduction": {
-            "audit_base_maximin_float": round(base_score, 3),
-            "audit_stated_base": "the independent palette review's stated base "
-                                 "constraints (local working notes)",
-            "note": "the review's own scratchpad script, ported verbatim (seed "
-                    "19961997); the review's rust-held figure used constraint "
-                    "windows that did not survive its scratchpad — this file's "
-                    "RUST_HELD declares its own, and the local working notes "
-                    "quote both.",
+        "base_run": {
+            "base_maximin_float": round(base_score, 3),
+            "stated_base": "the base constraint set (BASE_SET); see "
+                                 "constraint_sets",
+            "note": "the base run from the shipped hues with seed 19961997; "
+                    "RUST_HELD declares the stricter warm-family windows as "
+                    "data, listed under constraint_sets as rust-held.",
         },
         "constraint_sets": {
             name: {
@@ -567,8 +562,8 @@ def main():
         shipped01 = np.asarray(read_site_palette(), dtype=float) / 255.0
         base, what = maximin(shipped01)
         print(f"shipped: maximin {base:.3f} at {what}")
-        best01, score = audit_walk(shipped01, CONSTRAINT_SETS[args.search],
-                                   AUDIT_SEED)
+        best01, score = greedy_walk(shipped01, CONSTRAINT_SETS[args.search],
+                                    SEED)
         _, binding = maximin(best01)
         print(f"{args.search}: maximin {score:.3f} (float), binding {binding}")
         for z, row in zip(ZONE_NAMES,

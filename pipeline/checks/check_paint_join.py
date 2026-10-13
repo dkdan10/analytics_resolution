@@ -9,7 +9,7 @@ compares it with the coordinate the 2015-16 shot dump filed at
 `tracking event id + this game's event offset`.
 
 The claim being checked is the one paint.py's docstring makes and rule 7
-(README, The rules) rests on: that every stroke is traceable back to one release
+(docs/verification.md) rests on: that every stroke is traceable back to one release
 already corroborated against a coordinate the record filed independently. It was
 once false for a majority of canvases - the stage accepted an offset it never
 used and painted the first event that yielded a plausible rim flight.

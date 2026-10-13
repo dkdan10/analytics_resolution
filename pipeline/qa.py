@@ -23,8 +23,8 @@ from a constant typed here).
 
 Usage: python3 pipeline/qa.py                  # the full shipping gate
        python3 pipeline/qa.py --no-mutations   # ... without the mutation suite
-       python3 pipeline/qa.py --no-raw         # a public clone (no raw dumps,
-                                               #   no working notes): REDUCED
+       python3 pipeline/qa.py --no-raw         # a public clone (no raw dumps): REDUCED
+       python3 pipeline/qa.py --only readme    # the README's figures alone
        python3 pipeline/qa.py --spine-only     # the shot stage alone
        python3 pipeline/qa.py --only window,paint
        python3 pipeline/qa.py --processed DIR  # point every read at DIR
@@ -35,7 +35,6 @@ Usage: python3 pipeline/qa.py                  # the full shipping gate
 """
 
 import argparse
-import collections
 import json
 import math
 import struct
@@ -357,18 +356,15 @@ ZONE_AGREEMENT_FLOOR = 0.999
 # it did not do, and asserted when the group runs so it cannot drift.
 ZONE_VS_LEAGUE_CHECKS = 4
 
-# Two inputs are gitignored and absent from a public clone: the raw shot dumps
-# (data/shots/) and the working notes (MEMORY_DOCS). A failure on either names
-# an input this checkout does not have, not a defect in the pipeline. main()
-# says so; the exit stays 1, because a bare run that could not look is not a
-# green one. `--no-raw` is the flag that declares a clone and runs REDUCED.
+# One input is gitignored and absent from a public clone: the raw shot dumps
+# (data/shots/). A failure on it names an input this checkout does not have,
+# not a defect in the pipeline. main() says so; the exit stays 1, because a
+# bare run that could not look is not a green one. `--no-raw` is the flag that
+# declares a clone and runs REDUCED.
 RAW_DUMP_PRESENT = "the 2015-16 shot dump is present"
-NOTES_PRESENT = "project memory is present"
 ABSENT_INPUT_HINTS = {
     RAW_DUMP_PRESENT: "raw dumps absent (environment, not a pipeline defect): "
                       "run pipeline/acquire.py or pass --no-raw",
-    NOTES_PRESENT: "project memory absent (local working notes, not a pipeline "
-                   "defect): pass --no-raw",
 }
 
 # points/*.bin files the league's OWN SHOT_ZONE_BASIC label per cell, not the
@@ -556,17 +552,13 @@ class Ctx:
     produces one clear red line instead of a traceback.
     """
 
-    def __init__(self, root, allow_raw=True, repo=None, allow_absent_memory=False):
+    def __init__(self, root, allow_raw=True, repo=None):
         self.root = Path(root)
         self.allow_raw = allow_raw
-        # Only `--no-raw` sets this: a public clone has none of the working
-        # notes, and the memory group then checks README.md's claims alone and
-        # says how many it did not check. A bare run never allows it.
-        self.allow_absent_memory = allow_absent_memory
         # Several groups read files OUTSIDE data/processed/ - the deploy
-        # allowlist under pipeline/, two site sources, README.md and, where
-        # present, the working notes in MEMORY_DOCS. All must be aimable at a
-        # copy, or the mutation suite cannot test the gates that read them.
+        # allowlist under pipeline/, the site's palette source and README.md.
+        # All must be aimable at a copy, or the mutation suite cannot test the
+        # gates that read them.
         self.repo = Path(repo) if repo else REPO_ROOT
         self._json = {}
         self._bytes = {}
@@ -679,8 +671,8 @@ REQUIRED_ARTIFACTS = [
     # 1-ft lattice; a cell is a count of tracked positions, nothing else.
     Artifact("wash.bin", "bin"),
     # Ships identity on purpose - names, games, matchups - and that is the
-    # accepted tracking-publication decision (stated in README.md's Data &
-    # license section), not an oversight. group_traces gates it as shipped.
+    # accepted tracking-publication decision (stated in README.md, Layout, data
+    # and license), not an oversight. group_traces gates it as shipped.
     Artifact("traces.json", "json"),
     Artifact("samples/season_{year}.json", "json", stamp=None, per_season=True),
     # Complete one-foot density grids. Superseded on screen by points/*.bin,
@@ -3167,7 +3159,7 @@ def _paint_join_reconstruction():
     """Rebuild every canvas's join from the private per-game window artifacts.
 
     Returns (rows, residual mismatches, canvases with no corroborated shot,
-    worst residual), or None where data/window/ is not on this machine. The
+    worst residual), or None where data/window/ is absent (a public clone). The
     numbers come from the window stage's own corroborated sets, never from
     paint.json's summary of itself.
     """
@@ -3692,72 +3684,30 @@ def _decoder_parity(g, ctx):
     g.check("no decoder waiver outlives the mismatch it names", stale, [])
 
 
-# --- group: the memory ------------------------------------------------------
-# The documents gated here - the working notes in MEMORY_DOCS, and README.md -
-# are prose, and their prose is why they work, so this does not try to
-# generate them. What it does is make the QUANTITATIVE half checkable: each
-# claim below is an exact substring of a document with one hole in it, and the
-# hole is filled from an artifact. A claim fails if the sentence has been
-# reworded away from the gate OR if the artifact has moved underneath it.
+# --- group: the README figures ---------------------------------------------
+# README.md is prose, and its prose is why it works, so this does not try to
+# generate it. What it does is make the QUANTITATIVE half checkable: each claim
+# below is an exact substring of the README with one hole in it, and the hole
+# is filled from an artifact. A claim fails if the sentence has been reworded
+# away from the gate OR if the artifact has moved underneath it.
 #
-# That second half is the one that matters. `attribution_agreement` was written
-# into the notes as 0.8536 while window.json said 0.8573 - a hand-typed figure
-# that drifted from its own artifact almost as soon as it was written, a
-# load-bearing false belief in miniature. Nothing could have caught it.
+# The second half is the one that matters. A hand-typed figure can drift from
+# its own artifact as soon as it is written, and nothing else would see it.
 #
 # The same idiom TABLE_1_6 uses: a fixture in the gate, not display copy.
-
-
-# The two files that together are the project's memory. A gated sentence may
-# live in either; see Claim.doc. Both are gitignored local working notes, kept
-# on the author's machine: a bare run requires them, and `--no-raw` on a
-# checkout with NONE of them checks only README.md's claims and says how many
-# it did not check. A checkout with some but not all of them is a defect.
-MEMORY_DOCS = ("CLAUDE.md", "docs/build/findings.md")
-
-
-def notes_absent(repo=REPO_ROOT):
-    """NONE of the working notes is on disk: a public clone."""
-    return not any((Path(repo) / n).exists() for n in MEMORY_DOCS)
-
-
-def notes_only_claims():
-    """The claims that live only in the working notes, never in a public document."""
-    return [c for c in MEMORY_CLAIMS if set(c.docs) <= set(MEMORY_DOCS)]
 
 
 class Claim:
     """One quantitative sentence in a tracked document, and where its number lives."""
 
-    def __init__(self, template, source, path, fmt="raw", doc=MEMORY_DOCS):
+    def __init__(self, template, source, path, fmt="raw", doc="README.md"):
         self.template = template   # exact text, with a single {} for the value
-        self.source = source       # "window" | "paint" | "slate" | "facts" | "season:YYYY"
-                                   # | "seasons" (an aggregate over the table) | "code"
+        self.source = source       # "window" | "paint" | "slate" | "game" | "facts"
+                                   # | "season:YYYY" | "seasons" (an aggregate over
+                                   # the table) | "code"
         self.path = path
         self.fmt = fmt
-        # WHICH DOCUMENT HAS TO SAY IT. Defaults to the working notes
-        # (MEMORY_DOCS) because that is where this mechanism started; README.md
-        # was added 2026-08-09 after a sweep found FOURTEEN stale or
-        # self-contradicting claims in it against roughly none in the notes.
-        # That asymmetry was not luck: the notes were gated and the README was
-        # gated by nothing at all, and the README is the file the public repo
-        # opens on.
-        # A claim may name ONE document, or a tuple of documents any of which may
-        # carry it. The notes became two files on 2026-08-09 - one for standing
-        # instruction, one for the record of how each figure was established -
-        # and a sentence moving between them is an editorial
-        # act, not a claim changing. Pinning each claim to a file made every such
-        # move a gate failure to be chased down by hand; naming the SET keeps the
-        # assertion that matters (the sentence exists in memory and matches its
-        # artifact) and drops the one that does not (which file it sits in).
-        # README.md and DEPLOY.md stay pinned: they are not memory, they are the
-        # public front door and the release procedure, and a figure belongs to
-        # one of them specifically.
-        self.doc = doc
-
-    @property
-    def docs(self):
-        return (self.doc,) if isinstance(self.doc, str) else tuple(self.doc)
+        self.doc = doc             # the document that has to say it
 
     def render(self, value):
         return self.template.format(self._format(value))
@@ -3771,167 +3721,53 @@ class Claim:
             return f"{100 * v:.1f}"
         if self.fmt == "f2":
             return f"{v:.2f}"
-        if self.fmt == "f4":
-            return f"{v:.4f}"
         raise ValueError(self.fmt)
 
 
-MEMORY_CLAIMS = [
-    # --- the window's headline figures, each of which has moved before ------
-    Claim("corpus recovery is `recovery.rate` **{}**", "window", "recovery.rate", "f4"),
-    Claim("recovery **{}**", "window", "recovery.rate", "f4"),
-    Claim("measured **{}** shots", "window", "recovery.measured", "comma"),
-    Claim("`disagreement.median_ft`); {}% within 6 ft", "window",
-          "disagreement.within_6ft", "pct1"),
-    Claim("Median **{} ft** apart", "window", "disagreement.median_ft", "f2"),
-    Claim("{}% differ by more than 15 ft", "window", "disagreement.beyond_15ft", "pct1"),
-    Claim("**{}%** of detected shots at 6 ft", "window", "disagreement.within_6ft", "pct1"),
-    # The figure once found adrift (the 0.8536 note in the memory group's header).
-    Claim("`recovery.attribution_agreement` **{}**", "window",
-          "recovery.attribution_agreement", "f4"),
-    Claim("`recovery.event_offsets` is `{}`", "window", "recovery.event_offsets", "offsets"),
-    # THE QUARREL: the export's population, stated wherever the
-    # artifact is described, and the off-plate count the drawing does not clip.
-    Claim("`quarrel.bin`, **{} records**, one per detected shot", "window",
-          "quarrel_bin.records", "comma"),
-    Claim("**{}** records reach off the plate box", "window",
-          "quarrel_bin.off_plate", "comma"),
-    Claim("`WINDOW_RECOVERY_FLOOR` in qa.py (**{}**)", "code", "WINDOW_RECOVERY_FLOOR", "f2"),
-    Claim("`pipeline/checks/mutations.py` holds **{} defects**", "code", "MUTATION_CASES"),
-    # README.md states the catalogue's size: len(CASES), the whole catalogue, not
-    # the number a public clone runs (the cases that edit the working notes are
-    # skipped there). The CHECK count is deliberately not pinned anywhere: it
-    # moves whenever a gate is added, and a number a document does not need is
-    # better deleted than pinned.
-    Claim("each of {} seeded defects", "code", "MUTATION_CASES", doc="README.md"),
+# Every figure README.md states, in the order it states them. A new README
+# figure is a new Claim here, in the same commit; a number the README does not
+# need is better deleted than pinned. `seasons` aggregates over the whole
+# season table.
+README_CLAIMS = [
+    # --- What it is ----------------------------------------------------------
+    Claim("{} regular-season shot attempts", "seasons", "attempts_total", "comma"),
+    Claim("over {} seasons, from 1996-97 to 2025-26", "facts", "season.count"),
 
-    # --- README.md: the public front door states its figures, and each is gated.
-    # A new README figure is a new Claim here, in the same commit, or Rule 1 is
-    # broken quietly. `seasons` aggregates over the whole season table.
-    Claim("{} regular-season shot attempts", "seasons", "attempts_total", "comma",
-          doc="README.md"),
-    Claim("over {} seasons, from 1996-97 to 2025-26", "facts", "season.count",
-          doc="README.md"),
-    Claim("falls from {}% of attempts in 1996-97", "season:1996", "mid_share", "pct1",
-          doc="README.md"),
-    Claim("to {}% in 2015-16", "season:2015", "mid_share", "pct1", doc="README.md"),
-    Claim("and {}% in 2025-26", "season:2025", "mid_share", "pct1", doc="README.md"),
-    Claim("the event numberings disagree in {} of", "window", "recovery.games_offset",
-          doc="README.md"),
-    Claim("of the {} tracked games", "window", "corpus.games_parsed", "comma",
-          doc="README.md"),
-    Claim("one of the {} seasons that file the pile away from the origin", "seasons",
-          "displaced_refusal_seasons", doc="README.md"),
-    Claim("from the {} shots the join recovers", "window", "recovery.measured", "comma",
-          doc="README.md"),
+    # --- How it is built -----------------------------------------------------
+    # The catalogue's size: len(CASES), the whole catalogue. The CHECK count is
+    # deliberately not pinned anywhere: it moves whenever a gate is added.
+    Claim("each of {} seeded defects", "code", "MUTATION_CASES"),
+    Claim("the event numberings disagree in {} of", "window", "recovery.games_offset"),
+    Claim("of the {} tracked games", "window", "corpus.games_parsed", "comma"),
+
+    # --- What it found -------------------------------------------------------
     Claim("files {}% of its shots at the rim on a single coordinate", "season:1996",
-          "resolution.rim_sentinel.share_of_rim", "pct1", doc="README.md"),
-    Claim("does not use the word Fadeaway until {}", "seasons", "first_season_saying:Fadeaway",
-          doc="README.md"),
-    Claim("a median {} ft apart", "window", "disagreement.median_ft", "f2", doc="README.md"),
-    Claim("over {} detected shots", "window", "quarrel_bin.records", "comma", doc="README.md"),
-
-    # --- THE SLATE: the night's artifact ------------------------------------
-    Claim("`slate_index.bin` holds **{} paths**", "slate", "paths", "comma"),
-    Claim("**{} games** simultaneously in live play", "slate",
-          "span.games_fully_live"),
-
-    # --- THE FOUR SCALES: the game and the wash -----------------------------
-    Claim("**{} corroborated shots** against the runner-up's", "game",
-          "selection.corroborated"),
-    Claim("`game_strokes.bin` carries **{} vertices**", "game", "vertices", "comma"),
-    Claim("one raster per game day — **{}** of the 89", "window",
-          "wash.days_played"),
-    Claim("**{}** tracked positions in the wash", "window",
-          "wash.positions_total", "comma"),
-
-    # --- the paint ----------------------------------------------------------
-    Claim("lifts **{} strokes**", "paint", "strokes", "comma"),
-    Claim("**{}** corroborated possessions", "paint", "canvases", "comma"),
-    Claim("**Mid-Range {}% of painted time**", "paint", "ink_by_zone.Mid-Range", "pct1"),
-    Claim("**p10 {},", "paint", "speed_ft_s.p10", "f2"),
-    Claim("p90 {}** as of", "paint", "speed_ft_s.p90", "f2"),
-    Claim("{} of its 89 days", "paint", "days_covered", "comma"),
-
-    # --- the record's own resolution and vocabulary -------------------------
-    Claim("**{}** shots that were threes when taken", "season:1996",
-          "contemporaneous.misfiled_threes", "comma"),
-    Claim("under the line then in force it is **{}%**", "season:1996",
-          "contemporaneous.contemporaneous_mid_share", "pct1"),
-    Claim("{}% of rim shots unplaced", "season:1996", "resolution.ra_origin_share", "pct1"),
-    Claim("**{}** in 1996-97 (four cover 90% of shots)", "season:1996",
-          "vocabulary.words", "comma"),
-    Claim("**{}**\n(2007-08)", "season:2007", "vocabulary.words", "comma"),
-    Claim("**{} categories in 1996-97", "season:1996", "vocabulary.categories_total", "comma"),
-    Claim("{} in 2015-16", "season:2015", "vocabulary.categories_total", "comma"),
-    Claim("{} in 2024-25**", "season:2024", "vocabulary.categories_total", "comma"),
-
-    # --- the pile, and the second instrument on it --------------------------
-    # Without this claim no memory claim would touch the sentinel, and the section
-    # of the notes that carries the project's newest content claim would be the
-    # one section unprotected by the mechanism that has caught every other drift.
-    Claim("**{}** shots on `(0, 1)`", "season:2015", "resolution.rim_sentinel.n", "comma"),
-    # THE CALENDAR: the re-clock's artifact, stated where it is
-    # described so the figures cannot drift from the shipped bytes.
-    Claim("`points_by_day/season_2015.bin` — **{} records**", "season:2015",
-          "points_by_day.records", "comma"),
-    Claim("runs to the season's own day **{}**", "season:2015",
-          "points_by_day.last_day"),
-    Claim("converting at **{}**", "season:2015", "resolution.rim_sentinel.fg_pct", "f2"),
-    Claim("against **{}** for the rest of that season's rim", "season:2015",
-          "resolution.rim_sentinel.fg_pct_off_sentinel", "f2"),
-    Claim("holds **{}%** of every shot the record calls a `Dunk Shot`", "season:2015",
-          "resolution.rim_sentinel.composition.Dunk Shot.share_of_type", "pct1"),
-    Claim("**{}** of them it can see", "window",
-          "sentinel_corroboration.sentinel.n", "comma"),
-    # THE RESIDENCE: the ball-occupancy under-layer's population.
-    Claim("**{}** measured ball-frames", "window", "occupancy.frames_total", "comma"),
-    Claim("in **{}** different places", "window",
-          "sentinel_corroboration.sentinel.distinct_cells", "comma"),
-    Claim("**{} of 9,727**", "window", "sentinel_corroboration.sentinel.filed", "comma"),
-
-    # --- README.md, which was gated by NOTHING until 2026-08-09 -------------
-    # It is the file the public repo opens on, and a sweep found fourteen stale
-    # or self-contradicting claims in it. Most were removed rather than gated -
-    # a number a document does not need is better deleted than pinned - and
-    # these are the ones it genuinely has to state.
-    Claim("out of all {} games", "window", "corpus.games_parsed", "comma", doc="README.md"),
-    Claim("For {} days in 2015-16", "facts", "window.days_inclusive", doc="README.md"),
-
-    # --- the schedule, and the ring the numerals settle on ------------------
-    Claim("for **{} seconds**", "facts", "loop.seconds"),
-    Claim("(**{}**)", "facts", "loop.clock"),
-    Claim("**{} inclusive days**", "facts", "window.days_inclusive"),
-    Claim("{} weeks", "facts", "window.weeks"),
-    Claim("**{}-ft annulus**", "code", "RING_FT"),
+          "resolution.rim_sentinel.share_of_rim", "pct1"),
+    Claim("From {} it piles none there", "seasons", "sighted_span"),
+    Claim("one of the {} seasons that file the pile away from the origin", "seasons",
+          "displaced_refusal_seasons"),
+    Claim("falls from {}% of attempts in 1996-97", "season:1996", "mid_share", "pct1"),
+    Claim("to {}% in 2015-16", "season:2015", "mid_share", "pct1"),
+    Claim("and {}% in 2025-26", "season:2025", "mid_share", "pct1"),
+    Claim("does not use the word Fadeaway until {}", "seasons",
+          "first_season_saying:Fadeaway"),
+    Claim("a median {} ft apart", "window", "disagreement.median_ft", "f2"),
+    Claim("over {} detected shots", "window", "quarrel_bin.records", "comma"),
+    Claim("For {} days in 2015-16", "facts", "window.days_inclusive"),
+    Claim("out of all {} games", "window", "corpus.games_parsed", "comma"),
+    Claim("from the {} shots the join recovers", "window", "recovery.measured", "comma"),
 ]
 
 
-def _memory_value(g, ctx, claim):
+def _claim_value(g, ctx, claim):
     """Resolve one claim's value out of the artifact that owns it."""
     if claim.source == "code":
-        if claim.path == "WINDOW_RECOVERY_FLOOR":
-            return WINDOW_RECOVERY_FLOOR
         if claim.path == "MUTATION_CASES":
-            # The size of the defect catalogue, read from the catalogue. This
-            # sentence once said 42 after the catalogue had reached 49 - the
-            # hand-typed drift this group exists to stop, in the section that
-            # explains how a gate earns belief.
+            # The size of the defect catalogue, read from the catalogue, so the
+            # README cannot state a count the catalogue has outgrown.
             from checks.mutations import CASES  # noqa: PLC0415
 
             return len(CASES)
-        if claim.path == "RING_FT":
-            # The annulus the season numerals settle on, from the renderer that
-            # draws it. The notes once called it "the 16-ft annulus" while
-            # inscription.ts drew it somewhere else, so the figure is read from
-            # RING_R rather than restated.
-            import re  # noqa: PLC0415
-
-            src = (ctx.repo / "site" / "src" / "inscription.ts")
-            if not src.exists():
-                return None
-            m = re.search(r"^const RING_R = (\d+);", src.read_text(), re.M)
-            return round(int(m.group(1)) / 10, 1) if m else None
         return None
 
     if claim.source == "seasons":
@@ -3946,6 +3782,15 @@ def _memory_value(g, ctx, claim):
             return sum(1 for r in rows
                        if (r["resolution"].get("rim_sentinel") or {}).get("is_refusal")
                        and not (r["resolution"].get("rim_sentinel") or {}).get("at_origin"))
+        if claim.path == "sighted_span":
+            # The seasons whose record piles no rim shot on one coordinate, as
+            # one unbroken run named first through last. A run with a gap in it
+            # is not a span the sentence can name, so it does not resolve.
+            years = [r["year"] for r in rows
+                     if not (r["resolution"].get("rim_sentinel") or {}).get("is_refusal")]
+            if not years or years != list(range(years[0], years[-1] + 1)):
+                return None
+            return f"{seasons[years[0]]['season']} through {seasons[years[-1]]['season']}"
         if claim.path.startswith("first_season_saying:"):
             word = claim.path.split(":", 1)[1]
             return next((r["season"] for r in rows
@@ -3973,63 +3818,47 @@ def _memory_value(g, ctx, claim):
     return obj
 
 
-def _offsets_text(d):
-    """`{-2: 7, -1: 1, 0: 531, ...}` - the histogram as the notes write it."""
-    items = sorted(((int(k), v) for k, v in d.items()), key=lambda kv: kv[0])
-    return "{" + ", ".join(f"{'+' if k > 0 else ''}{k}: {v}" for k, v in items) + "}"
+def _claim_owner(source):
+    """The file a claim's figure is read from, for the summary line."""
+    if source.startswith("season"):
+        return "seasons.json"
+    return "the code" if source == "code" else f"{source}.json"
 
 
-def group_memory(g, ctx):
-    """The machine-verifiable subset of the tracked prose, against the artifacts.
+def group_readme(g, ctx):
+    """The machine-verifiable subset of the README, against the artifacts.
 
-    Not every sentence - most of it is reasoning and belongs to a reader. These
-    are the ones that carry a number an artifact can settle.
+    Not every sentence - most of it is description and belongs to a reader.
+    These are the ones that carry a number an artifact can settle.
     """
-    g.section("Project memory")
-    wanted = sorted({n for c in MEMORY_CLAIMS for n in c.docs})
-    # Whitespace-normalised on both sides. These are hard-wrapped prose and get
-    # re-wrapped constantly; a gate that broke every time a sentence moved
-    # across a line boundary would be re-worded around rather than fixed.
-    docs = {n: " ".join((ctx.repo / n).read_text().split())
-            for n in wanted if (ctx.repo / n).exists()}
-    absent = notes_absent(ctx.repo)
-    if absent and not ctx.allow_absent_memory:
-        g.fail(NOTES_PRESENT, f"none of {', '.join(MEMORY_DOCS)} is in {ctx.repo} - "
-                              "they are gitignored local working notes")
-        return
-    for name in wanted:
-        # README.md missing, or SOME of the notes missing: a defect either way.
-        if name not in docs and not (absent and name in MEMORY_DOCS):
-            g.fail(f"{name} is present", f"{ctx.repo / name} missing")
+    g.section("README figures")
+    # Whitespace-normalised on both sides. The README is hard-wrapped prose and
+    # gets re-wrapped; a gate that broke every time a sentence moved across a
+    # line boundary would be re-worded around rather than fixed.
+    docs = {}
+    for name in sorted({c.doc for c in README_CLAIMS}):
+        path = ctx.repo / name
+        if not path.exists():
+            g.fail(f"{name} is present", f"{path} missing")
             return
+        docs[name] = " ".join(path.read_text().split())
 
-    unresolved, wrong, skipped = [], [], 0
-    for claim in MEMORY_CLAIMS:
-        value = _memory_value(g, ctx, claim)   # resolution runs for every claim
+    unresolved, wrong = [], []
+    for claim in README_CLAIMS:
+        value = _claim_value(g, ctx, claim)
         if value is None:
             unresolved.append(f"{claim.source}:{claim.path}")
             continue
-        where = [d for d in claim.docs if d in docs]
-        if not where:   # reachable only when the notes are absent AND allowed
-            skipped += 1
-            continue
-        if claim.fmt == "offsets":
-            want = claim.template.format(_offsets_text(value))
-        else:
-            want = claim.render(value)
-        if not any(" ".join(want.split()) in docs[d] for d in where):
-            wrong.append(f"{'|'.join(where)}:{claim.source}:{claim.path} -> {want!r}")
-    g.check("every gated memory claim resolves to an artifact", unresolved, [])
-    g.check("every gated memory claim is what the artifact says", wrong, [])
-    by_doc = collections.Counter(
-        c.doc if isinstance(c.doc, str) else "project memory" for c in MEMORY_CLAIMS)
-    g.info(f"{len(MEMORY_CLAIMS)} quantitative claims are gated against window.json, "
-           f"paint.json, seasons.json, facts.json and the code "
-           f"({', '.join(f'{n} in {d}' for d, n in sorted(by_doc.items()))}); the rest "
-           f"of each file is reasoning and carries its artifact key inline")
-    if skipped:
-        g.info(f"project memory absent (local working notes): {skipped} claims resolve "
-               f"to their artifacts but are not checked against text; README.md's are")
+        want = claim.render(value)
+        if " ".join(want.split()) not in docs[claim.doc]:
+            wrong.append(f"{claim.doc}:{claim.source}:{claim.path} -> {want!r}")
+    g.check("every gated README claim resolves to an artifact", unresolved, [])
+    g.check("every gated README claim is what the artifact says", wrong, [])
+    owners = sorted({_claim_owner(c.source) for c in README_CLAIMS},
+                    key=lambda o: (o == "the code", o))
+    owned = owners[0] if len(owners) == 1 else f"{', '.join(owners[:-1])} and {owners[-1]}"
+    g.info(f"{len(README_CLAIMS)} figures in {', '.join(sorted(docs))} are gated against "
+           f"{owned}; the rest of the file is description")
 
 
 # --- group: the palette ------------------------------------------------------
@@ -4219,7 +4048,7 @@ GROUPS = {
     "palette": group_palette,
     "inventory": group_inventory,
     "deploy": group_deploy,
-    "memory": group_memory,
+    "readme": group_readme,
 }
 SPINE_ONLY = ["spine", "resolution", "vocabulary", "shot_artifacts", "inventory"]
 # Everything except the one group that reads the raw season dumps. This is also
@@ -4227,11 +4056,9 @@ SPINE_ONLY = ["spine", "resolution", "vocabulary", "shot_artifacts", "inventory"
 FAST_GROUPS = [k for k in GROUPS if k != "zone_vs_league"]
 
 
-def run_groups(names, root, allow_raw=True, quiet=False, repo=None,
-               allow_absent_memory=False):
+def run_groups(names, root, allow_raw=True, quiet=False, repo=None):
     g = Gate(quiet=quiet)
-    ctx = Ctx(root, allow_raw=allow_raw, repo=repo,
-              allow_absent_memory=allow_absent_memory)
+    ctx = Ctx(root, allow_raw=allow_raw, repo=repo)
     for name in names:
         g.group = name
         try:
@@ -4323,8 +4150,8 @@ def main():
     ap.add_argument("--spine-only", action="store_true",
                     help="the shot stage alone; NOT the shipping gate")
     ap.add_argument("--no-raw", action="store_true",
-                    help="a fresh public clone: data/shots/ and the local working notes "
-                         "are absent; NOT the shipping gate")
+                    help="a fresh public clone: the raw dumps in data/shots/ are "
+                         "absent; NOT the shipping gate")
     ap.add_argument("--mutations", action="store_true",
                     help="the mutation suite alone")
     ap.add_argument("--no-mutations", action="store_true",
@@ -4366,9 +4193,6 @@ def main():
     reduced = []
     if args.no_raw:
         reduced.append(f"raw dumps absent, {ZONE_VS_LEAGUE_CHECKS} checks not run")
-        if "memory" in names and notes_absent():
-            reduced.append(f"project memory absent (local working notes), "
-                           f"{len(notes_only_claims())} claims not checked")
     if args.spine_only:
         reduced.append(f"--spine-only, {len(GROUPS) - len(SPINE_ONLY)} groups not run")
     if args.only:
@@ -4379,8 +4203,7 @@ def main():
     print(f"FADEAWAY acceptance gate - {len(names)} of {len(GROUPS)} groups"
           + (f"\n  REDUCED: {'; '.join(reduced)}" if reduced else ""))
 
-    g = run_groups(names, Path(args.processed), allow_raw=not args.no_raw,
-                   allow_absent_memory=args.no_raw)
+    g = run_groups(names, Path(args.processed), allow_raw=not args.no_raw)
     narrative(Path(args.processed))
 
     failures = list(g.failures)

@@ -162,7 +162,7 @@ export function renderTo(
     const founded = factExternal<number>(data.facts, "league_founded");
     // `voice`, both of them: the piece opens on this, alone, over bare stone,
     // with nothing else competing. Splitting the timing changes no rank — both
-    // lines share the voice rank (rank table: local working notes).
+    // lines share the voice rank (ranks: inscription.ts, `SlugRank`).
     drawSlug(ctx, view, [`${founded} — ${firstCharted ?? ""}`],
       { x: 0, y: 232 }, ramp(p, 0.14, 0.30, 0.80, 0.97), "voice");
     drawSlug(ctx, view, ["NO SHOT WAS GIVEN A PLACE"],

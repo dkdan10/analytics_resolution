@@ -1,6 +1,6 @@
 /** The material register — one source of truth for every number behind a mark.
  *
- * Rule 3 (README, The rules): grain is a measurement, not a mood. Every
+ * Rule 3 (docs/verification.md): grain is a measurement, not a mood. Every
  * material property of a mark derives from a measured property of the record,
  * and any scalar that genuinely cannot be measured is NAMED, ISOLATED AND
  * DISCLOSED.
@@ -217,11 +217,11 @@ export const SCALARS = {
   //
   // THE RESIDENCE: where the ball LIVED, under where the shots ENDED, drawn
   // only for the one act whose feed survives (window.json:occupancy — one-foot
-  // cells over every parsed ball frame). Two independent reviews of the
-  // display named this artifact the most deserving unshown material and
-  // proposed the same placement. The layer is bone, always — the ball belongs
-  // to no zone — and the only thing t drives is a whole-layer envelope;
-  // per-cell animation would author a chronology the aggregate never measured.
+  // cells over every parsed ball frame). Under the shots it shows the emptying
+  // mid-range as a place the game never left. The layer is bone, always — the
+  // ball belongs to no zone — and the only thing t drives is a whole-layer
+  // envelope; per-cell animation would author a chronology the aggregate never
+  // measured.
   RESIDENCE_TONE_K: {
     class: "authored",
     value: 400,
@@ -275,8 +275,7 @@ export const SCALARS = {
 
   // --- the wet day — the window fold's visible front -----------------------
   //
-  // THE WET DAY (decided 2026-08-10, on a problem two independent blind
-  // reviews both reported): the window's season fold is honest but
+  // THE WET DAY (decided 2026-08-10): the window's season fold is honest but
   // sub-liminal — a single day's ink, spread over the whole court, lands
   // below the per-second visibility threshold at every instant of the beat.
   // So the live calendar day's records draw WET: each lands at an EXCESS above
@@ -850,8 +849,8 @@ export const SCALARS = {
     material: false,
     controls:
       "the scatter's alpha ceiling, dropped from what it was so it sits UNDER " +
-      "the spoken register rather than competing with it. This is a display review's " +
-      "'secondary residue', and it is still every label the hand ever drew - " +
+      "the spoken register rather than competing with it. It is secondary " +
+      "residue now, and it is still every label the hand ever drew - " +
       "what changed is that there is now something above it.",
   },
   TERM_HEAD_TENTHS: {
@@ -1244,8 +1243,8 @@ export const SCALARS = {
   //
   // Sizes are in COURT TENTHS, like every other grain in the piece, so type does
   // not change with the window. A string's rank is the `rank` argument its
-  // caller passes to drawSlug; the table assigning every drawn string in the
-  // piece a rank is kept in the local working notes.
+  // caller passes to drawSlug, so the call sites are the only table of which
+  // string in the piece speaks at which rank.
   SLUG_VOICE_TENTHS: {
     class: "authored",
     value: 9,

@@ -180,9 +180,9 @@ const BONE = BONE_RGB.split(",").map((v) => Number(v.trim()));
  *
  * The live tail — everything past the last whole step — is redrawn every frame,
  * so this is the per-frame work bound, and the number of steps is what a cold
- * or backward jump has to walk. Measured on this machine at the probe's
- * surface: a drop costs about a microsecond and a copy about a millisecond and
- * a half, which is what these two are balanced against.
+ * or backward jump has to walk. Measured at the probe's surface: a drop costs
+ * about a microsecond and a copy about a millisecond and a half, which is what
+ * these two are balanced against.
  *
  * Do NOT reach for batching. Grouping the drops into one path per colour and
  * issuing a single `fill` was measured as several times SLOWER than a path per

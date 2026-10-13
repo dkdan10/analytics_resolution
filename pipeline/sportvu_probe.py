@@ -256,6 +256,7 @@ def main():
         "proof_archive": {"name": PROOF_NAME, "url": PROOF_URL,
                           "bytes": archive.stat().st_size, "sha256": archive_sha},
         "game_measurements": m,
+        # EXPECTED: the corpus measurements every live check above reproduces.
         "expected_from_plan": EXPECTED,
     }
     write_json(PROCESSED_DIR / "sportvu_probe.json", record)

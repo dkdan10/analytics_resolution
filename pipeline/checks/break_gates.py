@@ -5,16 +5,13 @@ A gate you cannot break is not evidence. This file exists because gates once
 shipped that encoded their stage's own acceptance criteria and could not fail
 under any mutation:
 
-  D1  a hard tautology - one term a count >= 0, the other an `all()` over a
-      sequence decide_offset empties before it is written
-  D2  a count that is zero by construction, standing in for the count that
-      would actually reveal a search too narrow to see its own peak
-  D3  "the figure exists and at least one game was testable"
-  D4  paint.py's reported maximum compared against paint.py's reported threshold
-  D5  nothing decoded paint_strokes.bin at all
-
-The D-labels name the defect classes; the catalogue's case names (D1-votes,
-D3-heldout, ...) carry them.
+  - a hard tautology: one term a count >= 0, the other an `all()` over a
+    sequence decide_offset empties before it is written
+  - a count that is zero by construction, standing in for the count that would
+    actually reveal a search too narrow to see its own peak
+  - "the figure exists and at least one game was testable"
+  - paint.py's reported maximum compared against paint.py's reported threshold
+  - nothing decoded paint_strokes.bin at all
 
 Seven more of the same kind followed - the window and paint stages could be
 DELETED from disk, or served as equal-length runs of zeros, and the gate still
@@ -34,9 +31,8 @@ never touched: a mutation root is assembled with its own copy of the processed
 tree and symlinks to the private and bulk directories.
 
 LOCAL ONLY. Each subprocess is a bare qa.py run, and a bare run needs the raw
-dumps (data/shots/) and the working notes (qa.MEMORY_DOCS), all gitignored. On
-a public clone, `qa.py --no-raw` runs the same catalogue in-process and names
-what it skipped.
+dumps (data/shots/), which are gitignored. On a public clone, `qa.py --no-raw`
+runs the same catalogue in-process.
 
 Usage: python3 pipeline/checks/break_gates.py [--case NAME] [--keep] [--list]
 """
@@ -71,8 +67,7 @@ def build_root(tmp):
         src = REPO_ROOT / "data" / name
         if src.exists():
             (root / "data" / name).symlink_to(src)
-    for name in (".python-version", "requirements.txt", "CLAUDE.md", "README.md",
-                 "docs/build/findings.md"):
+    for name in (".python-version", "requirements.txt", "README.md"):
         if (REPO_ROOT / name).exists():
             (root / name).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(REPO_ROOT / name, root / name)
@@ -114,15 +109,13 @@ def main():
             print(out[-3000:])
             sys.exit("the unmutated copy is already red. If qa.py calls every failure an "
                      "input this checkout does not have, this is a public clone: "
-                     "break_gates needs the raw dumps and the working notes; run "
-                     "qa.py --no-raw instead.")
+                     "break_gates needs the raw dumps; run qa.py --no-raw instead.")
 
         results = []
         pristine_repo = {
             rel: (Path(tmp) / "pristine-repo" / rel.replace("/", "_"))
-            for rel in ("CLAUDE.md", "README.md",
-                        "docs/build/findings.md",
-                        "pipeline/deploy_allowlist.json")
+            for rel in ("README.md", "pipeline/deploy_allowlist.json",
+                        "site/src/palette.ts")
         }
         (Path(tmp) / "pristine-repo").mkdir(exist_ok=True)
         for rel, keep in pristine_repo.items():
@@ -135,9 +128,9 @@ def main():
             for rel, keep in pristine_repo.items():
                 if keep.exists():
                     shutil.copy2(keep, root / rel)
-            # A repo-scope case mutates README.md, the working notes or the
-            # deploy allowlist, which live outside data/processed/ - all are
-            # in this root.
+            # A repo-scope case mutates README.md, the deploy allowlist or a
+            # site source, which live outside data/processed/ - all are in
+            # this root.
             c.mutate(root if c.scope == "repo" else root / "data" / "processed")
             code, out = run_qa(root)
             named = any(ln.startswith("  FAIL") and c.catches in ln for ln in out.splitlines())

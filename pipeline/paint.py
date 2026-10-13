@@ -10,7 +10,7 @@ particle, not a flow field, not a simulation: every vertex is a position the
 machine recorded, and the whole stroke is traceable back to one release the
 window stage already corroborated against the coordinate the record filed
 independently. That is the condition for this hand existing at all - rule 7
-(README, The rules): every stroke stays one traceable record.
+(docs/verification.md): every stroke stays one traceable record.
 
 THE SHOT IS TAKEN, NOT FOUND. This stage does not go looking for a possession.
 It reads the corroborated set the window stage wrote for that game - the shots
@@ -43,9 +43,9 @@ WHAT SHIPS carries no identity: no player, no game, no event, no clock. Control
 points in the plate's own folded halfcourt frame, a day index, a canvas index,
 a body slot within that canvas, and the two measurements above. A game, a
 player, or a possession's timing cannot be reconstructed from it (the paint's
-no-identity rule; README, Deploying, and what is public). The join that
+no-identity rule; docs/verification.md, Deploying). The join that
 produced each canvas IS kept, in full, under data/window/ - which is gitignored
-and never leaves this machine.
+and never published.
 
 Writes data/processed/paint_strokes.bin, paint_index.bin and paint.json.
 
@@ -686,7 +686,7 @@ def reduce_all():
 
     # The join, in full, kept OFF the public side. Everything in data/processed/
     # is copied wholesale into the build, and this carries game and event
-    # identity; data/window/ is gitignored and stays on this machine. It is what
+    # identity; data/window/ is gitignored and never published. It is what
     # makes every shipped stroke group traceable back to the record it came from.
     write_json(PROVENANCE_PATH, {
         "generated_by": "pipeline/paint.py",
@@ -946,7 +946,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--games", type=int, default=250)
     ap.add_argument("--jobs", type=int, default=3,
-                    help="parallel games; this stage is memory-bound, see README "
+                    help="parallel games; this stage is memory-bound, see docs/verification.md "
                          "(Running the pipeline)")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--reduce", action="store_true",

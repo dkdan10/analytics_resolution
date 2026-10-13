@@ -60,7 +60,7 @@ export interface FieldOpts {
    *  showed a deterministic over-budget stall on the frame after the first
    *  mid-season step crossing at after-the-cut, an order of magnitude past
    *  the same crossing in every other hand (mechanism unattributed; the
-   *  measured figures are in the local working notes) — so the hand that
+   *  perf probe measures it) — so the hand that
    *  already documents its own withPrevious exception keeps one more. THE
    *  STACK's locate base is deliberately left on stage A — a talk-mode
    *  instrument, outside the reveal's chosen scope. Recession keeps A's

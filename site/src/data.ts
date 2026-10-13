@@ -1,7 +1,7 @@
 /** Loading and typing of the pipeline's derived JSON.
  *
  * Everything the piece can say comes from here. No figure is ever written into
- * the source (the honesty rule - README, The rules) - if a number is on screen,
+ * the source (the honesty rule - docs/verification.md) - if a number is on screen,
  * it resolves to a key in data/processed/.
  */
 

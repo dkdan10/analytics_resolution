@@ -33,8 +33,8 @@ error. die() is reserved for the probe gate and the reduce, where a missing
 input or a broken invariant has to stop the whole stage.
 
 Writes data/processed/window.json (derived, committable) and
-data/processed/window_measures.bin. Bulk archives stay in data/raw/ and are
-never committed; frame-level data never leaves this machine.
+data/processed/window_measures.bin. Bulk archives stay in data/raw/ and
+frame-level data stays under data/window/; neither is ever committed.
 
 Usage: python3 pipeline/window.py [--probe-gate] [--games N] [--jobs N] [--force]
 """
@@ -1070,7 +1070,7 @@ def derive_game(archive_path, anchors_by_game, label):
 
         # Two independent shooter attributions. The roster join is by name via
         # the shot record; the geometric one is nearest-to-ball. Only their
-        # AGREEMENT RATE ships - no identities leave this machine.
+        # AGREEMENT RATE ships - no identities are published.
         attribution_total += 1
         if anchor.get("player_id") and m["release"]["shooter_id"] == anchor["player_id"]:
             attribution_agree += 1
@@ -1309,8 +1309,8 @@ def load_anchors():
 # Per-shot record in window_measures.bin. Shooter and defender in the shot
 # record's own frame (tenths, hoop at origin), the caliper's length, and the
 # category it was filed under. No player identities and no trajectories: the
-# frame-level record never leaves this machine (data rights: rule 6, README,
-# The rules).
+# frame-level record is never published (data rights: rule 6 in
+# docs/verification.md).
 MEASURE_REC = "<hhhhHBBB"  # x, y, dx, dy, dist_tenths, bucket, made, day
 MEASURE_BYTES = 13
 
@@ -1523,12 +1523,12 @@ def measure_sentinel_corroboration(anchors):
         "games": games,
         "filed_season": filed_season,
         "instrument": "SportVU optical tracking, 2015-16 public release",
-        # CORRECTED 2026-08-09 by an adversarial re-check. This field
-        # used to read "the shooter's feet at release, which the join does not
-        # constrain", and that was false: the join bounds the BALL to 6 ft of the
-        # filed coordinate and the ball sits above the shooter, so the feet are
-        # bounded too - measured, residuals run to exactly the 6.0 ft ceiling,
-        # median 2.73. The finding survives; that argument does not.
+        # CORRECTED 2026-08-09. This field used to read "the shooter's feet at
+        # release, which the join does not constrain", and that was false: the
+        # join bounds the BALL to 6 ft of the filed coordinate and the ball sits
+        # above the shooter, so the feet are bounded too - measured, residuals
+        # run to exactly the 6.0 ft ceiling, median 2.73. The finding survives;
+        # that argument does not.
         "evidence": (
             "the shooter's feet at release. The join BOUNDS this dispersion and "
             "cannot PRODUCE it - it holds the ball within 6 ft of the filed "

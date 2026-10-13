@@ -2,10 +2,10 @@
 """The defect catalogue: one mutation, one gate that must catch it.
 
 A gate you cannot break is not evidence. Every entry here reintroduces a defect
-that once shipped green - or that a 2026-08-08 review of the gate showed could
-ship green - on a COPY of data/processed/, and names the exact check that has
-to go red. A mutation caught only by some unrelated check is a FAILURE of the
-suite, not a pass: that distinction is the whole point.
+that once shipped green, or that a weaker form of the gate would have passed,
+on a COPY of data/processed/, and names the exact check that has to go red. A
+mutation caught only by some unrelated check is a FAILURE of the suite, not a
+pass: that distinction is the whole point.
 
 The catalogue is defined once and consumed twice:
 
@@ -23,6 +23,7 @@ Usage: python3 pipeline/checks/mutations.py [--case NAME]
 
 import argparse
 import json
+import re
 import shutil
 import struct
 import sys
@@ -39,28 +40,22 @@ class Case:
     `catches` is matched as a SUBSTRING of the printed FAIL line, so a check
     whose name carries a measured detail in parentheses still matches.
 
-    `scope` is which directory `mutate` is handed. The original contract was
-    `mutate(processed_dir)` and every defect lived under data/processed/, which
-    would have left the gates that read outside it - the deploy allowlist under
-    pipeline/, and the memory claims in README.md and the working notes - as
-    the only gates outside the catalogue. An unstated exception is how "add a
-    gate, add its defect" decays, so the contract widened instead:
-    `scope="repo"` hands `mutate` a repo-shaped root holding data/processed/,
-    README.md, the working notes, the allowlist and the site source the gates
-    read.
+    `scope` is which directory `mutate` is handed. Most defects live under
+    data/processed/ and get `mutate(processed_dir)`. Some gates read outside it
+    - the deploy allowlist under pipeline/, the figures in README.md and the
+    site's palette source - and an unstated exception is how "add a gate, add
+    its defect" decays, so those gates have defects here too: `scope="repo"`
+    hands `mutate` a repo-shaped root holding data/processed/, README.md, the
+    allowlist and the site source the gates read.
     """
 
-    def __init__(self, name, groups, catches, mutate, why, scope="processed",
-                 needs_notes=False):
+    def __init__(self, name, groups, catches, mutate, why, scope="processed"):
         self.name = name
         self.groups = groups
         self.catches = catches
         self.mutate = mutate
         self.why = why
         self.scope = scope
-        # A case that edits the working notes (MEMORY_DOCS) cannot run where
-        # they are absent - a public clone - and is SKIPPED there, by name.
-        self.needs_notes = needs_notes
 
 
 # --- helpers -----------------------------------------------------------------
@@ -962,8 +957,8 @@ def m_pile_vocabulary(d):
 
     `share_of_type` is the measurement the whole composition finding rests on -
     that 97.7% of every shot the record calls a Dunk Shot in 2015-16 sits on one
-    cell. A share above 1 is arithmetically impossible and would go straight into
-    the working notes as a finding if nothing asked.
+    cell. A share above 1 is arithmetically impossible and would be read as a
+    finding if nothing asked.
     """
     s = _load(d, "seasons.json")
     for row in s["seasons"]:
@@ -1036,16 +1031,9 @@ def m_corroboration_scope(d):
 def m_readme_figure(d):
     """A figure in README.md drifting from its own artifact.
 
-    THE FILE THE PUBLIC REPO OPENS ON, and until 2026-08-09 it was gated by
-    nothing whatever while the working notes' figures were gated by thirty
-    claims. That asymmetry was not luck: a sweep of the README found fourteen
-    stale or self-contradicting claims - a defect count long out of date, a
-    check-group count four short, a sweep described as taking minutes that
-    takes ten seconds, and one paragraph duplicated with its two copies
-    disagreeing. Most were deleted rather than pinned, because a number a
-    document does not need is better removed than gated; the few it genuinely
-    has to state are claims now, and this is what one of them going stale
-    looks like.
+    The README is the file the public repository opens on, so every figure it
+    states is a claim held to the artifact that owns it; this is what one of
+    them going stale looks like.
     """
     p = d / "README.md"
     p.write_text(p.read_text().replace("out of all 632 games", "out of all 640 games"))
@@ -1059,6 +1047,39 @@ def m_readme_attempts(d):
     """
     p = d / "README.md"
     p.write_text(p.read_text().replace("5,933,691 regular-season", "5,933,690 regular-season"))
+
+
+def _reword_readme(d, pattern, repl):
+    """Rewrite one passage of the README copy, wherever its lines happen to wrap.
+
+    Refuses loudly when the passage is not there: a mutation that changes
+    nothing would read as a gate that cannot fail.
+    """
+    p = d / "README.md"
+    text, n = re.subn(pattern, repl, p.read_text(), count=1)
+    if n != 1:
+        raise AssertionError(f"README.md has no passage matching {pattern!r}")
+    p.write_text(text)
+
+
+def m_readme_drift_share(d):
+    """A README percentage one point away from the season table.
+
+    RELATIVE: whatever 1996-97's mid-range share the sentence states, one point
+    less. A re-measured season moves the README and this case with it, rather
+    than leaving a hard-coded string that no longer matches anything.
+    """
+    _reword_readme(d, r"(falls from\s+)(\d+\.\d)(%\s+of attempts in 1996-97)",
+                   lambda m: f"{m.group(1)}{float(m.group(2)) - 1:.1f}{m.group(3)}")
+
+
+def m_readme_reworded(d):
+    """A gated figure reworded out of the README rather than corrected.
+
+    The number is gone, so nothing is wrong with it; the claim fails because
+    the sentence it is held to no longer exists.
+    """
+    _reword_readme(d, r"a median\s+\d+\.\d+\s+ft apart", "a median few feet apart")
 
 
 def m_palette_collide(d):
@@ -1325,7 +1346,7 @@ def m_paint_stale_reader(d):
     _save(d, "paint.json", p)
 
 
-def m_d1_votes(d):
+def m_offset_few_votes(d):
     """A non-zero offset accepted on far too few votes.
 
     The original gate read `votes.games_under_min >= 0 and all(... for k, v in
@@ -1344,7 +1365,7 @@ def m_d1_votes(d):
     _save(d, "window.json", w)
 
 
-def m_d1_lift(d):
+def m_offset_no_lift(d):
     """An accepted shift with no lift over the straight join."""
     w = _load(d, "window.json")
     a = w["recovery"]["accepted_offsets"]
@@ -1352,7 +1373,7 @@ def m_d1_lift(d):
     _save(d, "window.json", w)
 
 
-def m_d2_boundary(d):
+def m_offset_on_boundary(d):
     """Four hundred games whose argmax landed on the search boundary.
 
     The shipped gate read offsets_on_search_boundary, which is zero however
@@ -1363,7 +1384,7 @@ def m_d2_boundary(d):
     _save(d, "window.json", w)
 
 
-def m_d3_heldout(d):
+def m_heldout_one_game(d):
     """One testable game, agreeing essentially never.
 
     The old gate asked only that held_out_agreement was not None and
@@ -1378,14 +1399,14 @@ def m_d3_heldout(d):
     _save(d, "window.json", w)
 
 
-def m_d3_aggregate(d):
+def m_heldout_aggregate(d):
     """The headline agreement moved without the evidence moving."""
     w = _load(d, "window.json")
     w["recovery"]["held_out_agreement"] = 0.99
     _save(d, "window.json", w)
 
 
-def m_a1_searched(d):
+def m_offset_direct_search(d):
     """Games decided on the anchor-keyed vector, where zero cannot lose."""
     w = _load(d, "window.json")
     total = sum(w["recovery"]["searched"].values())
@@ -1393,7 +1414,7 @@ def m_a1_searched(d):
     _save(d, "window.json", w)
 
 
-def m_b_coincident(d):
+def m_paint_coincident(d):
     """Two body slots of one canvas that are one detection reported twice.
 
     A merged track is perfectly continuous, so every continuity and alignment
@@ -1420,7 +1441,7 @@ def m_b_coincident(d):
     (d / "paint_strokes.bin").write_bytes(bytes(vraw))
 
 
-def m_b_shipped_min(d):
+def m_paint_shipped_min(d):
     """A shipped canvas whose two closest bodies sat inside the rule.
 
     The byte gate works at the storage quantum, because simplification moves
@@ -1431,49 +1452,11 @@ def m_b_shipped_min(d):
     _save(d, "paint.json", p)
 
 
-def m_c1_terminus(d):
+def m_paint_terminus(d):
     """The paint stops three weeks short of the window's closure."""
     p = _load(d, "paint.json")
     p["date_last"] = "2016-01-03"
     _save(d, "paint.json", p)
-
-
-# Project memory is TWO files since 2026-08-09 - one for standing instruction,
-# one the record of how the piece was built (the same two files as
-# qa.MEMORY_DOCS) - and a gated claim may sit in either. A mutation that only
-# ever edits the first stops biting the moment the sentence it targets moves to
-# the second, so both of these follow the claim rather than the filename. Both
-# files are gitignored working notes; where neither is on disk, the two cases
-# that edit them are SKIPPED by run_mutations and counted in its verdict.
-_MEMORY_FILES = ("CLAUDE.md", "docs/build/findings.md")
-
-
-def _mutate_memory(d, old, new):
-    """Corrupt a gated sentence wherever in project memory it actually lives."""
-    for rel in _MEMORY_FILES:
-        p = d / rel
-        if not p.exists():
-            continue
-        text = p.read_text()
-        if old in text:
-            p.write_text(text.replace(old, new, 1))
-            return
-    raise AssertionError(f"the sentence to mutate is in neither memory file: {old!r}")
-
-
-def m_memory_figure(d):
-    """A quantitative claim in project memory drifting from its own artifact.
-
-    Exactly what happened to `recovery.attribution_agreement`, which was written
-    into the notes as 0.8536 while window.json said 0.8573, with nothing able
-    to see it.
-    """
-    _mutate_memory(d, "`recovery.rate` **0.4545**", "`recovery.rate` **0.5545**")
-
-
-def m_memory_missing(d):
-    """A gated sentence reworded out of memory rather than corrected."""
-    _mutate_memory(d, "Median **4.82 ft** apart", "Median a few feet apart")
 
 
 def m_allowlist_extra(d):
@@ -1636,14 +1619,22 @@ CASES = [
          "the corroboration says how little of the season it reaches",
          m_corroboration_scope, "one of six seasons reported as the whole finding"),
 
-    Case("readme-attempts", ["memory"],
-         "every gated memory claim is what the artifact says",
+    Case("readme-attempts", ["readme"],
+         "every gated README claim is what the artifact says",
          m_readme_attempts, "the README's headline attempt count drifting from the table",
          scope="repo"),
-    Case("readme-figure", ["memory"],
-         "every gated memory claim is what the artifact says",
+    Case("readme-figure", ["readme"],
+         "every gated README claim is what the artifact says",
          m_readme_figure,
          "a figure drifting in the file the public repo opens on",
+         scope="repo"),
+    Case("readme-drift-share", ["readme"],
+         "every gated README claim is what the artifact says",
+         m_readme_drift_share, "a README percentage a point away from the season table",
+         scope="repo"),
+    Case("readme-reworded", ["readme"],
+         "every gated README claim is what the artifact says",
+         m_readme_reworded, "a gated figure reworded away instead of corrected",
          scope="repo"),
 
     # --- the palette: the claim, and the values it is about -------------------
@@ -1746,35 +1737,31 @@ CASES = [
     # These were first shown to go red in break_gates.py. They live here so the
     # fast in-process suite covers them too, and break_gates runs the same list
     # end to end through a real subprocess.
-    Case("D1-votes", ["window"], "no accepted shift falls below the minimum vote count",
-         m_d1_votes, "an offset accepted on too few votes - the old gate was a tautology"),
-    Case("D1-lift", ["window"],
+    Case("offset-few-votes", ["window"], "no accepted shift falls below the minimum vote count",
+         m_offset_few_votes, "an offset accepted on too few votes - the old gate was a tautology"),
+    Case("offset-no-lift", ["window"],
          "every accepted shift clears the straight join by the declared factor",
-         m_d1_lift, "an accepted shift with no lift over the straight join"),
-    Case("D2-boundary", ["window"],
+         m_offset_no_lift, "an accepted shift with no lift over the straight join"),
+    Case("offset-on-boundary", ["window"],
          "no game's argmax was refused for landing on the search boundary",
-         m_d2_boundary, "boundary argmaxes, once hidden behind a count zero by construction"),
-    Case("D3-heldout", ["window"], "the held-out split is drawn from most of the corpus",
-         m_d3_heldout, "'the figure exists' passed with one game agreeing 0.0001"),
-    Case("D3-aggregate", ["window"], "the held-out aggregate is the split it summarises",
-         m_d3_aggregate, "the headline moved without the evidence moving"),
-    Case("A1-searched", ["window"], "every game's offset was decided on the full release set",
-         m_a1_searched, "445 games decided on a vector where zero could not lose"),
-    Case("B-coincident", ["paint"], "no canvas draws two bodies inside one coordinate quantum",
-         m_b_coincident, "Rule 7: one detection painted twice, perfectly continuous"),
-    Case("B-shipped-min", ["paint"],
+         m_offset_on_boundary,
+         "boundary argmaxes, once hidden behind a count zero by construction"),
+    Case("heldout-one-game", ["window"], "the held-out split is drawn from most of the corpus",
+         m_heldout_one_game, "'the figure exists' passed with one game agreeing 0.0001"),
+    Case("heldout-aggregate", ["window"], "the held-out aggregate is the split it summarises",
+         m_heldout_aggregate, "the headline moved without the evidence moving"),
+    Case("offset-direct-search", ["window"],
+         "every game's offset was decided on the full release set",
+         m_offset_direct_search, "445 games decided on a vector where zero could not lose"),
+    Case("paint-coincident", ["paint"], "no canvas draws two bodies inside one coordinate quantum",
+         m_paint_coincident, "Rule 7: one detection painted twice, perfectly continuous"),
+    Case("paint-shipped-min", ["paint"],
          "no shipped canvas holds two bodies closer than the rule allows",
-         m_b_shipped_min, "Rule 7 at the precision it was measured at"),
-    Case("C1-terminus", ["paint"], "the paint reaches the window's opening and its closure",
-         m_c1_terminus, "THE HAND stopping three weeks short of what it is about"),
+         m_paint_shipped_min, "Rule 7 at the precision it was measured at"),
+    Case("paint-terminus", ["paint"], "the paint reaches the window's opening and its closure",
+         m_paint_terminus, "THE HAND stopping three weeks short of what it is about"),
 
     # --- gates that read outside data/processed/ ----------------------------
-    Case("memory-figure", ["memory"], "every gated memory claim is what the artifact says",
-         m_memory_figure, "a figure in the working notes drifting from its own artifact",
-         scope="repo", needs_notes=True),
-    Case("memory-missing", ["memory"], "every gated memory claim is what the artifact says",
-         m_memory_missing, "a gated claim reworded away instead of corrected",
-         scope="repo", needs_notes=True),
     Case("allowlist-extra", ["deploy"], "the allowlist the site reads is the table the gate holds",
          m_allowlist_extra, "publishing by editing a file instead of by deciding",
          scope="repo"),
@@ -1891,11 +1878,9 @@ def run_mutations(processed=PROCESSED_DIR, only=None, quiet=False):
 
     Returns True when every case is caught by the check that owns it.
     """
-    from qa import notes_absent, run_groups  # noqa: PLC0415
+    from qa import run_groups  # noqa: PLC0415
 
     cases = [BY_NAME[only]] if only else CASES
-    absent = notes_absent(REPO_ROOT)
-    skipped = [c for c in cases if c.needs_notes and absent]
     print(f"\nMutations: {len(cases)} defects, each against the check that owns it")
     results = []
     with tempfile.TemporaryDirectory() as tmp:
@@ -1903,10 +1888,10 @@ def run_mutations(processed=PROCESSED_DIR, only=None, quiet=False):
         shutil.copytree(processed, pristine)
         root = Path(tmp) / "work"
 
-        # A repo-shaped root, not a bare processed directory: the `memory`,
-        # `deploy` and `palette` groups read README.md, the working notes,
-        # pipeline/deploy_allowlist.json and two site source files, and a gate
-        # that cannot be aimed at a copy cannot be mutation-tested at all.
+        # A repo-shaped root, not a bare processed directory: the `readme`,
+        # `deploy` and `palette` groups read README.md,
+        # pipeline/deploy_allowlist.json and the site's palette source, and a
+        # gate that cannot be aimed at a copy cannot be mutation-tested at all.
         #
         # ADD A SITE FILE HERE WHEN A GATE STARTS READING ONE. The failure is
         # loud but confusing: the group fails on "…is readable" for every case in
@@ -1917,10 +1902,8 @@ def run_mutations(processed=PROCESSED_DIR, only=None, quiet=False):
             (root / "data").mkdir(parents=True)
             shutil.copytree(pristine, root / "data" / "processed")
             (root / "pipeline").mkdir(exist_ok=True)
-            for rel in ("CLAUDE.md", "README.md",
-                        "docs/build/findings.md",
-                        "pipeline/deploy_allowlist.json",
-                        "site/src/inscription.ts", "site/src/palette.ts"):
+            for rel in ("README.md", "pipeline/deploy_allowlist.json",
+                        "site/src/palette.ts"):
                 src = REPO_ROOT / rel
                 if src.exists():
                     dst = root / rel
@@ -1928,15 +1911,10 @@ def run_mutations(processed=PROCESSED_DIR, only=None, quiet=False):
                     shutil.copy2(src, dst)
 
         for c in cases:
-            if c in skipped:
-                print(f"  {'SKIPPED':<12} {c.name:<18} -> project memory absent "
-                      f"(local working notes)")
-                continue
             stage()
             work = root / "data" / "processed"
             c.mutate(root if c.scope == "repo" else work)
-            g = run_groups(c.groups, work, allow_raw=False, quiet=True, repo=root,
-                           allow_absent_memory=absent)
+            g = run_groups(c.groups, work, allow_raw=False, quiet=True, repo=root)
             named = any(c.catches in n for n in g.names())
             caught = bool(g.failures) and named
             results.append((c, caught, g))
@@ -1947,9 +1925,8 @@ def run_mutations(processed=PROCESSED_DIR, only=None, quiet=False):
                 print(f"       instead: {g.names()[:4] or 'nothing failed'}")
 
     bad = [c.name for c, ok, _ in results if not ok]
-    tail = f" ({len(skipped)} skipped: project memory absent)" if skipped else ""
     print(f"  {len(results) - len(bad)}/{len(results)} defects are caught by their own "
-          f"check{tail}")
+          f"check")
     if bad:
         print(f"  MUTATIONS SURVIVED: {', '.join(bad)}")
     return not bad

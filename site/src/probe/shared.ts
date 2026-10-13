@@ -47,7 +47,7 @@ export const FRAME_BUDGET_MS = 1000 / 60;
  * A surface to draw the piece on.
  *
  * `readback` pins the rasterisation backend, and the purity probe needs it.
- * Measured 2026-08-08 on this machine: the SAME frame, rendered twice from cold
+ * Measured 2026-08-08: the SAME frame, rendered twice from cold
  * with nothing whatever changed between them, comes back byte-identical — and
  * then differs in 60,253 RGB channels with a maximum delta of 8 once ~320 MB of
  * ballast is allocated in between. That is the browser moving an accelerated
@@ -364,8 +364,8 @@ export function diffPixels(a: Uint8ClampedArray, b: Uint8ClampedArray, width: nu
 /**
  * What this browser does to an unchanged frame, before the piece is blamed for it.
  *
- * Canvas2D rasterisation is not stable across memory pressure. Measured on this
- * machine 2026-08-08: one frame rendered twice from cold, with NOTHING changed
+ * Canvas2D rasterisation is not stable across memory pressure. Measured on
+ * 2026-08-08: one frame rendered twice from cold, with NOTHING changed
  * between the two renders, comes back byte-identical — and then differs in
  * 60,253 RGB channels with a maximum delta of 8 once a few hundred megabytes
  * are allocated in between. No renderer state is involved in that at all; it is

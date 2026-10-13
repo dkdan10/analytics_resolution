@@ -183,7 +183,7 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
 - **SCATTER_MIN_PX** — **8** *(not material)*  
   a CSS-pixel floor for the scatter, so it survives a small window.
 - **SCATTER_ALPHA** — **0.3** *(not material)*  
-  the scatter's alpha ceiling, dropped from what it was so it sits UNDER the spoken register rather than competing with it. This is a display review's 'secondary residue', and it is still every label the hand ever drew - what changed is that there is now something above it.
+  the scatter's alpha ceiling, dropped from what it was so it sits UNDER the spoken register rather than competing with it. It is secondary residue now, and it is still every label the hand ever drew - what changed is that there is now something above it.
 - **TERM_HEAD_TENTHS** — **30** *(not material)*  
   the size of the head phrase AT THE REFERENCE SHARE, in court tenths - the top of the type ladder. Every head term is this scaled by the square root of its own share against the largest share any season reaches, so AREA is proportional to the shots the word names, which is the law the pin already obeys. The reference share itself is computed over the corpus at load and is never written down.
 - **TERM_BIRTH_TENTHS** — **20** *(not material)*  

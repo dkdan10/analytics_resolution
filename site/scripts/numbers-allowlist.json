@@ -13,7 +13,7 @@
     {
       "file": "palette.ts",
       "text": "232, 226, 214",
-      "why": "the plate's bone, as RGB channels. A colour, not a quantity the record measured - and palette.ts names, isolates and discloses the whole scheme in its own header, as rule 3 (README, The rules) requires. Out of the mark layers' scope."
+      "why": "the plate's bone, as RGB channels. A colour, not a quantity the record measured - and palette.ts names, isolates and discloses the whole scheme in its own header, as rule 3 (docs/verification.md) requires. Out of the mark layers' scope."
     },
     {
       "file": "palette.ts",

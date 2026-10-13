@@ -74,7 +74,7 @@ export interface Frame {
    */
   stack: StackRenderState;
   /**
-   * A REVIEW CANDIDATE, never a gallery state. Populated only by the shots
+   * A CANDIDATE COMPOSITION, never a gallery state. Populated only by the shots
    * probe (`?probe=shots`, `scripts/shots.mjs --candidate ...`); `main.ts`
    * parses no URL parameter into it, so no gallery or talk viewer can reach a
    * candidate frame — which is what "captured for judgment, not wired" means

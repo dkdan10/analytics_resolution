@@ -634,9 +634,9 @@ export class Navigator {
       line.append(glyph, name, key);
 
       // The artifact key, then the sentence that artifact ships defining it.
-      // Two lines, and the spec asks for exactly these two — the rail is narrow
-      // and shares its height with the transport and a row per season, so a
-      // third line per operation is a third of the rail spent on prose.
+      // Two lines, and only these two — the rail is narrow and shares its
+      // height with the transport and a row per season, so a third line per
+      // operation is a third of the rail spent on prose.
       const reads = document.createElement("span");
       reads.className = "op-reads";
       reads.textContent = op.reads.join("  ·  ");

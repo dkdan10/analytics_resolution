@@ -1,7 +1,7 @@
 /**
  * The disclosure, rendered from the register.
  *
- * The third rule (README, The rules) ends "authored scalars must be named, isolated AND
+ * The third rule (docs/verification.md) ends "authored scalars must be named, isolated AND
  * DISCLOSED". A frozen manifest in a TypeScript file satisfies the first two
  * and none of the third — nobody reading the piece can open src/scalars.ts.
  *
@@ -141,7 +141,7 @@ if (check) {
     console.error(
       "disclose: docs/material-scalars.md is stale.\n" +
         "  A material scalar changed and its disclosure did not. Run `npm run disclose`\n" +
-        "  and commit the result alongside the change (rule 3, README: named, isolated\n" +
+        "  and commit the result alongside the change (rule 3, docs/verification.md: named, isolated\n" +
         "  AND disclosed).",
     );
     process.exit(1);

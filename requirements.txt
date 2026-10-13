@@ -1,25 +1,11 @@
-# The pipeline's only third-party dependencies, pinned to the versions every
-# published number in this project was produced and verified against.
-#
-# The interpreter is pinned separately in .python-version (pyenv 3.9.4). Both
-# matter: this machine carries four `python3`, two without numpy at all and one
-# (miniconda) with numpy 1.23.1 / pandas 1.4.3, which would run the acceptance
-# gate to green on libraries the results were never checked against.
-#
-#   pyenv install 3.9.4 && python3 -m pip install -r requirements.txt
-#
-# pipeline/common.py:require_env() checks these at the start of every stage.
+# The versions every published number in this project was produced with.
+# The interpreter is pinned separately in .python-version (Python 3.9.4).
+# pipeline/common.py:require_env() checks numpy and pandas at the start of
+# every stage.
 numpy==2.0.2
 pandas==2.3.2
 
-# Colour appearance and colour-vision-deficiency simulation, for
-# pipeline/palette.py and qa.py's `palette` group (audit V-03: THE FIELD's hues
-# claimed a separation nobody had measured).
-#
-# DELIBERATELY NOT IN pipeline/common.py:REQUIRED. That dict is checked by
-# require_env() at the top of EVERY stage, so a global entry would make
-# acquire.py and window.py fail for anyone who has no use for a colour
-# appearance model. The palette stage imports it explicitly and says so if it is
-# missing; qa.py's palette group FAILS rather than skipping, because a gate that
-# quietly stops checking when a library is absent is the F-11 defect.
+# colorspacious is imported only by pipeline/palette.py and the gate's
+# `palette` group, which fail rather than skip when it is missing. It is not in
+# common.REQUIRED, so stages with no use for a colour model do not need it.
 colorspacious==1.1.2

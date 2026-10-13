@@ -43,8 +43,8 @@ export function arrivedThrough(cum: Int32Array, dayFrac: number): number {
 /**
  * The cumulative-by-day table both day-keyed hands pace on: how many records
  * carry each calendar-day offset, prefix-summed. Derived from the asset and
- * cached against it — a derived cache, which the fifth rule (README, The
- * rules) allows; nothing here is accumulated across frames.
+ * cached against it — a derived cache, which the fifth rule
+ * (docs/verification.md) allows; nothing here is accumulated across frames.
  */
 const cumulative = new WeakMap<object, Int32Array>();
 

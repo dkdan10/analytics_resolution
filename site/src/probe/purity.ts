@@ -2,7 +2,7 @@
  *
  * The piece's fifth rule says it is: scrubbing backwards REBUILDS, it never
  * remembers. Derived caches are allowed; accumulated state is not. That claim
- * had never been tested, and a review on 2026-08-08 found it false for THE HAND,
+ * had never been tested, and testing it on 2026-08-08 found it false for THE HAND,
  * which extends one module-level canvas in 64-stroke blocks: two frames of the
  * same instant, reached along different histories, do not match. Run this to
  * see by how much; the count belongs in the report, not in a comment that will
@@ -57,8 +57,7 @@
  *
  * A capture method that reported everything identical whatever happened would
  * be worse than the confound it replaced. This one was checked against a staged
- * impurity before it was believed; the check is written up in the local working
- * notes.
+ * impurity before it was believed.
  *
  * THE HAND IS THE CASE THIS WAS BUILT FOR. Its old module-level canvas, extended
  * in blocks as the playhead advanced, is the impurity described at the top of
@@ -138,9 +137,9 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
    *
    * DEFAULT — the accelerated canvas the gallery actually runs on. It is not
    * bit-stable across memory pressure, so the run measures its own noise floor
-   * (see below) and only calls a difference the piece's when it clears it. On
-   * this machine the floor is ~60,000 channels at a maximum delta of 8, and
-   * THE HAND's old accumulating canvas measured thirty-five times that.
+   * (see below) and only calls a difference the piece's when it clears it. In
+   * one measured run the floor was ~60,000 channels at a maximum delta of 8,
+   * and THE HAND's old accumulating canvas measured thirty-five times that.
    *
    * `&exact=1` — software rasterisation, pinned. The floor drops to zero and a
    * single differing channel is real, but a 2560x1440 frame costs an order of
@@ -268,7 +267,7 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
   // is called and the plate is bare — and then apply that floor to frames
   // carrying tens of thousands of marks. That was first recorded as a known
   // limit of the instrument, and it turns out to matter: a bare frame's floor
-  // came back at zero channels on this machine while a window beat's is
+  // came back at zero channels while a window beat's is
   // thousands, so the cheap floor promoted the browser's own jitter on a heavy
   // frame into a finding about the piece. The floor is a property of the FRAME,
   // so it is measured on the frame it will be used to judge.

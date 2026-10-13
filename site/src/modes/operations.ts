@@ -20,7 +20,7 @@
  * NO DEFINITION TEXT IS WRITTEN HERE EITHER. `definitionKey` names an artifact
  * and a key inside its own `definitions` block, and the rail reads the sentence
  * out of `data/processed/` at run time. A definition copied into source is a
- * definition that will go stale, which is the first rule (README, The rules)
+ * definition that will go stale, which is the first rule (docs/verification.md)
  * applied to prose rather than to a number.
  */
 

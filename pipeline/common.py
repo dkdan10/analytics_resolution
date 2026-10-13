@@ -18,18 +18,10 @@ RAW_DIR = REPO_ROOT / "data" / "raw"
 PROCESSED_DIR = REPO_ROOT / "data" / "processed"
 
 # --- the interpreter --------------------------------------------------------
-# Every number this project publishes was produced with these versions. There
-# are four `python3` on the machine this was built on and only one of them is
-# right, so which interpreter runs the pipeline cannot be left to PATH order:
-#
-#   pyenv 3.9.4        numpy 2.0.2   pandas 2.3.2    <- verified, what .python-version pins
-#   miniconda 3.9.12   numpy 1.23.1  pandas 1.4.3    <- imports fine, DIFFERENT library versions
-#   homebrew 3.14.5    no numpy
-#   /usr/bin 3.8.9     no numpy
-#
-# The dangerous one is miniconda: it satisfies a presence check and would run
-# the whole gate to green on libraries the results were never verified against.
-# So this checks versions, not just importability.
+# Every number this project publishes was produced with these versions. A
+# different numpy or pandas can import cleanly and still run the gate to green
+# on libraries the results were never verified against, so this checks
+# versions, not just importability.
 REQUIRED = {"numpy": "2.0.2", "pandas": "2.3.2"}
 
 
@@ -64,10 +56,8 @@ def require_env(strict=True):
         print(f"  version: {'; '.join(wrong)}", file=sys.stderr)
     print(
         "\n  This repo pins its interpreter in .python-version and its libraries in\n"
-        "  requirements.txt. If `python3` is not resolving to the pinned pyenv\n"
-        "  version, invoke it explicitly:\n\n"
-        "      $(pyenv root)/versions/$(cat .python-version)/bin/python3 pipeline/qa.py\n\n"
-        "  or create a virtualenv from requirements.txt. See README.\n",
+        "  requirements.txt. Run the pipeline from a Python 3.9 virtualenv with\n"
+        "  requirements.txt installed (see the README's Quick start).\n",
         file=sys.stderr,
     )
     if strict and missing:
@@ -335,7 +325,7 @@ def _lzma_available():
 def read_season_csv(start_year, **read_csv_kwargs):
     """Read one season's shotdetail CSV out of its tar.xz dump.
 
-    Python built without _lzma (e.g. some pyenv builds) cannot open tar.xz via
+    A Python built without _lzma (some source builds) cannot open tar.xz via
     tarfile, so fall back to streaming through bsdtar, which links liblzma.
     """
     import pandas as pd
