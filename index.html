@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FADEAWAY</title>
+    <meta name="description" content="A browser artwork that draws the NBA's public shot record on one halfcourt that never moves, season by season, and shows how much the record could see. Made for a laptop screen." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="FADEAWAY" />
+    <meta property="og:description" content="A browser artwork that draws the NBA's public shot record on one halfcourt that never moves, season by season, and shows how much the record could see. Made for a laptop screen." />
+    <meta property="og:url" content="https://dkdan10.github.io/analytics_resolution/" />
+    <meta property="og:image" content="https://dkdan10.github.io/analytics_resolution/og/fadeaway.jpg" />
+    <meta property="og:image:alt" content="THE HAND at the close of the tracking window: real player trajectories as strokes on a dark halfcourt, coloured by the league's own zones" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <noscript><style>#startup { display: none; }</style></noscript>
+    <style>
+      :root {
+        --ground: #0b0a09;
+        --bone: #e8e2d6;
+        --rail: 280px;
+        --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: var(--ground);
+        overflow: hidden;
+      }
+      #app { display: flex; height: 100vh; }
+      canvas { display: block; flex: 1 1 auto; min-width: 0; height: 100vh; }
+
+      /* Exhibit mode: nothing on screen may look like it wants to be touched.
+         A web visitor who moves a mouse gets the cursor back until it rests;
+         a wall machine with no pointer never shows one. */
+      body.exhibit { cursor: none; }
+      body.exhibit.pointer-awake { cursor: auto; }
+      body.exhibit #nav { display: none; }
+
+      /* Off-canvas text for assistive technology: the canvas carries the work,
+         so the page needs one sentence that says what it is. */
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      /* The overview's one line of credit: author, a way to the source, and the
+         data's provenance. Bottom-left; the FULL WORK link owns bottom-right. */
+      #credit {
+        position: fixed;
+        z-index: 12;
+        left: 20px;
+        bottom: 20px;
+        max-width: calc(100vw - 260px);
+        font: 12px/1.45 var(--mono);
+        letter-spacing: 0.12em;
+        color: rgba(232, 226, 214, 0.62);
+        text-shadow: 0 1px 8px #0b0a09;
+        pointer-events: none;
+      }
+      #credit a {
+        color: rgba(232, 226, 214, 0.86);
+        text-decoration: none;
+        border-bottom: 1px solid rgba(232, 226, 214, 0.35);
+        pointer-events: auto;
+      }
+      #credit a:hover, #credit a:focus-visible { color: var(--bone); }
+      #credit[hidden] { display: none; }
+      body.overview #asset-state { bottom: 52px; }
+
+      .noscript {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        margin: 0;
+        background: var(--ground);
+        color: rgba(232, 226, 214, 0.82);
+        font: 13px/1.6 var(--mono);
+        letter-spacing: 0.12em;
+        text-align: center;
+      }
+      .noscript a { color: var(--bone); }
+
+      /* The data's provenance, at the end of the rail, read from the artifact. */
+      #provenance {
+        margin: 14px 16px 0;
+        padding-top: 8px;
+        border-top: 1px solid rgba(232, 226, 214, 0.07);
+        font-size: 12px;
+        color: rgba(232, 226, 214, 0.6);
+        overflow-wrap: anywhere;
+      }
+      #provenance p { margin: 0 0 4px; }
+      #provenance .provenance-title { letter-spacing: 0.14em; color: rgba(232, 226, 214, 0.78); }
+
+      /* Static first paint: present in the HTML before the module graph or a
+         data request can begin. JS changes only the status word and removes it
+         once the first real frame is ready. */
+      #startup {
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        display: grid;
+        place-content: center;
+        gap: 14px;
+        background: var(--ground);
+        color: rgba(232, 226, 214, 0.82);
+        font-family: var(--mono);
+        text-align: center;
+        letter-spacing: 0.2em;
+      }
+      #startup[hidden] { display: none; }
+      #startup .startup-title { margin: 0; font-size: 16px; font-weight: 400; }
+      #startup .startup-state {
+        margin: 0;
+        font-size: 13px;
+        color: rgba(232, 226, 214, 0.7);
+      }
+      #startup[data-state="degraded"] .startup-state,
+      #startup[data-state="failed"] .startup-state { color: #e7b77b; }
+
+      #context-label, #overview-title {
+        position: fixed;
+        z-index: 12;
+        left: 20px;
+        top: 18px;
+        max-width: calc(100vw - 40px);
+        font-family: var(--mono);
+        font-size: 14px;
+        line-height: 1.45;
+        letter-spacing: 0.12em;
+        color: rgba(232, 226, 214, 0.86);
+        pointer-events: none;
+        text-shadow: 0 1px 8px #0b0a09;
+      }
+      #overview-title { left: auto; right: 22px; text-align: right; }
+      #context-label[hidden], #overview-title[hidden] { display: none; }
+      #full-entry {
+        position: fixed;
+        z-index: 13;
+        right: 22px;
+        bottom: 20px;
+        min-height: 28px;
+        display: inline-flex;
+        align-items: center;
+        padding: 0 10px;
+        border: 1px solid rgba(232, 226, 214, 0.48);
+        color: rgba(232, 226, 214, 0.9);
+        background: rgba(11, 10, 9, 0.72);
+        font: 13px/1 var(--mono);
+        letter-spacing: 0.1em;
+        text-decoration: none;
+      }
+      #full-entry:hover, #full-entry:focus-visible { background: rgba(232, 226, 214, 0.12); }
+      #full-entry[hidden] { display: none; }
+      #asset-state {
+        position: fixed;
+        z-index: 20;
+        left: 18px;
+        bottom: 18px;
+        min-height: 28px;
+        padding: 0 9px;
+        border: 1px solid rgba(231, 183, 123, 0.7);
+        background: rgba(11, 10, 9, 0.86);
+        color: #e7b77b;
+        font: 12px/1 var(--mono);
+        letter-spacing: 0.08em;
+        cursor: pointer;
+      }
+      #asset-state[hidden] { display: none; }
+      body:not(.exhibit) #asset-state { left: calc(var(--rail) + 18px); }
+      body.degraded { cursor: auto; }
+      body.overview { cursor: auto; }
+
+      /* The transport never scrolls: only the segment list does. A rail that
+         scrolls its own controls away leaves the presenter without a mouse
+         exactly when they are furthest from the start. */
+      #nav {
+        flex: 0 0 var(--rail);
+        width: var(--rail);
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        box-sizing: border-box;
+        padding: 18px 0 0;
+        border-right: 1px solid rgba(232, 226, 214, 0.08);
+        font-family: var(--mono);
+        color: rgba(232, 226, 214, 0.76);
+        font-size: 12px;
+        line-height: 1.5;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(232, 226, 214, 0.15) transparent;
+      }
+      #nav-head { flex: 0 0 auto; }
+      #nav-list {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        padding-bottom: 24px;
+        overscroll-behavior: contain;
+      }
+      #nav h1 {
+        margin: 0 16px 2px;
+        font-size: 13px;
+        font-weight: 400;
+        letter-spacing: 0.22em;
+        color: rgba(232, 226, 214, 0.8);
+      }
+      #nav .meta { margin: 0 16px 12px; color: rgba(232, 226, 214, 0.68); font-size: 12px; }
+
+      .transport { display: flex; gap: 4px; margin: 0 12px 10px; }
+      .transport button {
+        flex: 1;
+        background: transparent;
+        border: 1px solid rgba(232, 226, 214, 0.12);
+        color: rgba(232, 226, 214, 0.82);
+        font-family: var(--mono);
+        font-size: 12px;
+        min-height: 28px;
+        padding: 5px 0;
+        cursor: pointer;
+        border-radius: 2px;
+      }
+      .transport button:hover { border-color: rgba(232, 226, 214, 0.35); color: var(--bone); }
+      .transport button:active { background: rgba(232, 226, 214, 0.07); }
+
+      /* Padding widens the grab area to ~15px without thickening the bar. */
+      #scrub {
+        margin: 0 16px 4px;
+        height: 3px;
+        min-height: 28px;
+        box-sizing: border-box;
+        padding: 12px 0 13px;
+        background: rgba(232, 226, 214, 0.1);
+        background-clip: content-box;
+        cursor: pointer;
+        position: relative;
+        touch-action: none;
+      }
+      #scrub .fill {
+        position: absolute;
+        inset: 12px auto 13px 0;
+        background: rgba(232, 226, 214, 0.45);
+      }
+      /* The score's ticks: acts and the cut fixed, the pinned hand's window
+         stops rebuilt with the pin — the same absolute seconds the rows show. */
+      #scrub .ticks { position: absolute; inset: 0; pointer-events: none; }
+      #scrub .tick {
+        position: absolute;
+        top: 9px;
+        bottom: 10px;
+        width: 1px;
+        background: rgba(232, 226, 214, 0.35);
+      }
+      #scrub .tick.beat { top: 11px; bottom: 12px; background: rgba(232, 226, 214, 0.55); }
+      #scrub .tick.cut { top: 7px; bottom: 8px; background: rgba(232, 226, 214, 0.9); }
+      #clock { margin: 0 16px 3px; font-size: 12px; color: rgba(232, 226, 214, 0.68); }
+      /* The presenter's readout: exact t, the next boundary, and the fermata
+         while it acts. Tabular figures so the countdown does not shimmer. */
+      #readout {
+        margin: 0 16px 3px;
+        font-size: 12px;
+        color: rgba(232, 226, 214, 0.72);
+        font-variant-numeric: tabular-nums;
+      }
+      #readout.fermata { color: var(--bone); letter-spacing: 0.1em; }
+      #hand {
+        display: block;
+        width: calc(100% - 32px);
+        margin: 0 16px 12px;
+        min-height: 28px;
+        padding: 4px 0;
+        text-align: left;
+        background: transparent;
+        border: 0;
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        color: rgba(232, 226, 214, 0.55);
+        cursor: pointer;
+      }
+      #hand:hover { color: var(--bone); }
+
+      /* The direct hand choices: seven small presses beside the cycle. */
+      #hands {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px 6px;
+        margin: 0 16px 10px;
+      }
+      .hand-pick {
+        min-height: 28px;
+        padding: 2px 5px;
+        background: transparent;
+        border: 1px solid rgba(232, 226, 214, 0.12);
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.1em;
+        color: rgba(232, 226, 214, 0.72);
+        cursor: pointer;
+      }
+      .hand-pick:hover { color: var(--bone); border-color: rgba(232, 226, 214, 0.35); }
+      .hand-pick.on { color: var(--bone); background: rgba(232, 226, 214, 0.1); }
+
+      /* The copy-frame helper: one press puts a semantic stop or exact-time
+         URL for the current hand on the clipboard. */
+      #cite {
+        display: block;
+        width: calc(100% - 32px);
+        margin: 0 16px 10px;
+        min-height: 28px;
+        padding: 4px 0;
+        text-align: left;
+        background: transparent;
+        border: 0;
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        color: rgba(232, 226, 214, 0.72);
+        cursor: pointer;
+      }
+      #cite:hover { color: var(--bone); }
+      #cite:active { color: var(--bone); letter-spacing: 0.18em; }
+      #cite.copied { color: var(--bone); }
+
+      /* THE FEED's arriving-count line: present only while assets arrive. */
+      #feed {
+        margin: 0 16px 3px;
+        font-size: 12px;
+        color: rgba(232, 226, 214, 0.78);
+        font-variant-numeric: tabular-nums;
+      }
+      #feed[hidden] { display: none; }
+
+      /* The keys, said where the presenter is already looking. */
+      #keys {
+        margin: 0 16px 14px;
+        font-size: 12px;
+        line-height: 1.7;
+        letter-spacing: 0.06em;
+        color: rgba(232, 226, 214, 0.66);
+      }
+      #keys p { margin: 0; }
+
+      /* THE STACK's operation panel. Present only while THE STACK is the hand
+         drawing, and never in exhibit — the rail itself does not exist there.
+         Each row is a real button carrying its own artifact key and the
+         definition that artifact ships, so the panel reads as a list of
+         interpretations with their sources rather than as preferences. */
+      #stack {
+        margin: 0 0 12px;
+        border-top: 1px solid rgba(232, 226, 214, 0.07);
+        padding-top: 8px;
+      }
+      #stack .stack-title {
+        margin: 0 16px 1px;
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        color: rgba(232, 226, 214, 0.78);
+      }
+      #stack .stack-note {
+        margin: 0 16px 8px;
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        color: rgba(232, 226, 214, 0.7);
+      }
+      .op {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        min-height: 34px;
+        padding: 3px 16px 4px;
+        background: transparent;
+        border: 0;
+        text-align: left;
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+      }
+      .op:hover { background: rgba(232, 226, 214, 0.05); }
+      .op.on { background: rgba(232, 226, 214, 0.07); }
+      /* A modifier sits under the thing it modifies: CLASSIFY re-tints the base
+         LOCATE draws and never draws a field of its own. */
+      .op-modifier { padding-left: 28px; }
+      .op-line { display: flex; gap: 6px; align-items: baseline; }
+      .op-glyph { color: rgba(232, 226, 214, 0.35); }
+      body.display-room .op-glyph { color: rgba(232, 226, 214, 0.6); }
+      .op.on .op-glyph { color: var(--bone); }
+      .op-name {
+        flex: 1 1 auto;
+        font-size: 12px;
+        letter-spacing: 0.1em;
+        color: rgba(232, 226, 214, 0.78);
+      }
+      .op.on .op-name { color: var(--bone); }
+      .op-key { font-size: 12px; color: rgba(232, 226, 214, 0.68); }
+      .op-reads, .op-def {
+        display: block;
+        font-size: 12px;
+        line-height: 1.25;
+        letter-spacing: 0.02em;
+        padding-left: 15px;
+      }
+      .op-reads {
+        color: rgba(232, 226, 214, 0.67);
+        margin-top: 1px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      /* The record's own sentence, not this piece's. Some of these definitions
+         are a paragraph, so they are clamped with an ellipsis rather than cut
+         mid-word — a sentence sliced through the middle of a clause reads as a
+         rendering fault, and the whole point of the line is that the artifact
+         speaks for itself. The full text is one hover away in the title.
+         A definition the panel exists to speak was once set at the rail's
+         faintest ink and one point below its body size; it now reads at body
+         ink, still subordinate to the operation's own name. */
+      .op-def {
+        display: none;
+      }
+      /* Applied, but with nothing to apply itself to. Shown rather than hidden:
+         the dependency is part of what the panel is saying. */
+      .op.inert .op-name { color: rgba(232, 226, 214, 0.55); font-style: italic; }
+      #all-renderings {
+        display: block;
+        width: calc(100% - 32px);
+        margin: 8px 16px 2px;
+        min-height: 28px;
+        padding: 5px 0;
+        background: transparent;
+        border: 1px solid rgba(232, 226, 214, 0.12);
+        border-radius: 2px;
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.18em;
+        color: rgba(232, 226, 214, 0.76);
+        cursor: pointer;
+      }
+      #all-renderings:hover { border-color: rgba(232, 226, 214, 0.35); color: var(--bone); }
+      #all-renderings.on {
+        border-color: rgba(232, 226, 214, 0.5);
+        background: rgba(232, 226, 214, 0.1);
+        color: var(--bone);
+      }
+
+      /* Every control in the rail is reachable from the keyboard, so every
+         control has to SHOW that it has focus. Bone, not the browser's blue. */
+      #nav :focus-visible {
+        outline: 1px solid rgba(232, 226, 214, 0.65);
+        outline-offset: 1px;
+      }
+      #nav :focus:not(:focus-visible) { outline: none; }
+
+      .act {
+        margin: 14px 16px 4px;
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        color: rgba(232, 226, 214, 0.58);
+        border-top: 1px solid rgba(232, 226, 214, 0.07);
+        padding-top: 8px;
+      }
+      /* A real button, so it is in the tab order and answers Enter and Space.
+         The reset is what keeps it looking like a row in a list. */
+      .seg {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        width: 100%;
+        box-sizing: border-box;
+        min-height: 28px;
+        padding: 4px 16px;
+        background: transparent;
+        border: 0;
+        text-align: left;
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .seg:hover { background: rgba(232, 226, 214, 0.05); color: var(--bone); }
+      .seg .share { color: rgba(232, 226, 214, 0.58); font-variant-numeric: tabular-nums; }
+      .seg.current { background: rgba(232, 226, 214, 0.1); color: var(--bone); }
+      .seg.current .share { color: rgba(232, 226, 214, 0.7); }
+      /* A mark for the seasons where the record's own resolution changes. */
+      .seg .mark { color: rgba(232, 226, 214, 0.28); width: 1.2em; display: inline-block; }
+      body.display-room .seg .mark { color: rgba(232, 226, 214, 0.6); }
+      .seg.window .mark, .seg.cut .mark { color: rgba(232, 226, 214, 0.7); }
+      /* The window's four beats: the only sub-list in the rail, because the
+         window is the only segment long enough to have an inside. */
+      .seg.beat {
+        padding-left: 40px;
+        font-size: 12px;
+        color: rgba(232, 226, 214, 0.72);
+      }
+      .seg.beat .share { color: rgba(232, 226, 214, 0.65); }
+
+      #census-panel { padding: 2px 16px 24px; }
+      #census-panel h2, #census-panel h3 {
+        margin: 10px 0 5px;
+        font-size: 12px;
+        font-weight: 400;
+        letter-spacing: 0.12em;
+        color: rgba(232, 226, 214, 0.88);
+      }
+      #census-panel h3 { border-top: 1px solid rgba(232, 226, 214, 0.16); padding-top: 8px; }
+      #census-panel p { margin: 2px 0; color: rgba(232, 226, 214, 0.73); }
+      #census-panel .census-row { display: flex; justify-content: space-between; gap: 8px; }
+      #census-panel .census-row span:last-child { font-variant-numeric: tabular-nums; }
+      .op.unavailable { opacity: 0.82; }
+      body.display-room .op.unavailable { opacity: 1; }
+      .op.unavailable .op-reads::after { content: " · unavailable outside the Window"; }
+
+      /* Stack/Census replace the long score. Compact only the nonessential
+         head rows so all eight Stack operations and ALL remain visible at the
+         supported 720px lectern height. */
+      #nav.stack-active .meta,
+      #nav.stack-active #hands,
+      #nav.stack-active #keys,
+      #nav.census-active #hands,
+      #nav.census-active #keys { display: none; }
+
+      /* The only thing a viewer should ever see go wrong. Composed, on the
+         plate's own ground, in the plate's own type - a gallery wall may not
+         carry a crash report. The reason is appended only in the working and
+         lectern modes; see `fault` in main.ts. */
+      #fault {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        margin: 0;
+        background: var(--ground);
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.22em;
+        color: rgba(232, 226, 214, 0.42);
+        text-align: center;
+      }
+      #fault p { margin: 0; }
+      #fault .fault-title { color: rgba(232, 226, 214, 0.7); }
+      #fault .fault-why {
+        max-width: 60ch;
+        letter-spacing: 0.04em;
+        color: rgba(232, 226, 214, 0.3);
+      }
+    </style>
+    <script type="module" crossorigin src="./assets/index-CtNIOdhL.js"></script>
+  </head>
+  <!-- Chrome-free from the first paint: the rail removes this class if it is
+       wanted, so a gallery machine never flashes a cursor while data loads. -->
+  <body class="exhibit">
+    <div id="startup" role="status" aria-live="polite" data-state="loading">
+      <p class="startup-title">FADEAWAY</p>
+      <p class="startup-state">THE RECORD IS LOADING</p>
+    </div>
+    <main id="app">
+      <h1 class="visually-hidden">FADEAWAY: the NBA's public shot record, drawn season by season on one halfcourt that never moves.</h1>
+      <aside id="nav" hidden></aside>
+      <canvas id="plate" role="img" aria-label="FADEAWAY, an animated artwork: the NBA's public shot record drawn on a single unmoving halfcourt, era by era. Its text is drawn into the image."></canvas>
+    </main>
+    <noscript><p class="noscript">FADEAWAY draws itself with JavaScript, which is turned off here.<br /><a href="https://github.com/dkdan10/analytics_resolution">About the work</a></p></noscript>
+    <div id="context-label" hidden></div>
+    <div id="overview-title" hidden></div>
+    <a id="full-entry" href="?experience=full" hidden>FULL WORK</a>
+    <footer id="credit" hidden>DANIEL KEINAN · <a href="https://github.com/dkdan10/analytics_resolution">ABOUT</a> · DATA: NBA.COM/STATS · SPORTVU</footer>
+    <button id="asset-state" type="button" hidden>DEGRADED · RETRY</button>
+  </body>
+</html>
