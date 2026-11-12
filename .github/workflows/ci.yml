@@ -38,6 +38,12 @@ jobs:
       - name: Acceptance gate, reduced (a public clone has no raw dumps)
         run: python pipeline/qa.py --no-raw
 
+      - name: Window-stage fixtures (synthetic inputs; no archives, no network)
+        run: python pipeline/checks/fixtures.py
+
+      - name: Hero calipers, checked as geometry (reads only data/processed/window.json)
+        run: python pipeline/checks/check_heroes.py
+
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc

@@ -46,8 +46,8 @@ python3 pipeline/qa.py --no-raw              # a public clone
 python3 pipeline/qa.py --only window,paint   # one or more check groups
 python3 pipeline/checks/mutations.py --list  # every seeded defect and the check that owns it
 python3 pipeline/checks/break_gates.py       # the same catalogue through real subprocesses (needs raw dumps)
-python3 pipeline/checks/fixtures.py          # the offset decision on synthetic score vectors
-python3 pipeline/checks/check_heroes.py      # release detection on synthetic trajectories
+python3 pipeline/checks/fixtures.py          # the window stage's offset, touch and shooter rules on synthetic inputs (run in CI)
+python3 pipeline/checks/check_heroes.py      # the four hero calipers in window.json, checked as geometry (run in CI)
 cd site && npm test && npm run build         # the source checks, then the gated seven-step build
 ```
 
