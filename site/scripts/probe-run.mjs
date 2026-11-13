@@ -1280,6 +1280,8 @@ function sameCapture(a, b) {
  */
 export function compareContinuity(before, after) {
   const same = sameCapture(before, after);
+  const sameDefinitions = fingerprintOf(before.thresholds ?? {})
+    === fingerprintOf(after.thresholds ?? {});
   const farthest = (a, b) => {
     let worst = 0;
     for (let i = 0; i < a.length; i++) {
@@ -1303,8 +1305,12 @@ export function compareContinuity(before, after) {
     }
     const a = was.perFrame;
     const b = row.perFrame;
-    const summary = {};
-    for (const k of Object.keys(row.summary)) {
+    // A summary is the per-frame figures read through the thresholds. Two
+    // verdicts taken under different ones would show the instrument's change
+    // as the picture's, so their summaries are not laid side by side at all;
+    // the per-frame figures below do not pass through a threshold.
+    const summary = sameDefinitions ? {} : null;
+    for (const k of Object.keys(sameDefinitions ? row.summary : {})) {
       if (k === "cutEvents" || k === "seamEvents") continue;
       summary[k] = [was.summary[k] ?? null, row.summary[k] ?? null];
     }
@@ -1395,9 +1401,13 @@ function printAgainst(name, compared) {
     console.log(`  ${c.range}: ${c.frames} frames, ${c.hashesMoved} hash(es) moved; `
       + `max change in mean ${num(c.maxMeanDelta, 4)}, in changed px ${c.maxChangedPxDelta}, `
       + `in energy ${num(c.maxEnergyDelta, 4)}`);
-    const moved = Object.entries(c.summary).filter(([, [a, b]]) => a !== b)
+    const moved = Object.entries(c.summary ?? {}).filter(([, [a, b]]) => a !== b)
       .map(([k, [a, b]]) => `${k} ${num(a, 4)} -> ${num(b, 4)}`);
     if (moved.length) console.log(`    ${moved.join("; ")}`);
+  }
+  if (compared.some((c) => c.comparable && c.summary === null)) {
+    console.log("probe-run: the two verdicts were taken under different thresholds, so their "
+      + "summaries are not compared: a share that moved would be the instrument's doing");
   }
 }
 
@@ -1626,9 +1636,17 @@ async function continuityMain({ flags, bools }) {
     for (const r of held.red) console.error(`probe-run: red: ${r}`);
     for (const r of held.inconclusive) console.error(`probe-run: INCONCLUSIVE: ${r}`);
     for (const r of held.unjudged) console.error(`probe-run: budget not applied: ${r}`);
-    for (const r of held.voidBudgets) {
-      console.error(`probe-run: budgets void: ${r}. Take them again, or clear them with `
-        + "--init-budgets --ruling");
+    // Void for one of two reasons, and the remedy differs: the budgets are
+    // stale, or the verdict is. Telling somebody to clear good budgets because
+    // an old verdict was read back would throw away what was signed off.
+    if (!sameThresholds && held.voidBudgets.length) {
+      console.error("probe-run: this verdict was taken under other thresholds than the code's "
+        + "and cannot be held to the budgets on file: take it again");
+    } else {
+      for (const r of held.voidBudgets) {
+        console.error(`probe-run: budgets void: ${r}. Take them again, or clear them with `
+          + "--init-budgets --ruling");
+      }
     }
     for (const r of held.missingControls) console.error(`probe-run: control not taken: ${r}`);
     die(`continuity assertion failed${path ? "; failing report was written" : ""}`);

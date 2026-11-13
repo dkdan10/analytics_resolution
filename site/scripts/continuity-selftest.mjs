@@ -50,6 +50,9 @@ const T = m.THRESHOLDS;
 // --- synthetic frames ----------------------------------------------------------
 const W = 64;
 const H = 64;
+/** How many pixels of these frames have to flicker for a pair to count: the
+ *  share the metrics hold, on a frame this size. */
+const MIN_PX = m.flickerMinPx(W * H);
 const FPS = 60;
 const FRAMES = 60;
 /** Where the settled picture sits, with room to move either way. */
@@ -270,11 +273,47 @@ add("a high one-frame blink (down and back: either order is the fault)",
 add("a low one-frame flash, under the high level", "red: flickerLowFrameShare",
   verdict(lowFlash, "moving", BUDGET));
 add("a high flash on one pixel fewer than the flicker minimum", "green",
-  verdict(flashOn(few(T.FLICKER_MIN_PX - 1), HIGH_DEPTH), "moving", BUDGET));
+  verdict(flashOn(few(MIN_PX - 1), HIGH_DEPTH), "moving", BUDGET));
 add("the same flash on exactly the minimum", "red: flickerHighFrameShare",
-  verdict(flashOn(few(T.FLICKER_MIN_PX), HIGH_DEPTH), "moving", BUDGET));
+  verdict(flashOn(few(MIN_PX), HIGH_DEPTH), "moving", BUDGET));
+add("the flicker minimum is a share of the frame: more pixels on a larger one, never none, "
+  + "and no answer for a size that is not one",
+  "more; 1; refused", () => {
+    let unsized = "answered";
+    try { m.flickerMinPx(undefined); } catch { unsized = "refused"; }
+    return `${m.flickerMinPx(4 * W * H) > m.flickerMinPx(W * H) ? "more" : "not more"}; `
+      + `${m.flickerMinPx(0)}; ${unsized}`;
+  });
+add("one flash of the minimum for this frame, on this frame and on one twice as wide and tall "
+  + "(the minimum is applied as a share, not as that count)",
+  "red: flickerHighFrameShare; green", () => {
+    // Frames of any size, built here because every other case shares one size
+    // and so could not tell a share from a count.
+    const flashed = (side) => {
+      const at = (i) => {
+        const d = new Uint8ClampedArray(side * side * 4);
+        for (let p = 0; p < side * side; p++) {
+          d[p * 4] = d[p * 4 + 1] = d[p * 4 + 2] = GROUND;
+          d[p * 4 + 3] = 255;
+        }
+        const set = (p, v) => { d[p * 4] = d[p * 4 + 1] = d[p * 4 + 2] = v; };
+        // One pixel that moves on every frame, so the sequence is never still.
+        set(0, GROUND + STEP * i);
+        if (i === FLASH_AT) for (let k = 0; k < MIN_PX; k++) set(side * 2 + k, GROUND + HIGH_DEPTH);
+        return d;
+      };
+      const frames = Array.from({ length: FRAMES }, (_, i) => at(i));
+      const state = m.beginState(frames[0], side, side, FPS, null);
+      const pairs = [];
+      for (let i = 1; i < frames.length; i++) {
+        pairs.push(m.pairStats(frames[i - 1], frames[i], state).full);
+      }
+      return say(m.judge(m.summarize(pairs, FPS), "moving", BUDGET));
+    };
+    return `${flashed(W)}; ${flashed(2 * W)}`;
+  });
 add("a low flash on one pixel fewer than the minimum, and on exactly the minimum",
-  "green; red: flickerLowFrameShare", () => [T.FLICKER_MIN_PX - 1, T.FLICKER_MIN_PX]
+  "green; red: flickerLowFrameShare", () => [MIN_PX - 1, MIN_PX]
     .map((n) => verdict(flashOn(few(n), T.FLICKER_LOW_LEVEL + 3), "moving", BUDGET)()).join("; "));
 add("a high flash that comes home over several pairs (one excursion, one count, deepest band)",
   "red: flickerHighFrameShare; high on 1, low on 0", flickers(eased(HIGH_DEPTH, 2 * STEP)));
@@ -379,6 +418,16 @@ add("a control that moved by the still level and no more", "green",
   () => say(m.judge(measure(smooth).summary, "moving", BUDGET, null,
     redrawDelta(last, drifted(T.STILL_DELTA)))));
 
+add("a flash inside the crop, one pixel under the frame's minimum and then on it "
+  + "(a crop is held to the whole frame's share, not to its own)",
+  "full frame green; crop green; full frame red: flickerHighFrameShare; "
+  + "crop red: flickerHighFrameShare", () => [MIN_PX - 1, MIN_PX].map((n) => {
+    const inside = { x0: 16, y0: 20, x1: 16 + n, y1: 21 };
+    const { summary, court } = measure(flashOn(inside, HIGH_DEPTH),
+      { crop: { x0: 0, y0: 0, x1: 32, y1: 32 } });
+    return `full frame ${say(m.judge(summary, "moving", BUDGET))}; `
+      + `crop ${say(m.judge(court, "moving", BUDGET))}`;
+  }).join("; "));
 add("a flash outside the crop", "full frame red: flickerHighFrameShare; crop green", () => {
   const { summary, court } = measure(highFlash, { crop: { x0: 0, y0: 0, x1: 32, y1: 32 } });
   return `full frame ${say(m.judge(summary, "moving", BUDGET))}; `
@@ -748,6 +797,15 @@ const against = (other) => {
   return c.comparable ? "compared" : "not comparable";
 };
 add("two verdicts taken alike are laid frame against frame", "compared", () => against({}));
+add("two verdicts of one picture taken under different thresholds "
+  + "(frames compared, summaries not: a share that moved would be the instrument's doing)",
+"compared, summaries laid side by side; compared, summaries withheld", () => [
+  {}, { thresholds: { ...T, FLICKER_MIN_SHARE: T.FLICKER_MIN_SHARE * 2 } },
+].map((other) => {
+  const [c] = compareContinuity(goodReport(), reportOf(goodReport().rows, other));
+  return `${c.comparable ? "compared" : "not comparable"}, summaries `
+    + `${c.summary === null ? "withheld" : "laid side by side"}`;
+}).join("; "));
 add("not a verdict on another surface, of another display, on another View arrangement, "
   + "or pinned against accelerated",
 "not comparable, not comparable, not comparable, not comparable", () => [

@@ -128,6 +128,18 @@ interface Columns {
 }
 const columns = (): Columns => ({ mean: [], changedPx: [], energy: [] });
 
+/** What each pair holds of the two flicker bands, and its largest single
+ *  step. Read off the finished pairs and never as they are made: a way back
+ *  that goes on to reach the deeper band is taken out of the shallower one
+ *  after the pair it was first counted in. They are here so that where a
+ *  share of frames comes from can be seen, and so the level a frame has to
+ *  reach to count can be set from what the passages actually hold. */
+const flickerColumns = (pairs: readonly PairStat[]) => ({
+  flickerLowPx: [null, ...pairs.map((p) => p.flickerLowPx)],
+  flickerHighPx: [null, ...pairs.map((p) => p.flickerHighPx)],
+  maxDelta: [null, ...pairs.map((p) => p.maxDelta)],
+});
+
 export async function continuityProbe(env: Env, q: URLSearchParams): Promise<unknown> {
   const { data, schedule, inscriptions } = env;
   const residency = await forceResidency(data, (s) => console.log(s));
@@ -363,7 +375,13 @@ export async function continuityProbe(env: Env, q: URLSearchParams): Promise<unk
       ...(courtSummary ? { court: courtSummary } : {}),
       captureSeconds: round(seconds, 1),
       framesPerSecond: round(count / seconds, 2),
-      perFrame: { t: shown, hash: hashes, ...cols, ...(cropRect ? { court: courtCols } : {}) },
+      perFrame: {
+        t: shown,
+        hash: hashes,
+        ...cols,
+        ...flickerColumns(full),
+        ...(cropRect ? { court: { ...courtCols, ...flickerColumns(court) } } : {}),
+      },
     };
   };
 

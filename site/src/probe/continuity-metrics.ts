@@ -51,8 +51,21 @@ export const THRESHOLDS = {
   /** How soon the way back has to follow the way out for the two to be one
    *  flicker and not two things that happened to the same pixel. */
   FLICKER_WINDOW_S: 0.25,
-  /** How many pixels have to flicker in one pair for the pair to count. */
-  FLICKER_MIN_PX: 8,
+  /** How much of the whole frame has to flicker in one pair for the pair to
+   *  count. A share and not a count, so that one surface's figure means the
+   *  same on another; and of the WHOLE frame even when the figures are a
+   *  crop's, because a patch of flicker is as large to the eye whichever
+   *  region it is being counted in. It stands above what lettering does: a
+   *  numeral struck into the floor, or one travelling, is a small block of
+   *  pixels going out and coming back by design, pair after pair, and a
+   *  minimum of a handful of pixels called every such passage a flickering
+   *  one. The largest lettering holds about half of this, and a passage where
+   *  marks visibly pop holds several times it in its worse pairs. It costs
+   *  one reading: where a passage's deep flicker comes in patches smaller
+   *  than a numeral, as the hand's game does, the deep band reads nothing
+   *  and the passage is caught by the shallow band alone - no share can
+   *  count the one patch and pass over the other. */
+  FLICKER_MIN_SHARE: 0.001,
   /** A cut: the mean summed channel change per CHANGED pixel, and the share of
    *  the frame that changed. Both, because a rounding cascade is wide and
    *  shallow, and ink arriving - a stroke end, a whole stroke laid wet - is
@@ -90,6 +103,9 @@ export interface PairStat {
    *  can fall after the pair is returned: see `pairStats`. */
   flickerLowPx: number;
   flickerHighPx: number;
+  /** The whole frame's pixel count, on a crop's figures as on the frame's:
+   *  what the flicker minimum is a share of. */
+  framePx: number;
   /** Mean of each pixel's brightest channel, before and after. */
   prevMean: number;
   mean: number;
@@ -250,7 +266,17 @@ const tally = (): Tally => ({
   changed: 0, summed: 0, maxDelta: 0, jump: 0, low: 0, high: 0, lift: 0,
 });
 
-function statOf(t: Tally, px: number, sumBefore: number): PairStat {
+/** How many pixels have to flicker in one pair of a frame this large for the
+ *  pair to count. Never none: a pair in which nothing flickered must not
+ *  count on any frame, an empty one included. A size that is not a number is
+ *  refused, because every comparison against what it would give is false and
+ *  a passage measured that way reads as one that never flickers. */
+export function flickerMinPx(framePx: number): number {
+  if (!(framePx >= 0)) throw new Error(`not a frame's pixel count: ${framePx}`);
+  return Math.max(1, Math.ceil(THRESHOLDS.FLICKER_MIN_SHARE * framePx));
+}
+
+function statOf(t: Tally, px: number, sumBefore: number, framePx: number): PairStat {
   return {
     changedPx: t.changed,
     changedShare: px ? t.changed / px : 0,
@@ -260,6 +286,7 @@ function statOf(t: Tally, px: number, sumBefore: number): PairStat {
     jumpPx: t.jump,
     flickerLowPx: t.low,
     flickerHighPx: t.high,
+    framePx,
     prevMean: px ? sumBefore / px : 0,
     mean: px ? (sumBefore + t.lift) / px : 0,
   };
@@ -397,8 +424,8 @@ export function pairStats(prev: Bytes, cur: Bytes, state: PairState): PairStats 
   }
 
   const out: PairStats = {
-    full: statOf(full, state.pxFull, state.sumFull),
-    crop: crop ? statOf(part, state.pxCrop, state.sumCrop) : null,
+    full: statOf(full, state.pxFull, state.sumFull, state.pxFull),
+    crop: crop ? statOf(part, state.pxCrop, state.sumCrop, state.pxFull) : null,
   };
   given.push(out);
   state.sumFull += full.lift;
@@ -483,7 +510,7 @@ export function summarize(
   leadMean: number | null = null,
 ): Summary {
   const {
-    STILL_DELTA, JUMP_MIN_PX, FLICKER_MIN_PX, CUT_PER_CHANGED, CUT_MIN_SHARE,
+    STILL_DELTA, JUMP_MIN_PX, CUT_PER_CHANGED, CUT_MIN_SHARE,
   } = THRESHOLDS;
   const seam = new Set(seams);
   const own = pairs.filter((_, i) => !seam.has(i));
@@ -515,8 +542,9 @@ export function summarize(
     } else {
       run = 0;
     }
-    if (p.flickerLowPx >= FLICKER_MIN_PX) low++;
-    if (p.flickerHighPx >= FLICKER_MIN_PX) high++;
+    const flickers = flickerMinPx(p.framePx);
+    if (p.flickerLowPx >= flickers) low++;
+    if (p.flickerHighPx >= flickers) high++;
     if (p.jumpPx >= JUMP_MIN_PX) jump++;
     if (p.mean < p.prevMean) {
       drops++;
