@@ -251,9 +251,14 @@ export function drawPlateHand(f: Frame): void {
       ctx.restore();
     }
 
-    // The live edge of the game phase, and the possession clip of "one" —
-    // each clip stroke leaves this layer the moment the game's own clock
-    // reaches it (replaced by itself, record for record).
+    // The live edge of the game phase, and the possession clip of "one".
+    // The clip holds until the game's own clock has walked the whole
+    // possession, and gives way to the walk a vertex at a time: while a
+    // stroke's live head is inside the possession the clip draws only what
+    // lies ahead of it, so the two meet at the head and every part of the
+    // possession is drawn by one of them on every frame. A stroke that began
+    // long before the possession used to drop its clip the moment the walk
+    // reached its first vertex, and stand undrawn until the walk arrived.
     const bakedBefore = gSteps * stepFrames;
     for (let i = 0; i < gm.n; i++) {
       const at0 = sp.start[i]!;
@@ -273,10 +278,15 @@ export function drawPlateHand(f: Frame): void {
         }
         plateStroke(ctx, view, gm, i, liveHead(i, at0),
           env * (GAME_DRIED + (1 - GAME_DRIED) * wetness));
-      } else if (at0 < clipUpto && end > pos.f0) {
+      }
+      if (gameFrame < clipUpto && at0 < clipUpto && end > pos.f0) {
         // A TIME-clip on both sides, the hand's own rule. A stroke the clip
-        // has not entered has its two ends at one place and draws nothing.
-        plateStroke(ctx, view, gm, i, clipHead(i, at0), env, clipTail(i, at0));
+        // has not entered has its two ends at one place and draws nothing,
+        // and so does one the walk has already carried past the clip's head.
+        const from = clipTail(i, at0);
+        const walked = at0 < gameFrame ? liveHead(i, at0) : STROKE_START;
+        plateStroke(ctx, view, gm, i, clipHead(i, at0), env,
+          walked > from ? walked : from);
       }
     }
     // ALL the annotations persist on this plate (its brief, above), but they

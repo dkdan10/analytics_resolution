@@ -977,10 +977,11 @@ export function drawHandHand(f: Frame): void {
 
       // ONE — the nested possession: the game artifact time-clipped to the
       // declared span, every body and the ball at TRUE RATE from the
-      // window's open, the paint's physics. Once the game phase's clock
-      // reaches these frames the walk above draws the same records and each
-      // clip stroke leaves this layer — replaced by itself, record for
-      // record, no double-deposit and no recede.
+      // window's open, the paint's physics. It holds until the game phase's
+      // clock has walked the whole possession, and gives way to the walk
+      // above a vertex at a time: while a stroke's live head is inside the
+      // possession the clip draws only what lies ahead of it — replaced by
+      // itself, record for record, no double-deposit and no recede.
       const oneFrames = st.phase * secondsFor(WINDOW_YEAR) * gf.hz;
       const clipUpto = Math.min(pos.f1, pos.f0 + oneFrames);
       // ONE_INK: the beat-local envelope (declared in src/scalars.ts). Full
@@ -990,17 +991,19 @@ export function drawHandHand(f: Frame): void {
       const oneInk = 1 + (ONE_INK - 1) * (1 - win.game);
       ctx.save();
       ctx.globalAlpha = gEnv;
-      for (let i = 0; i < gm.n; i++) {
+      for (let i = 0; gameFrame < clipUpto && i < gm.n; i++) {
         const at0 = sp.start[i]!;
-        if (at0 < gameFrame || at0 >= clipUpto) continue;
+        if (at0 >= clipUpto) continue;
         const end = at0 + sp.dur[i]!;
         if (end <= pos.f0) continue;
         // A TIME-clip on both sides: a stroke that began before the
         // possession draws only from the possession's own first frame, and
         // one the clip has not entered has both ends at one place and draws
-        // nothing.
+        // nothing — as does one the walk has carried past the clip's head.
+        const from = strokeReach(gm, i, pos.f0 - at0);
+        const walked = at0 < gameFrame ? strokeReach(gm, i, gameFrame - at0) : STROKE_START;
         paintStroke(ctx, view, gm, i, strokeReach(gm, i, clipUpto - at0), r,
-          strokeReach(gm, i, pos.f0 - at0), oneInk);
+          walked > from ? walked : from, oneInk);
       }
       ctx.restore();
 
