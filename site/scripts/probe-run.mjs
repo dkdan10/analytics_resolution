@@ -202,6 +202,11 @@ const PERF_ALSO = "surface";
  *  of a passage would hold the page for hours. */
 const PERF_PACE_RAF = "raf";
 const PERF_PACE_MAX_MS = 1000;
+/** How many times the wait asked for the wait kept may reach before the run
+ *  is not a run at that pace. A timer always comes back a little late; a
+ *  chain of short ones is held by the browser to a floor of its own, and a
+ *  pace well under that floor is kept as the floor and refused here. */
+export const PERF_PACE_KEPT_RATIO = 1.5;
 /** The longest a frame's step may be asked to be, and the shortest: a pass of
  *  the piece is minutes, and a step outside these is a mistyped unit. */
 const PERF_STEP_MAX_S = 60;
@@ -212,7 +217,8 @@ const NOT_WITH_PERF_RANGE = ["beat", "t", "stop", "frames"];
 /** The same for the continuity probe, which reads a different set. */
 const CONTINUITY_FORWARDED = ["range", "mode", "surface", "fps", "crop", "pairs",
   "view", "display"];
-/** Flags that mean something to the continuity probe alone. */
+/** Flags that mean something to the continuity probe alone, but for the one
+ *  `PERF_ALSO` names. */
 const CONTINUITY_ONLY = ["surface", "fps", "crop", "pairs", "write-budget", "from", "fields",
   "no-control", "assert-continuity", "ruling", "init-budgets"];
 /** Flags the continuity probe does not read. Forwarded, each would be a
@@ -224,8 +230,9 @@ const NOT_CONTINUITY = ["beat", "t", "stop", "frames", "playback", "ops", "sampl
  *  no browser. */
 const CAPTURE_FLAGS = ["range", "mode", "surface", "fps", "crop", "pairs", "view", "display",
   "exact", "no-control", "headed", "channel", "port", "timeout"];
-/** What the continuity probe can be asked for, said here so a misspelling
- *  costs a second and not a browser. */
+/** What the continuity probe can be asked for, and of the surfaces the perf
+ *  probe as well, said here so a misspelling costs a second and not a
+ *  browser. */
 const SURFACES = ["probe", "laptop", "overview"];
 const CROPS = ["court"];
 const PAIRS = ["marks"];
@@ -285,9 +292,12 @@ export function flagProblems(kind, { flags, bools }) {
       && !(Number.isInteger(Number(flags.warmup)) && Number(flags.warmup) >= 0)) {
       out.push(`--warmup is not a count of frames: ${flags.warmup}`);
     }
+    // Whole, because a timer drops the part of a millisecond: a pace with one
+    // would be kept as one length and filed as another.
     if (flags.pace !== undefined && flags.pace !== PERF_PACE_RAF
-      && !(Number(flags.pace) > 0 && Number(flags.pace) <= PERF_PACE_MAX_MS)) {
-      out.push(`--pace is milliseconds between frames, up to ${PERF_PACE_MAX_MS}, `
+      && !(Number.isInteger(Number(flags.pace)) && Number(flags.pace) > 0
+        && Number(flags.pace) <= PERF_PACE_MAX_MS)) {
+      out.push(`--pace is whole milliseconds between frames, up to ${PERF_PACE_MAX_MS}, `
         + `or ${PERF_PACE_RAF}: ${flags.pace}`);
     }
     oneOf(PERF_ALSO, SURFACES);
@@ -307,7 +317,9 @@ export function flagProblems(kind, { flags, bools }) {
     for (const k of CONTINUITY_ONLY) {
       if (kind === "perf" && k === PERF_ALSO) continue;
       if (given(k) && VALUED.includes(k) === (flags[k] !== undefined)) {
-        out.push(`--${k} is a continuity flag; the ${kind} probe does not read it`);
+        out.push(k === PERF_ALSO
+          ? `--${k} is a continuity and perf flag; the ${kind} probe draws on one surface`
+          : `--${k} is a continuity flag; the ${kind} probe does not read it`);
       }
     }
     return out;
@@ -586,9 +598,12 @@ const PERF_DEFAULT_PACE = null;
  * Whether a perf report is of the run that was asked for: the ranges, the
  * step, the warm-up, the pace and the surface, each stated by the report and
  * each as asked. A page whose probe reads none of them times its default beats
- * and says nothing. A pace is held to one thing more: the page was visible
+ * and says nothing. A pace is held to two things more. The page was visible
  * throughout, because a hidden page is handed its timers and animation frames
- * slowly, and the pace asked for is then not the pace kept.
+ * slowly. And the report says what wait the run was given: under a timer that
+ * has to be the wait asked for or a little over it, and under animation
+ * frames there is nothing asked to hold it to, so it is only required and
+ * goes on to decide what the run may be compared with.
  */
 export function perfSweepProblems(report, flags) {
   const out = [];
@@ -627,10 +642,16 @@ export function perfSweepProblems(report, flags) {
       out.push(`--pace ${flags.pace}: the page was `
         + `${report.visibilityState ?? "in a state the report does not give"}, `
         + "and only a visible page is handed the pace it asks for");
+    } else if (!(report.paceKeptMs > 0)) {
+      out.push(`--pace ${flags.pace}: the report does not say what wait the run was given`);
+    } else if (asked !== PERF_PACE_RAF
+      && !(report.paceKeptMs >= asked && report.paceKeptMs <= asked * PERF_PACE_KEPT_RATIO)) {
+      out.push(`asked for --pace ${flags.pace}; the wait the page kept was usually `
+        + `${report.paceKeptMs} ms`);
     } else if (asked === PERF_PACE_RAF) {
-      // The usual interval is the run's own reading of what it was given, so
-      // a row without one was paced by nothing that can be checked.
-      const bare = rows.filter((r) => !(r.intervalModalMs > 0)).map(perfKey);
+      // The intervals are the run's own reading of what each frame was given,
+      // so a row without them was paced by nothing that can be checked.
+      const bare = rows.filter((r) => !(r.intervalP50Ms > 0)).map(perfKey);
       if (bare.length) out.push(`--pace ${flags.pace}: no frame intervals on ${bare.join(", ")}`);
     }
   }
@@ -666,13 +687,21 @@ export function perfRegressed(base, meanMs) {
   return meanMs > base.median * PERF_REGRESS_RATIO && meanMs - base.median > PERF_REGRESS_MS;
 }
 
-/** Whether two perf verdicts timed the same thing the same way. */
+/** Whether two perf verdicts timed the same thing the same way. Two runs
+ *  paced by animation frames waited alike only where the browser handed the
+ *  frames out at the same interval, and that is the run's own reading, not
+ *  its flag: a report at that pace which does not carry the reading is like
+ *  no other. A timer's pace is the wait asked for, which the run was held to
+ *  when it was taken. */
 export function perfComparable(a, b) {
+  const byFrame = (r) => r.pace === PERF_PACE_RAF;
+  if ([a, b].some((r) => byFrame(r) && !(r.paceKeptMs > 0))) return false;
   const face = (r) => JSON.stringify([
     r.surface?.width, r.surface?.height, r.surface?.dpr, r.display ?? null,
     r.framesPerBeat ?? null, r.warmupFrames ?? PERF_DEFAULT_WARMUP,
     r.stepSeconds ?? PERF_DEFAULT_STEP, r.sweep === "range" ? "range" : "instants",
     r.surface?.name ?? PERF_DEFAULT_SURFACE, r.pace ?? PERF_DEFAULT_PACE,
+    byFrame(r) ? r.paceKeptMs : null,
     /[?&]exact=1/.test(r.instrument?.url ?? "") || r.exact === true,
   ]);
   return face(a) === face(b);
@@ -2186,9 +2215,14 @@ async function main() {
   } else {
     const on = report.surface ?? {};
     console.log(`probe-run: timed on ${on.name ?? PERF_DEFAULT_SURFACE} `
-      + `(${on.width}x${on.height} css at dpr ${num(on.dpr, 4)}), `
-      + (report.pace === PERF_PACE_RAF ? "one animation frame waited for after each frame"
-        : report.pace ? `${report.pace} ms waited after each frame`
+      + `(${on.width}x${on.height} css at dpr `
+      + `${on.dpr === undefined ? "-" : Number(Number(on.dpr).toFixed(4))}), `
+      + (report.pace === PERF_PACE_RAF
+        ? "one animation frame waited for after each frame, handed out "
+          + `${report.paceKeptMs ?? "-"} ms apart`
+        : report.pace
+          ? `${report.pace} ms asked for after each frame and usually `
+            + `${report.paceKeptMs ?? "-"} ms waited`
           : "the frames back to back"));
     for (const [mode, s] of Object.entries(report.byMode ?? {})) {
       console.log(`  ${mode.padEnd(8)} worst mean ${String(s.worstMeanMs).padStart(8)} ms  `
@@ -2201,8 +2235,8 @@ async function main() {
           + `mean ${String(r.meanMs).padStart(7)}  p95 ${String(r.p95Ms).padStart(7)}  `
           + `max ${String(r.maxMs).padStart(8)} ms at ${r.worstAt}`
           + (r.coldMs !== undefined ? `  cold ${r.coldMs} ms` : "")
-          + (r.intervalModalMs !== undefined
-            ? `  intervals usually ${r.intervalModalMs} ms, ${r.longIntervals} long, `
+          + (r.intervalP50Ms !== undefined
+            ? `  intervals median ${r.intervalP50Ms} ms, ${r.longIntervals} long, `
               + `longest ${r.intervalMaxMs} ms` : ""));
       }
     }
