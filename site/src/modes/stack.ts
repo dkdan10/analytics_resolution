@@ -224,10 +224,11 @@ export function drawStackHand(f: Frame): void {
  * made from a machine that held every position of every body, and one gesture
  * says that at a scale a viewer can follow.
  *
- * `progress` is the window's own phase, taken as a share of each stroke's own
+ * `progress` is how far this operation's own response has run since its control
+ * was invoked, on the interface clock and not the score's, so it keeps running
+ * while the score is paused. It is taken as a share of each stroke's own
  * measured time (`game.ts:strokeReach`), so the paths are laid rather than
- * appearing and every body keeps its own pace: the bodies move while the
- * season does.
+ * appearing and every body keeps its own pace against the others.
  *
  * Wrapped in save/restore because `paintStroke` is not: it sets `fillStyle`,
  * `strokeStyle`, `lineWidth`, `lineCap` and `lineJoin` and restores none of
