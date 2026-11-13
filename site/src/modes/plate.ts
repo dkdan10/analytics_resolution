@@ -9,8 +9,8 @@ import { drawBloom } from "../bloom";
 import { residenceSplatRadius } from "../field";
 import {
   drawGameEvents,
+  drawGameEventsWet,
   GAME_PREFIX_STEPS,
-  GAME_WET_S,
   gameAssetId,
   gameClock,
   gameTotalFrames,
@@ -115,10 +115,6 @@ export function drawPlateHand(f: Frame): void {
         const clipUpto = Math.min(pos.f1, pos.f0 + oneFrames);
         return {
           total, gameFrame, sp, pos,
-          // The feed frame the annotations' wet edge is counted from. It keeps
-          // moving at true rate once the game's own clock has stopped.
-          dryFrame: gameFrame
-            + Math.max(0, p - PLATE_GAME_TO_PHASE) * secondsFor(year) * gf.hz,
           // Seconds on the screen since the eased clock passed a share of the
           // game phase, and still counting after the phase is over.
           ageOf: (u: number): number =>
@@ -222,7 +218,7 @@ export function drawPlateHand(f: Frame): void {
   // untouched, and there is deliberately NO body wash on this plate — two
   // densities under one field would compete.
   if (gm && gf && clock) {
-    const { total, gameFrame, sp, pos, dryFrame, ageOf, clipUpto } = clock;
+    const { total, gameFrame, sp, pos, ageOf, clipUpto } = clock;
     const { liveHead, clipHead, clipTail } = clock;
     // DRYING IS COUNTED ON THE SCREEN (`ageOf`), not on the feed. A stroke
     // starts to dry at the instant the eased clock passes its last recorded
@@ -259,7 +255,6 @@ export function drawPlateHand(f: Frame): void {
     // each clip stroke leaves this layer the moment the game's own clock
     // reaches it (replaced by itself, record for record).
     const bakedBefore = gSteps * stepFrames;
-    const wetFrames = GAME_WET_S * gf.hz;
     for (let i = 0; i < gm.n; i++) {
       const at0 = sp.start[i]!;
       const end = at0 + sp.dur[i]!;
@@ -286,10 +281,12 @@ export function drawPlateHand(f: Frame): void {
     }
     // ALL the annotations persist on this plate (its brief, above), but they
     // DRY with the motion they mark: every mark at the dried register, then
-    // the wet edge's and the possession's own at full, over it.
+    // each one that is still wet over it at its own wetness, on the strokes'
+    // own drying time, and the possession's own held whole until the game's
+    // clock reaches them.
     drawGameEvents(ctx, view, gf, gameFrame, env * GAME_DRIED);
-    drawGameEvents(ctx, view, gf, gameFrame, env,
-      { from: pos.f0, to: clipUpto }, dryFrame - wetFrames);
+    drawGameEventsWet(ctx, view, gf, gameFrame, env,
+      { from: pos.f0, to: clipUpto }, (u) => gameWetness(ageOf(u)));
 
   }
 

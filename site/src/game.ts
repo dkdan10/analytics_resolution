@@ -45,9 +45,9 @@ import { prefixCacheGeneration } from "./prefix";
  *  composition constant like STROKE_STEP, not a material. */
 export const GAME_PREFIX_STEPS = 40;
 
-/** How long an annotation rides the wet edge, in seconds of the game's own
- *  feed. Declared in the register because it decides which marks are bright
- *  on a frame. */
+/** How long an annotation on THE HAND rides the wet edge, in seconds of the
+ *  game's own feed. Declared in the register because it decides which marks
+ *  are on a frame. */
 export { GAME_WET_S };
 
 /** Artifact identity for cache keys — the hand's own WeakMap idiom, exported
@@ -485,6 +485,72 @@ export function drawGameEvents(
     ctx.arc(view.sx(e.x), view.sy(e.y), anchorR, 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.restore();
+}
+
+/** The share of the game phase at which the eased clock reaches each event,
+ *  in the artifact's own order — where each mark's drying starts. */
+interface EventPhases {
+  passes: Float64Array;
+  shots: Float64Array;
+}
+const eventPhases = new WeakMap<GameFile, EventPhases>();
+function phasesOf(gf: GameFile): EventPhases {
+  let p = eventPhases.get(gf);
+  if (!p) {
+    const b = frameBases(gf);
+    const total = gameTotalFrames(gf);
+    const of = (events: readonly GameEvent[]): Float64Array =>
+      Float64Array.from(events, (e) =>
+        total > 0 ? gameClockInverse(((b.get(e.p) ?? 0) + e.f) / total) : 0);
+    p = { passes: of(gf.events.passes), shots: of(gf.events.shots) };
+    eventPhases.set(gf, p);
+  }
+  return p;
+}
+
+/**
+ * The annotations that are still wet, each at its own wetness: a mark the
+ * clock has reached lands at `alpha` and dries with the motion it marked,
+ * `wetOf` answering how wet from the share of the phase at which the clock
+ * reached it. A mark the clock has NOT reached is drawn only inside `clip`,
+ * whole — the nested possession's own annotations, which hold until the
+ * game's clock re-lays them and then dry like the rest.
+ *
+ * One fill per mark, because each carries its own ink.
+ */
+export function drawGameEventsWet(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  gf: GameFile,
+  uptoFrame: number,
+  alpha: number,
+  clip: { from: number; to: number },
+  wetOf: (phase: number) => number,
+): void {
+  if (alpha <= 0.002) return;
+  const b = frameBases(gf);
+  const phases = phasesOf(gf);
+  const mark = (
+    events: readonly GameEvent[], at: Float64Array, radius: number, ink: number,
+  ): void => {
+    for (let k = 0; k < events.length; k++) {
+      const e = events[k]!;
+      const f = (b.get(e.p) ?? 0) + e.f;
+      const wet = f > uptoFrame
+        ? (f >= clip.from && f <= clip.to ? 1 : 0)
+        : wetOf(at[k]!);
+      if (!(wet > 0)) continue;
+      ctx.fillStyle = boneOf(Math.min(1, ink * alpha * wet));
+      ctx.beginPath();
+      ctx.arc(view.sx(e.x), view.sy(e.y), radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  };
+  ctx.save();
+  mark(gf.events.passes, phases.passes, Math.max(1, view.s(PASS_MARK_R)), PASS_MARK_ALPHA);
+  mark(gf.events.shots, phases.shots,
+    Math.max(TRACE_ANCHOR_MIN_PX, view.scale * TRACE_ANCHOR_SCALE), TRACE_ANCHOR_ALPHA);
   ctx.restore();
 }
 

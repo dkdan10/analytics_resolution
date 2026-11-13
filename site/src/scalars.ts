@@ -1571,11 +1571,11 @@ export const SCALARS = {
     value: 2,
     material: true,
     controls:
-      "how long a game annotation - a pass bead or a shot anchor - rides the " +
-      "wet edge at full ink, in seconds of the game's own feed. The strokes " +
-      "themselves dry on GAME_WET_SECONDS. Longer and more marks stand bright " +
-      "on a frame; shorter and a mark has dimmed before the frame that would " +
-      "have shown it.",
+      "how long an annotation on THE HAND - a pass bead or a shot anchor - " +
+      "rides the wet edge before it is gone, in seconds of the game's own " +
+      "feed. The strokes, and THE PLATE's annotations, dry on " +
+      "GAME_WET_SECONDS. Longer and more marks stand on a frame; shorter and " +
+      "a mark is gone before the frame that would have shown it.",
   },
   WET_STROKES: {
     class: "authored",
