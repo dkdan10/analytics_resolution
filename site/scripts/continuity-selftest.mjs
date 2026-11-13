@@ -418,6 +418,29 @@ add("a control that moved by the still level and no more", "green",
   () => say(m.judge(measure(smooth).summary, "moving", BUDGET, null,
     redrawDelta(last, drifted(T.STILL_DELTA)))));
 
+/** One pair in which a patch arrives far brighter than another one fades:
+ *  the largest step is the arrival, and the fall is the fade and not it. */
+const ARRIVE = 150;
+const FADE = 70;
+const arriveAndFade = [
+  frame((fill) => fill(RAMP, GROUND + FADE)),
+  frame((fill) => { fill(RAMP, GROUND); fill(PATCH, GROUND + ARRIVE); }),
+];
+add("a pair where one patch arrives and another fades (the fall is signed: "
+  + "an arrival is never one, however large)",
+  `step ${ARRIVE}, fall ${FADE}, summary fall ${FADE}`, () => {
+    const got = measure(arriveAndFade);
+    return `step ${got.pairs[0].maxDelta}, fall ${got.pairs[0].maxFall}, `
+      + `summary fall ${got.summary.maxPixelFall}`;
+  });
+add("the same pair run backwards (the arrival is now the fall)",
+  `fall ${ARRIVE}`, () => `fall ${measure([...arriveAndFade].reverse()).pairs[0].maxFall}`);
+add("a fall outside the crop is not the crop's",
+  `frame ${FADE}, crop 0`, () => {
+    const got = measure(arriveAndFade, { crop: { x0: 32, y0: 32, x1: W, y1: H } });
+    return `frame ${got.summary.maxPixelFall}, crop ${got.court.maxPixelFall}`;
+  });
+
 add("a flash inside the crop, one pixel under the frame's minimum and then on it "
   + "(a crop is held to the whole frame's share, not to its own)",
   "full frame green; crop green; full frame red: flickerHighFrameShare; "

@@ -138,6 +138,7 @@ const flickerColumns = (pairs: readonly PairStat[]) => ({
   flickerLowPx: [null, ...pairs.map((p) => p.flickerLowPx)],
   flickerHighPx: [null, ...pairs.map((p) => p.flickerHighPx)],
   maxDelta: [null, ...pairs.map((p) => p.maxDelta)],
+  maxFall: [null, ...pairs.map((p) => p.maxFall)],
 });
 
 export async function continuityProbe(env: Env, q: URLSearchParams): Promise<unknown> {

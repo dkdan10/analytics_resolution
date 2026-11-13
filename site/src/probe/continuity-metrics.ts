@@ -98,6 +98,10 @@ export interface PairStat {
   perChanged: number;
   /** The furthest any one channel moved. */
   maxDelta: number;
+  /** The furthest any one pixel's brightest channel FELL. A mark arriving is
+   *  a rise and is the piece moving; a deep fall in one pair is ink taken
+   *  away faster than anything dries. */
+  maxFall: number;
   jumpPx: number;
   /** Pixels whose flicker was counted in this pair, by band. The low count
    *  can fall after the pair is returned: see `pairStats`. */
@@ -255,6 +259,7 @@ interface Tally {
   changed: number;
   summed: number;
   maxDelta: number;
+  maxFall: number;
   jump: number;
   low: number;
   high: number;
@@ -263,7 +268,7 @@ interface Tally {
 }
 
 const tally = (): Tally => ({
-  changed: 0, summed: 0, maxDelta: 0, jump: 0, low: 0, high: 0, lift: 0,
+  changed: 0, summed: 0, maxDelta: 0, maxFall: 0, jump: 0, low: 0, high: 0, lift: 0,
 });
 
 /** How many pixels have to flicker in one pair of a frame this large for the
@@ -283,6 +288,7 @@ function statOf(t: Tally, px: number, sumBefore: number, framePx: number): PairS
     energy: px ? t.summed / px : 0,
     perChanged: t.changed ? t.summed / t.changed : 0,
     maxDelta: t.maxDelta,
+    maxFall: t.maxFall,
     jumpPx: t.jump,
     flickerLowPx: t.low,
     flickerHighPx: t.high,
@@ -407,6 +413,7 @@ export function pairStats(prev: Bytes, cur: Bytes, state: PairState): PairStats 
       full.changed++;
       full.summed += summed;
       if (top > full.maxDelta) full.maxDelta = top;
+      if (-dv > full.maxFall) full.maxFall = -dv;
       full.jump += jumped;
       full.low += low;
       full.high += high;
@@ -415,6 +422,7 @@ export function pairStats(prev: Bytes, cur: Bytes, state: PairState): PairStats 
         part.changed++;
         part.summed += summed;
         if (top > part.maxDelta) part.maxDelta = top;
+        if (-dv > part.maxFall) part.maxFall = -dv;
         part.jump += jumped;
         part.low += low;
         part.high += high;
@@ -452,6 +460,8 @@ export interface Summary {
    *  fell in one pair, in levels. */
   drops: number;
   maxMeanFall: number;
+  /** Report-only: the furthest any one pixel fell in one pair, in levels. */
+  maxPixelFall: number;
   /** Report-only. */
   jumpFrameShare: number;
   /** Typical energy on the marked pairs over typical energy on the rest;
@@ -524,6 +534,7 @@ export function summarize(
   let jump = 0;
   let drops = 0;
   let maxMeanFall = 0;
+  let maxPixelFall = 0;
   const cutEvents: number[] = [];
   const seamEvents: number[] = [];
   pairs.forEach((p, i) => {
@@ -546,6 +557,7 @@ export function summarize(
     if (p.flickerLowPx >= flickers) low++;
     if (p.flickerHighPx >= flickers) high++;
     if (p.jumpPx >= JUMP_MIN_PX) jump++;
+    if (p.maxFall > maxPixelFall) maxPixelFall = p.maxFall;
     if (p.mean < p.prevMean) {
       drops++;
       if (p.prevMean - p.mean > maxMeanFall) maxMeanFall = p.prevMean - p.mean;
@@ -595,6 +607,7 @@ export function summarize(
     dipDepth,
     drops,
     maxMeanFall,
+    maxPixelFall,
     jumpFrameShare: share(jump),
     markStepRatio,
     cutEvents,
