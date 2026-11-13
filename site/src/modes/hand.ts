@@ -106,8 +106,11 @@ import {
   gameClock,
   gameTotalFrames,
   possessionFrames,
+  strokeReach,
   strokeSpans,
-  timeFrac,
+  STROKE_START,
+  WHOLE_STROKE,
+  type Reach,
 } from "../game";
 import { drawSlug } from "../inscription";
 import { BONE_RGB, ZONE_RGB } from "../palette";
@@ -345,12 +348,22 @@ function smooth(x: number): number {
 /**
  * One stroke, one body, five measured seconds.
  *
- * `drawn` is how much of it has been laid so far, which is what makes the
- * gesture read as a gesture rather than as a shape that appears. `fromDrawn`
- * starts the walk mid-stroke — THE GAME's nested possession is a
- * TIME-clip of a longer record, and a clip that drew a stroke's whole
- * pre-history would show minutes the clip does not claim. Default 0 draws
- * exactly what every existing caller drew.
+ * `head` is how far it has been laid so far, as a reach on the stroke's own
+ * clock (`game.ts:strokeReach`), which is what makes the gesture read as a
+ * gesture rather than as a shape that appears. `tail` starts the walk
+ * mid-stroke — THE GAME's nested possession is a TIME-clip of a longer
+ * record, and a clip that drew a stroke's whole pre-history would show
+ * minutes the clip does not claim.
+ *
+ * An end between two vertices cuts its segment on the stored chord and
+ * changes nothing else about it. Speed, and so the filament's width and
+ * opacity, is still the whole segment's measured mean; the hue is still the
+ * league's region at the vertex the segment lands on, never at the tip, which
+ * is a place the record did not file. A bead is whole or absent, at the place
+ * it has in the finished segment, and a pool's blot goes down only once its
+ * segment is complete at both ends — a body's standing still is not known
+ * until it has finished standing. So a stroke drawn whole issues exactly the
+ * calls a finished stroke always has, and the baked layers cannot tell.
  */
 
 /** The fields a stroke drawer reads. The paint, the slate and the game each
@@ -362,24 +375,31 @@ export function paintStroke(
   view: View,
   s: StrokeGeometry,
   i: number,
-  drawn: number,
+  head: Reach,
   r: Regimes,
-  fromDrawn = 0,
+  tail: Reach = STROKE_START,
   ink = 1,
 ): void {
   const first = s.first[i]!;
   const n = s.count[i]!;
-  if (n < 2) return;
-  const upto = Math.max(2, Math.ceil(n * Math.min(1, Math.max(0, drawn))));
+  const to = Math.min(n - 1, Math.max(0, head));
+  const from = Math.min(to, Math.max(0, tail));
+  if (!(to > from)) return;
   const ball = s.kind[i] === 1;
-  const fromK = Math.max(1, 1 + Math.floor(n * Math.min(1, Math.max(0, fromDrawn))));
+  // Segment k ends on vertex k and begins on the vertex before it. Only the
+  // first and the last one walked can be cut, and `lo`..`hi` is the part of
+  // the segment kept.
+  const kLo = Math.floor(from) + 1;
+  const kHi = Math.ceil(to);
 
-  for (let k = fromK; k < upto; k++) {
+  for (let k = kLo; k <= kHi; k++) {
     const a = first + k - 1;
     const b = first + k;
     const dt = s.dt[b]!;
     const arcT = s.arc[b]!;
     if (dt === 0) continue;
+    const lo = k === kLo ? from - (k - 1) : 0;
+    const hi = k === kHi ? to - (k - 1) : 1;
 
     // The true measured mean speed over this span. `arc` was summed at the full
     // 25 Hz before simplification, so this is unaffected by how few control
@@ -411,6 +431,7 @@ export function paintStroke(
       const beads = Math.max(1, Math.min(BEAD_CAP, Math.round(arcT / wl)));
       for (let d = 0; d < beads; d++) {
         const t = (d + 0.5) / beads;
+        if (t < lo || t > hi) continue;
         ctx.beginPath();
         ctx.fillStyle = `${col}${alpha})`;
         ctx.arc(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, view.s(rad), 0, Math.PI * 2);
@@ -424,11 +445,16 @@ export function paintStroke(
     ctx.lineWidth = view.s(rad * 2);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x1, y1);
+    // A whole end is the stored vertex itself, taken by branch: the chord's
+    // formula at its far end is not that vertex in floating point, and the
+    // finished stroke's pixels are the stored ones.
+    if (lo > 0) ctx.moveTo(x0 + (x1 - x0) * lo, y0 + (y1 - y0) * lo);
+    else ctx.moveTo(x0, y0);
+    if (hi === 1) ctx.lineTo(x1, y1);
+    else ctx.lineTo(x0 + (x1 - x0) * hi, y0 + (y1 - y0) * hi);
     ctx.stroke();
 
-    if (v < r.v10) {
+    if (v < r.v10 && lo === 0 && hi === 1) {
       // POOL. The filament is capped, and the ink the cap refuses goes down as
       // a blot: a body standing still for three seconds leaves a real mark.
       const excess = (r.v10 / Math.max(v, POOL_V_FLOOR) - 1) * POOL_EXCESS_K;
@@ -583,8 +609,9 @@ function drawCompletedPaintStroke(
 
 /**
  * THE SLATE, drawn. Progress is a pure function of the beat's own seconds:
- * each path begins at its span-local start offset and advances vertex by
- * vertex as its measured dt elapses, so one second of beat is one second of
+ * each path begins at its span-local start offset and its head travels each
+ * stored segment in that segment's own measured dt (`game.ts:strokeReach`,
+ * the walk every stroke shares), so one second of beat is one second of
  * night and nothing is eased or compressed. The marks are the paint's own —
  * `paintStroke` with the same measured regimes — because the slate is the
  * same instrument reading the same kind of motion; only the population is
@@ -599,18 +626,11 @@ function drawSlate(ctx: CanvasRenderingContext2D, view: View, sl: Slate,
   for (let i = 0; i < sl.n; i++) {
     const rel = elapsedFrames - sl.start[i]!;
     if (rel <= 0) continue;
-    const first = sl.first[i]!;
-    const n = sl.count[i]!;
-    let k = 1;
-    let cumDt = 0;
-    while (k < n && cumDt + sl.dt[first + k]! <= rel) {
-      cumDt += sl.dt[first + k]!;
-      k++;
-    }
-    if (k >= n) {
+    const head = strokeReach(sl, i, rel);
+    if (head >= sl.count[i]! - 1) {
       drawCompletedPaintStroke(ctx, view, sl, i, r);
     } else {
-      paintStroke(ctx, view, sl, i, k / n, r);
+      paintStroke(ctx, view, sl, i, head, r);
     }
   }
   ctx.restore();
@@ -936,11 +956,11 @@ export function drawHandHand(f: Frame): void {
           if (end < bakedBefore && age >= wetFrames) continue;
           const wetness = Math.max(0, 1 - Math.max(0, age) / wetFrames);
           ctx.globalAlpha = gEnv * (GAME_DRIED + (1 - GAME_DRIED) * wetness);
-          const drawn = timeFrac(gm, i, gameFrame - at0);
-          if (drawn >= 1) {
+          const head = strokeReach(gm, i, gameFrame - at0);
+          if (head >= gm.count[i]! - 1) {
             drawCompletedPaintStroke(ctx, view, gm, i, r);
           } else {
-            paintStroke(ctx, view, gm, i, drawn, r);
+            paintStroke(ctx, view, gm, i, head, r);
           }
         }
         ctx.restore();
@@ -967,12 +987,11 @@ export function drawHandHand(f: Frame): void {
         const end = at0 + sp.dur[i]!;
         if (end <= pos.f0) continue;
         // A TIME-clip on both sides: a stroke that began before the
-        // possession draws only from the possession's own first frame.
-        const drawn = timeFrac(gm, i, clipUpto - at0);
-        if (drawn > 0) {
-          paintStroke(ctx, view, gm, i, drawn, r,
-            timeFrac(gm, i, pos.f0 - at0), oneInk);
-        }
+        // possession draws only from the possession's own first frame, and
+        // one the clip has not entered has both ends at one place and draws
+        // nothing.
+        paintStroke(ctx, view, gm, i, strokeReach(gm, i, clipUpto - at0), r,
+          strokeReach(gm, i, pos.f0 - at0), oneInk);
       }
       ctx.restore();
 
@@ -999,7 +1018,7 @@ export function drawHandHand(f: Frame): void {
       `hand.paint|${assetId(s)}|${geom}`,
       steps, dw, dh, dpr, STROKE_STEP,
       (c, a, b) => {
-        for (let i = a; i < Math.min(b, s.n); i++) paintStroke(c, view, s, i, 1, r);
+        for (let i = a; i < Math.min(b, s.n); i++) paintStroke(c, view, s, i, WHOLE_STROKE, r);
       },
     );
     // The close takes the paint back off the plate rather than fading it out.
@@ -1009,8 +1028,16 @@ export function drawHandHand(f: Frame): void {
     ctx.globalAlpha = wet;
     for (let i = steps * STROKE_STEP; i < laid; i++) {
       const drawn = Math.min(1, (laid - i) / WET_STROKES);
-      if (drawn >= 1) drawCompletedPaintStroke(ctx, view, s, i, r);
-      else paintStroke(ctx, view, s, i, drawn, r);
+      if (drawn >= 1) {
+        drawCompletedPaintStroke(ctx, view, s, i, r);
+      } else {
+        // The season's edge is paced by how many strokes have arrived since
+        // this one, not by the stroke's own clock, so there are no frames to
+        // hand `strokeReach`: the head is a share of the vertex COUNT, on a
+        // whole vertex and never short of the first segment.
+        const upto = Math.max(2, Math.ceil(s.count[i]! * drawn));
+        paintStroke(ctx, view, s, i, (upto - 1) as Reach, r);
+      }
     }
     ctx.restore();
 

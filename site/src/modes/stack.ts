@@ -74,6 +74,7 @@
 
 import type { HeroShot } from "../data";
 import { contextDisplay, ROOM_TEXT_MIN_PX } from "../display";
+import { strokeFrames, strokeReach } from "../game";
 import { drawInscriptions, drawSlug } from "../inscription";
 import { BONE_RGB, SLUG_FAMILY } from "../palette";
 import { COURT } from "../plate";
@@ -223,8 +224,10 @@ export function drawStackHand(f: Frame): void {
  * made from a machine that held every position of every body, and one gesture
  * says that at a scale a viewer can follow.
  *
- * `drawn` is the window's own phase, so the paths are laid rather than appearing:
- * the bodies move while the season does.
+ * `progress` is the window's own phase, taken as a share of each stroke's own
+ * measured time (`game.ts:strokeReach`), so the paths are laid rather than
+ * appearing and every body keeps its own pace: the bodies move while the
+ * season does.
  *
  * Wrapped in save/restore because `paintStroke` is not: it sets `fillStyle`,
  * `strokeStyle`, `lineWidth`, `lineCap` and `lineJoin` and restores none of
@@ -255,7 +258,10 @@ function drawConnect(f: Frame, progress: number): void {
   // time, and a composite that quietly brightened it would be drawing more ink
   // than the record deposited. What yields is the field underneath.
   ctx.globalAlpha = remains;
-  for (let i = 0; i < n; i++) paintStroke(ctx, view, strokes, i, progress, r);
+  for (let i = 0; i < n; i++) {
+    paintStroke(ctx, view, strokes, i,
+      strokeReach(strokes, i, progress * strokeFrames(strokes, i)), r);
+  }
   ctx.restore();
 }
 
