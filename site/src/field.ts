@@ -495,8 +495,10 @@ function splatGrainedCell(
  * before every read — the accumulator by `fill(0)` and the fold, the image by
  * the quantize loop writing every pixel — so no byte survives from one bake
  * to the next and the output stays a pure function of the bake's inputs.
- * `clearLayers` drops them; holding them is the memory side of the trade the
- * layer cache already accepts.
+ * `clearLayers` leaves the pair in place on purpose: neither buffer is read
+ * before it has been overwritten whole, so emptying the caches has nothing to
+ * gain from dropping them, and holding them is the memory side of the trade
+ * the layer cache already accepts.
  */
 let scratchAcc: Float32Array | null = null;
 let scratchImg: ImageData | null = null;
@@ -532,6 +534,15 @@ function quantize(acc: Float32Array, w: number, h: number): HTMLCanvasElement {
 }
 
 const layers = new Map<string, Layer>();
+
+/**
+ * Whole pieces of work this file has paid inside single frames since its
+ * caches were last emptied, counted so a probe can name the frame that paid.
+ * `syncBakes` is a layer baked on a cache miss, `syncSorts` a season's
+ * emphasis order built, `revealSteps` an advance of the arrival's folded
+ * prefix. No draw reads them, and `clearLayers` returns them to zero.
+ */
+export const fieldWork = { syncBakes: 0, syncSorts: 0, revealSteps: 0 };
 
 function layerKey(
   year: number,
@@ -578,6 +589,7 @@ export function bakeLayer(
   const key = layerKey(year, coloured, view, dpr, pin, strength, grain);
   const hit = layers.get(key);
   if (hit) return hit;
+  fieldWork.syncBakes++;
 
   const w = Math.max(1, Math.round(view.width * dpr));
   const h = Math.max(1, Math.round(view.height * dpr));
@@ -704,12 +716,15 @@ interface RevealOrder {
   order: Int32Array;
 }
 
-const revealOrders = new WeakMap<Points, RevealOrder>();
+// Replaced by `clearLayers`, so the frame after an emptying pays the sort the
+// way a fresh page's does.
+let revealOrders = new WeakMap<Points, RevealOrder>();
 
 function revealOrder(pts: Points, pin: [number, number] | null): Int32Array {
   const pinKey = pin ? pin.join(",") : "none";
   const have = revealOrders.get(pts);
   if (have && have.pinKey === pinKey) return have.order;
+  fieldWork.syncSorts++;
 
   const [pinX, pinY] = pin ?? [NaN, NaN];
   const idx: number[] = [];
@@ -797,6 +812,13 @@ function revealLayer(
   }
 
   if (r.cells < prefix || r.layer === null) {
+    // Counted here and nowhere else: each time the folded prefix moves — a
+    // step crossed in forward play, or a rebuild after a backward seek or an
+    // eviction — and its whole image is uploaded again. The rising batch
+    // refolds on the same crossings, and once more at the arrival's opening
+    // before any prefix exists, so counting it as well would count a crossing
+    // twice and report a step where none was crossed.
+    fieldWork.revealSteps++;
     const order = revealOrder(pts, pin);
     const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
     const zoneRGB = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
@@ -1060,7 +1082,8 @@ interface DayFoldPlan {
   pinTotal: number;
 }
 
-const dayFoldPlans = new WeakMap<DayPoints, DayFoldPlan>();
+// Replaced by `clearLayers`, like the emphasis orders.
+let dayFoldPlans = new WeakMap<DayPoints, DayFoldPlan>();
 
 function dayFoldPlan(
   dayPts: DayPoints,
@@ -1603,6 +1626,14 @@ export function clearLayers(): void {
   wetLives.clear();
   wetTrails.clear();
   residence = null;
+  // Both orders are pure functions of the arguments they were built from, so
+  // dropping them moves no pixel; what it changes is that the frame after an
+  // emptying pays what a fresh page's first frame pays.
+  revealOrders = new WeakMap();
+  dayFoldPlans = new WeakMap();
+  fieldWork.syncBakes = 0;
+  fieldWork.syncSorts = 0;
+  fieldWork.revealSteps = 0;
 }
 
 /**
