@@ -18,6 +18,8 @@
     "deploy:pages": "node scripts/deploy-guard.mjs pre && npm run build && node scripts/deploy-guard.mjs post && gh-pages -d dist --nojekyll --no-history -m \"Deploy site\"",
     "probe:purity": "node scripts/probe-run.mjs purity",
     "probe:perf": "node scripts/probe-run.mjs perf",
+    "probe:continuity": "node scripts/probe-run.mjs continuity",
+    "check:continuity": "node scripts/continuity-selftest.mjs",
     "shots": "node scripts/shots.mjs",
     "test": "npm run check:numbers && npm run gate && npm run disclose -- --check && tsc --noEmit"
   },

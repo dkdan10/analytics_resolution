@@ -18,6 +18,7 @@
  */
 
 import type { Loaded } from "../data";
+import { boundedCompositeDpr, boundedDpr } from "../display";
 import type { Inscription } from "../inscription";
 import { MODE_IDS, type ModeId } from "../modes";
 import { ALL_OPS, bitOf, NO_OPS, OPERATIONS, type StackOps } from "../modes/operations";
@@ -34,7 +35,7 @@ import { ACT_CUE_SECONDS } from "../modes/shared";
 import { clearCanvas } from "../modes/hand";
 import { clearLedgerCaches } from "../modes/ledger";
 import { OVERVIEW_CHAPTER_SECONDS, OVERVIEW_CHAPTERS } from "../overview";
-import { makeView, type View } from "../plate";
+import { COURT, makeView, type View } from "../plate";
 import type { Target } from "../render";
 import { semanticStopById, semanticTime } from "../semantic";
 import { clearAtlas } from "../textatlas";
@@ -111,6 +112,130 @@ export function makeTargetOf(w: number, h: number, dpr: number, readback = false
   const ctx = el.getContext("2d", { alpha: false, willReadFrequently: readback })!;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   return { ctx, view: viewOf(w, h), dpr };
+}
+
+/**
+ * The surfaces a passage can be watched on.
+ *
+ * `probe` is the fixed surface above, at a device ratio the gallery never
+ * bounds: right for asking whether one frame is one frame, wrong for asking how
+ * a passage looks, because the piece is judged on a laptop and a laptop's
+ * window is past the backing budget - so the ratio it actually draws at is
+ * fractional, and the strokes, the grain and every cached layer land on a
+ * different pixel grid there. `laptop` and `overview` are that window, sized by
+ * the same two functions `main.ts` sizes the full work and the guided entry
+ * with, so what is measured is a canvas a visitor is shown.
+ */
+export type SurfaceName = "probe" | "laptop" | "overview";
+export const SURFACE_NAMES: readonly SurfaceName[] = ["probe", "laptop", "overview"];
+
+/**
+ * The laptop window, as an instrument setting: css width and height and the
+ * display's own device ratio. A setting, not a reading of any one display;
+ * nothing downstream holds a copy, so replacing the triple replaces the
+ * surface.
+ */
+export const LAPTOP_SURFACE = { width: 1440, height: 810, deviceDpr: 2 } as const;
+
+/** How many full-viewport surfaces the guided entry shares one backing budget
+ *  across: the visible destination and the outgoing frame it fades from. */
+const OVERVIEW_SURFACES = 2;
+
+export interface Surface {
+  name: SurfaceName;
+  /** Css pixels. */
+  width: number;
+  height: number;
+  /** The display's ratio before any bound; null where none is applied. */
+  deviceDpr: number | null;
+  /** The ratio the surface is drawn at. */
+  dpr: number;
+  /** Device pixels, floored as `makeTargetOf` floors them. */
+  backingWidth: number;
+  backingHeight: number;
+  /** Which sizing rule produced `dpr`. */
+  sizedBy: "fixed" | "boundedDpr" | "boundedCompositeDpr";
+}
+
+export function surfaceOf(name: SurfaceName): Surface {
+  const sized = (
+    width: number, height: number, deviceDpr: number | null, dpr: number,
+    sizedBy: Surface["sizedBy"],
+  ): Surface => ({
+    name,
+    width,
+    height,
+    deviceDpr,
+    dpr,
+    backingWidth: Math.max(1, Math.floor(width * dpr)),
+    backingHeight: Math.max(1, Math.floor(height * dpr)),
+    sizedBy,
+  });
+  if (name === "probe") return sized(PROBE_W, PROBE_H, null, PROBE_DPR, "fixed");
+  const { width, height, deviceDpr } = LAPTOP_SURFACE;
+  return name === "overview"
+    ? sized(width, height, deviceDpr,
+      boundedCompositeDpr(width, height, deviceDpr, OVERVIEW_SURFACES), "boundedCompositeDpr")
+    : sized(width, height, deviceDpr, boundedDpr(width, height, deviceDpr), "boundedDpr");
+}
+
+/** `&surface=`, or the caller's own default; an unknown name is a throw, on
+ *  `narrow`'s reasoning - a default surface under another one's name is a
+ *  believable table. */
+export function surfaceFromQuery(q: URLSearchParams, fallback: SurfaceName): Surface {
+  const wanted = q.get("surface");
+  if (wanted === null) return surfaceOf(fallback);
+  const name = SURFACE_NAMES.find((n) => n === wanted);
+  if (!name) throw new Error(`no such surface: ${wanted} (have ${SURFACE_NAMES.join(", ")})`);
+  return surfaceOf(name);
+}
+
+/** A virgin canvas of a surface's size, over the shared View. */
+export function makeSurfaceTarget(surface: Surface, readback = false): Target {
+  return makeTargetOf(surface.width, surface.height, surface.dpr, readback);
+}
+
+/** Give a target's backing store back now, not when the collector gets to
+ *  it. A passage is a virgin canvas for every frame, each the size of the
+ *  window, and the browser moves a canvas off the accelerated path under
+ *  exactly the pressure that holding them would build. */
+export function releaseTarget(tg: Target): void {
+  tg.ctx.canvas.width = 0;
+  tg.ctx.canvas.height = 0;
+}
+
+/** Half-open bounds in device pixels. */
+export interface DeviceRect {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+/**
+ * The halfcourt's rectangle on a target, in device pixels.
+ *
+ * Read off the View's own court transform and rounded outward, the way the
+ * hand rounds the court surface it bakes, so the crop is the region the
+ * record's marks can land in and nothing typed. What lies outside it is the
+ * plate's margin and whatever is drawn there. What a hand letters INSIDE the
+ * court is inside this rectangle too: the crop tells the court from its
+ * margin, and cannot tell a line of text from the marks it stands over.
+ */
+export function courtRect(tg: Target): DeviceRect {
+  const { view, dpr } = tg;
+  const { width, height } = tg.ctx.canvas;
+  const left = view.sx(COURT.x0);
+  const top = view.sy(COURT.y1);
+  const right = left + view.s(COURT.x1 - COURT.x0);
+  const bottom = top + view.s(COURT.y1 - COURT.y0);
+  const clamp = (v: number, max: number): number => Math.max(0, Math.min(max, v));
+  return {
+    x0: clamp(Math.floor(left * dpr), width),
+    y0: clamp(Math.floor(top * dpr), height),
+    x1: clamp(Math.ceil(right * dpr), width),
+    y1: clamp(Math.ceil(bottom * dpr), height),
+  };
 }
 
 const views = new Map<string, View>();
@@ -250,7 +375,9 @@ export function beatsOf(schedule: Schedule): Beat[] {
  *
  * Bounds are seconds into the loop, before the pass offset, on the clock
  * `Beat.at` uses. The end is INCLUSIVE: the frame at `to` is drawn, so the
- * pair that straddles a boundary belongs to the range that ends on it.
+ * pair that straddles a boundary belongs to the range that ends on it. The
+ * continuity probe draws that pair and hands its judgement on where the
+ * boundary has a seam range centred on it: see `seamAt` there.
  */
 export interface RangeMark {
   /** Seconds into the loop, on the range's own clock. */
