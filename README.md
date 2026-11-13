@@ -1,8 +1,7 @@
 # FADEAWAY
 
 by **Daniel Keinan** · built with AI coding agents (Claude Code and Codex) as the implementers;
-the questions, the data decisions, the rules and the verification design are mine, and I did not
-hand-write the production code · code [MIT](LICENSE) · [![CI](https://github.com/dkdan10/analytics_resolution/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/dkdan10/analytics_resolution/actions/workflows/ci.yml)
+the questions, the data decisions, the rules and the verification design are mine. [MIT](LICENSE) · [![CI](https://github.com/dkdan10/analytics_resolution/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/dkdan10/analytics_resolution/actions/workflows/ci.yml)
 
 Every regular-season NBA shot attempt since 1996, drawn on one half-court, showing where the
 league's own record grew sharper, where it grew vaguer, and what it never wrote down. A browser
