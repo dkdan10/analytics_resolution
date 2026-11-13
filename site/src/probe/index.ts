@@ -97,7 +97,8 @@ export async function runProbe(kind: string, q: URLSearchParams, env: Env): Prom
         "?probe=purity[&mode=<id>][&beat=<id>][&playback=<s>][&exact=1]",
         "?probe=purity&t=<seconds,...>[&mode=<id>]",
         "?probe=purity&range=<id,...>[&samples=<n>][&mode=<id>]",
-        "?probe=perf[&mode=<id>][&t=<seconds>][&frames=<n>]",
+        "?probe=perf[&mode=<id>][&t=<seconds>][&frames=<n>]"
+          + "[&surface=probe|laptop|overview][&pace=<ms>|raf]",
         "?probe=continuity[&range=<id,...>][&mode=<id>][&fps=<n>]"
           + "[&surface=probe|laptop|overview][&crop=court][&pairs=marks]"
           + "[&control=<id,...>][&display=near|room][&exact=1]",

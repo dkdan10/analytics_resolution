@@ -17,9 +17,21 @@
  *             which Harness A confirms - but it is not free, so it never runs
  *             inside the timing loop.
  *
- * The clock is synthetic: frames advance by a fixed 1/60 from the beat, so the
+ * The clock is synthetic: frames advance by a fixed amount from the beat, so the
  * measurement is of the renderer and not of how long the browser took to hand
- * back a rAF callback.
+ * back a rAF callback. Left alone the frames are drawn back to back, which is
+ * not how a viewer is shown them: playback leaves the browser the rest of a
+ * refresh between two draws, and a run that leaves it none cannot say whether
+ * a long frame would be long there. `&pace=<milliseconds>` waits that long
+ * after every frame, and `&pace=raf` waits for the next animation frame and
+ * keeps the time from each callback to the next beside the frame times. Under
+ * either a frame's time is still the time around its own draw: the wait is
+ * never inside it.
+ *
+ * `&surface=<name>` draws on one of the named surfaces of `surfaceOf` in place
+ * of the fixed probe surface, because what a frame costs depends on how many
+ * device pixels it fills. The report states the surface and the pace, and a
+ * run at one is no baseline for a run at another.
  *
  * A BEAT IS AN INSTANT, AND SOME COSTS ARE NOT AT ONE. A surface rebuilt when a
  * stroke dries, a layer baked as a season hands over: each is paid on a single
@@ -45,13 +57,11 @@ import {
   emit,
   forceResidency,
   FRAME_BUDGET_MS,
-  makeTarget,
+  makeSurfaceTarget,
   MODES,
   narrow,
-  PROBE_DPR,
-  PROBE_H,
-  PROBE_W,
   rangesOf,
+  surfaceFromQuery,
   warmUp,
   type Env,
   type Range,
@@ -69,6 +79,15 @@ const MAX_FRAMES = 100_000;
 /** Slack on a range's frame count, so a length that is a whole number of steps
  *  in arithmetic is not one frame short in floating point. */
 const FRAME_SLACK = 1e-9;
+/** The pace that waits on the browser's own animation frame, where any other
+ *  is a count of milliseconds. */
+const PACE_RAF = "raf";
+/** How many of a row's own usual intervals one has to reach before it is
+ *  listed as long. The usual one is the row's mode and never a refresh rate
+ *  assumed here: what the page is given differs by display and by how the
+ *  browser was launched, and an interval is long against what this run was
+ *  getting, whatever that was. */
+const LONG_INTERVAL_RATIO = 1.5;
 
 /** Every canvas call the hands actually use. */
 const COUNTED = [
@@ -113,6 +132,26 @@ function quantiles(xs: number[]): { mean: number; p50: number; p95: number; max:
 }
 
 const r2 = (x: number) => Number(x.toFixed(2));
+const r1 = (x: number) => Number(x.toFixed(1));
+
+/** The interval a row saw most often, among intervals rounded finely enough
+ *  to tell one refresh rate from another and coarsely enough that the jitter
+ *  around a rate lands together. */
+function modal(xs: number[]): number {
+  const seen = new Map<number, number>();
+  let usual = NaN;
+  let most = 0;
+  for (const x of xs) {
+    const k = r1(x);
+    const n = (seen.get(k) ?? 0) + 1;
+    seen.set(k, n);
+    if (n > most) {
+      most = n;
+      usual = k;
+    }
+  }
+  return usual;
+}
 
 export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> {
   const { data, schedule, inscriptions } = env;
@@ -130,6 +169,14 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
   const warmup = q.has("warmup") ? Number(q.get("warmup")) : DEFAULT_WARMUP;
   if (!Number.isInteger(warmup) || warmup < 0) {
     throw new Error(`warmup is not a count of frames: ${q.get("warmup")}`);
+  }
+  // Absent, nothing is waited for and the frames run back to back. A wait
+  // that is not a length of time would be a timer of no length under a pace's
+  // name.
+  const pace: number | typeof PACE_RAF | null = !q.has("pace") ? null
+    : q.get("pace") === PACE_RAF ? PACE_RAF : Number(q.get("pace"));
+  if (typeof pace === "number" && !(Number.isFinite(pace) && pace > 0)) {
+    throw new Error(`pace is neither milliseconds nor ${PACE_RAF}: ${q.get("pace")}`);
   }
   const ranged = q.has("range");
   if (ranged) {
@@ -203,8 +250,23 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
   }
   const display = displayFromQuery(q, false);
 
-  const target = makeTarget();
+  const surface = surfaceFromQuery(q, "probe");
+  const target = makeSurfaceTarget(surface);
   const base = schedule.duration;
+
+  // The wait between two frames: resolves with the animation frame's own
+  // timestamp, or with nothing to read where the wait is a timer.
+  const wait = (): Promise<number> => (pace === PACE_RAF
+    ? new Promise((r) => requestAnimationFrame(r))
+    : new Promise((r) => setTimeout(() => r(0), pace as number)));
+  // A hidden page is handed timers and animation frames slowly or not at all,
+  // so a pace asked of one is not the pace kept. Held from the first frame to
+  // the last, because a page can be hidden and shown again in between.
+  let hidden = document.visibilityState !== "visible";
+  const sawHidden = (): void => {
+    if (document.visibilityState !== "visible") hidden = true;
+  };
+  document.addEventListener("visibilitychange", sawHidden);
 
   /**
    * THE STACK IS TIMED AT ITS DENSEST CONFIGURATION, NEVER AT ITS DEFAULT.
@@ -245,17 +307,31 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
     const t0 = base + beat.at;
 
     cold();
+    // An animation frame to measure the first interval from, so every timed
+    // frame has the interval it fell in and the two lists run side by side.
+    let stamp = pace === PACE_RAF ? await wait() : 0;
     for (let i = 0; i < warmup; i++) {
       renderTo(target, t0 + i * step, data, schedule, inscriptions, mode as ModeId,
                false, false, completedStackState(dense(mode as ModeId)), null, display);
+      if (pace !== null) stamp = await wait();
     }
     const ms: number[] = [];
+    // Callback to callback, one per timed frame, each holding that frame's
+    // draw and the wait after it. Filled only where the pace is the
+    // browser's.
+    const intervals: number[] = [];
     for (let i = 0; i < frames; i++) {
       const t = t0 + (warmup + i) * step;
       const a = performance.now();
       renderTo(target, t, data, schedule, inscriptions, mode as ModeId,
                false, false, completedStackState(dense(mode as ModeId)), null, display);
       ms.push(performance.now() - a);
+      // After the clock is read, so the wait is in no frame's time.
+      if (pace !== null) {
+        const next = await wait();
+        if (pace === PACE_RAF) intervals.push(next - stamp);
+        stamp = next;
+      }
     }
     const q4 = quantiles(ms);
     // A loop, not a spread: a long walk is more arguments than a call takes.
@@ -269,6 +345,9 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
              completedStackState(dense(mode as ModeId)), null, display);
     const drawOps = (counts.arc ?? 0) + (counts.fill ?? 0) + (counts.stroke ?? 0)
       + (counts.fillText ?? 0) + (counts.drawImage ?? 0) + (counts.fillRect ?? 0);
+
+    const iq = intervals.length ? quantiles(intervals) : null;
+    const usual = modal(intervals);
 
     const pointsHere = (() => {
       const year = schedule.segments.find(
@@ -302,11 +381,26 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
       worstAt: Number((t0 + (warmup + worst) * step).toFixed(4)),
       // The frame drawn on empty caches, which only an unwarmed run times.
       ...(warmup === 0 ? { coldMs: r2(ms[0]!) } : {}),
+      // What the browser gave between frames, where it set the pace: the
+      // usual interval, and each that ran long against it with the instant of
+      // the frame drawn inside it.
+      ...(iq ? {
+        intervalMeanMs: r2(iq.mean),
+        intervalP50Ms: r2(iq.p50),
+        intervalP95Ms: r2(iq.p95),
+        intervalMaxMs: r2(iq.max),
+        intervalModalMs: usual,
+        longIntervals: intervals.filter((v) => v > usual * LONG_INTERVAL_RATIO).length,
+        longIntervalsAt: intervals.flatMap((v, k) => (v > usual * LONG_INTERVAL_RATIO
+          ? [[Number((t0 + (warmup + k) * step).toFixed(4)), r2(v)]] : [])),
+      } : {}),
       drawOps,
       calls: counts,
       recordsResident: { ...resident, pointCellsThisSeason: pointsHere },
     });
   }
+
+  document.removeEventListener("visibilitychange", sawHidden);
 
   const byMode = Object.fromEntries(
     modes.map((m) => {
@@ -324,7 +418,7 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
 
   return {
     probe: "perf",
-    surface: { width: PROBE_W, height: PROBE_H, dpr: PROBE_DPR },
+    surface,
     display,
     frameBudgetMs: r2(FRAME_BUDGET_MS),
     framesPerBeat: ranged ? null : frames,
@@ -334,6 +428,11 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
     // with its defaults and no complaint.
     sweep,
     stepSeconds: step,
+    // Milliseconds waited after each frame, the animation-frame pace by its
+    // name, or null where the frames ran back to back.
+    pace,
+    // Hidden if the page was at any moment of the run.
+    visibilityState: hidden ? "hidden" : "visible",
     passOffset: base,
     ...(ranged ? { ranges } : {}),
     residency,

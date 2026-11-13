@@ -39,6 +39,8 @@ import {
   judgeRows,
   loadMetrics,
   loosens,
+  perfComparable,
+  perfSweepProblems,
   sweepProblems,
   withEntry,
   withHeadroom,
@@ -785,6 +787,55 @@ add("pairs asked of a run in which no range carries a mark", "1 problem(s)",
   () => problems(reportOf(goodReport().rows, { pairs: "marks", straddle: { rows: [] } }),
     { ...ASKED, pairs: "marks" }));
 
+// The perf probe's surface and pace, held the same way. A report from before
+// either could be set states neither, and is the first forgery here.
+const PACE_MS = 13;
+const PERF_SURFACE = { name: "laptop", width: W, height: H, dpr: 1 };
+const perfReport = (extra = {}, row = {}) => ({
+  probe: "perf",
+  sweep: "range",
+  surface: PERF_SURFACE,
+  pace: PACE_MS,
+  visibilityState: "visible",
+  rows: [{ mode: "plate", beat: "plate.hand-over", range: "plate.hand-over", ...row }],
+  ...extra,
+});
+const olderPerfReport = () => {
+  const { pace: _pace, visibilityState: _seen, surface, ...rest } = perfReport();
+  const { name: _name, ...unnamed } = surface;
+  return { ...rest, surface: unnamed };
+};
+const perfProblems = (report, flags) => {
+  const found = perfSweepProblems(report, { range: "plate.hand-over", ...flags });
+  return found.length ? `${found.length} problem(s)` : "believed";
+};
+const PACED = { pace: String(PACE_MS), surface: "laptop" };
+const BY_FRAME = { pace: "raf" };
+add("a perf report of the pace and the surface asked for", "believed",
+  () => perfProblems(perfReport(), PACED));
+add("a perf page that reads neither --pace nor --surface, each asked alone",
+  "1 problem(s), 1 problem(s)", () => [
+    perfProblems(olderPerfReport(), { pace: PACED.pace }),
+    perfProblems(olderPerfReport(), { surface: PACED.surface }),
+  ].join(", "));
+add("a perf page that ran its frames back to back under --pace", "1 problem(s)",
+  () => perfProblems(perfReport({ pace: null }), PACED));
+add("a perf page that kept another pace", "1 problem(s)",
+  () => perfProblems(perfReport({ pace: PACE_MS + 1 }), PACED));
+add("a perf page that waited on a timer when asked for animation frames", "1 problem(s)",
+  () => perfProblems(perfReport(), BY_FRAME));
+add("a paced perf run on a page that was hidden", "1 problem(s)",
+  () => perfProblems(perfReport({ visibilityState: "hidden" }), PACED));
+add("a paced perf run that does not say whether the page was visible", "1 problem(s)",
+  () => perfProblems(perfReport({ visibilityState: undefined }), PACED));
+add("a perf run paced by animation frames, with and without its intervals",
+  "believed, 1 problem(s)", () => [
+    perfProblems(perfReport({ pace: "raf" }, { intervalModalMs: PACE_MS }), BY_FRAME),
+    perfProblems(perfReport({ pace: "raf" }), BY_FRAME),
+  ].join(", "));
+add("a perf page that drew on another surface", "1 problem(s)",
+  () => perfProblems(perfReport(), { ...PACED, surface: "probe" }));
+
 const RESIDENT = { resident: ["points"], missing: [], errors: [] };
 const captured = (report, pageErrors = []) => {
   const found = captureProblems({ report, pageErrors }, ASKED, CONTINUITY_CONTROLS);
@@ -807,6 +858,20 @@ const refusals = (kind, flags, bools = []) => {
 add("purity given --surface", "refused: 1", () => refusals("purity", { surface: "laptop" }));
 add("perf given --assert-continuity", "refused: 1", () => refusals("perf", {}, ["assert-continuity"]));
 add("continuity given --samples", "refused: 1", () => refusals("continuity", { samples: "3" }));
+add("purity and continuity given --pace", "refused: 1, refused: 1", () => [
+  refusals("purity", { pace: PACED.pace }), refusals("continuity", { pace: PACED.pace }),
+].join(", "));
+add("perf given a pace that is not one: a word, nothing, a wait backwards, a wait past the longest",
+  "refused: 1, refused: 1, refused: 1, refused: 1", () => [
+    refusals("perf", { pace: "fast" }), refusals("perf", { pace: "0" }),
+    refusals("perf", { pace: "-13" }), refusals("perf", { pace: "13000" }),
+  ].join(", "));
+add("perf given a surface it does not have", "refused: 1",
+  () => refusals("perf", { surface: "phone" }));
+add("perf given a surface and either pace", "accepted, accepted", () => [
+  refusals("perf", { range: "plate.hand-over", warmup: "0", ...PACED }),
+  refusals("perf", { surface: "overview", ...BY_FRAME }),
+].join(", "));
 add("continuity given a surface it does not have", "refused: 1",
   () => refusals("continuity", { surface: "phone" }));
 add("--write-budget without --from", "refused: 1",
@@ -855,6 +920,21 @@ add("not a verdict on another surface, of another display, on another View arran
   against({ surface: { ...SURFACE, name: "probe" } }), against({ display: "room" }),
   against({ view: "fresh" }), against({ rasterisation: "software (willReadFrequently), pinned" }),
 ].join(", "));
+
+const perfAgainst = (a, b) => (perfComparable(a, b) ? "compared" : "not comparable");
+add("a perf verdict from before the surface and the pace were stated, against one that "
+  + "states the defaults", "compared",
+() => perfAgainst(olderPerfReport(), perfReport({ pace: null, surface: { ...PERF_SURFACE, name: "probe" } })));
+add("not a paced perf verdict against an unpaced one, one pace against another, a timer "
+  + "against animation frames, or two surfaces of one size",
+"not comparable, not comparable, not comparable, not comparable", () => [
+  perfAgainst(perfReport(), perfReport({ pace: null })),
+  perfAgainst(perfReport(), perfReport({ pace: PACE_MS + 1 })),
+  perfAgainst(perfReport(), perfReport({ pace: "raf" })),
+  perfAgainst(perfReport(), perfReport({ surface: { ...PERF_SURFACE, name: "overview" } })),
+].join(", "));
+add("not an older perf verdict against a paced one", "not comparable",
+  () => perfAgainst(olderPerfReport(), perfReport({ surface: { ...PERF_SURFACE, name: "probe" } })));
 
 // --- run ---------------------------------------------------------------------------
 let failed = 0;
