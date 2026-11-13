@@ -32,12 +32,25 @@ export function seasonClock(u: number): number {
  * which quietly defeats the opening beat's "one possession" ramp.)
  */
 export function arrivedThrough(cum: Int32Array, dayFrac: number): number {
+  return Math.round(arrivedExact(cum, dayFrac));
+}
+
+/**
+ * The same arrival before it is rounded to a whole mark: how many have
+ * arrived, and how far into the next one the day has come.
+ *
+ * A count of marks is whole, and a reader that asks which marks are present
+ * wants `arrivedThrough`. A reader that draws the newest mark as it lands
+ * wants the part as well, because rounded, the edge of the arrival stands
+ * still between two marks and then moves a whole one at once.
+ */
+export function arrivedExact(cum: Int32Array, dayFrac: number): number {
   const span = cum.length - 1;
   const d = Math.max(0, Math.min(span + 1, dayFrac));
   const lo = Math.floor(d);
   const a = lo > 0 ? cum[Math.min(span, lo - 1)]! : 0;
   const b = cum[Math.min(span, lo)]!;
-  return Math.round(a + (b - a) * (d - lo));
+  return a + (b - a) * (d - lo);
 }
 
 /**

@@ -106,6 +106,7 @@ import {
   gameClock,
   gameTotalFrames,
   possessionFrames,
+  strokeFrames,
   strokeReach,
   strokeSpans,
   STROKE_START,
@@ -148,7 +149,9 @@ import {
 } from "../scalars";
 import { secondsFor, WINDOW_YEAR } from "../timeline";
 import { pinCoordOf } from "./fieldlayer";
-import { arrivedThrough, cumulativeByDay, drawActCue, seasonClock } from "./shared";
+import {
+  arrivedExact, arrivedThrough, cumulativeByDay, drawActCue, seasonClock,
+} from "./shared";
 import type { Frame } from "./types";
 import {
   HAND_INVENTORY_FULL_CLOSE_LOCAL,
@@ -1011,9 +1014,14 @@ export function drawHandHand(f: Frame): void {
     // paint's own first canvas does not double it. The day-exclusive
     // arrival opens the season beat empty, so nothing is resident until the
     // calendar takes over.
-    const laid = arrivedThrough(cum, (win.dayFrac / (span + 1)) * (last + 1));
+    // Exact, not rounded to a whole stroke: the newest stroke's head is drawn
+    // from the part, and rounded it would wait and then move a stroke at once.
+    const laidTo = arrivedExact(cum, (win.dayFrac / (span + 1)) * (last + 1));
 
-    const steps = Math.floor(laid / STROKE_STEP);
+    // The bake holds only strokes that have finished being drawn. A stroke is
+    // still partial until WET_STROKES more have arrived behind it, and a bake
+    // that took it earlier showed it whole a moment before it was.
+    const steps = Math.floor(Math.max(0, laidTo - WET_STROKES + 1) / STROKE_STEP);
     const baked = prefixSurface(
       `hand.paint|${assetId(s)}|${geom}`,
       steps, dw, dh, dpr, STROKE_STEP,
@@ -1026,18 +1034,20 @@ export function drawHandHand(f: Frame): void {
     if (baked) blit(ctx, baked, view, wet);
     ctx.save();
     ctx.globalAlpha = wet;
-    for (let i = steps * STROKE_STEP; i < laid; i++) {
-      const drawn = Math.min(1, (laid - i) / WET_STROKES);
-      if (drawn >= 1) {
-        drawCompletedPaintStroke(ctx, view, s, i, r);
-      } else {
-        // The season's edge is paced by how many strokes have arrived since
-        // this one, not by the stroke's own clock, so there are no frames to
-        // hand `strokeReach`: the head is a share of the vertex COUNT, on a
-        // whole vertex and never short of the first segment.
-        const upto = Math.max(2, Math.ceil(s.count[i]! * drawn));
-        paintStroke(ctx, view, s, i, (upto - 1) as Reach, r);
-      }
+    // Arrival stops when the calendar does, and the last few strokes would be
+    // left part-drawn for the whole close: heads standing between two vertices
+    // under a line that says every vertex is a recorded position. So once the
+    // season beat has ended they finish at true rate, a second of the close
+    // for a second of the stroke. Nothing until then, so the edge does not
+    // jump when it starts.
+    const finishing = Math.max(0, st.phase - beatSeason.to) * secondsFor(WINDOW_YEAR)
+      / paint.stroke_seconds;
+    for (let i = steps * STROKE_STEP; i < Math.min(s.n, laidTo); i++) {
+      // How much of its own recorded time this stroke has been given: all of
+      // it by the time WET_STROKES more have arrived.
+      const given = Math.min(1, (laidTo - i) / WET_STROKES + finishing);
+      if (given >= 1) drawCompletedPaintStroke(ctx, view, s, i, r);
+      else paintStroke(ctx, view, s, i, strokeReach(s, i, given * strokeFrames(s, i)), r);
     }
     ctx.restore();
 

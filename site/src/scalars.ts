@@ -1562,10 +1562,10 @@ export const SCALARS = {
     value: 6,
     material: true,
     controls:
-      "over how many strokes behind the newest one a season stroke in THE " +
-      "HAND is still being drawn along its own length. A gesture arrives " +
-      "across this many strokes' worth of time; at one each stroke appears " +
-      "whole, and larger values leave more half-drawn strokes at the edge.",
+      "how many further strokes arrive while a season stroke in THE HAND is " +
+      "drawn from end to end: its head travels the stroke's own recorded time " +
+      "over that interval. At one each stroke is whole almost as it appears; " +
+      "larger values leave more strokes part-drawn at the season's edge.",
   },
   PLATE_WINDOW_FIELD_DIM: {
     class: "authored",

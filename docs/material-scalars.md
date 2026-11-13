@@ -323,7 +323,7 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
 - **GAME_WET_S** — **2**  
   how long a finished game stroke stays wet - at full ink - before it dries to GAME_DRIED, in seconds of the game's own feed. One value for the hand and the plate. Longer and more of the game is bright at once, toward the saturated poster GAME_DRIED exists to prevent; shorter and a stroke dims almost as it lands, so the wet edge is hard to follow.
 - **WET_STROKES** — **6**  
-  over how many strokes behind the newest one a season stroke in THE HAND is still being drawn along its own length. A gesture arrives across this many strokes' worth of time; at one each stroke appears whole, and larger values leave more half-drawn strokes at the edge.
+  how many further strokes arrive while a season stroke in THE HAND is drawn from end to end: its head travels the stroke's own recorded time over that interval. At one each stroke is whole almost as it appears; larger values leave more strokes part-drawn at the season's edge.
 - **PLATE_WINDOW_FIELD_DIM** — **0.55**  
   how much of the season's filed field the plate takes down while the window's game is drawn over it. At nothing the tracked strokes are laid on a field at full brightness and the two records cannot be told apart; at one the field is gone and the game floats on bare stone.
 - **FIELD_INSCRIPTION_ALPHA** — **0.8**  
