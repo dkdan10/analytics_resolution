@@ -12,6 +12,9 @@
  *   npm run probe:purity  -- --t <seconds>[,<seconds>] --mode plate
  *   npm run probe:purity  -- --against <name>[,<name>] [--expect-unchanged hand]
  *   npm run probe:perf    -- [--mode hand,plate] [--t 292] [--frames 20]
+ *   npm run probe:perf    -- --range plate.game,hand.game [--step <s>] [--warmup <n>]
+ *   npm run probe:perf    -- --against <name>,<name>,<name> [--assert-no-regression]
+ *                            [--assert-presentation]
  *   npm run probe:continuity -- [--range plate.game,hand.game] [--fps <n>]
  *                               [--surface laptop|probe|overview] [--crop court]
  *                               [--pairs marks] [--no-control] [--assert-continuity]
@@ -50,6 +53,23 @@
  * the browser and channel, whether it was headless, the viewport and DPR, the
  * URL, the elapsed time, and - for purity - the noise floor that run measured
  * for itself.
+ *
+ * ONE PERF RUN IS NOT A BASELINE, AND ONE SLOW ROW IS NOT A REGRESSION.
+ * Two runs of one build disagree, row for row, by more than most changes are
+ * worth: a collection pause lands in one beat this time and another the next.
+ * So perf `--against` takes several verdicts and compares each row's mean
+ * frame with their median. When a row stands above it the WHOLE sweep is
+ * taken again, in a browser of its own, and the row is called REGRESSED only
+ * when it is above in every one of those too. The whole sweep and not the row
+ * alone, because a row costs something different by itself than it does
+ * after the rows before it - measured, and by more than the rule's own
+ * margin - so a row retaken alone is a different measurement from the
+ * baseline it is held against. The same rule is run between the baseline
+ * verdicts themselves and the count printed, so a first-pass flag can be
+ * read against how often an unchanged build earns one. It reports, and with
+ * `--assert-no-regression` it fails the run. `--assert-presentation` holds
+ * its absolute limits the same way: a row outside one fails when it is
+ * outside one in every sweep taken again as well.
  *
  * THE LADDER (`--against`), AND WHY IT IS NOT A HASH COMPARISON.
  * "Did this change move a pixel?" looks like one hash against another, and it
@@ -163,13 +183,22 @@ function parseArgs(argv) {
  */
 const VALUED = ["mode", "beat", "t", "stop", "display", "frames", "playback", "ops",
   "range", "samples", "view", "out", "timeout", "channel", "port",
-  "against", "expect-unchanged",
+  "against", "expect-unchanged", "warmup", "step",
   "surface", "fps", "crop", "pairs", "write-budget", "from", "fields"];
-const SWITCHES = ["exact", "headed", "assert-presentation",
+const SWITCHES = ["exact", "headed", "assert-presentation", "assert-no-regression",
   "no-control", "assert-continuity", "ruling", "init-budgets"];
 /** The valued flags that travel to the page as its query. */
 const FORWARDED = ["mode", "beat", "t", "stop", "display", "frames", "playback", "ops",
-  "range", "samples", "view"];
+  "range", "samples", "view", "warmup", "step"];
+/** Flags only the perf probe reads. */
+const PERF_ONLY = ["warmup", "step", "assert-no-regression"];
+/** The longest a frame's step may be asked to be, and the shortest: a pass of
+ *  the piece is minutes, and a step outside these is a mistyped unit. */
+const PERF_STEP_MAX_S = 60;
+const PERF_STEP_MIN_S = 1e-3;
+/** What a perf range does not go with: it is walked whole, from its own first
+ *  instant, so each of these names another start or another length. */
+const NOT_WITH_PERF_RANGE = ["beat", "t", "stop", "frames"];
 /** The same for the continuity probe, which reads a different set. */
 const CONTINUITY_FORWARDED = ["range", "mode", "surface", "fps", "crop", "pairs",
   "view", "display"];
@@ -179,7 +208,7 @@ const CONTINUITY_ONLY = ["surface", "fps", "crop", "pairs", "write-budget", "fro
 /** Flags the continuity probe does not read. Forwarded, each would be a
  *  default run filed under its name. */
 const NOT_CONTINUITY = ["beat", "t", "stop", "frames", "playback", "ops", "samples",
-  "expect-unchanged", "assert-presentation"];
+  "expect-unchanged", "assert-presentation", "warmup", "step", "assert-no-regression"];
 /** Flags that shape a capture, and so mean nothing to a run that launches
  *  no browser. */
 const CAPTURE_FLAGS = ["range", "mode", "surface", "fps", "crop", "pairs", "view", "display",
@@ -212,15 +241,46 @@ export function flagProblems(kind, { flags, bools }) {
   for (const k of Object.keys(flags)) {
     if (SWITCHES.includes(k)) out.push(`--${k} takes no value (got ${flags[k]})`);
     else if (!VALUED.includes(k)) out.push(`no such flag: --${k}`);
-  }
-  if (kind === "perf") {
-    // The perf probe times beats, instants and stops. It reads neither of
-    // these, and forwarding them would be a default run under their name.
-    for (const k of ["range", "samples"]) {
-      if (flags[k] !== undefined) out.push(`--${k} is a purity flag; the perf probe reads no ranges`);
-    }
+    // An empty value parses as a zero or as no names at all, and either is a
+    // run nobody asked for.
+    else if (String(flags[k]).trim() === "") out.push(`--${k} needs a value`);
   }
   const given = (k) => flags[k] !== undefined || bools.has(k);
+  if (kind === "perf") {
+    // The perf probe walks a range whole and takes no samples of one, so
+    // forwarding the count would be a walk filed under a sampling's name.
+    if (flags.samples !== undefined) {
+      out.push("--samples is a purity flag; the perf probe walks a range whole");
+    }
+    if (flags.range !== undefined) {
+      for (const k of NOT_WITH_PERF_RANGE) {
+        if (given(k)) out.push(`--${k} does not go with --range: a range is walked whole`);
+      }
+    }
+    if (flags.step !== undefined
+      && !(Number(flags.step) >= PERF_STEP_MIN_S && Number(flags.step) <= PERF_STEP_MAX_S)) {
+      out.push(`--step is seconds per frame, from ${PERF_STEP_MIN_S} to ${PERF_STEP_MAX_S}: `
+        + `${flags.step}`);
+    }
+    if (bools.has("assert-no-regression") && flags.against === undefined) {
+      out.push("--assert-no-regression needs --against: regressed from what?");
+    }
+    if (flags.warmup !== undefined
+      && !(Number.isInteger(Number(flags.warmup)) && Number(flags.warmup) >= 0)) {
+      out.push(`--warmup is not a count of frames: ${flags.warmup}`);
+    }
+    if (flags["expect-unchanged"] !== undefined) {
+      out.push("--expect-unchanged holds purity hashes still; the perf probe has none");
+    }
+  }
+  if (kind === "purity") {
+    for (const k of PERF_ONLY) {
+      if (given(k)) out.push(`--${k} is a perf flag; the purity probe does not read it`);
+    }
+    if (bools.has("assert-presentation")) {
+      out.push("--assert-presentation judges frame times; the purity probe has none");
+    }
+  }
   if (kind !== "continuity") {
     for (const k of CONTINUITY_ONLY) {
       if (given(k) && VALUED.includes(k) === (flags[k] !== undefined)) {
@@ -491,9 +551,189 @@ export function sameInstrument(a, b) {
   return face(a) === face(b);
 }
 
-// --- continuity ---------------------------------------------------------------
-
 const listOf = (s) => String(s).split(",").map((x) => x.trim()).filter(Boolean);
+
+// --- perf: asked against got, and one run against several ---------------------
+
+/** The step and warm-up a perf report without the fields was taken at: what
+ *  the probe used before either could be set, and uses now when neither is. */
+const PERF_DEFAULT_STEP = 1 / 60;
+const PERF_DEFAULT_WARMUP = 5;
+
+/**
+ * Whether a perf report is of the run that was asked for: the ranges, the
+ * step and the warm-up, each stated by the report and each as asked. A page
+ * whose probe reads none of them times its default beats and says nothing.
+ */
+export function perfSweepProblems(report, flags) {
+  const out = [];
+  const rows = report.rows ?? [];
+  if (flags.range !== undefined) {
+    const asked = listOf(flags.range);
+    if (report.sweep !== "range") {
+      out.push(`the page's probe ignored --range: it reports a ${report.sweep ?? "default"} sweep`);
+    } else {
+      const strays = rows.filter((r) => !asked.includes(r.range)).map(perfKey);
+      if (strays.length) out.push(`rows outside the ranges asked for: ${strays.join(", ")}`);
+      const absent = asked.filter((id) => !rows.some((r) => r.range === id));
+      if (absent.length) out.push(`no rows for requested range(s): ${absent.join(", ")}`);
+    }
+  }
+  if (flags.step !== undefined && report.stepSeconds !== Number(flags.step)) {
+    out.push(`asked for --step ${flags.step}; the probe stepped by `
+      + `${report.stepSeconds ?? "a length it does not state"}`);
+  }
+  if (flags.warmup !== undefined
+    && (report.sweep === undefined || report.warmupFrames !== Number(flags.warmup))) {
+    // A probe from before the warm-up could be set reports the fixed count it
+    // used and no sweep; asked for that same count it would otherwise read as
+    // having obeyed.
+    out.push(`asked for --warmup ${flags.warmup}; the probe `
+      + (report.sweep === undefined ? "does not read it" : `discarded ${report.warmupFrames}`));
+  }
+  return out;
+}
+
+/** How a perf row is named. THE STACK is always timed at its densest
+ *  configuration, so a hand and a beat (or a range) are the whole address. */
+export function perfKey(row) {
+  return `${row.mode}/${row.beat}`;
+}
+
+function median(xs) {
+  const s = [...xs].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+/**
+ * A row has regressed when its mean frame stands above the baseline's by both
+ * a share and an amount. Either alone flags noise: most rows cost a fraction
+ * of a millisecond, where a fifth more is a rounding step, and the few costly
+ * rows wander by half a millisecond between two runs of one build.
+ */
+export const PERF_REGRESS_RATIO = 1.2;
+export const PERF_REGRESS_MS = 0.5;
+
+export function perfRegressed(base, meanMs) {
+  return meanMs > base.median * PERF_REGRESS_RATIO && meanMs - base.median > PERF_REGRESS_MS;
+}
+
+/** Whether two perf verdicts timed the same thing the same way. */
+export function perfComparable(a, b) {
+  const face = (r) => JSON.stringify([
+    r.surface?.width, r.surface?.height, r.surface?.dpr, r.display ?? null,
+    r.framesPerBeat ?? null, r.warmupFrames ?? PERF_DEFAULT_WARMUP,
+    r.stepSeconds ?? PERF_DEFAULT_STEP, r.sweep === "range" ? "range" : "instants",
+    /[?&]exact=1/.test(r.instrument?.url ?? "") || r.exact === true,
+  ]);
+  return face(a) === face(b);
+}
+
+/**
+ * The baseline for every row: the median of its mean frame time over the
+ * named verdicts. One run is not a baseline - two runs of one build disagree
+ * by more than most changes are worth - so a row any verdict lacks has none.
+ */
+export function perfBaseline(verdicts) {
+  const base = new Map();
+  if (!verdicts.length) return base;
+  const tables = verdicts.map((v) => new Map((v.rows ?? []).map((r) => [perfKey(r), r])));
+  for (const key of tables[0].keys()) {
+    if (!tables.every((t) => t.has(key))) continue;
+    const means = tables.map((t) => t.get(key).meanMs);
+    // A verdict that does not carry the figure is not one of the runs.
+    if (!means.every(Number.isFinite)) continue;
+    base.set(key, { means, median: median(means) });
+  }
+  return base;
+}
+
+/**
+ * Where a row stands against its baseline, or null while another capture
+ * could still change the answer.
+ *
+ * `means` is the row's mean in the sweep, followed by its mean in each sweep
+ * successfully taken again. A row is REGRESSED only when it regressed in the
+ * sweep and in EVERY one of those and every try was spent; one back inside
+ * the baseline settles it as noise at once, because a build that is slower is
+ * slower each time it is asked.
+ */
+export function perfStatus(base, means, triesLeft) {
+  if (!base || !means.length || !means.every(Number.isFinite)) return "not-comparable";
+  if (!perfRegressed(base, means[0])) return "within";
+  const alone = means.slice(1);
+  if (alone.some((m) => !perfRegressed(base, m))) return "noise";
+  if (triesLeft > 0) return null;
+  return alone.length ? "REGRESSED" : "recapture-failed";
+}
+
+/**
+ * How often the rule's first pass flags a row when nothing changed: each
+ * baseline run judged against the others. Printed beside every comparison, so
+ * a first-pass flag is read against how often one costs nothing. Null with
+ * fewer than three runs, where there are no others to take a median of.
+ */
+export function perfSameCodeRate(verdicts) {
+  if (verdicts.length < 3) return null;
+  let flagged = 0;
+  let rows = 0;
+  for (let i = 0; i < verdicts.length; i++) {
+    const base = perfBaseline(verdicts.filter((_, j) => j !== i));
+    for (const row of verdicts[i].rows ?? []) {
+      const b = base.get(perfKey(row));
+      if (!b) continue;
+      rows++;
+      if (perfRegressed(b, row.meanMs)) flagged++;
+    }
+  }
+  return { flagged, rows };
+}
+
+/**
+ * What `--assert-no-regression` makes of a comparison: the rows that
+ * REGRESSED, and the rows the comparison never settled - no baseline for
+ * them, or no sweep could be taken again. The second list is not a pass: a
+ * comparison against nothing usable would otherwise succeed by comparing
+ * nothing.
+ */
+export function perfAssertion(differential) {
+  const rows = differential?.rows ?? [];
+  return {
+    regressed: rows.filter((r) => r.status === "REGRESSED").map((r) => r.row),
+    unsettled: rows.filter((r) => !["within", "noise", "REGRESSED"].includes(r.status))
+      .map((r) => `${r.row} (${r.status})`),
+    compared: rows.length,
+  };
+}
+
+/** The absolute limits `--assert-presentation` holds every row to. */
+export const PRESENTATION_LIMITS = { p95MsBelow: 16.67, maxMsBelow: 33.3, noFrameAboveMs: 50 };
+
+/** Why a row is outside the presentation limits, or nothing. */
+export function presentationReasons(row, limits = PRESENTATION_LIMITS) {
+  const reasons = [];
+  if (!(row.p95Ms < limits.p95MsBelow)) reasons.push(`p95 ${row.p95Ms}ms`);
+  if (!(row.maxMs < limits.maxMsBelow)) reasons.push(`max ${row.maxMs}ms`);
+  if (row.maxMs > limits.noFrameAboveMs) reasons.push(`frame above ${limits.noFrameAboveMs}ms`);
+  return reasons;
+}
+
+/**
+ * Whether a row that broke a limit in the sweep has failed, given what it did
+ * in each sweep taken again (`{ reasons }` each, or `{ error }`), or null
+ * while another is owed. One clean retake clears it: a single slow frame in a
+ * sweep of thousands is what a collection pause looks like, and the same
+ * sweep on the same build produces one about as often as not. A row fails
+ * when every retake broke a limit too, or none could be taken.
+ */
+export function presentationStatus(retakes, triesLeft) {
+  if (retakes.some((r) => !r.error && r.reasons.length === 0)) return "cleared";
+  if (triesLeft > 0) return null;
+  return "failed";
+}
+
+// --- continuity ---------------------------------------------------------------
 
 /**
  * Whether a continuity report is of the run that was asked for.
@@ -1460,6 +1700,8 @@ async function main() {
       + "[--stop semantic-id] [--display near|room] [--frames n] [--exact] "
       + "[--against names] [--expect-unchanged hand|hand/beat,...] "
       + "[--assert-presentation] [--timeout s] [--headed] [--channel name] [--port n]\n"
+      + "       probe-run.mjs perf [--range ids] [--step s] [--warmup n] [--against names] "
+      + "[--assert-no-regression]\n"
       + "       probe-run.mjs continuity [--range ids] [--mode ids] [--fps n] "
       + "[--surface laptop|probe|overview] [--crop court] [--pairs marks] [--view fresh] "
       + "[--display near|room] [--exact] [--no-control] [--against name] "
@@ -1484,14 +1726,18 @@ async function main() {
   // verdict name should cost a second, not a sweep.
   const against = [];
   if (flags.against !== undefined) {
-    if (kind !== "purity") die("--against compares purity hashes; perf has none");
     const names = flags.against.split(",").map((x) => x.trim()).filter(Boolean);
     if (!names.length) die("--against needs the name of at least one verdict in docs/probe/");
     for (const name of names) {
       const file = join(OUT_DIR, `${name.replace(/\.json$/, "")}.json`);
       if (!existsSync(file)) die(`--against ${name}: no such verdict (${file})`);
-      const verdict = JSON.parse(readFileSync(file, "utf8"));
-      if (verdict.probe !== "purity") die(`--against ${name}: not a purity verdict`);
+      let verdict;
+      try {
+        verdict = JSON.parse(readFileSync(file, "utf8"));
+      } catch {
+        die(`--against ${name}: the file does not parse as a verdict (${file})`);
+      }
+      if (verdict.probe !== kind) die(`--against ${name}: not a ${kind} verdict`);
       against.push({ name, verdict });
     }
   }
@@ -1564,9 +1810,85 @@ async function main() {
     const asked = flags.range !== undefined ? "range" : flags.t !== undefined ? "t" : report.sweep;
     for (const p of floorProblems(report, asked)) problems.push(`noise floor: ${p}`);
   }
+  if (kind === "perf") problems.push(...perfSweepProblems(report, flags));
   if (problems.length) {
     problems.forEach((p) => console.error(`probe-run: ${p}`));
     die("the run is not believable; nothing written");
+  }
+
+  // The sweep taken again, whole, in a browser of its own, and kept: the
+  // comparison and the absolute limits both ask "and the next time?", and the
+  // answer to both is the same few sweeps. Whole, because a row timed alone
+  // is not the row timed after the rows before it. Believed on the sweep's own
+  // terms or not at all - it finished, its assets were resident, the page
+  // threw nothing, and it is the sweep that was asked for, row for row.
+  const reruns = [];
+  const rerun = async (i) => {
+    while (reruns.length <= i) {
+      const n = reruns.length + 1;
+      let got;
+      try {
+        got = await capture(kind, url, { channel, headless, timeoutMs, quiet: true });
+      } catch (e) {
+        got = { ok: false, error: e instanceof Error ? e.message : String(e), pageErrors: [] };
+      }
+      const why = !got.ok ? String(got.error)
+        : got.pageErrors.length ? `page errors: ${got.pageErrors.join(" | ")}`
+          : ((got.report?.residency?.missing ?? []).length
+            || (got.report?.residency?.errors ?? []).length)
+            ? "assets were not resident"
+            : perfSweepProblems(got.report, flags)[0]
+              ?? ((got.report?.rows ?? []).length !== report.rows.length
+                ? "it did not return the sweep's rows" : null);
+      console.log(`probe-run: the sweep taken again, ${n}/${RECAPTURE_LIMIT}: `
+        + (why ? `failed (${why})` : `${got.report.rows.length} row(s) in `
+          + `${Math.round(got.elapsedMs / 100) / 10}s`));
+      reruns.push(why ? { error: why }
+        : { rows: new Map(got.report.rows.map((r) => [perfKey(r), r])) });
+    }
+    return reruns[i];
+  };
+  const perfAgain = async (row, i) => {
+    const r = await rerun(i);
+    if (r.error) return { error: r.error };
+    const mine = r.rows.get(perfKey(row));
+    return mine ? { row: mine } : { error: "the sweep taken again did not return this row" };
+  };
+
+  // --- the absolute limits, held under the same every-retake rule ------------
+  let presentation = null;
+  if (kind === "perf" && bools.has("assert-presentation")) {
+    const retaken = [];
+    for (const row of report.rows) {
+      const reasons = presentationReasons(row);
+      if (!reasons.length) continue;
+      const retakes = [];
+      let status = presentationStatus(retakes, RECAPTURE_LIMIT);
+      while (status === null) {
+        const next = await perfAgain(row, retakes.length);
+        retakes.push(next.error ? { error: next.error } : {
+          p95Ms: next.row.p95Ms, maxMs: next.row.maxMs, reasons: presentationReasons(next.row),
+        });
+        status = presentationStatus(retakes, RECAPTURE_LIMIT - retakes.length);
+        const last = retakes[retakes.length - 1];
+        console.log(`probe-run: ${perfKey(row)} outside the limits (${reasons.join(", ")}); `
+          + `retake ${retakes.length}/${RECAPTURE_LIMIT} -> `
+          + (last.error ? `failed (${last.error})`
+            : last.reasons.length ? last.reasons.join(", ") : "inside")
+          + (status ? ` (${status})` : ""));
+      }
+      retaken.push({ row: perfKey(row), reasons, status, retakes });
+    }
+    const failures = retaken.filter((r) => r.status === "failed")
+      .map((r) => `${r.row}: ${r.reasons.join(", ")}, and in every retake`);
+    presentation = {
+      limits: PRESENTATION_LIMITS,
+      rule: "a row fails when it is outside a limit in the sweep and in every sweep taken again",
+      retakeLimit: RECAPTURE_LIMIT,
+      passed: failures.length === 0,
+      failures,
+      retaken,
+    };
   }
 
   // --- what is written, and where --------------------------------------------
@@ -1586,32 +1908,12 @@ async function main() {
     // the browser had to composite while the run was going on.
     pageViewport: PAGE_VIEWPORT,
   };
+  let differential = null;
   const stamp = (ladder) => ({
     ...report,
     ...(ladder ? { ladder } : {}),
-    ...(kind === "perf" && bools.has("assert-presentation") ? (() => {
-      const limits = {
-        p95MsBelow: 16.67,
-        maxMsBelow: 33.3,
-        noFrameAboveMs: 50,
-      };
-      const failures = report.rows.flatMap((row) => {
-        const reasons = [];
-        if (!(row.p95Ms < limits.p95MsBelow)) reasons.push(`p95 ${row.p95Ms}ms`);
-        if (!(row.maxMs < limits.maxMsBelow)) reasons.push(`max ${row.maxMs}ms`);
-        if (row.maxMs > limits.noFrameAboveMs) reasons.push(`frame above ${limits.noFrameAboveMs}ms`);
-        return reasons.length
-          ? [`${row.mode}/${row.beat}: ${reasons.join(", ")}`]
-          : [];
-      });
-      return {
-        presentationAcceptance: {
-          limits,
-          passed: failures.length === 0,
-          failures,
-        },
-      };
-    })() : {}),
+    ...(differential ? { differential } : {}),
+    ...(presentation ? { presentationAcceptance: presentation } : {}),
     instrument,
   });
 
@@ -1620,14 +1922,69 @@ async function main() {
   // "after" that is supposed to be compared with it. Unnamed narrowed runs are
   // marked partial rather than posing as a full sweep.
   const suffix = flags.mode || flags.beat || flags.t || flags.stop || flags.display || flags.ops
-    || flags.range || flags.samples || flags.view
+    || flags.range || flags.samples || flags.view || flags.warmup || flags.step
     ? "-partial" : "";
   const path = join(OUT_DIR, flags.out ? `${flags.out}.json` : `${kind}${suffix}.json`);
   const write = (ladder) => writeFileSync(path, `${JSON.stringify(stamp(ladder), null, 2)}\n`);
 
   // --- the ladder -----------------------------------------------------------
   let ladder = null;
-  if (against.length) {
+  if (kind === "perf" && against.length) {
+    const usable = against.filter((a) => perfComparable(a.verdict, { ...report, instrument }));
+    for (const a of against) {
+      if (!usable.includes(a)) {
+        console.error(`probe-run: --against ${a.name} was timed on another surface, display, `
+          + "rasteriser, step, warm-up or frame count; it is not used");
+      }
+    }
+    const verdicts = usable.map((a) => a.verdict);
+    const base = perfBaseline(verdicts);
+    const rows = [];
+    for (const row of report.rows) {
+      const key = perfKey(row);
+      const b = base.get(key);
+      const means = [row.meanMs];
+      const recaptures = [];
+      let status = perfStatus(b, means, RECAPTURE_LIMIT);
+      while (status === null) {
+        let next = await perfAgain(row, recaptures.length);
+        if (!next.error && !Number.isFinite(next.row.meanMs)) {
+          next = { error: "the sweep taken again carries no mean for this row" };
+        }
+        recaptures.push(next.error ? { error: next.error } : { meanMs: next.row.meanMs });
+        if (!next.error) means.push(next.row.meanMs);
+        status = perfStatus(b, means, RECAPTURE_LIMIT - recaptures.length);
+        console.log(`probe-run: ${key} above its baseline; taken again `
+          + `${recaptures.length}/${RECAPTURE_LIMIT} -> `
+          + `${next.error ? `failed (${next.error})` : `${next.row.meanMs} ms`}`
+          + `${status ? ` (${status})` : ""}`);
+      }
+      rows.push({
+        row: key,
+        status,
+        meanMs: row.meanMs,
+        baselineMedianMs: b ? b.median : null,
+        baselineMeansMs: b ? b.means : [],
+        ...(recaptures.length ? { recaptures } : {}),
+      });
+    }
+    const counts = {};
+    for (const r of rows) counts[r.status] = (counts[r.status] ?? 0) + 1;
+    differential = {
+      against: against.map((a) => ({ name: a.name, used: usable.includes(a) })),
+      rule: {
+        ratio: PERF_REGRESS_RATIO,
+        ms: PERF_REGRESS_MS,
+        recaptureLimit: RECAPTURE_LIMIT,
+        says: "REGRESSED when the row stands above the median of the baselines by both "
+          + "the ratio and the amount in the sweep and in every sweep taken again",
+      },
+      sameCodeFirstPass: perfSameCodeRate(verdicts),
+      counts,
+      rows,
+    };
+  }
+  if (kind === "purity" && against.length) {
     const usable = against.filter((a) => sameInstrument(a.verdict, report));
     for (const a of against) {
       if (!usable.includes(a)) {
@@ -1762,8 +2119,53 @@ async function main() {
         + `worst max ${String(s.worstMaxMs).padStart(8)} ms  `
         + `over budget ${s.overBudgetFrames}/${s.totalFrames}`);
     }
+    if (report.sweep === "range") {
+      for (const r of report.rows) {
+        console.log(`  ${perfKey(r).padEnd(34)} ${String(r.frames).padStart(5)} frames  `
+          + `mean ${String(r.meanMs).padStart(7)}  p95 ${String(r.p95Ms).padStart(7)}  `
+          + `max ${String(r.maxMs).padStart(8)} ms at ${r.worstAt}`
+          + (r.coldMs !== undefined ? `  cold ${r.coldMs} ms` : ""));
+      }
+    }
+    if (differential) {
+      const used = differential.against.filter((a) => a.used).map((a) => a.name);
+      console.log(`probe-run: against the median of ${used.join(", ") || "nothing usable"}: `
+        + Object.entries(differential.counts).map(([k, n]) => `${n} ${k}`).join(", "));
+      const same = differential.sameCodeFirstPass;
+      console.log(same
+        ? `probe-run: the same rule's first pass flags ${same.flagged} of ${same.rows} rows `
+          + "between the baseline runs themselves"
+        : "probe-run: fewer than three baseline runs, so how often the first pass flags "
+          + "an unchanged build is not known");
+      if (used.length < 3) {
+        console.log("probe-run: a baseline is the median of three runs; this one has "
+          + `${used.length}`);
+      }
+      for (const r of differential.rows) {
+        if (r.status !== "within") {
+          console.log(`  ${r.status}  ${r.row}  ${r.meanMs} ms against ${r.baselineMedianMs}`);
+        }
+      }
+    }
   }
   console.log(`probe-run: wrote ${path.replace(`${REPO}/`, "")}`);
+  if (differential) {
+    const held = perfAssertion(differential);
+    const asserting = bools.has("assert-no-regression");
+    if (held.regressed.length && !asserting) {
+      console.log("probe-run: reported, not asserted: --assert-no-regression fails the run "
+        + "on a REGRESSED row");
+    }
+    if (asserting && held.regressed.length) {
+      for (const name of held.regressed) console.error(`probe-run: REGRESSED: ${name}`);
+      die("rows cost more than their baseline in every sweep; failing report was written");
+    }
+    if (asserting && (held.unsettled.length || held.compared === 0)) {
+      for (const name of held.unsettled) console.error(`probe-run: never compared: ${name}`);
+      die("the comparison was not established, which is not a pass; report was written",
+        EXIT_NOT_ESTABLISHED);
+    }
+  }
   if (stamped.presentationAcceptance && !stamped.presentationAcceptance.passed) {
     for (const failure of stamped.presentationAcceptance.failures) {
       console.error(`probe-run: presentation threshold failed: ${failure}`);
