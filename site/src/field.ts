@@ -486,12 +486,12 @@ function splatGrainedCell(
 
 /**
  * Scratch for the bakes — reused, not reallocated, and that is a measured GC
- * repair, not an optimisation taste: each bake used to allocate a ~44 MB
- * float accumulator and a ~15 MB ImageData and drop both, and the major GC
- * collecting them landed as a frame several times the budget in the middle
- * of a season (measured at census@after-the-cut, with the pause
- * moving between runs — the classic signature). Both buffers are fully
- * overwritten
+ * repair, not an optimisation taste: a bake that allocates its own float
+ * accumulator and its own ImageData, each the size of the whole backing, and
+ * drops both leaves a major GC to collect them, and that landed as a frame
+ * several times the budget in the middle of a season (measured at
+ * census@after-the-cut, with the pause moving between runs — the classic
+ * signature). Both buffers are fully overwritten
  * before every read — the accumulator by `fill(0)` and the fold, the image by
  * the quantize loop writing every pixel — so no byte survives from one bake
  * to the next and the output stays a pure function of the bake's inputs.
@@ -813,8 +813,9 @@ function revealLayer(
 
   if (r.cells < prefix || r.layer === null) {
     // Counted here and nowhere else: each time the folded prefix moves — a
-    // step crossed in forward play, or a rebuild after a backward seek or an
-    // eviction — and its whole image is uploaded again. The rising batch
+    // step crossed in forward play, a rebuild after a backward seek or an
+    // eviction, or a first frame that lands mid-arrival on empty caches — and
+    // its whole image is uploaded again. The rising batch
     // refolds on the same crossings, and once more at the arrival's opening
     // before any prefix exists, so counting it as well would count a crossing
     // twice and report a step where none was crossed.
