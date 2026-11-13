@@ -105,6 +105,7 @@ import {
   GAME_WET_S,
   gameClock,
   gameTotalFrames,
+  gameWetness,
   possessionFrames,
   strokeFrames,
   strokeReach,
@@ -919,13 +920,19 @@ export function drawHandHand(f: Frame): void {
       const total = gameTotalFrames(gf);
       const pos = possessionFrames(gf);
       const gameFrame = win.game > 0 ? gameClock(win.game) * total : 0;
-      // THE DRYING CLOCK CONTINUES past the game's end,
-      // at TRUE RATE — the night's own convention — so the buzzer's strokes
-      // and beads settle to the dried register within GAME_WET_S of
-      // presentation time instead of standing "just painted" all window.
-      // Drawing thresholds keep `gameFrame`; only drying reads this.
+      // The feed frame the annotations' wet edge is counted from. It keeps
+      // moving at true rate once the game's own clock has stopped.
       const dryFrame = gameFrame
         + Math.max(0, st.phase - beatGame.to) * secondsFor(WINDOW_YEAR) * gf.hz;
+      // DRYING IS COUNTED ON THE SCREEN, not on the feed: seconds since the
+      // eased clock passed a share of the game phase, from the raw phase
+      // because the beat's own progress stops at its end and a stroke laid
+      // at the buzzer still has to dry. A stroke reaches GAME_DRIED over
+      // GAME_WET_SECONDS whatever rate the feed is running at. Drawing
+      // thresholds keep `gameFrame`; only drying reads this.
+      const ageOf = (u: number): number =>
+        (st.phase - (beatGame.from + u * (beatGame.to - beatGame.from)))
+        * secondsFor(WINDOW_YEAR);
       const gEnv = remains * (1 - win.wash);
       const sp = strokeSpans(gm, gf);
       const wetFrames = GAME_WET_S * gf.hz;
@@ -948,17 +955,22 @@ export function drawHandHand(f: Frame): void {
 
       if (gameFrame > 0) {
         // The live edge: every stroke not both fully baked and fully dried,
-        // at its own wetness — full ink at the edge, drying behind it.
+        // at its own wetness — full ink at the edge, drying behind it. A
+        // stroke already in the baked surface is there at the dried register,
+        // so it takes only what is still wet over that; its deposits are thin
+        // enough that the two add to the ink it would have had drawn once.
         const bakedBefore = gSteps * stepFrames;
         ctx.save();
         for (let i = 0; i < gm.n; i++) {
           const at0 = sp.start[i]!;
           if (at0 >= gameFrame) continue;
           const end = at0 + sp.dur[i]!;
-          const age = dryFrame - end;
-          if (end < bakedBefore && age >= wetFrames) continue;
-          const wetness = Math.max(0, 1 - Math.max(0, age) / wetFrames);
-          ctx.globalAlpha = gEnv * (GAME_DRIED + (1 - GAME_DRIED) * wetness);
+          const wetness = gameWetness(ageOf(sp.endU[i]!));
+          const baked = end < bakedBefore;
+          if (baked && !(wetness > 0)) continue;
+          ctx.globalAlpha = baked
+            ? gEnv * (1 - GAME_DRIED) * wetness
+            : gEnv * (GAME_DRIED + (1 - GAME_DRIED) * wetness);
           const head = strokeReach(gm, i, gameFrame - at0);
           if (head >= gm.count[i]! - 1) {
             drawCompletedPaintStroke(ctx, view, gm, i, r);

@@ -14,12 +14,15 @@ import {
   gameAssetId,
   gameClock,
   gameTotalFrames,
+  gameWetness,
+  plateInk,
   plateStroke,
   possessionFrames,
   strokePath,
   strokeReach,
   strokeSpans,
   STROKE_START,
+  wetExcess,
   WHOLE_STROKE,
   type Reach,
 } from "../game";
@@ -112,8 +115,15 @@ export function drawPlateHand(f: Frame): void {
         const clipUpto = Math.min(pos.f1, pos.f0 + oneFrames);
         return {
           total, gameFrame, sp, pos,
+          // The feed frame the annotations' wet edge is counted from. It keeps
+          // moving at true rate once the game's own clock has stopped.
           dryFrame: gameFrame
             + Math.max(0, p - PLATE_GAME_TO_PHASE) * secondsFor(year) * gf.hz,
+          // Seconds on the screen since the eased clock passed a share of the
+          // game phase, and still counting after the phase is over.
+          ageOf: (u: number): number =>
+            (p - (PLATE_GAME_FROM_PHASE
+              + u * (PLATE_GAME_TO_PHASE - PLATE_GAME_FROM_PHASE))) * secondsFor(year),
           clipUpto,
           liveHead: (i: number, at0: number): Reach =>
             strokeReach(gm, i, gameFrame - at0),
@@ -212,17 +222,16 @@ export function drawPlateHand(f: Frame): void {
   // untouched, and there is deliberately NO body wash on this plate — two
   // densities under one field would compete.
   if (gm && gf && clock) {
-    const { total, gameFrame, sp, pos, dryFrame, clipUpto } = clock;
+    const { total, gameFrame, sp, pos, dryFrame, ageOf, clipUpto } = clock;
     const { liveHead, clipHead, clipTail } = clock;
-    // THE DRYING CLOCK (`dryFrame`) CONTINUES past the game's end: the
-    // buzzer's stroke is not "just happening" for the rest
-    // of the window. Past the game phase it advances at TRUE RATE — one
-    // second of phase is one second of feed, the night's own convention — so
-    // every stroke settles to GAME_DRIED within GAME_WET_S of presentation
-    // time after the game ends. Only drying reads that clock; the drawn
-    // prefix and the clip keep `gameFrame`, so no stroke gains vertices it
-    // has not earned. All computed once, above, where the yield mask shares
-    // them.
+    // DRYING IS COUNTED ON THE SCREEN (`ageOf`), not on the feed. A stroke
+    // starts to dry at the instant the eased clock passes its last recorded
+    // frame and reaches GAME_DRIED over GAME_WET_SECONDS, whatever rate the
+    // feed is running at and whether or not the game phase is over — so the
+    // buzzer's stroke settles like every other. Only drying reads that age;
+    // the drawn prefix and the clip keep `gameFrame`, so no stroke gains
+    // vertices it has not earned. All computed once, above, where the yield
+    // mask shares them.
     const env = remains * (1 - withdrawU);
 
     const dw = Math.max(1, Math.round(view.width * dpr));
@@ -255,11 +264,18 @@ export function drawPlateHand(f: Frame): void {
       const at0 = sp.start[i]!;
       const end = at0 + sp.dur[i]!;
       if (at0 < gameFrame) {
-        if (end < bakedBefore) continue; // dried into the baked surface
-        // The live tail dries exactly as the hand's does: full ink at the
-        // edge, settling to GAME_DRIED behind it — on the drying clock, which
-        // keeps moving after the game's own clock stops.
-        const wetness = Math.max(0, 1 - Math.max(0, dryFrame - end) / wetFrames);
+        // Full ink at the edge, settling to GAME_DRIED behind it.
+        const wetness = gameWetness(ageOf(sp.endU[i]!));
+        if (end < bakedBefore) {
+          // Already in the baked surface, which goes down at the dried
+          // register: lay only what is still wet over it, so a stroke that
+          // is baked while wet goes on drying instead of dropping to dried.
+          if (wetness > 0) {
+            plateStroke(ctx, view, gm, i, WHOLE_STROKE,
+              env * wetExcess(plateInk(gm, i), wetness, env));
+          }
+          continue;
+        }
         plateStroke(ctx, view, gm, i, liveHead(i, at0),
           env * (GAME_DRIED + (1 - GAME_DRIED) * wetness));
       } else if (at0 < clipUpto && end > pos.f0) {

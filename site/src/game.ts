@@ -21,7 +21,9 @@
 import { BONE_RGB } from "./palette";
 import {
   GAME_CLOCK_K,
+  GAME_DRIED,
   GAME_WET_S,
+  GAME_WET_SECONDS,
   PASS_MARK_ALPHA,
   PASS_MARK_R,
   TRACE_ANCHOR_ALPHA,
@@ -43,10 +45,9 @@ import { prefixCacheGeneration } from "./prefix";
  *  composition constant like STROKE_STEP, not a material. */
 export const GAME_PREFIX_STEPS = 40;
 
-/** How long a finished game stroke stays wet — bright at full ink — before
- *  it dries to GAME_DRIED. Seconds of the game's own feed; one value for both
- *  consumers, declared in the register because it decides which strokes are
- *  bright on a frame. */
+/** How long an annotation rides the wet edge, in seconds of the game's own
+ *  feed. Declared in the register because it decides which marks are bright
+ *  on a frame. */
 export { GAME_WET_S };
 
 /** Artifact identity for cache keys — the hand's own WeakMap idiom, exported
@@ -90,6 +91,41 @@ export function gameTotalFrames(gf: GameFile): number {
 export function gameClock(u: number): number {
   const c = Math.min(1, Math.max(0, u));
   return (Math.exp(GAME_CLOCK_K * c) - 1) / (Math.exp(GAME_CLOCK_K) - 1);
+}
+
+/** `gameClock` run backwards: a share of the game's frames → the share of the
+ *  phase at which the eased clock passes it. It is how a moment of the feed is
+ *  dated on the screen's clock, which is what drying is counted on. */
+export function gameClockInverse(frac: number): number {
+  const c = Math.min(1, Math.max(0, frac));
+  return Math.log1p(c * Math.expm1(GAME_CLOCK_K)) / GAME_CLOCK_K;
+}
+
+/**
+ * How wet a mark of the game still is, given the presentation seconds since
+ * the eased clock passed the moment the record ends it: full until then, and
+ * falling in a straight line to nothing over GAME_WET_SECONDS.
+ *
+ * Counted on the screen and not on the feed because the eased clock runs the
+ * feed at very different rates across the phase: a wet time in feed seconds is
+ * a fraction of one display frame late in the game, and a stroke that is wet
+ * for less than a frame is a flash. The age is a function of the phase and of
+ * the artifact, so nothing is remembered and scrubbing back rebuilds it.
+ */
+export function gameWetness(ageSeconds: number): number {
+  if (!(ageSeconds > 0)) return 1;
+  return Math.max(0, 1 - ageSeconds / GAME_WET_SECONDS);
+}
+
+/**
+ * The ink to lay over a stroke that already sits in a layer blitted at the
+ * dried register, so that the two together equal the stroke drawn once at its
+ * wet ink: full at `wetness` one, nothing at none. `ink` is the stroke's own
+ * alpha in that layer and `env` the envelope both are drawn under, and with
+ * both in the denominator the sum is exact for a stroke on its own.
+ */
+export function wetExcess(ink: number, wetness: number, env: number): number {
+  return wetness * (1 - GAME_DRIED) / (1 - ink * GAME_DRIED * env);
 }
 
 /**
@@ -165,6 +201,11 @@ interface Spans {
   start: Float64Array;
   /** Painted duration per stroke — the sum of its vertex dts. */
   dur: Float64Array;
+  /** The absolute frame the stroke's last vertex lands on. */
+  end: Float64Array;
+  /** The share of the game phase at which the eased clock passes `end` — the
+   *  instant the stroke starts to dry. */
+  endU: Float64Array;
 }
 
 const spans = new WeakMap<object, Spans>();
@@ -172,8 +213,11 @@ export function strokeSpans(game: Game, gf: GameFile): Spans {
   let s = spans.get(game);
   if (!s) {
     const b = frameBases(gf);
+    const total = gameTotalFrames(gf);
     const start = new Float64Array(game.n);
     const dur = new Float64Array(game.n);
+    const end = new Float64Array(game.n);
+    const endU = new Float64Array(game.n);
     for (let i = 0; i < game.n; i++) {
       start[i] = (b.get(game.period[i]!) ?? 0) + game.start[i]!;
       let d = 0;
@@ -181,8 +225,10 @@ export function strokeSpans(game: Game, gf: GameFile): Spans {
       const last = first + game.count[i]!;
       for (let v = first; v < last; v++) d += game.dt[v]!;
       dur[i] = d;
+      end[i] = start[i]! + d;
+      endU[i] = total > 0 ? gameClockInverse(end[i]! / total) : 0;
     }
-    s = { start, dur };
+    s = { start, dur, end, endU };
     spans.set(game, s);
   }
   return s;
@@ -351,6 +397,14 @@ export function strokePath(
   return true;
 }
 
+/** A plate stroke's own ink before any envelope. The ball as bright as a trace
+ *  at full height; bodies at the approach dim — the traces' own register, no
+ *  new ink invented for the plate. */
+export function plateInk(game: Game, i: number): number {
+  return game.kind[i] === 1 ? TRACE_LIT_FLOOR + TRACE_LIT_RANGE
+    : TRACE_LIT_FLOOR * TRACE_APPROACH_DIM;
+}
+
 /**
  * The PLATE idiom: one stroke in bone. Bodies faint and thin (the traces'
  * approach weights), the ball at their in-flight weights — ALL the
@@ -366,10 +420,7 @@ export function plateStroke(
   tail: Reach = STROKE_START,
 ): void {
   const ball = game.kind[i] === 1;
-  // The ball as bright as a trace at full height; bodies at the approach dim —
-  // the traces' own register, no new ink invented for the plate.
-  const lit = ball ? TRACE_LIT_FLOOR + TRACE_LIT_RANGE
-    : TRACE_LIT_FLOOR * TRACE_APPROACH_DIM;
+  const lit = plateInk(game, i);
   const wpx = Math.max(1, view.scale * TRACE_W_SCALE)
     * (ball ? TRACE_W_IN_FLIGHT : TRACE_W_APPROACH);
   ctx.save();

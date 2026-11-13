@@ -1531,7 +1531,10 @@ export const SCALARS = {
       "curve one scale down. The feed underneath is measured; only the easing " +
       "is authored. Material because it decides which strokes exist on a " +
       "mid-phase frame. It shares the season clock's gentler acceleration so " +
-      "the game develops instead of stalling and then arriving as a rush.",
+      "the game develops instead of stalling and then arriving as a rush. " +
+      "Its inverse also dates every game stroke's drying: the instant the " +
+      "eased clock passes a stroke's last recorded frame is where " +
+      "GAME_WET_SECONDS starts counting.",
   },
   GAME_DRIED: {
     class: "authored",
@@ -1546,16 +1549,33 @@ export const SCALARS = {
       "at that ink saturate into a solid zone-coloured poster that buries " +
       "the filed record beneath — the value here is the measured correction.",
   },
+  GAME_WET_SECONDS: {
+    class: "authored",
+    value: 0.4,
+    material: true,
+    controls:
+      "how long a finished game stroke takes to dry from full ink to " +
+      "GAME_DRIED, in seconds on the screen. One value for the hand and the " +
+      "plate. The fall is a straight line, and the age it is measured on runs " +
+      "from the instant the eased game clock passed the stroke's last " +
+      "recorded frame, found through that clock's own inverse - so a stroke " +
+      "dries over the same time on screen whether the clock is crawling or " +
+      "racing through the feed. Longer and more of the game is bright at " +
+      "once, toward the saturated poster GAME_DRIED exists to prevent, and a " +
+      "stoppage in the feed reads as a held glow; shorter and a stroke that " +
+      "is laid inside one display frame is a flash, and the wet edge cannot " +
+      "be followed.",
+  },
   GAME_WET_S: {
     class: "authored",
     value: 2,
     material: true,
     controls:
-      "how long a finished game stroke stays wet - at full ink - before it " +
-      "dries to GAME_DRIED, in seconds of the game's own feed. One value for " +
-      "the hand and the plate. Longer and more of the game is bright at once, " +
-      "toward the saturated poster GAME_DRIED exists to prevent; shorter and " +
-      "a stroke dims almost as it lands, so the wet edge is hard to follow.",
+      "how long a game annotation - a pass bead or a shot anchor - rides the " +
+      "wet edge at full ink, in seconds of the game's own feed. The strokes " +
+      "themselves dry on GAME_WET_SECONDS. Longer and more marks stand bright " +
+      "on a frame; shorter and a mark has dimmed before the frame that would " +
+      "have shown it.",
   },
   WET_STROKES: {
     class: "authored",
@@ -1779,6 +1799,7 @@ export const WASH_TONE_K: number = SCALARS.WASH_TONE_K.value;
 export const WASH_ALPHA: number = SCALARS.WASH_ALPHA.value;
 export const GAME_CLOCK_K: number = SCALARS.GAME_CLOCK_K.value;
 export const GAME_DRIED: number = SCALARS.GAME_DRIED.value;
+export const GAME_WET_SECONDS: number = SCALARS.GAME_WET_SECONDS.value;
 export const GAME_WET_S: number = SCALARS.GAME_WET_S.value;
 export const WET_STROKES: number = SCALARS.WET_STROKES.value;
 export const YIELD_CORE_W: number = SCALARS.YIELD_CORE_W.value;

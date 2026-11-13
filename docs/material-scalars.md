@@ -4,7 +4,7 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**156 scalars**, 115 of them material: 2 measured, 3 geometry, 151 authored.
+**157 scalars**, 116 of them material: 2 measured, 3 geometry, 152 authored.
 
 A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts`, `prefix.ts`, `inscription.ts`, `modes/ledger.ts`, `modes/census.ts`, `palette.ts`, `modes/stack.ts`, `modes/operations.ts`, `modes/fieldlayer.ts`, `modes/shared.ts`, `game.ts`, `wash.ts`, `modes/plate.ts`, `modes/field.ts`, `render.ts`, `modes/index.ts`, `plate.ts`, `textatlas.ts`, `main.ts`, `overview.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
@@ -317,11 +317,13 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
 - **WASH_ALPHA** — **0.3**  
   the dried ground's ceiling: how strongly the wash sits under the wet strokes at full arrival. Higher and the ground competes with the followable line; lower and thirty nights of bodies read as a stain.
 - **GAME_CLOCK_K** — **2.6**  
-  the easing of the game phase's clock over the found game's own frames: frame(u) = (e^(k·u) − 1)/(e^k − 1) of the whole game, SEASON_CLOCK_K's curve one scale down. The feed underneath is measured; only the easing is authored. Material because it decides which strokes exist on a mid-phase frame. It shares the season clock's gentler acceleration so the game develops instead of stalling and then arriving as a rush.
+  the easing of the game phase's clock over the found game's own frames: frame(u) = (e^(k·u) − 1)/(e^k − 1) of the whole game, SEASON_CLOCK_K's curve one scale down. The feed underneath is measured; only the easing is authored. Material because it decides which strokes exist on a mid-phase frame. It shares the season clock's gentler acceleration so the game develops instead of stalling and then arriving as a rush. Its inverse also dates every game stroke's drying: the instant the eased clock passes a stroke's last recorded frame is where GAME_WET_SECONDS starts counting.
 - **GAME_DRIED** — **0.12**  
   how far a game stroke dims once the wet edge has passed it — the drying, distinct from the wash beneath. 1 leaves the whole game as bright as its newest gesture and the eye loses the edge; too low and the game exists only at its leading seconds. The first value tried was 0.45, and the first frames falsified it: a whole game's strokes at that ink saturate into a solid zone-coloured poster that buries the filed record beneath — the value here is the measured correction.
+- **GAME_WET_SECONDS** — **0.4**  
+  how long a finished game stroke takes to dry from full ink to GAME_DRIED, in seconds on the screen. One value for the hand and the plate. The fall is a straight line, and the age it is measured on runs from the instant the eased game clock passed the stroke's last recorded frame, found through that clock's own inverse - so a stroke dries over the same time on screen whether the clock is crawling or racing through the feed. Longer and more of the game is bright at once, toward the saturated poster GAME_DRIED exists to prevent, and a stoppage in the feed reads as a held glow; shorter and a stroke that is laid inside one display frame is a flash, and the wet edge cannot be followed.
 - **GAME_WET_S** — **2**  
-  how long a finished game stroke stays wet - at full ink - before it dries to GAME_DRIED, in seconds of the game's own feed. One value for the hand and the plate. Longer and more of the game is bright at once, toward the saturated poster GAME_DRIED exists to prevent; shorter and a stroke dims almost as it lands, so the wet edge is hard to follow.
+  how long a game annotation - a pass bead or a shot anchor - rides the wet edge at full ink, in seconds of the game's own feed. The strokes themselves dry on GAME_WET_SECONDS. Longer and more marks stand bright on a frame; shorter and a mark has dimmed before the frame that would have shown it.
 - **WET_STROKES** — **6**  
   how many further strokes arrive while a season stroke in THE HAND is drawn from end to end: its head travels the stroke's own recorded time over that interval. At one each stroke is whole almost as it appears; larger values leave more strokes part-drawn at the season's edge.
 - **PLATE_WINDOW_FIELD_DIM** — **0.55**  
