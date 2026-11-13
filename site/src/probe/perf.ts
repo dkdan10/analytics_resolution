@@ -52,13 +52,25 @@
  * drawn and thrown away before timing starts; at zero nothing is, the first
  * timed frame is the one drawn on empty caches, and the row says what it cost
  * as `coldMs` - the frame a viewer arriving at that instant actually waits for.
+ *
+ * A LONG FRAME DOES NOT SAY WHAT IT PAID FOR. The field and the wash count the
+ * whole pieces of work they do inside single frames, in `fieldWork` and
+ * `washWork`, and each row says what its timed frames added to those counts:
+ * `work` over the whole walk, `firstFrameWork` for its first timed frame
+ * alone, and `workAt` for every frame that added anything, with its instant
+ * and what it added. The first frame stands apart because on an unwarmed row
+ * it is a landing on empty caches, which pays for everything at once and is
+ * no part of playing forward. The instants are written as `overBudgetAt`
+ * writes them, so a long frame and the work behind it carry the same one.
  */
 
+import { fieldWork } from "../field";
 import { renderTo } from "../render";
 import { completedStackState, opsToken, type StackOps } from "../modes/operations";
 import type { ModeId } from "../modes";
 import { displayFromQuery } from "../display";
 import { semanticStopById, semanticTime } from "../semantic";
+import { washWork } from "../wash";
 import {
   cold,
   beatsOf,
@@ -147,6 +159,24 @@ function quantiles(xs: number[]): { mean: number; p50: number; p95: number; max:
 
 const r2 = (x: number) => Number(x.toFixed(2));
 const r1 = (x: number) => Number(x.toFixed(1));
+
+/** The renderer's counts of whole work, by counter. */
+type Work = Record<string, number>;
+
+/** Every counter as it stands. A copy, because the renderer goes on counting
+ *  in the objects it is read from. */
+const workNow = (): Work => ({ ...fieldWork, ...washWork });
+
+/** What was counted between two readings: the counters that moved, and by how
+ *  much. Empty when none did. */
+function workBetween(before: Work, after: Work): Work {
+  const moved: Work = {};
+  for (const [k, v] of Object.entries(after)) {
+    const d = v - (before[k] ?? 0);
+    if (d !== 0) moved[k] = d;
+  }
+  return moved;
+}
 
 export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> {
   const { data, schedule, inscriptions } = env;
@@ -338,13 +368,30 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
     // the wait after it, so it is never shorter than the draw. Filled only
     // where the pace is the browser's.
     const intervals: number[] = [];
+    // What the timed frames added to the renderer's counts of whole work:
+    // every counter over the walk, the first frame's share of it, and each
+    // frame that added anything. Summed from the frames' own readings, so the
+    // warm-up before them and the counted pass after them are in none of it:
+    // that pass draws the row's first instant again once the walk is over,
+    // which is a seek backwards and pays for work the walk never did.
+    const work: Work = Object.fromEntries(Object.keys(workNow()).map((k) => [k, 0]));
+    const firstFrameWork: Work = { ...work };
+    const workAt: [number, Work][] = [];
     for (let i = 0; i < frames; i++) {
       const t = t0 + (warmup + i) * step;
+      // Read on either side of the clock, so the reading is in no frame's time.
+      const counted = workNow();
       const a = performance.now();
       renderTo(target, t, data, schedule, inscriptions, mode as ModeId,
                false, false, completedStackState(dense(mode as ModeId)), null, display);
       const b = performance.now();
       ms.push(b - a);
+      const moved = workBetween(counted, workNow());
+      for (const [k, d] of Object.entries(moved)) {
+        work[k] = (work[k] ?? 0) + d;
+        if (i === 0) firstFrameWork[k] = d;
+      }
+      if (Object.keys(moved).length) workAt.push([Number(t.toFixed(4)), moved]);
       // After the clock is read, so the wait is in no frame's time.
       if (pace !== null) {
         const next = await wait();
@@ -401,6 +448,11 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
       worstAt: Number((t0 + (warmup + worst) * step).toFixed(4)),
       // The frame drawn on empty caches, which only an unwarmed run times.
       ...(warmup === 0 ? { coldMs: r2(ms[0]!) } : {}),
+      // The whole pieces of work the renderer counted inside the timed frames,
+      // the first frame's share, and each frame that did any, with its instant.
+      work,
+      firstFrameWork,
+      workAt,
       // What the browser gave between frames, where it set the pace, and each
       // interval that ran long against the pace the run was handed, with the
       // instant of the frame drawn inside it. A draw that overruns its refresh

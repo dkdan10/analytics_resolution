@@ -39,8 +39,10 @@ import {
   judgeRows,
   loadMetrics,
   loosens,
+  PERF_LIST_SHOWN,
   PERF_PACE_KEPT_RATIO,
   perfComparable,
+  perfRowDetail,
   perfSweepProblems,
   sweepProblems,
   withEntry,
@@ -860,6 +862,63 @@ add("a timer-paced perf run whose waits fell short of the pace asked for, and ra
   ].join(", "));
 add("a perf page that drew on another surface", "1 problem(s)",
   () => perfProblems(perfReport(), { ...PACED, surface: "probe" }));
+
+// A walk from an instant, held to the instant and the count of frames asked.
+// A row states its time a whole pass in, as the page writes it.
+const PASS_S = 440;
+const AT_S = 107.82;
+const WALK_FRAMES = 661;
+const instantReport = (extra = {}, row = {}) => ({
+  probe: "perf",
+  sweep: "t",
+  passOffset: PASS_S,
+  framesPerBeat: WALK_FRAMES,
+  rows: [{ mode: "plate", beat: `t=${AT_S}`, t: PASS_S + AT_S, ...row }],
+  ...extra,
+});
+const WALKED = { t: String(AT_S), frames: String(WALK_FRAMES) };
+const instantProblems = (report, flags = WALKED) => {
+  const found = perfSweepProblems(report, flags);
+  return found.length ? `${found.length} problem(s)` : "believed";
+};
+add("a perf walk from the instant asked, for the frames asked", "believed",
+  () => instantProblems(instantReport()));
+add("a perf page that could not read the instant and timed its beats instead", "1 problem(s)",
+  () => instantProblems(instantReport({ sweep: "beats" }, { beat: "window-many" })));
+add("a perf page that walked from another instant, and one whose row is a pass early",
+  "1 problem(s), 1 problem(s)", () => [
+    instantProblems(instantReport({}, { t: PASS_S + AT_S + 1 })),
+    instantProblems(instantReport({}, { t: AT_S })),
+  ].join(", "));
+add("a perf page that timed another count of frames, and one that states none",
+  "1 problem(s), 1 problem(s)", () => [
+    instantProblems(instantReport({ framesPerBeat: WALK_FRAMES - 1 })),
+    instantProblems(instantReport({ framesPerBeat: undefined })),
+  ].join(", "));
+
+const WORKED = {
+  work: { syncBakes: 4, syncSorts: 1, revealSteps: 0 },
+  firstFrameWork: { syncBakes: 1, syncSorts: 1, revealSteps: 0 },
+  overBudgetAt: [[PASS_S + AT_S, 90.1]],
+  workAt: [[PASS_S + AT_S, { syncBakes: 1, syncSorts: 1 }], [PASS_S + AT_S + 1, { syncBakes: 3 }]],
+};
+add("the lines under a walked row that counted work",
+  "work: syncBakes 4, syncSorts 1; in the first frame: syncBakes 1, syncSorts 1 | "
+  + `over budget at: ${PASS_S + AT_S} (90.1 ms) | `
+  + `syncBakes at: ${PASS_S + AT_S}, ${PASS_S + AT_S + 1} (3) | `
+  + `syncSorts at: ${PASS_S + AT_S}`,
+  () => perfRowDetail(WORKED).join(" | "));
+add("a walked row that did no whole work, against one from a probe that counted none",
+  "work: none; in the first frame: none | work: not counted by this probe", () => [
+    ...perfRowDetail({ work: { syncBakes: 0 }, firstFrameWork: { syncBakes: 0 }, workAt: [] }),
+    ...perfRowDetail({}),
+  ].join(" | "));
+add("a row with more long frames than are printed says how many it left out", "and 2 more",
+  () => {
+    const many = Array.from({ length: PERF_LIST_SHOWN + 2 }, (_, k) => [PASS_S + k, 20]);
+    const [, line] = perfRowDetail({ overBudgetAt: many });
+    return line.slice(line.lastIndexOf("and "));
+  });
 
 const RESIDENT = { resident: ["points"], missing: [], errors: [] };
 const captured = (report, pageErrors = []) => {

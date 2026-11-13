@@ -12,6 +12,7 @@
  *   npm run probe:purity  -- --t <seconds>[,<seconds>] --mode plate
  *   npm run probe:purity  -- --against <name>[,<name>] [--expect-unchanged hand]
  *   npm run probe:perf    -- [--mode hand,plate] [--t 292] [--frames 20]
+ *   npm run probe:perf    -- --mode plate --t <seconds> --frames <n> --warmup 0
  *   npm run probe:perf    -- --range plate.game,hand.game [--step <s>] [--warmup <n>]
  *   npm run probe:perf    -- [--surface probe|laptop|overview] [--pace <ms>|raf]
  *   npm run probe:perf    -- --against <name>,<name>,<name> [--assert-no-regression]
@@ -595,15 +596,19 @@ const PERF_DEFAULT_SURFACE = "probe";
 const PERF_DEFAULT_PACE = null;
 
 /**
- * Whether a perf report is of the run that was asked for: the ranges, the
- * step, the warm-up, the pace and the surface, each stated by the report and
- * each as asked. A page whose probe reads none of them times its default beats
- * and says nothing. A pace is held to two things more. The page was visible
- * throughout, because a hidden page is handed its timers and animation frames
- * slowly. And the report says what wait the run was given: under a timer that
- * has to be the wait asked for or a little over it, and under animation
- * frames there is nothing asked to hold it to, so it is only required and
- * goes on to decide what the run may be compared with.
+ * Whether a perf report is of the run that was asked for: the ranges, or the
+ * instant and how many frames were timed from it, the step, the warm-up, the
+ * pace and the surface, each stated by the report and each as asked. A page
+ * whose probe reads none of them times its default beats and says nothing,
+ * and one handed an instant it cannot read walks every beat for the frames
+ * asked: a table that looks like a walk from that instant and is none. A row
+ * states its instant a whole pass in, so it is held to the pass the report
+ * names plus the instant asked. A pace is held to two things more. The page
+ * was visible throughout, because a hidden page is handed its timers and
+ * animation frames slowly. And the report says what wait the run was given:
+ * under a timer that has to be the wait asked for or a little over it, and
+ * under animation frames there is nothing asked to hold it to, so it is only
+ * required and goes on to decide what the run may be compared with.
  */
 export function perfSweepProblems(report, flags) {
   const out = [];
@@ -618,6 +623,23 @@ export function perfSweepProblems(report, flags) {
       const absent = asked.filter((id) => !rows.some((r) => r.range === id));
       if (absent.length) out.push(`no rows for requested range(s): ${absent.join(", ")}`);
     }
+  } else if (flags.t !== undefined) {
+    const at = (report.passOffset ?? 0) + Number(flags.t);
+    if (report.sweep !== "t") {
+      out.push(`the page's probe ignored --t: it reports a ${report.sweep ?? "default"} sweep`);
+    } else {
+      const strays = rows.filter((r) => !(Math.abs(r.t - at) <= TIME_SLACK_S))
+        .map((r) => `${perfKey(r)} at ${r.t}s`);
+      if (strays.length) {
+        out.push(`asked for --t ${flags.t}, a pass in; rows drawn from another instant: `
+          + `${strays.join(", ")}`);
+      }
+    }
+  }
+  if (flags.frames !== undefined && report.framesPerBeat !== Number(flags.frames)) {
+    out.push(`asked for --frames ${flags.frames}; the probe `
+      + (report.framesPerBeat == null ? "states no count of frames to a row"
+        : `timed ${report.framesPerBeat} to a row`));
   }
   if (flags.step !== undefined && report.stepSeconds !== Number(flags.step)) {
     out.push(`asked for --step ${flags.step}; the probe stepped by `
@@ -659,6 +681,45 @@ export function perfSweepProblems(report, flags) {
     out.push(`asked for --surface ${flags.surface}; the probe drew on `
       + `${report.surface?.name ?? "a surface it does not name"}`);
   }
+  return out;
+}
+
+/** How many entries of a row's list are printed before the rest are left to
+ *  the verdict, which holds every one. */
+export const PERF_LIST_SHOWN = 12;
+
+/** A count of whole work as it is printed, or a word for none of it. */
+function workWords(work) {
+  const moved = Object.entries(work ?? {}).filter(([, n]) => n !== 0);
+  return moved.length ? moved.map(([k, n]) => `${k} ${n}`).join(", ") : "none";
+}
+
+/**
+ * The lines under a walked row: the whole work the renderer counted in its
+ * timed frames and how much of it the first frame did, each frame over the
+ * budget with what it took, and, a line to a counter, each frame that moved
+ * it, with by how much where that is more than once. A line to a counter
+ * because one that moves often would otherwise crowd the rare ones out of a
+ * list that is cut. A long list is cut and says by how many. A row from a
+ * probe that counted no work says so, and is never printed as a row that did
+ * none.
+ */
+export function perfRowDetail(row) {
+  const some = (xs) => xs.slice(0, PERF_LIST_SHOWN).join(", ")
+    + (xs.length > PERF_LIST_SHOWN ? `, and ${xs.length - PERF_LIST_SHOWN} more` : "");
+  const out = [row.work === undefined ? "work: not counted by this probe"
+    : `work: ${workWords(row.work)}; in the first frame: ${workWords(row.firstFrameWork)}`];
+  if (row.overBudgetAt?.length) {
+    out.push(`over budget at: ${some(row.overBudgetAt.map(([t, ms]) => `${t} (${ms} ms)`))}`);
+  }
+  const by = new Map();
+  for (const [t, work] of row.workAt ?? []) {
+    for (const [k, n] of Object.entries(work)) {
+      if (!by.has(k)) by.set(k, []);
+      by.get(k).push(n === 1 ? `${t}` : `${t} (${n})`);
+    }
+  }
+  for (const [k, at] of by) out.push(`${k} at: ${some(at)}`);
   return out;
 }
 
@@ -2229,7 +2290,9 @@ async function main() {
         + `worst max ${String(s.worstMaxMs).padStart(8)} ms  `
         + `over budget ${s.overBudgetFrames}/${s.totalFrames}`);
     }
-    if (report.sweep === "range") {
+    // A walk's rows one by one, whether of a range or from an instant: where
+    // its long frames fell, and where the renderer counted whole work.
+    if (report.sweep === "range" || report.sweep === "t") {
       for (const r of report.rows) {
         console.log(`  ${perfKey(r).padEnd(34)} ${String(r.frames).padStart(5)} frames  `
           + `mean ${String(r.meanMs).padStart(7)}  p95 ${String(r.p95Ms).padStart(7)}  `
@@ -2238,6 +2301,7 @@ async function main() {
           + (r.intervalP50Ms !== undefined
             ? `  intervals median ${r.intervalP50Ms} ms, ${r.longIntervals} long, `
               + `longest ${r.intervalMaxMs} ms` : ""));
+        for (const line of perfRowDetail(r)) console.log(`      ${line}`);
       }
     }
     if (differential) {
