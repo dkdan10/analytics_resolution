@@ -747,7 +747,7 @@ function revealOrder(pts: Points, pin: [number, number] | null): Int32Array {
  *  of the prefix (the idempotent mirror in `splatCell`, same clamp `quantize`
  *  makes). So the canvas's content after any history of advances equals its
  *  content after one cold rebuild to the same prefix — the invariant the
- *  purity probe's four histories test directly at the mid-arrival beats. */
+ *  purity probe's histories test directly at the mid-arrival beats. */
 interface Reveal {
   key: string;
   cells: number;

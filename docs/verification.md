@@ -84,7 +84,7 @@ reachable from the exhibit path and none is wired into the build. They drive an 
 Chrome through Playwright against `npm run dev`; verdicts land in the gitignored `docs/probe/`.
 
 ```bash
-cd site && npm run probe:purity           # the same instant reached four ways, compared by hash
+cd site && npm run probe:purity           # the same instant reached five ways, compared by hash
 cd site && npm run probe:perf -- --assert-presentation
 cd site && npm run probe:continuity       # consecutive frames of the moving passages, compared
 cd site && npm run check:continuity       # that probe's measures, each shown failing

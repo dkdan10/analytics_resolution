@@ -144,7 +144,7 @@ export function drawPlateHand(f: Frame): void {
   // draws. Erasure compounding is a product of (1 − a) factors, so grouping
   // the passes into a mask is the same arithmetic as stroking them
   // sequentially; the mask's bytes are a pure function of (asset, geometry,
-  // step) and the purity probe's four histories judge exactly that.
+  // step) and the purity probe's histories judge exactly that.
   const yieldMask = clock && gm && st.arrived < 1
     ? (mctx: CanvasRenderingContext2D): void => {
         const R = residenceSplatRadius(view, dpr);

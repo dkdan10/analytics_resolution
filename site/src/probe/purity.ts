@@ -8,12 +8,13 @@
  * see by how much; the count belongs in the report, not in a comment that will
  * outlive it.
  *
- * So: for each hand, at each representative beat, the same `t` is reached four
+ * So: for each hand, at each representative beat, the same `t` is reached five
  * ways and the resulting pixels are hashed.
  *
  *   continuous   two seconds of playback at 1/60, landing exactly on t
  *   forward      an earlier beat, then a jump to t
  *   backward     a later beat, then a jump to t
+ *   returned     a moment later, then back to t
  *   direct       every cache emptied, one render at t
  *
  * `direct` is the reference: it is what a fresh page load at `?t=` produces.
@@ -125,7 +126,7 @@ import {
   type Range,
 } from "./shared";
 
-const HISTORIES = ["direct", "forward", "backward", "continuous"] as const;
+const HISTORIES = ["direct", "forward", "backward", "continuous", "returned"] as const;
 type History = (typeof HISTORIES)[number];
 
 /**
@@ -142,6 +143,17 @@ const DEFAULT_PLAYBACK_S = 1;
 const STEP = 1 / 60;
 /** How far a seek jumps from. Far enough to be a different act at most beats. */
 const SEEK_S = 45;
+/**
+ * How far ahead `returned` goes before it comes back.
+ *
+ * The far seek lands where whatever was moving at `t` has long since been
+ * finished, baked or taken off its layer, so a mark that remembered how far it
+ * had come is never asked again and the far histories cannot see it. This one
+ * stays close enough that a stroke in progress at `t` is still in progress, and
+ * one that is drying is still drying: the frame that follows is drawn through
+ * the same code, and the frame under test must not show it was there.
+ */
+const RETURN_S = 0.2;
 
 export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown> {
   const { data, schedule, inscriptions } = env;
@@ -296,6 +308,7 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
   const replay = (tg: Target, t: number, mode: ModeId, history: History, ops: StackOps): void => {
     if (history === "forward") drawOn(tg, t - SEEK_S, mode, ops);
     if (history === "backward") drawOn(tg, t + SEEK_S, mode, ops);
+    if (history === "returned") drawOn(tg, t + RETURN_S, mode, ops);
     if (history === "continuous") {
       for (let k = Math.round(playback / STEP); k >= 1; k--) drawOn(tg, t - k * STEP, mode, ops);
     }
@@ -498,7 +511,7 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
       const t = base + beat.at;
 
       /**
-       * One arm, four histories, and its own control.
+       * One arm, every history, and its own control.
        *
        * THE CONTROL is `direct` again, with nothing whatever changed between
        * the two. It must be byte-identical, and if it is not then the
@@ -645,6 +658,7 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
     reference: "direct",
     playbackSeconds: playback,
     seekSeconds: SEEK_S,
+    returnSeconds: RETURN_S,
     beats: beats.map((b) => b.id),
     residency,
     impureBeats: impure,
