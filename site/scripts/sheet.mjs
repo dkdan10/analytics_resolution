@@ -54,7 +54,7 @@ function die(msg) {
 
 /** The name two runs of one list share, whatever candidate either was shot with. */
 function pairKey(file) {
-  return file.replace(/-cand-.+?(?=(?:-near|-room)?-(?:stop-[^/]*|-?\d[\d_]*)\.png$)/, "");
+  return file.replace(/-cand-.+?(?=(?:-near|-room)?-(?:stop-[^/]*|settled-\d+|-?\d[\d_]*)\.png$)/, "");
 }
 
 function framesIn(dir) {
