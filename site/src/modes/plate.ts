@@ -17,8 +17,11 @@ import {
   plateStroke,
   possessionFrames,
   strokePath,
+  strokeReach,
   strokeSpans,
-  timeFrac,
+  STROKE_START,
+  WHOLE_STROKE,
+  type Reach,
 } from "../game";
 import { drawInscriptions, drawSlug } from "../inscription";
 import { prefixSurface } from "../prefix";
@@ -91,7 +94,9 @@ export function drawPlateHand(f: Frame): void {
   // THE GAME'S SHARE's clock, computed BEFORE the field goes down: the entry
   // yield mask needs the same reach the strokes below will
   // draw, and one computation serving both is what keeps the wake and the
-  // stroke from drifting apart.
+  // stroke from drifting apart. The three reaches are defined here for that
+  // reason and nowhere else: the live head on the game's clock, and the
+  // possession clip's two ends on the clip's.
   const gf = data.gameFile;
   const gm = st.act === 3 ? data.game() : null;
   const p = st.phase;
@@ -104,11 +109,18 @@ export function drawPlateHand(f: Frame): void {
         const sp = strokeSpans(gm, gf);
         const pos = possessionFrames(gf);
         const oneFrames = p * secondsFor(year) * gf.hz;
+        const clipUpto = Math.min(pos.f1, pos.f0 + oneFrames);
         return {
           total, gameFrame, sp, pos,
           dryFrame: gameFrame
             + Math.max(0, p - PLATE_GAME_TO_PHASE) * secondsFor(year) * gf.hz,
-          clipUpto: Math.min(pos.f1, pos.f0 + oneFrames),
+          clipUpto,
+          liveHead: (i: number, at0: number): Reach =>
+            strokeReach(gm, i, gameFrame - at0),
+          clipHead: (i: number, at0: number): Reach =>
+            strokeReach(gm, i, clipUpto - at0),
+          clipTail: (i: number, at0: number): Reach =>
+            strokeReach(gm, i, pos.f0 - at0),
         };
       })()
     : null;
@@ -143,14 +155,15 @@ export function drawPlateHand(f: Frame): void {
         // Under destination-out only the source ALPHA erases; in the baked
         // mask the same strokes accumulate that alpha with source-over.
         const wakeStroke = (
-          c: CanvasRenderingContext2D, i: number, drawn: number, from = 0,
+          c: CanvasRenderingContext2D, i: number, head: Reach,
+          tail: Reach = STROKE_START,
         ): void => {
           c.lineCap = "round";
           c.lineJoin = "round";
           for (const [wDev, strength] of passes) {
             c.strokeStyle = `rgba(255, 255, 255, ${strength})`;
             c.lineWidth = wDev / dpr;
-            if (strokePath(c, view, gm, i, drawn, from)) c.stroke();
+            if (strokePath(c, view, gm, i, head, tail)) c.stroke();
           }
         };
         const dw = Math.max(1, Math.round(view.width * dpr));
@@ -163,7 +176,7 @@ export function drawPlateHand(f: Frame): void {
           (c, a, b) => {
             for (let i = 0; i < gm.n; i++) {
               const end = clock.sp.start[i]! + clock.sp.dur[i]!;
-              if (end >= a && end < b) wakeStroke(c, i, 1);
+              if (end >= a && end < b) wakeStroke(c, i, WHOLE_STROKE);
             }
           },
         );
@@ -174,12 +187,9 @@ export function drawPlateHand(f: Frame): void {
           const end = at0 + clock.sp.dur[i]!;
           if (at0 < clock.gameFrame) {
             if (end < bakedBefore) continue; // dried into the baked mask
-            wakeStroke(mctx, i, timeFrac(gm, i, clock.gameFrame - at0));
+            wakeStroke(mctx, i, clock.liveHead(i, at0));
           } else if (at0 < clock.clipUpto && end > clock.pos.f0) {
-            const drawn = timeFrac(gm, i, clock.clipUpto - at0);
-            if (drawn > 0) {
-              wakeStroke(mctx, i, drawn, timeFrac(gm, i, clock.pos.f0 - at0));
-            }
+            wakeStroke(mctx, i, clock.clipHead(i, at0), clock.clipTail(i, at0));
           }
         }
       }
@@ -203,6 +213,7 @@ export function drawPlateHand(f: Frame): void {
   // densities under one field would compete.
   if (gm && gf && clock) {
     const { total, gameFrame, sp, pos, dryFrame, clipUpto } = clock;
+    const { liveHead, clipHead, clipTail } = clock;
     // THE DRYING CLOCK (`dryFrame`) CONTINUES past the game's end: the
     // buzzer's stroke is not "just happening" for the rest
     // of the window. Past the game phase it advances at TRUE RATE — one
@@ -224,7 +235,7 @@ export function drawPlateHand(f: Frame): void {
       (c, a, b) => {
         for (let i = 0; i < gm.n; i++) {
           const end = sp.start[i]! + sp.dur[i]!;
-          if (end >= a && end < b) plateStroke(c, view, gm, i, 1, 1);
+          if (end >= a && end < b) plateStroke(c, view, gm, i, WHOLE_STROKE, 1);
         }
       },
     );
@@ -249,14 +260,12 @@ export function drawPlateHand(f: Frame): void {
         // edge, settling to GAME_DRIED behind it — on the drying clock, which
         // keeps moving after the game's own clock stops.
         const wetness = Math.max(0, 1 - Math.max(0, dryFrame - end) / wetFrames);
-        plateStroke(ctx, view, gm, i, timeFrac(gm, i, gameFrame - at0),
+        plateStroke(ctx, view, gm, i, liveHead(i, at0),
           env * (GAME_DRIED + (1 - GAME_DRIED) * wetness));
       } else if (at0 < clipUpto && end > pos.f0) {
-        // A TIME-clip on both sides, the hand's own rule.
-        const drawn = timeFrac(gm, i, clipUpto - at0);
-        if (drawn > 0) {
-          plateStroke(ctx, view, gm, i, drawn, env, timeFrac(gm, i, pos.f0 - at0));
-        }
+        // A TIME-clip on both sides, the hand's own rule. A stroke the clip
+        // has not entered has its two ends at one place and draws nothing.
+        plateStroke(ctx, view, gm, i, clipHead(i, at0), env, clipTail(i, at0));
       }
     }
     // ALL the annotations persist on this plate (its brief, above), but they

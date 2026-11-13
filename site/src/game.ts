@@ -34,7 +34,7 @@ import {
   TRACE_W_SCALE,
 } from "./scalars";
 import type { View } from "./plate";
-import type { Game, GameEvent, GameFile } from "./data";
+import type { Game, GameEvent, GameFile, Strokes } from "./data";
 import { prefixCacheGeneration } from "./prefix";
 
 /** The game surfaces accumulate in this many prefix steps across the whole
@@ -91,11 +91,77 @@ export function gameClock(u: number): number {
   return (Math.exp(GAME_CLOCK_K * c) - 1) / (Math.exp(GAME_CLOCK_K) - 1);
 }
 
-/** Frames inside a stroke → the vertex fraction its measured dts have
- *  reached — the slate's own walk (hand.ts:drawSlate), shared so every
- *  consumer draws one pace. A vertex-count fraction is NOT this: control
- *  points are not uniform in time, and a fraction of the count would rush
- *  the slow stretches and drag the fast ones. */
+/**
+ * A position along one stroke, counted in its own vertices: whole at a vertex,
+ * fractional on the chord between that vertex and the next.
+ *
+ * Branded because a bare number here is ambiguous. A share of the stroke
+ * handed over as a reach would clamp to the first segment of everything and
+ * nothing would fail, so a drawer takes a `Reach`: one of the two ends named
+ * below, or what `strokeReach` answers. A caller holding a vertex index of
+ * its own has to say so with a cast, where a reader can see it.
+ */
+export type Reach = number & { readonly __reach: unique symbol };
+
+/** The stroke's first vertex — the tail of every stroke that is not a clip. */
+export const STROKE_START = 0 as Reach;
+
+/** Past every vertex of any stroke. A drawer clamps it to the last one, so a
+ *  bake asks for the finished stroke without knowing how long it is. */
+export const WHOLE_STROKE = Number.POSITIVE_INFINITY as Reach;
+
+/** The columns a stroke's clock is read from. The paint, the slate and the
+ *  game each ship their own stroke table, and all of them carry these. */
+export type StrokeClock = Pick<Strokes, "first" | "count" | "dt">;
+
+/**
+ * Frames inside a stroke → how far its head has come, on the stroke's own
+ * clock. ONE walk for the plate, the paint, the slate and the composite, so
+ * every consumer draws one pace.
+ *
+ * The stored dts are walked in order, so the head stands on a vertex at
+ * exactly the frame the record put a body there. Between two vertices it is
+ * not synthesised motion: the tip lies on the stored chord between two
+ * recorded vertices, travels it in that segment's own recorded duration, and
+ * no vertex is added. A segment drawn part of the way inks nothing its
+ * finished self does not ink. What the fraction does assume is an even pace
+ * inside the segment, which the record does not hold; it holds the two ends
+ * and the time between them, and both are honoured. A head that waited at one
+ * vertex and then stood whole at the next claimed more than that, and nobody
+ * measured it either.
+ *
+ * A share of the vertex COUNT is not this. Control points are not uniform in
+ * time, and a share of the count would rush the slow stretches and drag the
+ * fast ones.
+ */
+export function strokeReach(s: StrokeClock, i: number, frames: number): Reach {
+  if (!(frames > 0)) return STROKE_START;
+  const first = s.first[i]!;
+  const n = s.count[i]!;
+  let cum = 0;
+  for (let k = 1; k < n; k++) {
+    const d = s.dt[first + k]!;
+    // Strictly past the frame, so `d` is above zero wherever it divides and a
+    // frame that lands on a vertex answers that vertex exactly.
+    if (cum + d > frames) return (k - 1 + (frames - cum) / d) as Reach;
+    cum += d;
+  }
+  return Math.max(0, n - 1) as Reach;
+}
+
+/** The frames a stroke takes from its first vertex to its last — the sum
+ *  `strokeReach` walks, so a share of it is a share of the stroke's own time. */
+export function strokeFrames(s: StrokeClock, i: number): number {
+  const first = s.first[i]!;
+  const n = s.count[i]!;
+  let frames = 0;
+  for (let k = 1; k < n; k++) frames += s.dt[first + k]!;
+  return frames;
+}
+
+/** Frames inside a stroke → the share of its vertex COUNT the measured dts
+ *  have passed, in whole vertices. No drawer reads it: a drawn length is a
+ *  `strokeReach`, which keeps the part of a segment this rounds away. */
 export function timeFrac(game: Game, i: number, frames: number): number {
   if (frames <= 0) return 0;
   const first = game.first[i]!;
@@ -279,25 +345,46 @@ function drawCompletedGameEvents(
  * strokes the same path wider in `destination-out`, and sharing the walk is
  * what guarantees the wake and the stroke cannot drift apart. Returns false
  * when the stroke has no path to draw.
+ *
+ * `head` and `tail` are reaches. An end that falls between two vertices is
+ * put on their chord, and the whole vertices between the ends are the stored
+ * ones, untouched — so it stays one path, stroked once, and a finished
+ * stroke is the same calls whether it was asked for whole or arrived at.
  */
 export function strokePath(
   ctx: CanvasRenderingContext2D,
   view: View,
   game: Game,
   i: number,
-  drawn: number,
-  fromDrawn = 0,
+  head: Reach,
+  tail: Reach = STROKE_START,
 ): boolean {
   const first = game.first[i]!;
   const n = game.count[i]!;
-  if (n < 2) return false;
-  const upto = Math.max(2, Math.ceil(n * Math.min(1, Math.max(0, drawn))));
-  const from = Math.min(upto - 2,
-    Math.max(0, Math.floor(n * Math.min(1, Math.max(0, fromDrawn)))));
+  const to = Math.min(n - 1, Math.max(0, head));
+  const from = Math.min(to, Math.max(0, tail));
+  if (!(to > from)) return false;
+  const fromV = Math.floor(from);
+  const toV = Math.floor(to);
+  const sx = (v: number): number => view.sx(game.x[first + v]!);
+  const sy = (v: number): number => view.sy(game.y[first + v]!);
   ctx.beginPath();
-  ctx.moveTo(view.sx(game.x[first + from]!), view.sy(game.y[first + from]!));
-  for (let v = first + from + 1; v < first + upto; v++) {
-    ctx.lineTo(view.sx(game.x[v]!), view.sy(game.y[v]!));
+  if (from > fromV) {
+    const part = from - fromV;
+    const x0 = sx(fromV);
+    const y0 = sy(fromV);
+    ctx.moveTo(x0 + (sx(fromV + 1) - x0) * part, y0 + (sy(fromV + 1) - y0) * part);
+  } else {
+    ctx.moveTo(sx(fromV), sy(fromV));
+  }
+  for (let v = fromV + 1; v <= toV; v++) ctx.lineTo(sx(v), sy(v));
+  // The tip, only when the head is between two vertices: a head standing on a
+  // vertex ends on the stored one, never on a chord's computed end.
+  if (to > toV) {
+    const part = to - toV;
+    const x0 = sx(toV);
+    const y0 = sy(toV);
+    ctx.lineTo(x0 + (sx(toV + 1) - x0) * part, y0 + (sy(toV + 1) - y0) * part);
   }
   return true;
 }
@@ -312,9 +399,9 @@ export function plateStroke(
   view: View,
   game: Game,
   i: number,
-  drawn: number,
+  head: Reach,
   alpha: number,
-  fromDrawn = 0,
+  tail: Reach = STROKE_START,
 ): void {
   const ball = game.kind[i] === 1;
   // The ball as bright as a trace at full height; bodies at the approach dim —
@@ -328,7 +415,7 @@ export function plateStroke(
   ctx.lineWidth = wpx;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  if (strokePath(ctx, view, game, i, drawn, fromDrawn)) ctx.stroke();
+  if (strokePath(ctx, view, game, i, head, tail)) ctx.stroke();
   ctx.restore();
 }
 
