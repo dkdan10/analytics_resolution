@@ -986,8 +986,8 @@ export function drawHandHand(f: Frame): void {
       const clipUpto = Math.min(pos.f1, pos.f0 + oneFrames);
       // ONE_INK: the beat-local envelope (declared in src/scalars.ts). Full
       // through the ONE beat, fading out across the game phase as the eased
-      // walk re-lays the same records at the conserved flow — no pop at the
-      // handover, and no boosted segment survives past the beat it argues.
+      // walk re-lays the same records at the conserved flow, and no boosted
+      // segment survives past the beat it argues.
       const oneInk = 1 + (ONE_INK - 1) * (1 - win.game);
       ctx.save();
       ctx.globalAlpha = gEnv;
@@ -1004,6 +1004,25 @@ export function drawHandHand(f: Frame): void {
         const walked = at0 < gameFrame ? strokeReach(gm, i, gameFrame - at0) : STROKE_START;
         paintStroke(ctx, view, gm, i, strokeReach(gm, i, clipUpto - at0), r,
           walked > from ? walked : from, oneInk);
+      }
+      // The possession keeps ONE_INK's lift through the hand-over and into
+      // its drying. The walk re-lays these records at the conserved flow,
+      // which alone would drop the lift in the frame the walk arrives; so the
+      // part of the possession the walk has re-laid takes the difference as
+      // one more deposit, at the stroke's own wetness, and the lift dries
+      // away with the stroke instead of ahead of it.
+      if (oneInk > 1 && gameFrame > pos.f0) {
+        const relaid = Math.min(gameFrame, clipUpto);
+        for (let i = 0; i < gm.n; i++) {
+          const at0 = sp.start[i]!;
+          if (at0 >= relaid) continue;
+          if (at0 + sp.dur[i]! <= pos.f0) continue;
+          const wetness = gameWetness(ageOf(sp.endU[i]!));
+          if (!(wetness > 0)) continue;
+          ctx.globalAlpha = gEnv * wetness;
+          paintStroke(ctx, view, gm, i, strokeReach(gm, i, relaid - at0), r,
+            strokeReach(gm, i, pos.f0 - at0), oneInk - 1);
+        }
       }
       ctx.restore();
 
