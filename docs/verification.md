@@ -79,13 +79,15 @@ published number was produced with.
 
 ## Probing the piece
 
-Three diagnostics sit behind `?probe=`: `purity`, `perf` and `shots`. None is reachable from the
-exhibit path and none is wired into the build. They drive an installed Google Chrome through
-Playwright against `npm run dev`; verdicts land in the gitignored `docs/probe/`.
+Four diagnostics sit behind `?probe=`: `purity`, `perf`, `continuity` and `shots`. None is
+reachable from the exhibit path and none is wired into the build. They drive an installed Google
+Chrome through Playwright against `npm run dev`; verdicts land in the gitignored `docs/probe/`.
 
 ```bash
 cd site && npm run probe:purity           # the same instant reached four ways, compared by hash
 cd site && npm run probe:perf -- --assert-presentation
+cd site && npm run probe:continuity       # consecutive frames of the moving passages, compared
+cd site && npm run check:continuity       # that probe's measures, each shown failing
 cd site && npm run shots -- --list hands  # exact frames, for looking at
 ```
 
@@ -96,8 +98,10 @@ become one.
 
 ## Deploying, and what is public
 
-`cd site && npm run deploy:pages` runs the gated build and publishes `dist/` to `gh-pages`. CI
-verifies and never publishes. The site serves exactly one list: the `public` column of
+`cd site && npm run deploy:pages` publishes `dist/` to `gh-pages`, and refuses unless the checkout
+is a clean `master` that the remote also holds, a bare gate run is green, and the rebuilt `dist/`
+is file for file the build that `node scripts/deploy-guard.mjs seal` recorded. CI verifies and
+never publishes. The site serves exactly one list: the `public` column of
 `REQUIRED_ARTIFACTS` in `pipeline/qa.py`, written to `pipeline/deploy_allowlist.json`, copied by
 `sync-data.mjs` and graded on the real `dist/` by `check-public-data.mjs`. The repository carries
 all of `data/processed/`, served or not, so the pipeline stays reproducible; no raw data is
