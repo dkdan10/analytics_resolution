@@ -441,6 +441,26 @@ add("a fall outside the crop is not the crop's",
     return `frame ${got.summary.maxPixelFall}, crop ${got.court.maxPixelFall}`;
   });
 
+add("a fall inside the crop is the crop's as well as the frame's",
+  `frame ${FADE}, crop ${FADE}`, () => {
+    const got = measure(arriveAndFade, { crop: { x0: 0, y0: 0, x1: 32, y1: 32 } });
+    return `frame ${got.summary.maxPixelFall}, crop ${got.court.maxPixelFall}`;
+  });
+/** Three pairs whose deepest fall is the middle one: a summary that kept the
+ *  first pair's fall, or the last, would answer one of the shallow ones. */
+const SHALLOW = 20;
+const fallsInTheMiddle = [
+  frame((fill) => fill(RAMP, GROUND + FADE + 2 * SHALLOW)),
+  frame((fill) => fill(RAMP, GROUND + FADE + SHALLOW)),
+  frame((fill) => fill(RAMP, GROUND + SHALLOW)),
+  frame((fill) => fill(RAMP, GROUND)),
+];
+add("the deepest fall of a sequence is the deepest of its pairs, wherever it lies",
+  `pairs ${SHALLOW},${FADE},${SHALLOW}; summary ${FADE}`, () => {
+    const got = measure(fallsInTheMiddle);
+    return `pairs ${got.pairs.map((p) => p.maxFall).join(",")}; summary ${got.summary.maxPixelFall}`;
+  });
+
 add("a flash inside the crop, one pixel under the frame's minimum and then on it "
   + "(a crop is held to the whole frame's share, not to its own)",
   "full frame green; crop green; full frame red: flickerHighFrameShare; "

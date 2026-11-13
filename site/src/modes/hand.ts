@@ -951,8 +951,10 @@ export function drawHandHand(f: Frame): void {
         // The live edge: every stroke not both fully baked and fully dried,
         // at its own wetness — full ink at the edge, drying behind it. A
         // stroke already in the baked surface is there at the dried register,
-        // so it takes only what is still wet over that; its deposits are thin
-        // enough that the two add to the ink it would have had drawn once.
+        // so it takes only what is still wet over that. The two come close to
+        // the ink it would have had drawn once and do not equal it: nearest
+        // for a stroke on its own, less so where strokes cross, because the
+        // surface saturates a crossing that live strokes add up.
         const bakedBefore = gSteps * stepFrames;
         ctx.save();
         for (let i = 0; i < gm.n; i++) {

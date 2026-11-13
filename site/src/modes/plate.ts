@@ -256,9 +256,10 @@ export function drawPlateHand(f: Frame): void {
     // possession, and gives way to the walk a vertex at a time: while a
     // stroke's live head is inside the possession the clip draws only what
     // lies ahead of it, so the two meet at the head and every part of the
-    // possession is drawn by one of them on every frame. A stroke that began
-    // long before the possession used to drop its clip the moment the walk
-    // reached its first vertex, and stand undrawn until the walk arrived.
+    // possession is drawn by one of them on every frame. The clip cannot
+    // simply end when the walk reaches a stroke's first vertex: a stroke that
+    // began long before the possession would then stand undrawn until the
+    // walk had covered that whole pre-history.
     const bakedBefore = gSteps * stepFrames;
     for (let i = 0; i < gm.n; i++) {
       const at0 = sp.start[i]!;

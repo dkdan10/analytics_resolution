@@ -11,7 +11,7 @@
  * So: for each hand, at each representative beat, the same `t` is reached five
  * ways and the resulting pixels are hashed.
  *
- *   continuous   two seconds of playback at 1/60, landing exactly on t
+ *   continuous   a second of playback at 1/60, landing exactly on t
  *   forward      an earlier beat, then a jump to t
  *   backward     a later beat, then a jump to t
  *   returned     a moment later, then back to t

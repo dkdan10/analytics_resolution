@@ -599,7 +599,9 @@ export const SCALARS = {
       "within ~20/255 of the plate's black (measured: the beat's argument " +
       "was not on screen). This KNOWINGLY bends the one-conserved-DRIP rule for " +
       "exactly one beat, and says so here; the capped segment ceiling still " +
-      "applies above it.",
+      "applies above it. Where the walk has re-laid a possession stroke the " +
+      "lift stays on it while it is wet and dries away with it over " +
+      "GAME_WET_SECONDS, so the re-laying does not drop it in one frame.",
   },
   BEAD_CAP: {
     class: "authored",
@@ -1556,7 +1558,10 @@ export const SCALARS = {
     controls:
       "how long a finished game stroke takes to dry from full ink to " +
       "GAME_DRIED, in seconds on the screen. One value for the hand and the " +
-      "plate. The fall is a straight line, and the age it is measured on runs " +
+      "plate, and the same time for everything that dries with a stroke: the " +
+      "pass beads and shot anchors on both, each from the instant the clock " +
+      "reached it, and on THE HAND the lift ONE_INK gave the possession. " +
+      "The fall is a straight line, and the age it is measured on runs " +
       "from the instant the eased game clock passed the stroke's last " +
       "recorded frame, found through that clock's own inverse - so a stroke " +
       "dries over the same time on screen whether the clock is crawling or " +
