@@ -873,7 +873,7 @@ const instantReport = (extra = {}, row = {}) => ({
   sweep: "t",
   passOffset: PASS_S,
   framesPerBeat: WALK_FRAMES,
-  rows: [{ mode: "plate", beat: `t=${AT_S}`, t: PASS_S + AT_S, ...row }],
+  rows: [{ mode: "plate", beat: `t=${AT_S}`, t: PASS_S + AT_S, frames: WALK_FRAMES, ...row }],
   ...extra,
 });
 const WALKED = { t: String(AT_S), frames: String(WALK_FRAMES) };
@@ -895,6 +895,11 @@ add("a perf page that timed another count of frames, and one that states none",
     instantProblems(instantReport({ framesPerBeat: WALK_FRAMES - 1 })),
     instantProblems(instantReport({ framesPerBeat: undefined })),
   ].join(", "));
+add("a perf report of the frames asked whose row timed another count, and one whose row states none",
+  "1 problem(s), 1 problem(s)", () => [
+    instantProblems(instantReport({}, { frames: WALK_FRAMES + 1 })),
+    instantProblems(instantReport({}, { frames: undefined })),
+  ].join(", "));
 
 const WORKED = {
   work: { syncBakes: 4, syncSorts: 1, revealSteps: 0 },
@@ -905,6 +910,7 @@ const WORKED = {
 add("the lines under a walked row that counted work",
   "work: syncBakes 4, syncSorts 1; in the first frame: syncBakes 1, syncSorts 1 | "
   + `over budget at: ${PASS_S + AT_S} (90.1 ms) | `
+  + "over budget with no work counted in the frame: 0 of 1 | "
   + `syncBakes at: ${PASS_S + AT_S}, ${PASS_S + AT_S + 1} (3) | `
   + `syncSorts at: ${PASS_S + AT_S}`,
   () => perfRowDetail(WORKED).join(" | "));
@@ -913,11 +919,25 @@ add("a walked row that did no whole work, against one from a probe that counted 
     ...perfRowDetail({ work: { syncBakes: 0 }, firstFrameWork: { syncBakes: 0 }, workAt: [] }),
     ...perfRowDetail({}),
   ].join(" | "));
+add("a walked row that states no first frame's work is not printed as one whose first frame did none",
+  "work: syncBakes 2 | syncBakes at: 1 (2)",
+  () => perfRowDetail({ work: { syncBakes: 2, syncSorts: 0 }, workAt: [[1, { syncBakes: 2 }]] })
+    .join(" | "));
 add("a row with more long frames than are printed says how many it left out", "and 2 more",
   () => {
     const many = Array.from({ length: PERF_LIST_SHOWN + 2 }, (_, k) => [PASS_S + k, 20]);
     const [, line] = perfRowDetail({ overBudgetAt: many });
     return line.slice(line.lastIndexOf("and "));
+  });
+add("a long frame with no work counted in it is counted where the printed list has left it out",
+  `over budget with no work counted in the frame: 1 of ${PERF_LIST_SHOWN + 2}`, () => {
+    const many = Array.from({ length: PERF_LIST_SHOWN + 2 }, (_, k) => [PASS_S + k, 20]);
+    const [, , line] = perfRowDetail({
+      work: { revealSteps: PERF_LIST_SHOWN + 1 },
+      overBudgetAt: many,
+      workAt: many.slice(0, -1).map(([t]) => [t, { revealSteps: 1 }]),
+    });
+    return line;
   });
 
 const RESIDENT = { resident: ["points"], missing: [], errors: [] };
@@ -956,6 +976,18 @@ add("perf given a pace that is not whole milliseconds: under one, and between tw
   ].join(", "));
 add("perf given a surface it does not have", "refused: 1",
   () => refusals("perf", { surface: "phone" }));
+add("perf given a count of frames that is not one: a part of a frame, none, fewer than none, a word",
+  "refused: 1, refused: 1, refused: 1, refused: 1", () => [
+    refusals("perf", { frames: "10.5" }), refusals("perf", { frames: "0" }),
+    refusals("perf", { frames: "-3" }), refusals("perf", { frames: "many" }),
+  ].join(", "));
+add("perf given a list of instants, and a word for one", "refused: 1, refused: 1", () => [
+  refusals("perf", { t: `${AT_S},200` }), refusals("perf", { t: "soon" }),
+].join(", "));
+add("perf given one instant and a whole count of frames, and purity given a list of instants",
+  "accepted, accepted", () => [
+    refusals("perf", { ...WALKED, warmup: "0" }), refusals("purity", { t: `${AT_S},200` }),
+  ].join(", "));
 add("perf given a surface and either pace", "accepted, accepted", () => [
   refusals("perf", { range: "plate.hand-over", warmup: "0", ...PACED }),
   refusals("perf", { surface: "overview", ...BY_FRAME }),

@@ -56,12 +56,16 @@
  * A LONG FRAME DOES NOT SAY WHAT IT PAID FOR. The field and the wash count the
  * whole pieces of work they do inside single frames, in `fieldWork` and
  * `washWork`, and each row says what its timed frames added to those counts:
- * `work` over the whole walk, `firstFrameWork` for its first timed frame
- * alone, and `workAt` for every frame that added anything, with its instant
- * and what it added. The first frame stands apart because on an unwarmed row
- * it is a landing on empty caches, which pays for everything at once and is
- * no part of playing forward. The instants are written as `overBudgetAt`
- * writes them, so a long frame and the work behind it carry the same one.
+ * `work` over the whole walk, and `workAt` for every frame that added
+ * anything, with its instant and what it added. An unwarmed row says one
+ * thing more, `firstFrameWork`, its first timed frame's share: that frame is
+ * a landing on empty caches, which pays for everything at once and is no part
+ * of playing forward, so what the walk did after landing is `work` less it. A
+ * warmed row states none, as it states no `coldMs`. Its landing was among the
+ * frames thrown away, its first timed frame is a frame of playing forward like
+ * any other, and taking that frame's share out of `work` would hide work the
+ * walk did. The instants are written as `overBudgetAt` writes them, so a long
+ * frame and the work behind it carry the same one.
  */
 
 import { fieldWork } from "../field";
@@ -167,6 +171,12 @@ type Work = Record<string, number>;
  *  in the objects it is read from. */
 const workNow = (): Work => ({ ...fieldWork, ...washWork });
 
+/** The names the field and the wash both count under. The two are read into
+ *  one record by name, so a shared name would be reported as the wash's count
+ *  alone and the field's lost with no sign of it. None today; the probe
+ *  refuses to run while there is one. */
+const SHARED_COUNTERS = Object.keys(fieldWork).filter((k) => k in washWork);
+
 /** What was counted between two readings: the counters that moved, and by how
  *  much. Empty when none did. */
 function workBetween(before: Work, after: Work): Work {
@@ -180,13 +190,22 @@ function workBetween(before: Work, after: Work): Work {
 
 export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> {
   const { data, schedule, inscriptions } = env;
+  if (SHARED_COUNTERS.length) {
+    throw new Error("counted under one name by the field and by the wash: "
+      + SHARED_COUNTERS.join(", "));
+  }
   const residency = await forceResidency(data, (s) => console.log(s));
 
-  const frames = Number(q.get("frames")) || DEFAULT_FRAMES;
   // Read with `q.has` for the reason `t` is below: an absent parameter must be
-  // the default and never a parsed nothing. A step of zero would time one
-  // instant for the whole run, and a warm-up that is not a count would discard
-  // a fraction of a frame; both are refused rather than rounded.
+  // the default and never a parsed nothing. A count of frames with a part of
+  // a frame in it would be timed as the next whole count and reported as the
+  // count asked. A step of zero would time one instant for the whole run, and
+  // a warm-up that is not a count would discard a fraction of a frame. Each
+  // is refused rather than rounded.
+  const frames = q.has("frames") ? Number(q.get("frames")) : DEFAULT_FRAMES;
+  if (!Number.isInteger(frames) || frames < 1) {
+    throw new Error(`frames is not a count of frames: ${q.get("frames")}`);
+  }
   const step = q.has("step") ? Number(q.get("step")) : DEFAULT_STEP;
   if (!Number.isFinite(step) || step <= 0) {
     throw new Error(`step is not a length of time: ${q.get("step")}`);
@@ -370,10 +389,11 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
     const intervals: number[] = [];
     // What the timed frames added to the renderer's counts of whole work:
     // every counter over the walk, the first frame's share of it, and each
-    // frame that added anything. Summed from the frames' own readings, so the
-    // warm-up before them and the counted pass after them are in none of it:
-    // that pass draws the row's first instant again once the walk is over,
-    // which is a seek backwards and pays for work the walk never did.
+    // frame that added anything. The first frame's share is reported only
+    // where that frame is the landing. Summed from the frames' own readings,
+    // so the warm-up before them and the counted pass after them are in none
+    // of it: that pass draws the row's first instant again once the walk is
+    // over, which is a seek backwards and pays for work the walk never did.
     const work: Work = Object.fromEntries(Object.keys(workNow()).map((k) => [k, 0]));
     const firstFrameWork: Work = { ...work };
     const workAt: [number, Work][] = [];
@@ -446,12 +466,14 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
       // Where in the pass the slowest frame fell, so a stall can be found
       // again and looked at rather than only counted.
       worstAt: Number((t0 + (warmup + worst) * step).toFixed(4)),
-      // The frame drawn on empty caches, which only an unwarmed run times.
-      ...(warmup === 0 ? { coldMs: r2(ms[0]!) } : {}),
+      // The frame drawn on empty caches, which only an unwarmed run times, and
+      // the share of the row's work below that it did. A warmed row's first
+      // timed frame is no landing, and a share stated for it would be taken
+      // out of the row's work as if it were.
+      ...(warmup === 0 ? { coldMs: r2(ms[0]!), firstFrameWork } : {}),
       // The whole pieces of work the renderer counted inside the timed frames,
-      // the first frame's share, and each frame that did any, with its instant.
+      // and each frame that did any, with its instant.
       work,
-      firstFrameWork,
       workAt,
       // What the browser gave between frames, where it set the pace, and each
       // interval that ran long against the pace the run was handed, with the

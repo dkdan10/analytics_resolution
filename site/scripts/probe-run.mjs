@@ -281,6 +281,19 @@ export function flagProblems(kind, { flags, bools }) {
         if (given(k)) out.push(`--${k} does not go with --range: a range is walked whole`);
       }
     }
+    // One instant, because a walk starts from one. A list of them is the
+    // purity probe's; the perf page reads a list as no instant at all and
+    // times every beat in its place, which the report gives away only once
+    // the whole sweep has been taken.
+    if (flags.t !== undefined && !Number.isFinite(Number(flags.t))) {
+      out.push(`--t is one instant in seconds to the perf probe: ${flags.t}`);
+    }
+    // Whole, because a count with a part of a frame in it is timed as the
+    // next whole count and filed as the count asked.
+    if (flags.frames !== undefined
+      && !(Number.isInteger(Number(flags.frames)) && Number(flags.frames) >= 1)) {
+      out.push(`--frames is not a count of frames: ${flags.frames}`);
+    }
     if (flags.step !== undefined
       && !(Number(flags.step) >= PERF_STEP_MIN_S && Number(flags.step) <= PERF_STEP_MAX_S)) {
       out.push(`--step is seconds per frame, from ${PERF_STEP_MIN_S} to ${PERF_STEP_MAX_S}: `
@@ -598,17 +611,20 @@ const PERF_DEFAULT_PACE = null;
 /**
  * Whether a perf report is of the run that was asked for: the ranges, or the
  * instant and how many frames were timed from it, the step, the warm-up, the
- * pace and the surface, each stated by the report and each as asked. A page
- * whose probe reads none of them times its default beats and says nothing,
- * and one handed an instant it cannot read walks every beat for the frames
- * asked: a table that looks like a walk from that instant and is none. A row
- * states its instant a whole pass in, so it is held to the pass the report
- * names plus the instant asked. A pace is held to two things more. The page
- * was visible throughout, because a hidden page is handed its timers and
- * animation frames slowly. And the report says what wait the run was given:
- * under a timer that has to be the wait asked for or a little over it, and
- * under animation frames there is nothing asked to hold it to, so it is only
- * required and goes on to decide what the run may be compared with.
+ * pace and the surface, each stated by the report and each as asked. The
+ * count of frames is held twice, against what the report says it timed to a
+ * row and against what each row says was timed in it, because the first is
+ * what was asked of the page and only the second is what a row's figures are
+ * of. A page whose probe reads none of them times its default beats and says
+ * nothing, and one handed an instant it cannot read walks every beat for the
+ * frames asked: a table that looks like a walk from that instant and is none.
+ * A row states its instant a whole pass in, so it is held to the pass the
+ * report names plus the instant asked. A pace is held to two things more. The
+ * page was visible throughout, because a hidden page is handed its timers
+ * and animation frames slowly. And the report says what wait the run was
+ * given: under a timer that has to be the wait asked for or a little over it,
+ * and under animation frames there is nothing asked to hold it to, so it is
+ * only required and goes on to decide what the run may be compared with.
  */
 export function perfSweepProblems(report, flags) {
   const out = [];
@@ -640,6 +656,13 @@ export function perfSweepProblems(report, flags) {
     out.push(`asked for --frames ${flags.frames}; the probe `
       + (report.framesPerBeat == null ? "states no count of frames to a row"
         : `timed ${report.framesPerBeat} to a row`));
+  } else if (flags.frames !== undefined) {
+    const strays = rows.filter((r) => r.frames !== Number(flags.frames))
+      .map((r) => `${perfKey(r)} (${r.frames ?? "none stated"})`);
+    if (strays.length) {
+      out.push(`asked for --frames ${flags.frames}; rows that timed another count: `
+        + `${strays.join(", ")}`);
+    }
   }
   if (flags.step !== undefined && report.stepSeconds !== Number(flags.step)) {
     out.push(`asked for --step ${flags.step}; the probe stepped by `
@@ -696,21 +719,36 @@ function workWords(work) {
 
 /**
  * The lines under a walked row: the whole work the renderer counted in its
- * timed frames and how much of it the first frame did, each frame over the
- * budget with what it took, and, a line to a counter, each frame that moved
- * it, with by how much where that is more than once. A line to a counter
- * because one that moves often would otherwise crowd the rare ones out of a
- * list that is cut. A long list is cut and says by how many. A row from a
- * probe that counted no work says so, and is never printed as a row that did
- * none.
+ * timed frames, each frame over the budget with what it took, and, a line to
+ * a counter, each frame that moved it, with by how much where that is more
+ * than once. A line to a counter because one that moves often would otherwise
+ * crowd the rare ones out of a list that is cut. A long list is cut and says
+ * by how many. Because the lists are cut, the frames over the budget are also
+ * counted against the frames that counted work, every one of them and not
+ * only those printed: how many were long with no work counted in them is the
+ * question the lists are read for, and a cut list cannot answer it. How much
+ * of the work the first frame did is said only where the row states it, which
+ * a probe does for a row whose first frame is a landing on empty caches: a
+ * row that states none is never printed as a first frame that did none. A row
+ * from a probe that counted no work says so, and is never printed as a row
+ * that did none.
  */
 export function perfRowDetail(row) {
   const some = (xs) => xs.slice(0, PERF_LIST_SHOWN).join(", ")
     + (xs.length > PERF_LIST_SHOWN ? `, and ${xs.length - PERF_LIST_SHOWN} more` : "");
   const out = [row.work === undefined ? "work: not counted by this probe"
-    : `work: ${workWords(row.work)}; in the first frame: ${workWords(row.firstFrameWork)}`];
+    : `work: ${workWords(row.work)}` + (row.firstFrameWork === undefined ? ""
+      : `; in the first frame: ${workWords(row.firstFrameWork)}`)];
   if (row.overBudgetAt?.length) {
     out.push(`over budget at: ${some(row.overBudgetAt.map(([t, ms]) => `${t} (${ms} ms)`))}`);
+    if (row.work !== undefined) {
+      // The two lists carry a frame's instant as one number, written the
+      // same way, so a frame in both is found by equality.
+      const worked = new Set((row.workAt ?? []).map(([t]) => t));
+      const idle = row.overBudgetAt.filter(([t]) => !worked.has(t)).length;
+      out.push(`over budget with no work counted in the frame: ${idle} of `
+        + `${row.overBudgetAt.length}`);
+    }
   }
   const by = new Map();
   for (const [t, work] of row.workAt ?? []) {
@@ -1851,11 +1889,12 @@ async function capture(kind, url, { channel, headless, timeoutMs, quiet = false 
 async function main() {
   const [kind, ...rest] = process.argv.slice(2);
   if (kind !== "purity" && kind !== "perf" && kind !== "continuity") {
-    die("usage: probe-run.mjs <purity|perf> [--mode ids] [--beat ids] [--t s[,s]] "
+    die("usage: probe-run.mjs <purity|perf> [--mode ids] [--beat ids] [--t s] "
       + "[--range ids] [--samples n] [--view fresh] "
       + "[--stop semantic-id] [--display near|room] [--frames n] [--exact] "
       + "[--against names] [--expect-unchanged hand|hand/beat,...] "
       + "[--assert-presentation] [--timeout s] [--headed] [--channel name] [--port n]\n"
+      + "       probe-run.mjs purity [--t s,s,...]\n"
       + "       probe-run.mjs perf [--range ids] [--step s] [--warmup n] "
       + "[--surface probe|laptop|overview] [--pace ms|raf] [--against names] "
       + "[--assert-no-regression]\n"
