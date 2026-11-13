@@ -79,6 +79,14 @@
  *
  * So: run a full sweep before changing a renderer, and read the noise floor
  * before reading a verdict.
+ *
+ * WHERE THE BEATS COME FROM. A default sweep asks at `beatsOf`'s representative
+ * instants, and those are settled frames: none falls where a stroke is being
+ * laid, a game surface is taking on a prefix step, or one phase is handing
+ * over to the next. `&range=<ids>` samples the named passages of `rangesOf`
+ * instead, each on the hand that draws it, and `&t=<s,...>` asks at instants
+ * given outright. Both judge every row against a floor measured inside the
+ * passage that row belongs to, because the floor is a property of the frame.
  */
 
 import { renderTo, type Target } from "../render";
@@ -93,6 +101,7 @@ import {
   cold,
   beatsOf,
   configsOf,
+  DEFAULT_RANGE_SAMPLES,
   diffPixels,
   emit,
   forceResidency,
@@ -100,13 +109,20 @@ import {
   makeTarget,
   MODES,
   narrow,
+  pixelsOf,
+  rangesOf,
+  samplesOf,
+  viewSharing,
   warmUp,
   aboveNoise,
   measureNoiseFloor,
   PROBE_DPR,
   PROBE_H,
   PROBE_W,
+  type Beat,
   type Env,
+  type NoiseFloor,
+  type Range,
 } from "./shared";
 
 const HISTORIES = ["direct", "forward", "backward", "continuous"] as const;
@@ -153,13 +169,111 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
   const surface = makeTarget(exact);
   // Narrowed the same way the perf probe is, and an unmatched name throws
   // rather than silently sweeping nothing. A full sweep is the default.
-  const modes = narrow("hand", MODES, q.get("mode"), (m) => m);
-  let beats = narrow("beat", beatsOf(schedule), q.get("beat"), (b) => b.id);
+  let modes = narrow("hand", MODES, q.get("mode"), (m) => m);
   const semantic = semanticStopById(q.get("stop"));
   const semanticAt = semantic
     ? semanticTime(semantic, schedule, data.slateFile?.span.seconds)
     : null;
-  if (semantic && semanticAt !== null) beats = [{ id: semantic.id, at: semanticAt }];
+  const stopped = semantic !== null && semanticAt !== null;
+
+  /**
+   * What is swept: per hand, one or more groups of beats.
+   *
+   * A group is the unit a noise floor belongs to. The default sweep is one
+   * group for the whole run with one floor, as it has always been. An instant
+   * given by `&t=` is a group of its own, floored on itself. A range is a
+   * group floored on its LAST sample: in the passages that accumulate, which
+   * is most of them, the latest instant is the densest, and in every passage
+   * it is a frame of that passage, which the default's floor beat is not.
+   */
+  interface Group {
+    range: Range | null;
+    beats: readonly Beat[];
+    /** null: the run-wide floor of the default sweep. */
+    floorBeat: Beat | null;
+  }
+  // A stop is one sweep, and an instant or a range is another. The stop used
+  // to win without a word, so the instants asked for beside it were dropped
+  // and the table that came back was filed as if it answered them.
+  if (q.has("stop") && (q.has("t") || q.has("range"))) {
+    throw new Error("stop is one sweep, and t or range is another: ask for one");
+  }
+  // `q.has` first, on the perf probe's precedent: an absent `t` parses to
+  // zero, which is a real instant and a bare one.
+  const timed = q.has("t");
+  const ranged = q.has("range");
+  if (timed && ranged) throw new Error("t and range are two sweeps: ask for one");
+  if (q.has("samples") && !ranged) throw new Error("samples divides a range: name one with range");
+  const sweep = stopped ? "stop" : timed ? "t" : ranged ? "range" : "beats";
+
+  let beats: readonly Beat[] = [];
+  let ranges: readonly Range[] = [];
+  let samples: number | null = null;
+  const groups = new Map<ModeId, Group[]>();
+  if (timed) {
+    const asked = (q.get("t") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+    if (!asked.length) throw new Error("t names no instant");
+    const instants = asked.map((x): Beat => {
+      const at = Number(x);
+      if (!Number.isFinite(at)) throw new Error(`t is not a number of seconds: ${x}`);
+      // Seconds into the loop, as a beat's are. An instant outside it would be
+      // drawn all the same, the pass offset added, as a frame of some other
+      // pass under a name that says otherwise.
+      if (at < 0 || at >= schedule.duration) {
+        throw new Error(`t is not an instant of the loop, which is ${schedule.duration}s long: ${x}`);
+      }
+      return { id: `t=${at}`, at };
+    });
+    // Two spellings of one number are one instant, and two rows under one
+    // name are one row to anything that keys on the name.
+    const twice = instants.filter((b, i) => instants.findIndex((o) => o.id === b.id) !== i);
+    if (twice.length) {
+      throw new Error(`t names an instant more than once: ${twice.map((b) => b.id).join(", ")}`);
+    }
+    beats = narrow("beat", instants, q.get("beat"), (b) => b.id);
+    for (const m of modes) {
+      groups.set(m, beats.map((b) => ({ range: null, beats: [b], floorBeat: b })));
+    }
+  } else if (ranged) {
+    ranges = narrow("range", rangesOf(schedule, data), q.get("range"), (r) => r.id);
+    samples = q.has("samples") ? Number(q.get("samples")) : DEFAULT_RANGE_SAMPLES;
+    if (!Number.isInteger(samples) || samples < 1) {
+      throw new Error(`samples is not a count: ${q.get("samples")}`);
+    }
+    // A range belongs to one hand. A hand asked for that draws none of the
+    // ranges, or a range whose hand was not asked for, would be rows silently
+    // missing from a table somebody will read as complete.
+    const drawn = new Set(ranges.map((r) => r.mode));
+    if (q.has("mode")) {
+      const strays = ranges.filter((r) => !modes.includes(r.mode));
+      if (strays.length) {
+        throw new Error(`not drawn by the hand(s) asked for: `
+          + strays.map((r) => `${r.id} (${r.mode})`).join(", "));
+      }
+      const idle = modes.filter((m) => !drawn.has(m));
+      if (idle.length) throw new Error(`no range asked for is drawn by: ${idle.join(", ")}`);
+    } else {
+      modes = modes.filter((m) => drawn.has(m));
+    }
+    const all: Beat[] = [];
+    for (const r of ranges) {
+      const whole = samplesOf(r, samples);
+      all.push(...whole);
+      const mine = groups.get(r.mode) ?? [];
+      groups.set(r.mode, mine);
+      mine.push({ range: r, beats: whole, floorBeat: whole[whole.length - 1]! });
+    }
+    // `&beat=` narrows the samples drawn, never the floor: one sample asked
+    // for alone is still judged against its own range's last.
+    beats = narrow("beat", all, q.get("beat"), (b) => b.id);
+    for (const mine of groups.values()) {
+      for (const g of mine) g.beats = g.beats.filter((b) => beats.includes(b));
+    }
+  } else {
+    beats = narrow("beat", beatsOf(schedule), q.get("beat"), (b) => b.id);
+    if (stopped) beats = [{ id: semantic.id, at: semanticAt }];
+    for (const m of modes) groups.set(m, [{ range: null, beats, floorBeat: null }]);
+  }
   const display = displayFromQuery(q, false);
   // Every beat is taken on the SECOND pass of the loop, so that continuous
   // playback into the prelude arrives out of the previous loop's coda exactly
@@ -173,8 +287,10 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
     renderTo(tg, t, data, schedule, inscriptions, mode,
       false, false, completedStackState(ops), null, display);
   const draw = (t: number, mode: ModeId, ops: StackOps = 0) => drawOn(surface, t, mode, ops);
-  const pixels = (tg: Target) =>
-    tg.ctx.getImageData(0, 0, PROBE_W * PROBE_DPR, PROBE_H * PROBE_DPR).data;
+  // Each target's own backing, and one width for every comparison: every
+  // surface this probe makes is the default one, so they agree by construction.
+  const pixels = pixelsOf;
+  const width = surface.ctx.canvas.width;
 
   /** The frames a history draws BEFORE the one under test. */
   const replay = (tg: Target, t: number, mode: ModeId, history: History, ops: StackOps): void => {
@@ -257,7 +373,15 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
 
   // Settle every first-use cost before anything is captured. Without this the
   // browser's own warm-up reads as impurity in every hand that draws text.
-  warmUp(draw, beats, base);
+  // The default sweep warms every hand at every beat, as it always has. A
+  // range or an instant belongs to the hands that draw it, so only those are
+  // warmed, each at its own beats.
+  if (sweep === "beats" || sweep === "stop") warmUp(draw, beats, base);
+  else {
+    for (const m of modes) {
+      warmUp(draw, (groups.get(m) ?? []).flatMap((g) => g.beats), base, [m]);
+    }
+  }
 
   // The environment's own variation, measured under the pressure this run
   // creates, before any of it is attributed to the piece.
@@ -288,26 +412,51 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
     return cs[cs.length - 1]!.ops;
   };
   let floorTarget: Target = surface;
-  const noise = measureNoiseFloor(
-    () => {
-      floorTarget = makeTarget(exact);
-      for (const mode of modes) {
-        drawOn(floorTarget, base + heaviest.at, mode, heaviestOps(mode));
-      }
-    },
-    () => pixels(floorTarget),
-    PROBE_W * PROBE_DPR,
-  );
-  const surfaceNoise = measureNoiseFloor(
-    () => {
-      for (const mode of modes) draw(base + heaviest.at, mode, heaviestOps(mode));
-    },
-    () => pixels(surface),
-    PROBE_W * PROBE_DPR,
-  );
-  console.log(`noise floor: ${noise.channels} channels, max delta ${noise.maxDelta}, `
-    + `under ${noise.ballastMB} MB of ballast `
-    + `(surface arm: ${surfaceNoise.channels} at ${surfaceNoise.maxDelta})`);
+  /** Both arms' floors on the given frames, each measured the way its arm
+   *  captures. */
+  const floorsOn = (frames: readonly { mode: ModeId; at: number }[]) => ({
+    renderer: measureNoiseFloor(
+      () => {
+        floorTarget = makeTarget(exact);
+        for (const f of frames) drawOn(floorTarget, base + f.at, f.mode, heaviestOps(f.mode));
+      },
+      () => pixels(floorTarget),
+      width,
+    ),
+    surface: measureNoiseFloor(
+      () => {
+        for (const f of frames) draw(base + f.at, f.mode, heaviestOps(f.mode));
+      },
+      () => pixels(surface),
+      width,
+    ),
+  });
+  /**
+   * THE DEFAULT SWEEP'S FLOOR IS RUN-WIDE; A RANGE'S OR AN INSTANT'S IS ITS OWN.
+   *
+   * `heaviest` falls back to the first beat when no window beat is in the
+   * sweep. For the default sweep that is a narrowed run somebody chose. For a
+   * range or an instant it would be whichever sample happened to come first —
+   * a floor taken on one passage and applied to another, which is the mistake
+   * recorded above, made again with a different light frame. So those sweeps
+   * measure no run-wide floor at all: each group is floored on its own beat,
+   * just before its rows are taken, and every row says which beat that was so
+   * a driver can refuse one judged from outside its own range.
+   */
+  const perGroup = sweep === "t" || sweep === "range";
+  const runWide = perGroup
+    ? null
+    : floorsOn(modes.map((mode) => ({ mode, at: heaviest.at })));
+  const groupFloors: {
+    mode: ModeId; range: string | null; beat: string;
+    renderer: NoiseFloor; surface: NoiseFloor;
+  }[] = [];
+  const say = (where: string, f: { renderer: NoiseFloor; surface: NoiseFloor }): void => {
+    console.log(`noise floor${where}: ${f.renderer.channels} channels, `
+      + `max delta ${f.renderer.maxDelta}, under ${f.renderer.ballastMB} MB of ballast `
+      + `(surface arm: ${f.surface.channels} at ${f.surface.maxDelta})`);
+  };
+  if (runWide) say("", runWide);
 
   const rows: unknown[] = [];
   let impure = 0;
@@ -320,8 +469,27 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
 
   for (const mode of modes) {
    const configs = narrow("configuration", configsOf(mode), q.get("ops"), (c) => c.id);
+   // Floored once per hand and group, not once per configuration: the floor
+   // is taken at the densest configuration whichever one a row is drawn at.
+   const floored = (groups.get(mode) ?? []).filter((g) => g.beats.length).map((g) => {
+     if (!g.floorBeat) return { ...g, floors: runWide! };
+     const floors = floorsOn([{ mode, at: g.floorBeat.at }]);
+     say(` ${mode}/${g.range?.id ?? g.floorBeat.id} on ${g.floorBeat.id}`, floors);
+     groupFloors.push({
+       mode, range: g.range?.id ?? null, beat: g.floorBeat.id, ...floors,
+     });
+     return { ...g, floors };
+   });
+   // The round-trip's frame: the run's heaviest beat, or this hand's own
+   // last floor beat when the sweep has no run-wide one.
+   const densest = perGroup
+     ? floored[floored.length - 1]?.floorBeat ?? heaviest
+     : heaviest;
    for (const cfg of configs) {
-    for (const beat of beats) {
+    for (const group of floored) {
+    const noise = group.floors.renderer;
+    const surfaceNoise = group.floors.surface;
+    for (const beat of group.beats) {
       // Hand the main thread back between beats. Five thousand renders onto a
       // software-rasterised surface is minutes of work, and a page that cannot
       // repaint or answer a console question for that long looks hung rather
@@ -360,7 +528,7 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
           if (h === "direct") continue;
           if (hashes[h] === hashes.direct) continue;
           identical = false;
-          diffs[h] = diffPixels(ref, shots[h]!, PROBE_W * PROBE_DPR);
+          diffs[h] = diffPixels(ref, shots[h]!, width);
           if (aboveNoise(diffs[h]!, floor)) real = true;
         }
         return {
@@ -368,7 +536,7 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
           controlStable: stable,
           identical,
           real,
-          ...(stable ? {} : { control: diffPixels(ref, control, PROBE_W * PROBE_DPR) }),
+          ...(stable ? {} : { control: diffPixels(ref, control, width) }),
           ...(identical ? {} : { diffs }),
         };
       };
@@ -398,6 +566,15 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
         ops: mode === "stack" ? opsToken(cfg.ops) : "-",
         beat: beat.id,
         t: Number(t.toFixed(4)),
+        // Only where the floor is the group's own. The default sweep's rows
+        // read exactly as they always have, and its one floor is in the
+        // report's head.
+        ...(group.floorBeat ? {
+          range: group.range?.id ?? null,
+          noiseFloorBeat: group.floorBeat.id,
+          noiseFloorT: Number((base + group.floorBeat.at).toFixed(4)),
+          noiseFloor: noise,
+        } : {}),
         verdict,
         controlStable: stable,
         hashes: renderer.hashes,
@@ -410,17 +587,18 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
       });
       if (surfaceVerdict === "IMPURE") surfaceImpure++;
     }
+    }
     // Once per (mode, configuration), on the heaviest beat rather than on every
     // beat in the sweep: the round-trip asks whether the renderer keeps anything
     // across a configuration change, and the frame that has the most for it to
     // keep is the one worth asking on. One excursion per operation per config is
     // already the expensive part of a stack sweep.
     if (mode === "stack") {
-      const rt = roundTrip(base + heaviest.at, mode, cfg.ops);
+      const rt = roundTrip(base + densest.at, mode, cfg.ops);
       if (!rt.clean) roundTripFailures++;
       console.log(`round-trip ${mode}[${cfg.id}]: ${rt.clean ? "clean" : `LEFT STATE: ${rt.failures.join(", ")}`}`);
       roundTrips.push({
-        mode, config: cfg.id, ops: opsToken(cfg.ops), beat: heaviest.id, ...rt,
+        mode, config: cfg.id, ops: opsToken(cfg.ops), beat: densest.id, ...rt,
       });
     }
    }
@@ -454,6 +632,14 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
     verdict: inconclusive ? "INCONCLUSIVE"
       : impure === 0 && roundTripFailures === 0 ? "PURE" : "IMPURE",
     surface: { width: PROBE_W, height: PROBE_H, dpr: PROBE_DPR },
+    // Whether every target drew through one View, as the gallery does, or
+    // through a new one each — the demonstration arm, and not the gallery.
+    view: viewSharing(),
+    sweep,
+    // What the row times are offset by, so a range's own bounds can be laid
+    // against them.
+    passOffset: base,
+    ...(ranged ? { samples, ranges } : {}),
     display,
     histories: HISTORIES,
     reference: "direct",
@@ -464,8 +650,11 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
     impureBeats: impure,
     withinNoiseBeats: withinNoise,
     inconclusiveBeats: inconclusive,
-    noiseFloor: noise,
-    noiseFloorBeat: heaviest.id,
+    // Per group there is no one floor, so the head carries the worst of them
+    // and the rows carry their own.
+    noiseFloor: runWide ? runWide.renderer : worst(groupFloors.map((g) => g.renderer)),
+    noiseFloorBeat: runWide ? heaviest.id : "per row",
+    ...(runWide ? {} : { noiseFloors: groupFloors }),
     totalBeats: rows.length,
     /** What the verdict rests on, said in the report rather than only in the
      *  source, because a reader meets the numbers before they meet the code. */
@@ -492,7 +681,9 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
       failures: roundTripFailures,
       rows: roundTrips,
     },
-    surfaceNoiseFloor: surfaceNoise,
+    surfaceNoiseFloor: runWide
+      ? runWide.surface
+      : worst(groupFloors.map((g) => g.surface)),
     rasterisation: exact
       ? "software (willReadFrequently), pinned - the floor is zero and a single "
         + "differing channel is real"
@@ -501,6 +692,16 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
         + "pins software rasterisation instead, and takes hours)",
     byMode,
     rows,
+  };
+}
+
+/** The largest of several floors on each axis, for a report's head. */
+function worst(floors: readonly NoiseFloor[]): NoiseFloor | null {
+  if (!floors.length) return null;
+  return {
+    channels: Math.max(...floors.map((f) => f.channels)),
+    maxDelta: Math.max(...floors.map((f) => f.maxDelta)),
+    ballastMB: floors[0]!.ballastMB,
   };
 }
 
