@@ -293,6 +293,10 @@ export async function perfProbe(env: Env, q: URLSearchParams): Promise<unknown> 
       p95Ms: r2(q4.p95),
       maxMs: r2(q4.max),
       overBudget: ms.filter((v) => v > FRAME_BUDGET_MS).length,
+      // Each of them, with when it fell and how long it took: a count cannot
+      // tell one long stall from a scattering of short ones.
+      overBudgetAt: ms.flatMap((v, k) => (v > FRAME_BUDGET_MS
+        ? [[Number((t0 + (warmup + k) * step).toFixed(4)), r2(v)]] : [])),
       // Where in the pass the slowest frame fell, so a stall can be found
       // again and looked at rather than only counted.
       worstAt: Number((t0 + (warmup + worst) * step).toFixed(4)),
