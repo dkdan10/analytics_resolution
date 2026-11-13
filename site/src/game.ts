@@ -7,9 +7,10 @@
  * (bone — bodies fainter and thinner, the ball at the traces' own weights)
  * and the measured event punctuation (shot anchors in the bloom's idiom,
  * pass beads at PASS_MARK_R). THE HAND's zone-hue paint physics is NOT
- * reimplemented here: hand.ts walks the same spans through `walkGame` and
- * supplies its own `paintStroke` — one implementation of the paint, two
- * consumers, the project's own zone.ts rule.
+ * reimplemented here: hand.ts reads the same spans and the same
+ * `strokeReach` and supplies its own `paintStroke` — one clock for both
+ * consumers and one implementation of the paint, the project's own zone.ts
+ * rule.
  *
  * Nothing here reads `t` or caches a surface: the walkers are pure functions
  * of (artifact, uptoFrame), and every cached quantity is a WeakMap-keyed
@@ -159,22 +160,6 @@ export function strokeFrames(s: StrokeClock, i: number): number {
   return frames;
 }
 
-/** Frames inside a stroke → the share of its vertex COUNT the measured dts
- *  have passed, in whole vertices. No drawer reads it: a drawn length is a
- *  `strokeReach`, which keeps the part of a segment this rounds away. */
-export function timeFrac(game: Game, i: number, frames: number): number {
-  if (frames <= 0) return 0;
-  const first = game.first[i]!;
-  const n = game.count[i]!;
-  let k = 1;
-  let cum = 0;
-  while (k < n && cum + game.dt[first + k]! <= frames) {
-    cum += game.dt[first + k]!;
-    k++;
-  }
-  return Math.min(1, k / n);
-}
-
 interface Spans {
   /** Absolute start frame per stroke (period base + period-relative start). */
   start: Float64Array;
@@ -201,29 +186,6 @@ export function strokeSpans(game: Game, gf: GameFile): Spans {
     spans.set(game, s);
   }
   return s;
-}
-
-/**
- * Visit every stroke the clock has reached, in index order (the shipped
- * order, which carries no derive-order structure). `drawn` is the fraction
- * of the stroke's own painted frames; `age` is frames since it finished
- * (0 while still wet at the edge).
- */
-export function walkGame(
-  game: Game,
-  gf: GameFile,
-  fromFrame: number,
-  uptoFrame: number,
-  visit: (i: number, drawn: number, age: number) => void,
-): void {
-  const s = strokeSpans(game, gf);
-  for (let i = 0; i < game.n; i++) {
-    const st = s.start[i]!;
-    if (st >= uptoFrame || st < fromFrame) continue;
-    const d = s.dur[i]!;
-    const drawn = d > 0 ? Math.min(1, (uptoFrame - st) / d) : 1;
-    visit(i, drawn, Math.max(0, uptoFrame - (st + d)));
-  }
 }
 
 const boneOf = (alpha: number): string => `rgba(${BONE_RGB}, ${alpha})`;
