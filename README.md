@@ -1,12 +1,14 @@
 # FADEAWAY
 
+by **Daniel Keinan** · built with AI coding agents (Claude Code and Codex) as the implementers;
+the questions, the data decisions, the rules and the verification design are mine, and I did not
+hand-write the production code · code [MIT](LICENSE) · [![CI](https://github.com/dkdan10/analytics_resolution/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/dkdan10/analytics_resolution/actions/workflows/ci.yml)
+
 Every regular-season NBA shot attempt since 1996, drawn on one half-court, showing where the
 league's own record grew sharper, where it grew vaguer, and what it never wrote down. A browser
-artwork and the data pipeline behind it, by Daniel Keinan: a Python pipeline over the shot logs
-and the league's one public season of player tracking, a TypeScript renderer on Canvas 2D, and a
-CI gate that checks every published figure.
-
-[![CI](https://github.com/dkdan10/analytics_resolution/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/dkdan10/analytics_resolution/actions/workflows/ci.yml)
+artwork and the data pipeline behind it: a Python pipeline over the shot logs and the league's
+one public season of player tracking, a TypeScript renderer on Canvas 2D, and a CI gate that
+checks every published figure.
 
 **Live:** <https://dkdan10.github.io/analytics_resolution/> (a short guided overview, with the
 full work one click away; made for a laptop screen) · **Paper:** [CONTESTED: How Data Is
@@ -41,8 +43,9 @@ smoothing it over, and the companion paper argues what it means.
   figure in this README to the artifact it came from. A fault-injection catalogue seeds defects into copies of the
   artifacts and documents, and each of 121 seeded defects must fail the specific check that
   owns it. The Python and TypeScript sides share one committed fixture for the league's zone map
-  and one declared byte layout per binary format. CI runs the gate and the gated build on every
-  push to master and every pull request. Details in [docs/verification.md](docs/verification.md).
+  and one declared byte layout per binary format. CI runs the gate, the window-stage
+  fixtures, the hero-caliper check and the gated build on every push to master and every pull
+  request. Details in [docs/verification.md](docs/verification.md).
 - **The hard problem:** between the tracking feed and the shot log, the event numberings disagree
   in 101 of the 632 tracked games, by a small constant, so every shot in those games silently
   takes its neighbour's coordinate. Each game's offset is calibrated by letting its detected ball
@@ -127,5 +130,4 @@ itself, and no bulk raw data is committed. The site serves only the files on a r
 allowlist (`pipeline/deploy_allowlist.json`), checked against the real build.
 
 The repository keeps its working title, `analytics_resolution`, because the paper and the live
-URL cite it. Written in Python and TypeScript with the help of an AI coding assistant; the
-questions, the data decisions, the rules and the verification design are the author's.
+URL cite it.
