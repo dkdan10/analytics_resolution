@@ -1566,17 +1566,6 @@ export const SCALARS = {
       "is laid inside one display frame is a flash, and the wet edge cannot " +
       "be followed.",
   },
-  GAME_WET_S: {
-    class: "authored",
-    value: 2,
-    material: true,
-    controls:
-      "how long an annotation on THE HAND - a pass bead or a shot anchor - " +
-      "rides the wet edge before it is gone, in seconds of the game's own " +
-      "feed. The strokes, and THE PLATE's annotations, dry on " +
-      "GAME_WET_SECONDS. Longer and more marks stand on a frame; shorter and " +
-      "a mark is gone before the frame that would have shown it.",
-  },
   WET_STROKES: {
     class: "authored",
     value: 6,
@@ -1800,7 +1789,6 @@ export const WASH_ALPHA: number = SCALARS.WASH_ALPHA.value;
 export const GAME_CLOCK_K: number = SCALARS.GAME_CLOCK_K.value;
 export const GAME_DRIED: number = SCALARS.GAME_DRIED.value;
 export const GAME_WET_SECONDS: number = SCALARS.GAME_WET_SECONDS.value;
-export const GAME_WET_S: number = SCALARS.GAME_WET_S.value;
 export const WET_STROKES: number = SCALARS.WET_STROKES.value;
 export const YIELD_CORE_W: number = SCALARS.YIELD_CORE_W.value;
 export const YIELD_PENUMBRA_W: number = SCALARS.YIELD_PENUMBRA_W.value;

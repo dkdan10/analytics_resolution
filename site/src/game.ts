@@ -22,7 +22,6 @@ import { BONE_RGB } from "./palette";
 import {
   GAME_CLOCK_K,
   GAME_DRIED,
-  GAME_WET_S,
   GAME_WET_SECONDS,
   PASS_MARK_ALPHA,
   PASS_MARK_R,
@@ -44,11 +43,6 @@ import { prefixCacheGeneration } from "./prefix";
  *  game — one cache granularity for both consumers (hand and plate), a
  *  composition constant like STROKE_STEP, not a material. */
 export const GAME_PREFIX_STEPS = 40;
-
-/** How long an annotation on THE HAND rides the wet edge, in seconds of the
- *  game's own feed. Declared in the register because it decides which marks
- *  are on a frame. */
-export { GAME_WET_S };
 
 /** Artifact identity for cache keys — the hand's own WeakMap idiom, exported
  *  so both surfaces key the same decoded object the same way. */
@@ -435,39 +429,27 @@ export function plateStroke(
 /** Every event the clock has reached, punctuated: a pass is one bone bead at
  *  the frame the ball reached its receiver; a shot is the bloom's own anchor
  *  idiom — the dot the record kept, held brighter than the line around it.
- *  `clip` additionally admits events inside an absolute-frame window the
- *  walk has not reached yet — the nested possession's own annotations, which
- *  the game's clock later replaces record-for-record. `sinceFrame` narrows
- *  the punctuation to the wet edge: THE HAND lets an annotation dry away
- *  with the motion it marked (the filed record's drops are what persists
- *  there), while THE PLATE — ALL the information, by design — omits
- *  it and keeps every mark. */
+ *  All of them at one ink: THE PLATE — ALL the information, by design — keeps
+ *  every mark at the dried register this way, and the marks that are still
+ *  wet go over them through `drawGameEventsWet`. */
 export function drawGameEvents(
   ctx: CanvasRenderingContext2D,
   view: View,
   gf: GameFile,
   uptoFrame: number,
   alpha: number,
-  clip?: { from: number; to: number },
-  sinceFrame?: number,
 ): void {
   if (alpha <= 0.002) return;
   // The Plate holds the completed game's annotations for most of the Window.
   // Their geometry is static; only ink changes in CLOSE. Batch that one case
-  // directly on the destination. Dynamic, clipped and wet-edge calls retain
-  // the original per-event path below.
-  if (clip === undefined && sinceFrame === undefined
-      && uptoFrame >= gameTotalFrames(gf)) {
+  // directly on the destination. A game still arriving keeps the per-event
+  // path below.
+  if (uptoFrame >= gameTotalFrames(gf)) {
     drawCompletedGameEvents(ctx, view, gf, alpha);
     return;
   }
   const b = frameBases(gf);
-  const at = (e: GameEvent): number => (b.get(e.p) ?? 0) + e.f;
-  const due = (e: GameEvent): boolean => {
-    const f = at(e);
-    if (clip !== undefined && f >= clip.from && f <= clip.to && f > uptoFrame) return true;
-    return f <= uptoFrame && (sinceFrame === undefined || f > sinceFrame);
-  };
+  const due = (e: GameEvent): boolean => (b.get(e.p) ?? 0) + e.f <= uptoFrame;
   ctx.save();
   const passR = Math.max(1, view.s(PASS_MARK_R));
   ctx.fillStyle = boneOf(Math.min(1, PASS_MARK_ALPHA * alpha));

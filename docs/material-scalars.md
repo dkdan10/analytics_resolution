@@ -4,7 +4,7 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**157 scalars**, 116 of them material: 2 measured, 3 geometry, 152 authored.
+**156 scalars**, 115 of them material: 2 measured, 3 geometry, 151 authored.
 
 A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts`, `prefix.ts`, `inscription.ts`, `modes/ledger.ts`, `modes/census.ts`, `palette.ts`, `modes/stack.ts`, `modes/operations.ts`, `modes/fieldlayer.ts`, `modes/shared.ts`, `game.ts`, `wash.ts`, `modes/plate.ts`, `modes/field.ts`, `render.ts`, `modes/index.ts`, `plate.ts`, `textatlas.ts`, `main.ts`, `overview.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
@@ -322,8 +322,6 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   how far a game stroke dims once the wet edge has passed it — the drying, distinct from the wash beneath. 1 leaves the whole game as bright as its newest gesture and the eye loses the edge; too low and the game exists only at its leading seconds. The first value tried was 0.45, and the first frames falsified it: a whole game's strokes at that ink saturate into a solid zone-coloured poster that buries the filed record beneath — the value here is the measured correction.
 - **GAME_WET_SECONDS** — **0.4**  
   how long a finished game stroke takes to dry from full ink to GAME_DRIED, in seconds on the screen. One value for the hand and the plate. The fall is a straight line, and the age it is measured on runs from the instant the eased game clock passed the stroke's last recorded frame, found through that clock's own inverse - so a stroke dries over the same time on screen whether the clock is crawling or racing through the feed. Longer and more of the game is bright at once, toward the saturated poster GAME_DRIED exists to prevent, and a stoppage in the feed reads as a held glow; shorter and a stroke that is laid inside one display frame is a flash, and the wet edge cannot be followed.
-- **GAME_WET_S** — **2**  
-  how long an annotation on THE HAND - a pass bead or a shot anchor - rides the wet edge before it is gone, in seconds of the game's own feed. The strokes, and THE PLATE's annotations, dry on GAME_WET_SECONDS. Longer and more marks stand on a frame; shorter and a mark is gone before the frame that would have shown it.
 - **WET_STROKES** — **6**  
   how many further strokes arrive while a season stroke in THE HAND is drawn from end to end: its head travels the stroke's own recorded time over that interval. At one each stroke is whole almost as it appears; larger values leave more strokes part-drawn at the season's edge.
 - **PLATE_WINDOW_FIELD_DIM** — **0.55**  

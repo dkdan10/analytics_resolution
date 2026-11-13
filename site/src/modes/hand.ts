@@ -100,9 +100,8 @@
 
 import { factNum, type PaintFile, type Slate, type Strokes, type WindowFile } from "../data";
 import {
-  drawGameEvents,
+  drawGameEventsWet,
   GAME_PREFIX_STEPS,
-  GAME_WET_S,
   gameClock,
   gameTotalFrames,
   gameWetness,
@@ -920,10 +919,6 @@ export function drawHandHand(f: Frame): void {
       const total = gameTotalFrames(gf);
       const pos = possessionFrames(gf);
       const gameFrame = win.game > 0 ? gameClock(win.game) * total : 0;
-      // The feed frame the annotations' wet edge is counted from. It keeps
-      // moving at true rate once the game's own clock has stopped.
-      const dryFrame = gameFrame
-        + Math.max(0, st.phase - beatGame.to) * secondsFor(WINDOW_YEAR) * gf.hz;
       // DRYING IS COUNTED ON THE SCREEN, not on the feed: seconds since the
       // eased clock passed a share of the game phase, from the raw phase
       // because the beat's own progress stops at its end and a stroke laid
@@ -935,7 +930,6 @@ export function drawHandHand(f: Frame): void {
         * secondsFor(WINDOW_YEAR);
       const gEnv = remains * (1 - win.wash);
       const sp = strokeSpans(gm, gf);
-      const wetFrames = GAME_WET_S * gf.hz;
       const stepFrames = Math.ceil(total / GAME_PREFIX_STEPS);
       const gSteps = Math.floor(gameFrame / stepFrames);
       const bakedGame = prefixSurface(
@@ -1011,11 +1005,12 @@ export function drawHandHand(f: Frame): void {
       ctx.restore();
 
       // The measured annotations: pass beads and shot anchors riding the WET
-      // EDGE — each dries away with the motion it marked (the filed record's
-      // drops are what persists on this hand; THE PLATE keeps every mark).
-      // The possession's own annotations hold until the walk re-lays them.
-      drawGameEvents(ctx, view, gf, gameFrame, gEnv,
-        { from: pos.f0, to: clipUpto }, dryFrame - wetFrames);
+      // EDGE — each lands whole and dries away with the motion it marked, on
+      // the strokes' own drying time (the filed record's drops are what
+      // persists on this hand; THE PLATE keeps every mark). The possession's
+      // own annotations hold until the walk re-lays them.
+      drawGameEventsWet(ctx, view, gf, gameFrame, gEnv,
+        { from: pos.f0, to: clipUpto }, (u) => gameWetness(ageOf(u)));
     }
 
     const offsets = paint.day_offsets;
