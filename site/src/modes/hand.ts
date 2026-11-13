@@ -141,6 +141,7 @@ import {
   SPLOTCH_MAX_R,
   SPLOTCH_MIN_R,
   SPLOTCH_VISIBLE,
+  WET_STROKES,
 } from "../scalars";
 import { secondsFor, WINDOW_YEAR } from "../timeline";
 import { pinCoordOf } from "./fieldlayer";
@@ -193,10 +194,6 @@ const DROP_STEP = 2048;
 /** The same, for strokes. Smaller, because the tail is also the wet edge — the
  *  gesture still being laid — and it is redrawn at a partial length. */
 const STROKE_STEP = 128;
-/** How much of a stroke's own length the wet edge has drawn when it is this far
- *  behind the arrival point. A gesture arrives over a few strokes' worth of
- *  time rather than appearing whole. */
-const WET_STROKES = 6;
 
 export interface Regimes {
   v10: number;

@@ -4,9 +4,9 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**148 scalars**, 107 of them material: 2 measured, 3 geometry, 143 authored.
+**156 scalars**, 115 of them material: 2 measured, 3 geometry, 151 authored.
 
-A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts`, `prefix.ts`, `inscription.ts`, `modes/ledger.ts`, `modes/census.ts`, `palette.ts`, `modes/stack.ts`, `modes/operations.ts`, `modes/fieldlayer.ts`, `modes/shared.ts`, `game.ts`, `wash.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
+A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts`, `prefix.ts`, `inscription.ts`, `modes/ledger.ts`, `modes/census.ts`, `palette.ts`, `modes/stack.ts`, `modes/operations.ts`, `modes/fieldlayer.ts`, `modes/shared.ts`, `game.ts`, `wash.ts`, `modes/plate.ts`, `modes/field.ts`, `render.ts`, `modes/index.ts`, `plate.ts`, `textatlas.ts`, `main.ts`, `overview.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
 ## measured
 
@@ -54,6 +54,12 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   how much of the stone's light is the ball's time, under the shots' endings — the whole-layer weight the beat envelope multiplies. The residence may never outshine the record it contextualises: raise it and the dwelling starts to compete with the endings for the plate; lower it and the window's ground goes back to bare stone.
 - **OLD_YIELD_STRENGTH** — **0.65**  
   how much of the previous season's light the arriving bodies' wake takes down, per pass of the two-width penumbra (the core compounds both passes; below 1 the old marks always survive to a wash tone). At 0 the entry collision returns — the possession drawn into an undimmed prior field; at 1 the wake CLEARS the old season along the paths, which the entry rule forbids: the transition must stay a recession, never a cut.
+- **YIELD_CORE_W** — **2**  
+  how wide the wake's core is, in multiples of the residence's cell-splat radius: the band along each arriving path where the old season is taken down at the full OLD_YIELD_STRENGTH. Wider and the possession clears a road through the prior field; narrower and the new strokes sit directly on undimmed old marks.
+- **YIELD_PENUMBRA_W** — **3.2**  
+  how far the wake's soft edge reaches, in the same multiples: the outer band, taken down more gently, that keeps the core from reading as a hard-edged trench. At the core's own width the edge is a line.
+- **YIELD_PENUMBRA_A** — **0.35**  
+  how much of OLD_YIELD_STRENGTH the soft edge applies. Higher and the outer band dims as far as the core, so the wake simply looks wider; at nothing there is no edge and the core's boundary shows.
 - **WINDOW_WET_GAIN** — **3**  
   how far above its folded tone a record lands while its day is wet — the excess is this multiple of the record's own fold increment, drying back to exactly that increment. At 0 the front vanishes and the season beat returns to its sub-liminal fold; low and the front sinks under the finished game web; high and the live day outshines the accumulated season it is filing into. Probe-chosen: the smallest value whose front sustains the ledger-interior visibility class at a median-sized day.
 - **WINDOW_WET_DAYS** — **1**  
@@ -314,6 +320,16 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   the easing of the game phase's clock over the found game's own frames: frame(u) = (e^(k·u) − 1)/(e^k − 1) of the whole game, SEASON_CLOCK_K's curve one scale down. The feed underneath is measured; only the easing is authored. Material because it decides which strokes exist on a mid-phase frame. It shares the season clock's gentler acceleration so the game develops instead of stalling and then arriving as a rush.
 - **GAME_DRIED** — **0.12**  
   how far a game stroke dims once the wet edge has passed it — the drying, distinct from the wash beneath. 1 leaves the whole game as bright as its newest gesture and the eye loses the edge; too low and the game exists only at its leading seconds. The first value tried was 0.45, and the first frames falsified it: a whole game's strokes at that ink saturate into a solid zone-coloured poster that buries the filed record beneath — the value here is the measured correction.
+- **GAME_WET_S** — **2**  
+  how long a finished game stroke stays wet - at full ink - before it dries to GAME_DRIED, in seconds of the game's own feed. One value for the hand and the plate. Longer and more of the game is bright at once, toward the saturated poster GAME_DRIED exists to prevent; shorter and a stroke dims almost as it lands, so the wet edge is hard to follow.
+- **WET_STROKES** — **6**  
+  over how many strokes behind the newest one a season stroke in THE HAND is still being drawn along its own length. A gesture arrives across this many strokes' worth of time; at one each stroke appears whole, and larger values leave more half-drawn strokes at the edge.
+- **PLATE_WINDOW_FIELD_DIM** — **0.55**  
+  how much of the season's filed field the plate takes down while the window's game is drawn over it. At nothing the tracked strokes are laid on a field at full brightness and the two records cannot be told apart; at one the field is gone and the game floats on bare stone.
+- **FIELD_INSCRIPTION_ALPHA** — **0.8**  
+  the opacity of the struck numerals in THE FIELD. At one they sit as bright as on the plate and compete with the field this hand is for; lower and the numbers recede until the measure they state is lost.
+- **HAND_NIGHT_GROUND_ALPHA** — **0.35**  
+  how much of the finished night's slate THE HAND keeps as ground beneath the arriving season paint. At one the night stays at full strength and the season is painted into it; at nothing the night vanishes the moment the season begins.
 - **PASS_MARK_R** — **2.5**  
   a pass bead's radius in court tenths at view scale: the measured instant the ball reached its receiver, punctuated without being narrated. Larger and ~580 beads become the drawing; smaller and the annotation is invisible.
 - **PASS_MARK_ALPHA** — **0.5**  

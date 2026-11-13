@@ -11,6 +11,8 @@
  * score fail loudly.
  */
 
+import { HAND_NIGHT_GROUND_ALPHA } from "./scalars";
+
 export const WINDOW_DURATION_SECONDS = 150;
 
 /** A normalized interval in any authored score. */
@@ -122,8 +124,10 @@ export const HAND_NIGHT_FROM_PHASE =
   BEAT_SEASON.from - phaseAtWindowSecond(HAND_NIGHT_SECONDS);
 /** CLOSE-local point by which the Hand's closing inventory is fully present. */
 export const HAND_INVENTORY_FULL_CLOSE_LOCAL = 0.65;
-/** Completed NIGHT ground retained beneath the arriving season paint. */
-export const HAND_NIGHT_GROUND_ALPHA = 0.35;
+/** Completed NIGHT ground retained beneath the arriving season paint.
+ *  Declared in the register; named here because it is the score that says
+ *  when it applies. */
+export { HAND_NIGHT_GROUND_ALPHA };
 
 export function handWindowPhases(nightSeconds: number = HAND_NIGHT_SECONDS) {
   const nightFrom = BEAT_SEASON.from

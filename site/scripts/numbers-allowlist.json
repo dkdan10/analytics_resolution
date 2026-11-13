@@ -252,9 +252,9 @@
   ],
   "material": [
     {
-      "file": "modes/hand.ts",
-      "text": "const GAME_SPLIT = 4 / 9;",
-      "why": "a phase anchor like KEPT_CREST and PLATE_SHELL_FROM_PHASE - where the shared night beat subdivides, a composition constant, not a material. 4/9 of the shared beat gives the night sub-beat exactly the slate's true-rate span. The sink pattern only matches because SPLIT contains LIT."
+      "file": "modes/field.ts",
+      "text": "const fade = st.act === 3",
+      "why": "the digit names an act, not a quantity: the line asks whether the frame is in the window before choosing which envelope the attribution fades by. Both envelopes are composition, declared in the score. The sink matches because the variable is called fade."
     }
   ]
 }

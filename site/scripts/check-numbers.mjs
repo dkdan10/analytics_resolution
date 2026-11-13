@@ -145,6 +145,26 @@ const MARK_LAYERS = [
   //   entire materiality lives here.
   /^game\.ts$/,
   /^wash\.ts$/,
+  // Every remaining file that holds a canvas context, listed together and for
+  // one reason: two of them drew marks from literals for as long as they were
+  // off this list, and nothing said so.
+  //
+  // modes/plate.ts, modes/field.ts — the plate's and the field's own hands.
+  //   Each composes layers at alphas and widths of its own, and those reach
+  //   the frame exactly as a renderer's do.
+  // render.ts, modes/index.ts — where a frame is assembled and a hand chosen.
+  //   Neither should hold a material value, which is the reason to look.
+  // plate.ts, textatlas.ts — the floor's engraving and the lettering's raster.
+  // main.ts, overview.ts — the gallery and the overview compose finished
+  //   frames; an alpha written there dims every mark at once.
+  /^modes\/plate\.ts$/,
+  /^modes\/field\.ts$/,
+  /^render\.ts$/,
+  /^modes\/index\.ts$/,
+  /^plate\.ts$/,
+  /^textatlas\.ts$/,
+  /^main\.ts$/,
+  /^overview\.ts$/,
 ];
 
 /** Sinks. A literal on a line that reaches one of these changes a mark. */
@@ -162,6 +182,11 @@ const MATERIAL_SINKS = [
   // first inline material literals found. A material scalar is material
   // wherever it is declared, so the declaration is a sink too.
   /\b\w*(radius|alpha|width|gain|overlap|tone|ink|drip|bore|splotch|soft|ceiling|bead|excess|lit|rad|serif)\w*\s*=[^=]/i,
+  // The same, for the words a mark's life in time is named with: how wet it
+  // is, how far it has dried or dimmed, how its edge yields, tapers or fades.
+  // Three constants of exactly this kind sat in two hands under names the
+  // list above does not contain.
+  /\b\w*(wet|dried|dry|dim|penumbra|yield|taper|fade|grain|pitch)\w*\s*=[^=]/i,
 ];
 
 /** Fragments that carry a digit but say nothing: units, colours, canvas ids. */

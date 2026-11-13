@@ -272,6 +272,35 @@ export const SCALARS = {
       "paths, which the entry rule forbids: the transition must stay a " +
       "recession, never a cut.",
   },
+  YIELD_CORE_W: {
+    class: "authored",
+    value: 2,
+    material: true,
+    controls:
+      "how wide the wake's core is, in multiples of the residence's " +
+      "cell-splat radius: the band along each arriving path where the old " +
+      "season is taken down at the full OLD_YIELD_STRENGTH. Wider and the " +
+      "possession clears a road through the prior field; narrower and the " +
+      "new strokes sit directly on undimmed old marks.",
+  },
+  YIELD_PENUMBRA_W: {
+    class: "authored",
+    value: 3.2,
+    material: true,
+    controls:
+      "how far the wake's soft edge reaches, in the same multiples: the " +
+      "outer band, taken down more gently, that keeps the core from reading " +
+      "as a hard-edged trench. At the core's own width the edge is a line.",
+  },
+  YIELD_PENUMBRA_A: {
+    class: "authored",
+    value: 0.35,
+    material: true,
+    controls:
+      "how much of OLD_YIELD_STRENGTH the soft edge applies. Higher and the " +
+      "outer band dims as far as the core, so the wake simply looks wider; " +
+      "at nothing there is no edge and the core's boundary shows.",
+  },
 
   // --- the wet day — the window fold's visible front -----------------------
   //
@@ -1517,6 +1546,56 @@ export const SCALARS = {
       "at that ink saturate into a solid zone-coloured poster that buries " +
       "the filed record beneath — the value here is the measured correction.",
   },
+  GAME_WET_S: {
+    class: "authored",
+    value: 2,
+    material: true,
+    controls:
+      "how long a finished game stroke stays wet - at full ink - before it " +
+      "dries to GAME_DRIED, in seconds of the game's own feed. One value for " +
+      "the hand and the plate. Longer and more of the game is bright at once, " +
+      "toward the saturated poster GAME_DRIED exists to prevent; shorter and " +
+      "a stroke dims almost as it lands, so the wet edge is hard to follow.",
+  },
+  WET_STROKES: {
+    class: "authored",
+    value: 6,
+    material: true,
+    controls:
+      "over how many strokes behind the newest one a season stroke in THE " +
+      "HAND is still being drawn along its own length. A gesture arrives " +
+      "across this many strokes' worth of time; at one each stroke appears " +
+      "whole, and larger values leave more half-drawn strokes at the edge.",
+  },
+  PLATE_WINDOW_FIELD_DIM: {
+    class: "authored",
+    value: 0.55,
+    material: true,
+    controls:
+      "how much of the season's filed field the plate takes down while the " +
+      "window's game is drawn over it. At nothing the tracked strokes are " +
+      "laid on a field at full brightness and the two records cannot be told " +
+      "apart; at one the field is gone and the game floats on bare stone.",
+  },
+  FIELD_INSCRIPTION_ALPHA: {
+    class: "authored",
+    value: 0.8,
+    material: true,
+    controls:
+      "the opacity of the struck numerals in THE FIELD. At one they sit as " +
+      "bright as on the plate and compete with the field this hand is for; " +
+      "lower and the numbers recede until the measure they state is lost.",
+  },
+  HAND_NIGHT_GROUND_ALPHA: {
+    class: "authored",
+    value: 0.35,
+    material: true,
+    controls:
+      "how much of the finished night's slate THE HAND keeps as ground " +
+      "beneath the arriving season paint. At one the night stays at full " +
+      "strength and the season is painted into it; at nothing the night " +
+      "vanishes the moment the season begins.",
+  },
   PASS_MARK_R: {
     class: "authored",
     value: 2.5,
@@ -1700,5 +1779,13 @@ export const WASH_TONE_K: number = SCALARS.WASH_TONE_K.value;
 export const WASH_ALPHA: number = SCALARS.WASH_ALPHA.value;
 export const GAME_CLOCK_K: number = SCALARS.GAME_CLOCK_K.value;
 export const GAME_DRIED: number = SCALARS.GAME_DRIED.value;
+export const GAME_WET_S: number = SCALARS.GAME_WET_S.value;
+export const WET_STROKES: number = SCALARS.WET_STROKES.value;
+export const YIELD_CORE_W: number = SCALARS.YIELD_CORE_W.value;
+export const YIELD_PENUMBRA_W: number = SCALARS.YIELD_PENUMBRA_W.value;
+export const YIELD_PENUMBRA_A: number = SCALARS.YIELD_PENUMBRA_A.value;
+export const PLATE_WINDOW_FIELD_DIM: number = SCALARS.PLATE_WINDOW_FIELD_DIM.value;
+export const FIELD_INSCRIPTION_ALPHA: number = SCALARS.FIELD_INSCRIPTION_ALPHA.value;
+export const HAND_NIGHT_GROUND_ALPHA: number = SCALARS.HAND_NIGHT_GROUND_ALPHA.value;
 export const PASS_MARK_R: number = SCALARS.PASS_MARK_R.value;
 export const PASS_MARK_ALPHA: number = SCALARS.PASS_MARK_ALPHA.value;

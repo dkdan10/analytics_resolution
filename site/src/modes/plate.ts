@@ -22,7 +22,14 @@ import {
 } from "../game";
 import { drawInscriptions, drawSlug } from "../inscription";
 import { prefixSurface } from "../prefix";
-import { GAME_DRIED, OLD_YIELD_STRENGTH } from "../scalars";
+import {
+  GAME_DRIED,
+  OLD_YIELD_STRENGTH,
+  PLATE_WINDOW_FIELD_DIM,
+  YIELD_CORE_W,
+  YIELD_PENUMBRA_A,
+  YIELD_PENUMBRA_W,
+} from "../scalars";
 import { secondsFor } from "../timeline";
 import {
   PLATE_GAME_FROM_PHASE,
@@ -42,13 +49,10 @@ import type { Frame } from "./types";
  * The entry yield's fixed two-width penumbra: the wake erases at full
  * OLD_YIELD_STRENGTH inside CORE_W times the residence's cell-splat radius,
  * and at PENUMBRA_A of it out to PENUMBRA_W — an eased edge with no filters.
- * The profile is the wake's shape, held
- * constant like the strike beats; the STRENGTH is the one authored scalar,
- * declared in the register.
+ * The profile is the wake's shape, held constant like the strike beats.
+ * Its widths and the edge's share are declared in the register beside the
+ * strength, because each of them changes the mark.
  */
-const YIELD_CORE_W = 2;
-const YIELD_PENUMBRA_W = 3.2;
-const YIELD_PENUMBRA_A = 0.35;
 
 export function drawPlateHand(f: Frame): void {
   const { ctx, view, dpr, st, data, inscriptions, remains } = f;
@@ -80,7 +84,9 @@ export function drawPlateHand(f: Frame): void {
       / (pClose.to - pClose.from)))
     : 0;
   const fieldDim =
-    (inWindow ? 1 - 0.55 * Math.min(1, st.phase * 4) * (1 - fieldReleaseU) : 1) * remains;
+    (inWindow
+      ? 1 - PLATE_WINDOW_FIELD_DIM * Math.min(1, st.phase * 4) * (1 - fieldReleaseU)
+      : 1) * remains;
 
   // THE GAME'S SHARE's clock, computed BEFORE the field goes down: the entry
   // yield mask needs the same reach the strokes below will

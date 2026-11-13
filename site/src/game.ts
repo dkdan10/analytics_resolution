@@ -20,6 +20,7 @@
 import { BONE_RGB } from "./palette";
 import {
   GAME_CLOCK_K,
+  GAME_WET_S,
   PASS_MARK_ALPHA,
   PASS_MARK_R,
   TRACE_ANCHOR_ALPHA,
@@ -42,9 +43,10 @@ import { prefixCacheGeneration } from "./prefix";
 export const GAME_PREFIX_STEPS = 40;
 
 /** How long a finished game stroke stays wet — bright at full ink — before
- *  it dries to GAME_DRIED. Seconds of the game's own feed; one pacing
- *  constant for both consumers. */
-export const GAME_WET_S = 2;
+ *  it dries to GAME_DRIED. Seconds of the game's own feed; one value for both
+ *  consumers, declared in the register because it decides which strokes are
+ *  bright on a frame. */
+export { GAME_WET_S };
 
 /** Artifact identity for cache keys — the hand's own WeakMap idiom, exported
  *  so both surfaces key the same decoded object the same way. */

@@ -13,6 +13,7 @@
  */
 
 import { drawInscriptions, drawSlug } from "../inscription";
+import { FIELD_INSCRIPTION_ALPHA } from "../scalars";
 import { SEASON_SECONDS, secondsFor } from "../timeline";
 import {
   FIELD_WINDOW_ATTRIBUTION_SPAN,
@@ -46,7 +47,7 @@ export function drawFieldHand(f: Frame): void {
   const { ctx, view, st, inscriptions, remains } = f;
 
   ctx.save();
-  ctx.globalAlpha = remains * 0.8;
+  ctx.globalAlpha = remains * FIELD_INSCRIPTION_ALPHA;
   drawInscriptions(ctx, view, inscriptions, st.t);
   ctx.restore();
 
