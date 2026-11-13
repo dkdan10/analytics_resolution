@@ -562,6 +562,46 @@ function layerKey(
 }
 
 /**
+ * Fold a run of a season's cells into a float accumulator. One body, so a
+ * layer built a range of cells at a time adds the same numbers in the same
+ * order as one built whole, and the two cannot differ in a byte.
+ */
+function foldLayerCells(
+  acc: Float32Array,
+  w: number,
+  h: number,
+  view: View,
+  dpr: number,
+  pts: Points,
+  from: number,
+  to: number,
+  pin: [number, number] | null,
+  strength: number,
+  coloured: boolean,
+  splats: GrainSplats,
+  grain: GrainProfile,
+): void {
+  const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
+  const zoneRGB = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
+
+  const [pinX, pinY] = pin ?? [NaN, NaN];
+  for (let i = from; i < to; i++) {
+    const cx = pts.x[i]!;
+    const cy = pts.y[i]!;
+    if (cx === pinX && cy === pinY) continue;
+    const count = pts.hires[i]! + pts.rest[i]!;
+    if (count === 0) continue;
+
+    const ink = tone(count / pts.total, strength);
+    const rgb = coloured ? (zoneRGB[pts.zone[i]!] ?? bone) : bone;
+    splatGrainedCell(
+      acc, w, h, view, dpr, splats, cx, cy, ink,
+      coarseShare(grain, cx, cy, pts.hires[i]!, pts.rest[i]!), rgb,
+    );
+  }
+}
+
+/**
  * Resolve a season's cells into an image.
  *
  * The pin's cell is skipped: those are the shots the record declined to place,
@@ -599,26 +639,8 @@ export function bakeLayer(
   // ImageData directly rounds almost every shot in the record away to nothing -
   // which is exactly the failure this whole approach exists to avoid.
   const acc = accOf(w * h * 3);
-
-  const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
-  const zoneRGB = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
   const splats = grainSplatsOf(view, dpr, grain);
-
-  const [pinX, pinY] = pin ?? [NaN, NaN];
-  for (let i = 0; i < pts.n; i++) {
-    const cx = pts.x[i]!;
-    const cy = pts.y[i]!;
-    if (cx === pinX && cy === pinY) continue;
-    const count = pts.hires[i]! + pts.rest[i]!;
-    if (count === 0) continue;
-
-    const ink = tone(count / pts.total, strength);
-    const rgb = coloured ? (zoneRGB[pts.zone[i]!] ?? bone) : bone;
-    splatGrainedCell(
-      acc, w, h, view, dpr, splats, cx, cy, ink,
-      coarseShare(grain, cx, cy, pts.hires[i]!, pts.rest[i]!), rgb,
-    );
-  }
+  foldLayerCells(acc, w, h, view, dpr, pts, 0, pts.n, pin, strength, coloured, splats, grain);
 
   const layer: Layer = { canvas: quantize(acc, w, h), key };
   layers.set(key, layer);
