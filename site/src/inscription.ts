@@ -294,6 +294,39 @@ const SLUG_RANK: Record<SlugRank, { tenths: number; alpha: number }> = {
   aside: { tenths: SLUG_ASIDE_TENTHS, alpha: SLUG_ASIDE_ALPHA },
 };
 
+/** A slug's type size at this view, in pixels: its rank's court size, never
+ *  under the piece's floor nor, in the room profile, the room's. */
+function slugPx(ctx: CanvasRenderingContext2D, view: View, rank: SlugRank): number {
+  const room = contextDisplay(ctx) === "room";
+  return Math.max(SLUG_MIN_PX, view.s(SLUG_RANK[rank].tenths), room ? ROOM_TEXT_MIN_PX[rank] : 0);
+}
+
+/** A slug's face, set on the context: one place, so a line is measured in
+ *  exactly the type it is drawn in. */
+function setSlugFace(ctx: CanvasRenderingContext2D, px: number): void {
+  ctx.font = `${px}px ${SLUG_FAMILY}`;
+  ctx.letterSpacing = `${px * 0.14}px`;
+}
+
+/**
+ * The box one line of a slug takes at this view, in pixels, for a caller that
+ * has to know whether a line fits a place before standing it there. Measured
+ * on the destination in the slug's own face, every time it is asked.
+ */
+export function slugBox(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  line: string,
+  rank: SlugRank = "statement",
+): { width: number; height: number } {
+  const px = slugPx(ctx, view, rank);
+  ctx.save();
+  setSlugFace(ctx, px);
+  const width = ctx.measureText(line).width;
+  ctx.restore();
+  return { width, height: px };
+}
+
 export function drawSlug(
   ctx: CanvasRenderingContext2D,
   view: View,
@@ -309,15 +342,14 @@ export function drawSlug(
   if (alpha <= 0.01) return;
   const r = SLUG_RANK[rank];
   const room = contextDisplay(ctx) === "room";
-  const px = Math.max(SLUG_MIN_PX, view.s(r.tenths), room ? ROOM_TEXT_MIN_PX[rank] : 0);
+  const px = slugPx(ctx, view, rank);
   const ink = room
     ? Math.max(r.alpha, rank === "voice" ? 0.94 : rank === "statement" ? 0.84 : 0.76)
     : r.alpha;
   ctx.save();
-  ctx.font = `${px}px ${SLUG_FAMILY}`;
+  setSlugFace(ctx, px);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.letterSpacing = `${px * 0.14}px`;
   ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha * ink})`;
   let x = view.sx(at.x);
   let y = view.sy(at.y);

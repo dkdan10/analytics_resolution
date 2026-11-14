@@ -36,7 +36,7 @@ import {
   type WindowFile,
 } from "../data";
 import { contextDisplay, ROOM_TEXT_MIN_PX } from "../display";
-import { drawSlug } from "../inscription";
+import { drawSlug, slugBox } from "../inscription";
 import { CUT_BEAT_SECONDS } from "../render";
 import { BONE_RGB, INSCRIPTION_FAMILY } from "../palette";
 import { FREE_THROW_R, type View } from "../plate";
@@ -383,18 +383,38 @@ function drawOrphaned(f: Frame, w: WindowFile | null): void {
   // the rest of the loop with no evidence under them at all - so the one place
   // a viewer sees them longest is the place the selection must be stated.
   //
-  // Not where the close states it. There the window's field is nearly gone; here
-  // the late seasons' three-point band is lit, and the close's line sits on it.
-  // It stands instead in the stretch of the centreline the court leaves clear,
-  // midway between the top of the free-throw circle and the crown of the arc,
-  // which the drained mid-range keeps dark. On the season after the window it
-  // moves there from the close's line at the pace that season's own sentences
-  // come up, so the line the close left does not jump.
+  // Not where the close states it, when there is a better place. There the
+  // window's field is nearly gone; here the late seasons' three-point band is
+  // lit, and the close's line sits on it. The court leaves one stretch of the
+  // centreline clear, midway between the top of the free-throw circle and the
+  // crown of the arc, which the drained mid-range keeps dark - but only a line
+  // short enough to stand wholly under the arc belongs there. One that is not
+  // (the room profile's, at a laptop's size) would have the arc's own line run
+  // through its first and last words, so it stays on the close's line, above
+  // the crown, where nothing engraved crosses it.
+  //
+  // On the season after the window the line changes place without travelling:
+  // the crown of the arc lies between the two places, and a line carried from
+  // one to the other would be struck through by it on the way. It leaves the
+  // close's line over the first half of the time that season's own sentences
+  // take to come up and comes up in its own place over the second, so it is
+  // never on the floor twice and is whole when they are.
   if (w.bias.scope) {
     const clearY = (FREE_THROW_Y + FREE_THROW_R + THREE_R) / 2;
-    const moved = closedIn !== null && st.year === closedIn ? Math.min(1, st.phase * 2) : 1;
-    drawSlug(ctx, view, [w.bias.scope],
-      { x: 0, y: SCOPE_CLOSE_Y + (clearY - SCOPE_CLOSE_Y) * moved }, remains * 0.4);
+    const scope = w.bias.scope;
+    const box = slugBox(ctx, view, scope);
+    const perTenth = view.s(1);
+    const underArc = Math.hypot(box.width / 2 / perTenth, clearY + box.height / 2 / perTenth)
+      < THREE_R;
+    const stand = (y: number, share: number): void =>
+      drawSlug(ctx, view, [scope], { x: 0, y }, remains * 0.4 * share);
+    if (underArc) {
+      const arrived = closedIn !== null && st.year === closedIn ? Math.min(1, st.phase * 2) : 1;
+      stand(SCOPE_CLOSE_Y, Math.max(0, 1 - arrived * 2));
+      stand(clearY, Math.max(0, arrived * 2 - 1));
+    } else {
+      stand(SCOPE_CLOSE_Y, 1);
+    }
   }
   if (closedIn !== null && st.year === closedIn) {
     drawSlug(ctx, view, [
