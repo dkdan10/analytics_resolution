@@ -116,7 +116,12 @@ export const SCALARS = {
       "ink is CONSERVED, not identical: replaying the bake over the shipped " +
       "season_2015.bin, total deposited light varies under one per cent across K " +
       "in [1.0, 3.0], because FALLOFF_DISC_INTEGRAL normalises the splat's own " +
-      "overlap. So this is smoothness, to within that. Still `authored`: WHERE " +
+      "overlap. So this is smoothness, to within that. A third limit: the null " +
+      "is for the tenth-of-a-foot lattice only. Off the rim the record uses lines " +
+      "coarser than a tenth in most seasons (pipeline/checks/capture_grid.py " +
+      "prints them), and the pattern of those lines still shows in the field. " +
+      "The radius stays a multiple of the tenth and not of that measured spacing " +
+      "by the author's ruling. Still `authored`: WHERE " +
       "the zeros are follows from the falloff and the lattice, but WHICH one to " +
       "sit on is a judgement.",
   },
@@ -522,7 +527,7 @@ export const SCALARS = {
     value: 1.7,
     material: true,
     controls:
-      "radius, in court tenths, of a mark the record placed to the tenth of a " +
+      "radius, in court tenths, of a mark the record filed to the tenth of a " +
       "foot. Court units and not pixels: the era's grain must not change with the " +
       "window it is shown on.",
   },

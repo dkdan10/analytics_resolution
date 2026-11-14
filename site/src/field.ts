@@ -172,8 +172,9 @@ export interface Layer {
  * `split` means the uneven era's one honest mixture: at a restricted-area
  * coordinate, the cell's EXISTING tone is divided by its n_hires:n_rest
  * populations. The tone curve is never applied twice. Outside the restricted
- * area every profile resolves to sharp, because no coarser measurement was
- * established there.
+ * area every profile resolves to sharp. The record does use coarser lines
+ * there in most seasons (pipeline/checks/capture_grid.py prints them); the
+ * field does not follow that spacing, by the author's ruling.
  */
 export interface GrainProfile {
   readonly mode: "sharp" | "coarse" | "split";
@@ -211,7 +212,9 @@ export function grainProfileFor(regime: GrainRegime): GrainProfile {
  * a soft falloff just wide enough that neighbours meet — wide enough that
  * occupied coordinates merge, because only a fraction of the lattice is
  * occupied in a season and a tight splat renders the record's grid rather
- * than its density.
+ * than its density. The splat is sized against the tenth alone: where the
+ * record uses lines coarser than a tenth, the pattern of those lines still
+ * shows in the field, and that pattern is the record's, not the renderer's.
  *
  * A wider splat lands on more pixels and would simply make the plate
  * brighter. Dividing by the splat's own overlap - the integral of the falloff
