@@ -34,8 +34,9 @@ documents and must be caught by the named check that owns it; a catch by an unre
 failure of the suite, and a mutation nothing catches is reported as STILL GREEN.
 
 The league's seven-region map of the floor exists in Python and in TypeScript, and both are held
-to one committed fixture (`npm run gate`). Each binary format declares its byte layout once, and
-the Python writer and the TypeScript decoder are checked against it in both directions.
+to one committed fixture (`npm run gate`). The same command holds the address table: which entry
+each query string opens. Each binary format declares its byte layout once, and the Python writer
+and the TypeScript decoder are checked against it in both directions.
 `site/scripts/check-numbers.mjs` scans the mark-drawing source files for material numbers
 written inline instead of declared in the scalar register, and `npm run disclose` regenerates
 the disclosure, which the build checks.

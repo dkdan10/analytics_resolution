@@ -32,6 +32,7 @@ import { Navigator } from "./navigator";
 import { OVERVIEW_SECONDS, overviewAt } from "./overview";
 import { makeView } from "./plate";
 import { askAhead, renderTo, type Target } from "./render";
+import { entryOf } from "./route";
 import { semanticAt, semanticStopById, semanticTime } from "./semantic";
 import { clearAtlas } from "./textatlas";
 import {
@@ -257,15 +258,6 @@ function startSelection(
   return { offset: 0, semanticMode: null };
 }
 
-/** Existing direct-frame and working URLs stay on the canonical work. Only a
- * bare web entry (or an explicit overview request) chooses the guided score. */
-function wantsOverview(q: URLSearchParams): boolean {
-  if (q.has("talk") || q.has("nav") || q.has("probe")) return false;
-  if (q.get("experience") === "full") return false;
-  if (q.get("experience") === "overview") return true;
-  return !["t", "year", "stop", "mode", "ops"].some((key) => q.has(key));
-}
-
 function fmtDuration(seconds: number): string {
   const whole = Math.max(0, Math.round(seconds));
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
@@ -278,7 +270,7 @@ function setStartup(text: string, state: "loading" | "ready" | "degraded" | "fai
 
 async function main(): Promise<void> {
   const q = new URLSearchParams(location.search);
-  const overview = wantsOverview(q);
+  const overview = entryOf(q) === "overview";
   overviewExperience = overview;
   if (overview) ensureOverviewPrevious();
   const talkMode = q.has("talk");
