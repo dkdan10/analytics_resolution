@@ -34,6 +34,7 @@ import {
   SCATTER_ALPHA,
   SCATTER_MIN_PX,
   SCATTER_TENTHS,
+  SLUG_MIN_PX,
   SLUG_STATEMENT_TENTHS,
   TERM_ALPHA_AGED,
   TERM_ALPHA_FRESH,
@@ -619,11 +620,14 @@ const PIN_CAPTION_DROP = 30;
  * the viewport or the hand, which is what lets the box join the year-keyed
  * memo — see `ledgerUtterances`. Width adds `drawSlug`'s own per-character
  * letter-spacing fraction, which `widthTenths`'s ruler does not apply.
+ *
+ * `size` and `lift` describe the caption as one frame actually sets it — its
+ * type floored, and stood up off the plate's edge — for the readers that work
+ * at draw time. The memo never passes them.
  */
-function pinCaptionBox(season: Season): Box | null {
+function pinCaptionBox(season: Season, size = SLUG_STATEMENT_TENTHS, lift = 0): Box | null {
   const sentinel = season.resolution.rim_sentinel;
   if (!sentinel || !sentinel.is_refusal) return null;
-  const size = SLUG_STATEMENT_TENTHS;
   const lines = [`${sentinel.n.toLocaleString()} SHOTS · NO PLACE GIVEN`];
   const refused = Object.keys(season.resolution.refused_action_types)[0];
   if (refused) lines.push(refused.toUpperCase());
@@ -634,10 +638,33 @@ function pinCaptionBox(season: Season): Box | null {
   const drop = (lines.length - 1) * 1.9 * size;
   return {
     wx: sentinel.coord[0] - w / 2,
-    wy: sentinel.coord[1] - PIN_CAPTION_DROP - drop / 2,
+    wy: sentinel.coord[1] - PIN_CAPTION_DROP + lift - drop / 2,
     w,
     h: drop + size * 1.7,
   };
+}
+
+/**
+ * How the pin caption is set in this frame: `drawSlug`'s own size for the
+ * statement rank, floors and all, and how many pixels the block stands up so
+ * its last line stays on the plate.
+ *
+ * The caption hangs a fixed drop under its pile in court units, but its type
+ * has pixel floors and its lines advance by the floored size, so where a floor
+ * binds the second line hung through the baseline. It still hangs from the
+ * same place wherever it fits; where it would not, it stands on the edge of
+ * the box the record is clipped to instead, its lines stacked up from there.
+ */
+function pinCaptionSet(f: Frame, lines: number, anchorY: number): { px: number; lift: number } {
+  const { ctx, view } = f;
+  const room = contextDisplay(ctx) === "room";
+  const px = Math.max(
+    SLUG_MIN_PX,
+    view.s(SLUG_STATEMENT_TENTHS),
+    room ? ROOM_TEXT_MIN_PX.statement : 0,
+  );
+  const bottom = view.sy(anchorY) + (lines - 1) * px * 1.9 + px / 2;
+  return { px, lift: Math.max(0, bottom - view.sy(COURT.y0)) };
 }
 
 /**
@@ -773,8 +800,14 @@ export function drawLedgerHand(f: Frame): void {
     // the same way — the same box the spoken register avoids, from the same
     // derivation, so the two readers cannot disagree about where it stands.
     speaking = [...speaking, ...leagueObstacles(data, year)];
-    const pinBox = pinCaptionBox(season);
-    if (pinBox) speaking = [...speaking, pinBox];
+    // At draw time the box is the caption as this frame sets it.
+    const sentinel = season.resolution.rim_sentinel;
+    if (sentinel) {
+      const lines = Object.keys(season.resolution.refused_action_types).length ? 2 : 1;
+      const set = pinCaptionSet(f, lines, sentinel.coord[1] - PIN_CAPTION_DROP);
+      const pinBox = pinCaptionBox(season, set.px / f.view.scale, set.lift / f.view.scale);
+      if (pinBox) speaking = [...speaking, pinBox];
+    }
 
     // The scatter goes down FIRST and yields wherever a term is speaking, so
     // the big register has the local emptiness that makes it read.
@@ -938,8 +971,10 @@ function drawPinLabel(f: Frame, season: Season, arrived: number): void {
   // three feet below the origin would sit under nothing in six seasons. The
   // drop is shared with `pinCaptionBox`, whose rect is what keeps the spoken
   // register and the scatter out of these two lines.
-  drawSlug(ctx, view, lines,
-    { x: sentinel.coord[0], y: sentinel.coord[1] - PIN_CAPTION_DROP }, remains * 0.85);
+  const anchorY = sentinel.coord[1] - PIN_CAPTION_DROP;
+  const { lift } = pinCaptionSet(f, lines.length, anchorY);
+  drawSlug(ctx, view, lines, { x: sentinel.coord[0], y: anchorY }, remains * 0.85,
+    "statement", -lift);
 }
 
 /** A heading enters at the start of its lane and finishes by the next one. */
