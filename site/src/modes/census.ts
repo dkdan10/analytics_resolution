@@ -179,42 +179,79 @@ export interface Glyphs {
  */
 const NOMINAL_PX = 100;
 const measured = new Map<string, Glyphs>();
+const lettered = new Map<string, Glyphs[]>();
 let ruler: CanvasRenderingContext2D | null = null;
+
+/** The ruler, set the way `strike` sets its pen: the same face, letter-spacing
+ *  and baseline, or the collision boxes would be measuring a different string
+ *  from the one drawn. */
+function struckRuler(align: CanvasTextAlign): CanvasRenderingContext2D {
+  ruler ??= document.createElement("canvas").getContext("2d")!;
+  ruler.font = `${NOMINAL_PX}px ${INSCRIPTION_FAMILY}`;
+  ruler.letterSpacing = `${NOMINAL_PX * STRIKE_LETTER_SPACING}px`;
+  ruler.textAlign = align;
+  ruler.textBaseline = "middle";
+  return ruler;
+}
+
+function scaled(g: Glyphs, k: number): Glyphs {
+  return { back: g.back * k, fore: g.fore * k, up: g.up * k, down: g.down * k };
+}
 
 function glyphsOf(text: string, sizeTenths: number): Glyphs {
   let per = measured.get(text);
   if (per === undefined) {
-    ruler ??= document.createElement("canvas").getContext("2d")!;
-    // The same face, letter-spacing, alignment and baseline `strike` uses, or
-    // the collision boxes would be measuring a different string from the one
-    // drawn.
-    ruler.font = `${NOMINAL_PX}px ${INSCRIPTION_FAMILY}`;
-    ruler.letterSpacing = `${NOMINAL_PX * STRIKE_LETTER_SPACING}px`;
-    ruler.textAlign = "center";
-    ruler.textBaseline = "middle";
-    const m = ruler.measureText(text);
+    const m = struckRuler("center").measureText(text);
     per = {
       back: m.actualBoundingBoxLeft / NOMINAL_PX,
       fore: m.actualBoundingBoxRight / NOMINAL_PX,
       up: m.actualBoundingBoxAscent / NOMINAL_PX,
       down: m.actualBoundingBoxDescent / NOMINAL_PX,
     };
-    ruler.letterSpacing = "0px";
     measured.set(text, per);
   }
-  return {
-    back: per.back * sizeTenths,
-    fore: per.fore * sizeTenths,
-    up: per.up * sizeTenths,
-    down: per.down * sizeTenths,
-  };
+  return scaled(per, sizeTenths);
 }
 
-/** Drop the string ruler. Registered in probe/shared.ts:cold() — an
+/**
+ * The same string letter by letter: what each letter covers about the point
+ * the whole line is struck at.
+ *
+ * The line's own rectangle stands as high as its tallest glyph for its whole
+ * length, and in the record's names the tallest glyph is a parenthesis. Turned
+ * against a sideline, that rectangle's corner is past the line where the
+ * word's first letter is not. The plate's edge is asked about the letters.
+ */
+function lettersOf(text: string, sizeTenths: number): Glyphs[] {
+  let per = lettered.get(text);
+  if (per === undefined) {
+    const pen = struckRuler("left");
+    const whole = pen.measureText(text).width;
+    per = [];
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === " ") continue;
+      const g = pen.measureText(text[i]!);
+      // Where this letter's own origin falls from the line's centre: the
+      // advance up to and including it, less its own.
+      const from = pen.measureText(text.slice(0, i + 1)).width - g.width - whole / 2;
+      per.push({
+        back: (g.actualBoundingBoxLeft - from) / NOMINAL_PX,
+        fore: (g.actualBoundingBoxRight + from) / NOMINAL_PX,
+        up: g.actualBoundingBoxAscent / NOMINAL_PX,
+        down: g.actualBoundingBoxDescent / NOMINAL_PX,
+      });
+    }
+    lettered.set(text, per);
+  }
+  return per.map((g) => scaled(g, sizeTenths));
+}
+
+/** Drop the rulers' maps. Registered in probe/shared.ts:cold() — an
  *  unregistered cache does not produce a false IMPURE, it produces a false
  *  PURE, because every history then shares the same stale map. */
 export function clearCensusCaches(): void {
   measured.clear();
+  lettered.clear();
 }
 
 /**
@@ -377,13 +414,38 @@ function overlaps(a: Box, b: Box): boolean {
   return !(apart(a.tx, a.ty) || apart(-a.ty, a.tx) || apart(b.tx, b.ty) || apart(-b.ty, b.tx));
 }
 
-/** A box lies wholly on the plate, and clear of the footer's ground by its own
- *  clear floor. The plate's edges are stone, not type, and keep none. */
-function onPlate(k: Box): boolean {
+/** A box lies wholly on the plate. The plate's edges are stone, not type, and
+ *  keep no clear floor. */
+function inStone(k: Box): boolean {
   const ex = reach(k, 1, 0);
   const ey = reach(k, 0, 1);
   return k.cx - ex >= COURT.x0 && k.cx + ex <= COURT.x1
-    && k.cy - ey >= FOOTER_TOP + k.pad && k.cy + ey <= COURT.y1;
+    && k.cy - ey >= COURT.y0 && k.cy + ey <= COURT.y1;
+}
+
+/**
+ * Everything a word strikes lies on the plate.
+ *
+ * Its two rectangles first. Where one of them crosses an edge the letters
+ * themselves are asked, each by its own rectangle: the word's is as tall as
+ * its tallest glyph along its whole length, and a corner of it can be past a
+ * sideline that no letter reaches.
+ */
+function onPlate(w: Filed, boxes: [Box, Box]): boolean {
+  if (boxes.every(inStone)) return true;
+  const ux = Math.cos(w.bearing);
+  const uy = Math.sin(w.bearing);
+  const figure = w.dist - FIGURE_DROP * w.size;
+  const sub = w.size * CENSUS_SHARE_SCALE;
+  return lettersOf(w.name, w.size)
+      .every((g) => inStone(boxAt(w.dist * ux, w.dist * uy, ux, uy, g, w.size)))
+    && lettersOf(struckFigure(w.share), sub)
+      .every((g) => inStone(boxAt(figure * ux, figure * uy, ux, uy, g, sub)));
+}
+
+/** A box is clear of the footer's ground by its own clear floor. */
+function offFooter(k: Box): boolean {
+  return k.cy - reach(k, 0, 1) >= FOOTER_TOP + k.pad;
 }
 
 /** Two words collide when anything one strikes — the word or its figure —
@@ -423,8 +485,9 @@ function layOut(words: Filed[]): void {
         boxes = boxesOf(w);
         // Off the plate is off the plate: a word swung past the sideline is not
         // a solution, it is a different mistake. Tested on everything the word
-        // strikes, not on its centre, and the footer's ground counts as off.
-        if (!boxes.every(onPlate)) continue;
+        // strikes, not on its centre. The footer's ground is type, so a box
+        // keeps its own clear floor from it as it does from a word.
+        if (!onPlate(w, boxes) || !boxes.every(offFooter)) continue;
         if (placed.some((p) => collides(boxes, p))) continue;
         ok = true;
         break;
