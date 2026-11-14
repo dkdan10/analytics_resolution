@@ -250,8 +250,11 @@ function bindTalkKeys(
 
 /**
  * The player's keyboard: Space pauses and resumes, the arrows move by the
- * scrub's step (Shift for the coarse one), and Home returns to the start of
- * the pass on screen. Nothing held, and no chord: the browser keeps those.
+ * scrub's step (Shift for the coarse one), Home returns to the start of the
+ * pass on screen, `,` and `.` step through the stops of the rendering on
+ * screen, and `h` shows the same instant in the next rendering, the key the
+ * rail cycles its hands with. Nothing held, and no chord: the browser keeps
+ * those.
  *
  * A key pressed while one of the panel's controls, a door or the credit's link
  * has focus belongs to that control, as on the rail.
@@ -278,6 +281,15 @@ function bindPlayerKeys(player: Player): void {
       case "Home":
         e.preventDefault();
         player.home();
+        break;
+      case ".":
+        player.step(true);
+        break;
+      case ",":
+        player.step(false);
+        break;
+      case "h":
+        player.nextRendering();
         break;
       default:
         break;
@@ -523,7 +535,7 @@ async function main(): Promise<void> {
     const start = playerStart(schedule, q, selection);
     const tc = new TalkClock(start.offset, start.paused);
     clock = tc;
-    const panel = new Player(playerRoot, schedule, {
+    const panel = new Player(playerRoot, schedule, data, {
       seek: (s) => tc.seek(s),
       togglePause: () => tc.togglePause(),
       isPaused: () => tc.held,

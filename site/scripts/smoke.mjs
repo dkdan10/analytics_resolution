@@ -33,10 +33,13 @@
  *
  * `?experience=player` is also used, once it has settled. Its panel, both
  * doors and the credit must be on screen, and its canvas the size the full
- * work's is at the same viewport. Then its transport is worked as a visitor
- * works it, and each step must move the clock it shows: the play button stops
- * the clock and starts it again, Space stops it, a click on the scrub moves it
- * while it is stopped, and Space starts it again.
+ * work's is at the same viewport. Then it is worked as a visitor works it, and
+ * each step must move the clock it shows as that step should: a click on the
+ * second name, made while the prelude plays, checks that name and takes the
+ * clock to the first season's start or past it; the play button stops the
+ * clock and starts it again; Space stops it; a click on the scrub moves it
+ * while it is stopped; the next button moves it on and the previous button
+ * back, the name checked staying the same; and Space starts it again.
  *
  * The canvas is read through a small copy taken pixel for pixel, never
  * blended: a sampled pixel keeps its value, so "above the ground" is what
@@ -124,6 +127,18 @@ function laptopSurface() {
 }
 
 const SIZES = [laptopSurface(), { width: 390, height: 844, deviceDpr: 3 }];
+
+/** Where the first season starts in the loop: the prelude's length, read from
+ *  the one place it is declared, since the schedule lays the first season
+ *  straight after it. */
+function firstSeasonStart() {
+  const src = readFileSync(join(HERE, "..", "src", "timeline.ts"), "utf8");
+  const m = /export const ACT0_SECONDS\s*=\s*([\d.]+)\s*;/.exec(src);
+  if (!m) die("src/timeline.ts no longer declares ACT0_SECONDS as a number");
+  return Number(m[1]);
+}
+
+const FIRST_SEASON_S = firstSeasonStart();
 
 /** The public addresses: the bare one, both named experiences, the lectern,
  *  the rail, one direct address of the kind a citation is, and the player.
@@ -300,15 +315,64 @@ function playerClock() {
   return document.getElementById("player-clock")?.textContent ?? null;
 }
 
+/** Sent to the page as source: the player's clock and the name it checks. */
+function playerState() {
+  const checked = document.querySelector('#player-modes [aria-checked="true"]');
+  return {
+    clock: document.getElementById("player-clock")?.textContent ?? null,
+    checked: checked ? checked.textContent : null,
+  };
+}
+
+/** Seconds into the loop that a clock reading `m:ss / m:ss` shows, or NaN. */
+function clockSeconds(text) {
+  const m = /^(\d+):(\d{2}) \//.exec(text ?? "");
+  return m ? Number(m[1]) * 60 + Number(m[2]) : Number.NaN;
+}
+
 /**
- * The player's transport, worked as a visitor works it. Each step says what
- * the clock read, and whether that is what the step must leave behind. The
- * clock's own text is the witness: a press that reaches nothing leaves it as
- * it was, running or still.
+ * The player, worked as a visitor works it. Each step says what the clock
+ * read, and whether that is what the step must leave behind. The clock's own
+ * text is the witness: a press that reaches nothing leaves it as it was,
+ * running or still. The name checked is the witness of the rendering: a name
+ * must change it, and a step must not.
  */
 async function exercisePlayer(page) {
   const clock = () => page.evaluate(playerClock);
+  const state = () => page.evaluate(playerState);
   const steps = [];
+  /** A press on `selector` while the clock is stopped: the clock must move
+   *  the way `ahead` says, and the name checked must stay as it was. */
+  const stepsTo = async (name, selector, ahead) => {
+    const before = await state();
+    await page.click(selector);
+    await sleep(PRESS_MS);
+    const after = await state();
+    const moved = ahead ? clockSeconds(after.clock) > clockSeconds(before.clock)
+      : clockSeconds(after.clock) < clockSeconds(before.clock);
+    const kept = after.checked !== null && after.checked === before.checked;
+    steps.push({ name, ok: moved && kept,
+      saw: `${before.clock} to ${after.clock}, ${before.checked}${kept ? " kept" : ` became ${after.checked}`}` });
+  };
+
+  // While the prelude plays, every pass draws the same picture: the name must
+  // take the clock out of it, to the first season of that name's pass.
+  {
+    const second = '#player-modes [role="radio"]:nth-child(2)';
+    const before = await state();
+    const want = await page.locator(second).textContent();
+    await page.click(second);
+    const landed = (s) => s.checked === want && clockSeconds(s.clock) >= FIRST_SEASON_S;
+    const by = Date.now() + MOVE_MS;
+    let after = await state();
+    while (!landed(after) && Date.now() < by) {
+      await sleep(POLL_MS);
+      after = await state();
+    }
+    const ok = landed(after) && after.checked !== before.checked;
+    steps.push({ name: "the second name changes the rendering", ok,
+      saw: `${before.checked} at ${before.clock} to ${after.checked} at ${after.clock}` });
+  }
   /** The clock must keep one reading for HOLD_MS. */
   const stops = async (name) => {
     await sleep(PRESS_MS);
@@ -345,8 +409,11 @@ async function exercisePlayer(page) {
     const landed = await clock();
     steps.push({ name: "a click on the scrub moves it", ok: landed !== null && landed !== still,
       saw: landed !== still ? `${still} to ${landed}` : `still ${landed}` });
+    await stepsTo("next moves it on", "#player-next", true);
+    await stepsTo("previous moves it back", "#player-prev", false);
+    const stepped = await clock();
     await page.keyboard.press("Space");
-    await moves("Space starts it again", landed);
+    await moves("Space starts it again", stepped);
   }
   return steps;
 }

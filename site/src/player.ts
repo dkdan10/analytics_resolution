@@ -3,20 +3,37 @@
  *
  * It holds no canvas context and draws nothing. The frame on screen is the
  * full work's, drawn by the same call from the same clock; the panel only
- * pauses that clock or moves it. Every move keeps the pass the clock is in
- * and changes only where in the loop it is, so a visitor changes when the
- * picture is and never which rendering draws it, and every frame the panel
- * can bring up is one the full work's own address reaches.
+ * pauses that clock or moves it. The full work draws each rendering in a pass
+ * of its own, so a name moves the clock to the same instant in that
+ * rendering's pass, and every other move keeps the pass the clock is in and
+ * changes only where in the loop it is. Either way a visitor changes when the
+ * picture is, and every frame the panel can bring up is one the full work's
+ * own address reaches.
  *
  * `update` runs on every frame, so it writes the DOM only when a value it
  * shows has changed.
  */
 
-import { ROTATION_PASSES } from "./modes";
-import { fmt, SCRUB_COARSE_S, SCRUB_STEP_S } from "./navigator";
+import type { Loaded } from "./data";
+import {
+  MODE_TITLES,
+  modeAt,
+  passOfMode,
+  ROTATION_PASSES,
+  rotationModes,
+  type ModeId,
+} from "./modes";
+import { fmt, Navigator, SCRUB_COARSE_S, SCRUB_STEP_S, windowSubStops } from "./navigator";
 import { GROUND } from "./palette";
-import { LOOP_END_GUARD_S, passLocal, toPass } from "./route";
-import type { Schedule } from "./timeline";
+import {
+  LOOP_END_GUARD_S,
+  passLocal,
+  STOP_TOLERANCE_S,
+  stepFrom,
+  toPass,
+  wrapLoop,
+} from "./route";
+import { ACT_TITLES, stateAt, WINDOW_YEAR, type Schedule } from "./timeline";
 
 /** What the panel moves: the full work's clock, and nothing else. */
 export interface PlayerTransport {
@@ -43,29 +60,91 @@ function groundChannels(hex: string): string {
   return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ");
 }
 
+/** How many lines the title has: the act, the season, and the stop inside the
+ *  window. */
+const TITLE_LINES = 3;
+
+/** A press that does `fn`. A press from a pointer leaves no focus behind, so
+ *  Space goes on meaning pause rather than pressing the last thing clicked. */
+function onPress(el: HTMLButtonElement, fn: () => void): void {
+  el.addEventListener("click", (e) => {
+    fn();
+    if (e.detail !== 0) el.blur();
+  });
+}
+
 export class Player {
   private readonly loop: number;
   private readonly play: HTMLButtonElement;
   private readonly fill: HTMLElement;
   private readonly clock: HTMLElement;
   private readonly scrubEl: HTMLElement;
+  /** The renderings' names, in the order the full work plays them. */
+  private readonly names: { id: ModeId; el: HTMLButtonElement }[] = [];
+  /** The title's lines: the act, the season, and the stop inside the window. */
+  private readonly titleLines: HTMLElement[] = [];
   /** The instant under a dragged pointer, while a drag is in progress: the
-   *  clock and the fill show it in place of the transport's position. */
+   *  clock, the fill and the title show it in place of the transport's
+   *  position. */
   private dragLocal: number | null = null;
   private restTimer: number | undefined;
   private shownFill = "";
   private shownClock = "";
   private shownSecond = Number.NaN;
   private shownPaused: boolean | null = null;
+  private shownMode: ModeId | null = null;
+  private readonly shownTitle: string[] = [];
 
   constructor(
     root: HTMLElement,
-    schedule: Schedule,
+    private readonly schedule: Schedule,
+    private readonly data: Loaded,
     private readonly transport: PlayerTransport,
   ) {
     this.loop = schedule.duration;
     root.style.setProperty("--player-ground", groundChannels(GROUND));
     document.body.dataset.dwell = String(SCRUB_DWELL_MS);
+
+    // The renderings by the names the piece gives them, in the order the full
+    // work plays them; THE STACK is in no pass, so it has no name here. A
+    // radio group: one tab stop, the arrows move between the names and pick as
+    // they go, and the name checked is the rendering on screen.
+    const modes = root.querySelector<HTMLElement>("#player-modes")!;
+    for (const id of rotationModes()) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", "false");
+      b.tabIndex = -1;
+      b.textContent = MODE_TITLES[id].toUpperCase();
+      onPress(b, () => this.pick(id));
+      modes.append(b);
+      this.names.push({ id, el: b });
+    }
+    modes.addEventListener("keydown", (e) => {
+      const dir = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1
+        : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+      if (dir === 0) return;
+      e.preventDefault();
+      // Nothing held: each pick is a seek, and the player's keys answer one
+      // press at a time.
+      if (e.repeat) return;
+      const n = this.names.length;
+      const at = Math.max(0, this.names.findIndex((name) => name.el === document.activeElement));
+      const to = this.names[(at + dir + n) % n]!;
+      this.pick(to.id);
+      to.el.focus();
+    });
+
+    // The lines carry no class: the rail's stylesheet already owns the one a
+    // line for the act would take.
+    const title = root.querySelector<HTMLElement>("#player-title")!;
+    for (let i = 0; i < TITLE_LINES; i++) {
+      const line = document.createElement("div");
+      title.append(line);
+      this.titleLines.push(line);
+      this.shownTitle.push("");
+    }
 
     // The rail's glyphs and spoken names, so the panel says nothing new.
     const button = (id: string, glyph: string, name: string): HTMLButtonElement => {
@@ -80,16 +159,9 @@ export class Player {
     const next = button("#player-next", "▶▶", "next segment");
     this.play.title = "pause or resume (Space)";
     this.play.setAttribute("aria-keyshortcuts", "Space");
-    // The panel walks no stops: these two keep the transport's shape and
-    // take no press.
-    prev.disabled = true;
-    next.disabled = true;
-    this.play.addEventListener("click", (e) => {
-      this.togglePause();
-      // A press from a pointer leaves no focus behind, so Space goes on
-      // meaning pause rather than pressing the last thing clicked.
-      if (e.detail !== 0) this.play.blur();
-    });
+    onPress(prev, () => this.step(false));
+    onPress(this.play, () => this.togglePause());
+    onPress(next, () => this.step(true));
 
     const scrub = root.querySelector<HTMLElement>("#player-scrub")!;
     this.scrubEl = scrub;
@@ -135,6 +207,41 @@ export class Player {
     this.syncPlay();
   }
 
+  /**
+   * Show the same instant in another rendering: the clock moves to that
+   * rendering's pass and keeps where in the loop it is. The prelude draws the
+   * same picture in every pass, so there a name moves to the start of the
+   * first season in that pass instead, and a press always changes the picture.
+   */
+  pick(id: ModeId): void {
+    const now = this.transport.position();
+    const first = this.schedule.segments[0];
+    const local = stateAt(now, this.schedule).act === 0 && first
+      ? first.start
+      : wrapLoop(now, this.loop);
+    this.transport.seek(toPass(passOfMode(id), local, this.loop, LOOP_END_GUARD_S));
+  }
+
+  /** The rendering after the one on screen, in the full work's order, the
+   *  last one followed by the first. */
+  nextRendering(): void {
+    const order = rotationModes();
+    const now = modeAt(this.transport.position(), this.schedule, null);
+    this.pick(order[(order.indexOf(now) + 1) % order.length]!);
+  }
+
+  /**
+   * On to the next stop, or back to the one before, inside the pass on screen.
+   * The stops are the ones the rail's step buttons walk for the rendering on
+   * screen, the window's own interior included, and the walk goes by index as
+   * the rail's does.
+   */
+  step(forward: boolean): void {
+    const mode = modeAt(this.transport.position(), this.schedule, null);
+    const starts = Navigator.starts(this.schedule, this.data, mode);
+    this.seekLocal(stepFrom(starts, this.localNow(), forward ? 1 : -1, STOP_TOLERANCE_S));
+  }
+
   /** Back or forward by the scrub's step, the coarse one with Shift, inside
    *  the pass on screen. */
   nudge(forward: boolean, coarse: boolean): void {
@@ -166,13 +273,54 @@ export class Player {
       this.scrubEl.setAttribute("aria-valuenow", String(second));
       this.scrubEl.setAttribute("aria-valuetext", fmt(local));
     }
+    // The name is checked here, with the frame it names, and not when it is
+    // pressed. A drag stays in its pass, so the rendering is the clock's own.
+    const mode = modeAt(t, this.schedule, null);
+    this.syncModes(mode);
+    const lines = this.titleAt(local, mode);
+    lines.forEach((line, i) => {
+      if (line === this.shownTitle[i]) return;
+      this.shownTitle[i] = line;
+      this.titleLines[i]!.textContent = line;
+    });
     this.syncPlay();
   }
 
   /**
-   * The one way the panel moves the clock: to `local` in the pass the clock is
-   * in now. The lift lands on `local` and never a hair before it, and holds it
-   * short of the loop's end, so no seek leaves its pass or its rendering.
+   * The title for an instant: the act; the season, or the words the full
+   * work's context label uses where there is none; and inside the window, the
+   * stop of the rendering on screen that the instant has reached.
+   */
+  private titleAt(local: number, mode: ModeId): string[] {
+    const st = stateAt(local, this.schedule);
+    const season = st.year === null
+      ? "NO COORDINATES"
+      : this.data.byYear.get(st.year)?.season ?? String(st.year);
+    let stop = "";
+    if (st.year === WINDOW_YEAR) {
+      for (const s of windowSubStops(mode, this.schedule, this.data)) {
+        if (s.at <= local + STOP_TOLERANCE_S) stop = s.title;
+      }
+    }
+    return [ACT_TITLES[st.act], season, stop].map((line) => line.toUpperCase());
+  }
+
+  /** Check the name of the rendering on screen, and make it the group's one
+   *  tab stop. */
+  private syncModes(mode: ModeId): void {
+    if (mode === this.shownMode) return;
+    this.shownMode = mode;
+    for (const { id, el } of this.names) {
+      el.setAttribute("aria-checked", String(id === mode));
+      el.tabIndex = id === mode ? 0 : -1;
+    }
+  }
+
+  /**
+   * The one way the panel moves the clock inside a pass: to `local` in the
+   * pass the clock is in now. The lift lands on `local` and never a hair
+   * before it, and holds it short of the loop's end, so no seek leaves its
+   * pass or its rendering.
    */
   private seekLocal(local: number): void {
     const { pass } = passLocal(this.transport.position(), this.loop, ROTATION_PASSES);

@@ -237,9 +237,34 @@
         font-size: 12px;
         cursor: pointer;
       }
-      #player > button:enabled:hover { border-color: rgba(232, 226, 214, 0.35); color: var(--bone); }
-      #player > button:enabled:active { background: rgba(232, 226, 214, 0.07); }
-      #player > button:disabled { color: rgba(232, 226, 214, 0.35); cursor: default; }
+      #player > button:hover { border-color: rgba(232, 226, 214, 0.35); color: var(--bone); }
+      #player > button:active { background: rgba(232, 226, 214, 0.07); }
+      /* The renderings' names, one row each; the one on screen is lit as the
+         rail lights its current row. */
+      #player-modes { display: grid; margin: 0 0 6px; }
+      #player-modes [role="radio"] {
+        min-height: 24px;
+        padding: 2px 6px;
+        background: transparent;
+        border: 0;
+        text-align: left;
+        font: inherit;
+        letter-spacing: 0.1em;
+        color: rgba(232, 226, 214, 0.72);
+        cursor: pointer;
+      }
+      #player-modes [role="radio"]:hover { background: rgba(232, 226, 214, 0.05); color: var(--bone); }
+      #player-modes [aria-checked="true"] { background: rgba(232, 226, 214, 0.1); color: var(--bone); }
+      /* Act, season and the window's stop, set under the clock: a title that
+         wraps or empties then moves nothing a visitor is pressing. */
+      #player-title {
+        order: 1;
+        margin-top: 4px;
+        letter-spacing: 0.08em;
+        color: rgba(232, 226, 214, 0.86);
+      }
+      #player-title > div { min-height: 1.5em; }
+      #player-keys { order: 2; }
       /* The rail's scrub: padding widens the grab area without thickening
          the bar. */
       #player-scrub {
