@@ -313,7 +313,9 @@
          portrait window, where the panel as a laptop shows it would cover
          half the court, or a short window under a finger, a phone on its
          side, which that panel would run off. The doors, the credit and the
-         loading chip stand on top of it, at the panel's measured height. */
+         loading chip stand on top of it, at the panel's measured height: the
+         chip over the doors, because the credit wraps to as many lines as a
+         narrow window makes it and leaves no row on its own side free. */
       @media (orientation: portrait) and (max-width: 600px), (pointer: coarse) and (max-height: 500px) {
         body.player #player {
           top: auto;
@@ -333,10 +335,11 @@
         body.player #credit,
         body.player #full-entry { bottom: calc(var(--player-height, 0px) + 12px); }
         body.player #overview-entry { bottom: calc(var(--player-height, 0px) + 48px); }
-        body.player #asset-state { bottom: calc(var(--player-height, 0px) + 44px); }
+        body.player #asset-state { left: auto; right: 22px; bottom: calc(var(--player-height, 0px) + 84px); }
       }
       @media (orientation: portrait) and (max-width: 600px) and (pointer: coarse), (pointer: coarse) and (max-height: 500px) {
         body.player #overview-entry { bottom: calc(var(--player-height, 0px) + 64px); }
+        body.player #asset-state { bottom: calc(var(--player-height, 0px) + 116px); }
       }
 
       /* The player sets nothing in motion of its own: a visitor who asks
