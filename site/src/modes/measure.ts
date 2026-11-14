@@ -57,7 +57,7 @@ import {
 } from "../scalars";
 import { label } from "../textatlas";
 import { CUT_YEAR } from "../timeline";
-import { FREE_THROW_Y, THREE_R } from "../zone";
+import { FREE_THROW_Y, LANE_HALF_W, THREE_R } from "../zone";
 import {
   MEASURE_CLOSE_TERMINAL_FROM,
   MEASURE_CLOSE_TERMINAL_TO,
@@ -271,6 +271,8 @@ function strikeFigure(
   y: number,
   alpha: number,
   size = 22,
+  /** For a figure on the inner annulus, whose name is set beside the lane. */
+  offLane = false,
 ): void {
   if (alpha <= 0.01) return;
   const room = contextDisplay(ctx) === "room";
@@ -288,7 +290,22 @@ function strikeFigure(
     ctx.font = `${sp}px ${INSCRIPTION_FAMILY}`;
     ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha * FIGURE_SUB_ALPHA})`;
     ctx.letterSpacing = `${sp * 0.16}px`;
-    ctx.fillText(sub, view.sx(x), view.sy(y) + px * 0.82);
+    let nameX = view.sx(x);
+    // That floor is in pixels and the annulus is in court units, so on a
+    // laptop's window the two outer names, centred, run exactly as far as the
+    // lane's lines and end on them. A name that would come within its own em
+    // of a lane line is moved along its row, away from the line, until it
+    // stands an em clear: a few pixels, and still under its figure. The room
+    // profile's names are set larger still, and the same rule would carry them
+    // out from under their figures, so there they stay centred.
+    if (offLane && !room) {
+      const reach = ctx.measureText(sub).width / 2 + sp;
+      for (const line of [-LANE_HALF_W, LANE_HALF_W]) {
+        const from = nameX - view.sx(line);
+        if (Math.abs(from) < reach) nameX += (from < 0 ? -1 : 1) * (reach - Math.abs(from));
+      }
+    }
+    ctx.fillText(sub, nameX, view.sy(y) + px * 0.82);
     ctx.letterSpacing = "0px";
   }
   ctx.restore();
@@ -366,7 +383,7 @@ function drawOrphaned(f: Frame, w: WindowFile | null): void {
   buckets.forEach((b, i) => {
     const slot = figureSlot(i, buckets.length);
     strikeFigure(ctx, view, struck(100 * b.share), b.name.toUpperCase(),
-      slot.x, slot.y, remains * 0.72, 18);
+      slot.x, slot.y, remains * 0.72, 18, true);
     // Two serifs and nothing between them, under each figure. This is the
     // piece's argument as a mark rather than as a sentence, and it holds for
     // every act after the window - most of the loop - so it is drawn at the
@@ -603,7 +620,7 @@ function beatSeason(f: Frame, w: WindowFile, k: number, m: Measures | null): voi
     w.contest.buckets.forEach((b, i) => {
       const slot = figureSlot(i, w.contest.buckets.length);
       strikeFigure(ctx, view, struck(100 * b.share), b.name.toUpperCase(),
-        slot.x, slot.y, a * settle * 0.75, 20);
+        slot.x, slot.y, a * settle * 0.75, 20, true);
     });
   }
 }
@@ -653,7 +670,7 @@ function beatClose(f: Frame, w: WindowFile, k: number, m: Measures | null): void
   w.contest.buckets.forEach((b, i) => {
     const slot = figureSlot(i, w.contest.buckets.length);
     strikeFigure(ctx, view, struck(100 * b.share), b.name.toUpperCase(),
-      slot.x, slot.y, a * 0.7, 20);
+      slot.x, slot.y, a * 0.7, 20, true);
   });
   // What survives the close is a proportion of the recovered subset, and it
   // survives for the rest of the loop. It says so.
