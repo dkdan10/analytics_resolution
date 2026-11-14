@@ -48,7 +48,7 @@ import {
   TERM_TIE_ALPHA,
 } from "../scalars";
 import { actOf, ARRIVAL_TAIL } from "../timeline";
-import { label } from "../textatlas";
+import { label, LABEL_LINE_HEIGHT } from "../textatlas";
 import {
   LEDGER_WINDOW_STOPS,
   LEDGER_WINDOW_WITHDRAW_PHASE,
@@ -505,13 +505,74 @@ export function drawTerms(
   ctx.restore();
 }
 
+/**
+ * Where each line of a name's figure block starts, down-screen from the name's
+ * centre, in whatever unit `size` is given in. `nameHeight` and `lineHeight`
+ * are the heights of the name's label and of one figure line's label.
+ *
+ * One geometry, two readers: `drawPublishedInstead` strikes the figures from it
+ * in pixels, and `figureBoxes` hands the same lines, in court tenths, to the
+ * registers that must not speak through them.
+ */
+function figureTops(lines: number, size: number, nameHeight: number, lineHeight: number): number[] {
+  // The recovered-set scope is the only multi-line value. Both display
+  // profiles place that block above its heading: below it sits the inner
+  // arc, and the earlier layout ran this evidence through DRIVES at the
+  // completed crest.
+  const first = lines > 1
+    ? -nameHeight * 0.75 - lines * size * 1.35
+    : nameHeight * 0.75;
+  return Array.from({ length: lines }, (_, k) => first + k * lineHeight);
+}
+
+/**
+ * The window's figures, line by line, as boxes in COURT TENTHS — the lines the
+ * names carry beneath (or, for the scoped share, above) them. The names alone
+ * were the obstacles, so a spoken phrase could still be struck straight through
+ * a figure.
+ *
+ * At the unfloored court size, like every other box here: the figures are a
+ * function of the window file alone, which keeps them inside the year-keyed
+ * memo's contract. A line sits where `label` would set it; the box takes the
+ * same height convention as every other Box.
+ */
+function figureBoxes(data: Loaded, names: string[], boxes: Box[]): Box[] {
+  const values = windowValues(data.window);
+  const size = LEAGUE_NAME_TENTHS;
+  const valueSize = size * LEAGUE_VALUE_SCALE;
+  const out: Box[] = [];
+  names.forEach((name, i) => {
+    const v = values.get(name);
+    const box = boxes[i];
+    if (!v || !box) return;
+    const tops = figureTops(v.length, size, size * LABEL_LINE_HEIGHT,
+      valueSize * LABEL_LINE_HEIGHT);
+    const spans = v.map((line) => widthTenths(line, valueSize));
+    const block = v.length > 1 ? Math.max(...spans) : 0;
+    const cx = box.wx + box.w / 2;
+    v.forEach((_, k) => {
+      out.push({
+        // A scoped block shares one left edge; a single figure is centred.
+        wx: cx - (block > 0 ? block : spans[k]!) / 2,
+        // Screen-down offsets, so court y goes the other way.
+        wy: box.wy - (tops[k]! + valueSize * LABEL_LINE_HEIGHT / 2),
+        w: spans[k]!,
+        h: valueSize * 1.7,
+      });
+    });
+  });
+  return out;
+}
+
 /** The league's names hold the middle of the floor for Acts III and V, so in
- *  those acts they are obstacles the plate has to speak around. Part of the
- *  memo's contract rather than a local convenience — see `ledgerUtterances`. */
+ *  those acts they are obstacles the plate has to speak around — and in the
+ *  window, so are the figures struck with them. Part of the memo's contract
+ *  rather than a local convenience — see `ledgerUtterances`. */
 function leagueObstacles(data: Loaded, year: number): Box[] {
-  return actOf(year) === 3 || actOf(year) === 5
-    ? leagueBoxes(publishedInstead(data))
-    : [];
+  if (actOf(year) !== 3 && actOf(year) !== 5) return [];
+  const names = publishedInstead(data);
+  const boxes = leagueBoxes(names);
+  return actOf(year) === 3 ? [...boxes, ...figureBoxes(data, names, boxes)] : boxes;
 }
 
 /** The caption sits three feet below the pile it names, in court tenths.
@@ -802,20 +863,22 @@ function drawLabels(
 
     // A scatter label inside a spoken term's box is what turns a large word
     // back into noise. Local emptiness is most of why the big register reads.
+    // The label runs rightward from just past its mark, so it is the span it
+    // is set on that is tested, not the mark: from the mark's side a label
+    // reaches a box its point never enters. Nor may it run off the plate.
     const x = sample.x[i]!;
     const y = sample.y[i]!;
-    if (live.some((b) => x >= b.wx - b.h && x <= b.wx + b.w + b.h
+    const lab = label(text, px, dpr);
+    const lead = px * 0.6;
+    const x0 = x + lead / view.scale;
+    const x1 = x0 + lab.width / view.scale;
+    if (x1 > COURT.x1) continue;
+    if (live.some((b) => x1 >= b.wx - b.h && x0 <= b.wx + b.w + b.h
       && Math.abs(y - b.wy) <= b.h)) continue;
 
-    const lab = label(text, px, dpr);
     ctx.globalAlpha = alpha;
-    ctx.drawImage(
-      lab.canvas,
-      view.sx(x) + px * 0.6,
-      view.sy(y) - lab.height / 2,
-      lab.width,
-      lab.height,
-    );
+    ctx.drawImage(lab.canvas, view.sx(x) + lead, view.sy(y) - lab.height / 2,
+      lab.width, lab.height);
   }
   ctx.restore();
 }
@@ -958,13 +1021,6 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
     if (v) {
       if (visible > 0.01) {
         ctx.globalAlpha = remains * LEAGUE_VALUE_ALPHA * visible;
-        // The recovered-set scope is the only multi-line value. Both display
-        // profiles place that block above its heading: below it sits the inner
-        // arc, and the earlier layout ran this evidence through DRIVES at the
-        // completed crest.
-        let vy = v.length > 1
-          ? y - lab.height * 0.75 - v.length * px * 1.35
-          : y + lab.height * 0.75;
         const valueLabels = v.map((line) => label(
           line,
           Math.max(
@@ -976,14 +1032,14 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
         const blockWidth = valueLabels.length > 1
           ? Math.max(...valueLabels.map((valueLabel) => valueLabel.width))
           : 0;
-        for (const vl of valueLabels) {
+        const tops = figureTops(v.length, px, lab.height, valueLabels[0]!.height);
+        valueLabels.forEach((vl, k) => {
           // A scoped value is one evidence block, not two unrelated captions.
           // Both lines share a left edge so the shorter share reads at once
           // with its longer scope statement.
           const vx = blockWidth > 0 ? x - blockWidth / 2 : x - vl.width / 2;
-          ctx.drawImage(vl.canvas, vx, vy, vl.width, vl.height);
-          vy += vl.height;
-        }
+          ctx.drawImage(vl.canvas, vx, y + tops[k]!, vl.width, vl.height);
+        });
       }
     }
   }

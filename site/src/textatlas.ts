@@ -22,6 +22,10 @@ export interface Label {
 
 const atlas = new Map<string, Label>();
 
+/** A label's height, as a multiple of its size. Exported so a layout that has
+ *  to know where a label's text sits without drawing it reads this, not a copy. */
+export const LABEL_LINE_HEIGHT = 1.6;
+
 export function label(text: string, px: number, dpr: number): Label {
   const key = `${text}|${px.toFixed(2)}|${dpr}`;
   const hit = atlas.get(key);
@@ -31,7 +35,7 @@ export function label(text: string, px: number, dpr: number): Label {
   const measure = document.createElement("canvas").getContext("2d")!;
   measure.font = font;
   const w = Math.ceil(measure.measureText(text).width) + 4;
-  const h = Math.ceil(px * dpr * 1.6);
+  const h = Math.ceil(px * dpr * LABEL_LINE_HEIGHT);
 
   const c = document.createElement("canvas");
   c.width = Math.max(1, w);
