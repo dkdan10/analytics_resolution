@@ -965,8 +965,12 @@ export function drawLedgerHand(f: Frame): void {
     // the same way — the same box the spoken register avoids, from the same
     // derivation, so the two readers cannot disagree about where it stands.
     speaking = [...speaking, ...leagueObstacles(data, year)];
-    // At draw time the box is the caption as this frame sets it.
-    if (caption) speaking = [...speaking, caption.box];
+    // Its floor is the court-size box, as theirs are. Where a pixel floor sets
+    // it larger than that, the labels are tested against it as set, below:
+    // growing the floor itself with the type emptied the rim, where the
+    // caption stands and most of what the season describes is filed.
+    const pinBox = pinCaptionBox(season);
+    if (pinBox) speaking = [...speaking, pinBox];
 
     // The scatter goes down FIRST and yields wherever a term is speaking, so
     // the big register has the local emptiness that makes it read.
@@ -981,7 +985,7 @@ export function drawLedgerHand(f: Frame): void {
     const rem = closeRemnant(f);
     const writing = st.act === 3 ? ledgerWindowWritingProgress(st.phase) : st.arrived;
     const edge = rem === null ? writing : rem;
-    drawLabels(f, sample, season, speaking, edge);
+    drawLabels(f, sample, season, speaking, caption ? [caption.box] : [], edge);
     // The pile, named once. Labels stacked on a single point would be a
     // rendering bug; one line saying how many shots the record declined to
     // place is the fact itself.
@@ -1061,7 +1065,12 @@ function drawLabels(
   f: Frame,
   sample: Sample,
   season: Season,
+  /** What the scatter keeps clear floor around, at court size: the words
+   *  being spoken, the league's names and figures, the pin caption. */
   live: Box[],
+  /** What stands larger in this frame than its court-size box says — the pin
+   *  caption on a floor — which a label must still not be struck through. */
+  set: Box[],
   /** How far through the sample the writing edge stands — `st.arrived` while
    *  the season writes, the close's remnant while it un-writes. */
   arrived: number,
@@ -1092,23 +1101,40 @@ function drawLabels(
     if (alpha <= 0.02) continue;
 
     // A scatter label inside a spoken term's box is what turns a large word
-    // back into noise. Local emptiness is most of why the big register reads.
-    // The label runs rightward from just past its mark, so it is the span it
-    // is set on that is tested, not the mark: from the mark's side a label
-    // reaches a box its point never enters. Nor may it run off the plate.
+    // back into noise. Local emptiness is most of why the big register reads,
+    // so a mark that stands inside a box, or within the box's height of it,
+    // goes unlabelled. That floor is the box at court size, whatever the
+    // type's pixel floors do.
     const x = sample.x[i]!;
     const y = sample.y[i]!;
-    const lab = label(text, px, dpr);
-    const lead = px * 0.6;
-    const x0 = x + lead / view.scale;
-    const x1 = x0 + lab.width / view.scale;
-    if (x1 > COURT.x1) continue;
-    if (live.some((b) => x1 >= b.wx - b.h && x0 <= b.wx + b.w + b.h
+    if (live.some((b) => x >= b.wx - b.h && x <= b.wx + b.w + b.h
       && Math.abs(y - b.wy) <= b.h)) continue;
 
+    // A mark can stand clear of a box and its label still run into it, and a
+    // mark near the right sideline has a label that runs off the plate. So
+    // the label is set from just past its mark to the right, or to the left
+    // when the right is taken — the rule the spoken register sets its own
+    // words by — and it goes unset only when neither side is free. Skipping
+    // on the right alone emptied the right wing and thinned the densest acts
+    // far past what the boxes cover, and how much is described is this
+    // hand's measurement. The span is tested against the box itself, with no
+    // margin: the emptiness is kept around the marks, and all this asks is
+    // that no label be struck through a word, a name or a figure.
+    const lab = label(text, px, dpr);
+    const lead = px * 0.6;
+    const reach = (lead + lab.width) / view.scale;
+    // The label's height by the convention every Box here has.
+    const tall = px * 1.7 / view.scale;
+    const struck = (b: Box, x0: number, x1: number): boolean => x1 > b.wx && x0 < b.wx + b.w
+      && Math.abs(y - b.wy) < (b.h + tall) / 2;
+    const free = (x0: number, x1: number): boolean => x0 >= COURT.x0 && x1 <= COURT.x1
+      && !live.some((b) => struck(b, x0, x1)) && !set.some((b) => struck(b, x0, x1));
+    const right = free(x + lead / view.scale, x + reach);
+    if (!right && !free(x - reach, x - lead / view.scale)) continue;
+
     ctx.globalAlpha = alpha;
-    ctx.drawImage(lab.canvas, view.sx(x) + lead, view.sy(y) - lab.height / 2,
-      lab.width, lab.height);
+    ctx.drawImage(lab.canvas, right ? view.sx(x) + lead : view.sx(x) - lead - lab.width,
+      view.sy(y) - lab.height / 2, lab.width, lab.height);
   }
   ctx.restore();
 }
