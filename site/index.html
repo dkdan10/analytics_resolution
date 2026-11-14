@@ -721,7 +721,23 @@
       }
       .op.unavailable { opacity: 0.82; }
       body.display-room .op.unavailable { opacity: 1; }
-      .op.unavailable .op-reads::after { content: " · unavailable outside the Window"; }
+      /* An operation the season cannot take says so on a line of its own
+         under its sources, set as they are: on their line it fell past the
+         ellipsis and was never seen. Its square dims in both profiles, where
+         the row's own dimming is undone in the room. */
+      .op.unavailable::after {
+        content: "unavailable outside the Window";
+        display: block;
+        font-size: 12px;
+        line-height: 1.25;
+        letter-spacing: 0.02em;
+        padding-left: 15px;
+        color: rgba(232, 226, 214, 0.67);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .op.unavailable .op-glyph { color: rgba(232, 226, 214, 0.28); }
 
       /* Stack/Census replace the long score. Compact only the nonessential
          head rows so all eight Stack operations and ALL remain visible at the
