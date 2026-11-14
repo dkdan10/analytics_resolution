@@ -100,6 +100,8 @@ export interface Inscription {
   slot: { x: number; y: number };
   /** Where on the ring, in radians - the numeral lies tangent to it. */
   angle: number;
+  /** The angle between two neighbouring slots, in radians. */
+  slotStep: number;
 }
 
 /** The NBA's own category, named as theirs. Disclosed in wall text. */
@@ -165,6 +167,7 @@ export function buildInscriptions(seasons: Season[], schedule: Schedule): Inscri
       migrate: migrationEnd - delay - STRIKE_IN - hold,
       slot: { x: RING_R * Math.cos(a), y: RING_R * Math.sin(a) },
       angle: a,
+      slotStep: Math.PI / n,
     };
   });
 }
@@ -194,10 +197,25 @@ function placementAt(ins: Inscription, t: number): Placement | null {
   if (u < STRIKE_IN + ins.hold) {
     return { x: STRIKE_AT.x, y: STRIKE_AT.y, scale: 1, alpha: 1, settled: 0 };
   }
+  // AROUND THE HOOP, NOT ACROSS IT. A straight line from the strike point to a
+  // slot on the right cuts back through the ring where earlier seasons already
+  // stand, and the travelling figure lies on them. Bearing and radius move
+  // separately instead: the figure goes round at the strike point's own radius,
+  // outside the ring, and comes down onto its slot only over the last slot's
+  // width of the journey (all of it, when the journey is shorter than that),
+  // the radius arriving last, so it reaches its place from outside and lies on
+  // nothing on the way. The bearing turns with the same eased progress the
+  // rotation does, so the figure stays tangent to the ring as it goes.
   const p = easeInOut((u - STRIKE_IN - ins.hold) / ins.migrate);
+  const fromBearing = Math.atan2(STRIKE_AT.y, STRIKE_AT.x);
+  const fromR = Math.hypot(STRIKE_AT.x, STRIKE_AT.y);
+  const bearing = fromBearing + (ins.angle - fromBearing) * p;
+  const journey = Math.max(1, Math.abs(ins.angle - fromBearing) / ins.slotStep);
+  const left = Math.min(1, (1 - p) * journey);
+  const r = RING_R + (fromR - RING_R) * (1 - (1 - left) * (1 - left));
   return {
-    x: STRIKE_AT.x + (ins.slot.x - STRIKE_AT.x) * p,
-    y: STRIKE_AT.y + (ins.slot.y - STRIKE_AT.y) * p,
+    x: r * Math.cos(bearing),
+    y: r * Math.sin(bearing),
     scale: 1 + (RESIDENT_SCALE - 1) * p,
     alpha: 1 - 0.55 * p,
     settled: p,
@@ -284,6 +302,9 @@ export function drawSlug(
   alpha: number,
   rank: SlugRank = "statement",
   offsetPx = 0,
+  /** Turns the lines about `at`, offset and all, for words that ride with a
+   *  numeral as it turns into the ring. */
+  rotation = 0,
 ): void {
   if (alpha <= 0.01) return;
   const r = SLUG_RANK[rank];
@@ -298,8 +319,16 @@ export function drawSlug(
   ctx.textBaseline = "middle";
   ctx.letterSpacing = `${px * 0.14}px`;
   ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha * ink})`;
+  let x = view.sx(at.x);
+  let y = view.sy(at.y);
+  if (rotation !== 0) {
+    ctx.translate(x, y);
+    ctx.rotate(rotation);
+    x = 0;
+    y = 0;
+  }
   lines.forEach((line, i) => {
-    ctx.fillText(line, view.sx(at.x), view.sy(at.y) + offsetPx + i * px * 1.9);
+    ctx.fillText(line, x, y + offsetPx + i * px * 1.9);
   });
   ctx.letterSpacing = "0px";
   ctx.restore();
@@ -384,27 +413,33 @@ export function drawInscriptions(
     const naming = (1 - p.settled) * p.alpha;
     if (naming > 0.01) {
       // `aside`: this names the numeral above it and must stay subordinate to
-      // it. Numerically what every slug in the piece used to be.
-      drawSlug(ctx, view, [ins.label], { x: p.x, y: p.y }, naming * 0.9, "aside", -px * 0.85);
+      // it. Numerically what every slug in the piece used to be. It turns with
+      // the figure, so on the way round it stays on the figure's outer side and
+      // is never laid across the ring the figure is travelling outside.
+      drawSlug(ctx, view, [ins.label], { x: p.x, y: p.y }, naming * 0.9, "aside", -px * 0.85,
+        rotation);
     }
 
     // The counter-reading rides just below, and only for as long as the two
     // disagree: it fades out as the pair migrates, leaving the taxonomy's
-    // number on the ring because that is the category the league kept.
+    // number on the ring because that is the category the league kept. Below
+    // in the figure's own frame, so the group turns as one with the name.
     if (ins.counter) {
       const fade = 1 - p.settled;
       if (fade > 0.01) {
+        const below = px * 1.15;
         strike(
           ctx,
           ins.counter,
-          view.sx(p.x),
-          view.sy(p.y) + px * 1.15,
+          view.sx(p.x) - below * Math.sin(rotation),
+          view.sy(p.y) + below * Math.cos(rotation),
           px * 0.86,
           p.alpha * fade * 0.8,
+          rotation,
         );
         if (ins.counterLabel) {
           drawSlug(ctx, view, [ins.counterLabel], { x: p.x, y: p.y },
-            p.alpha * fade * 0.75, "aside", px * 1.75);
+            p.alpha * fade * 0.75, "aside", px * 1.75, rotation);
         }
       }
     }
