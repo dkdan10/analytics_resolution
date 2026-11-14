@@ -98,6 +98,24 @@ const KEY_HINTS = [
   "W WINDOW · X CUT · , . STOPS · ←→ SCRUB",
 ];
 
+/** What separates one key from the next in a line of them. */
+const KEY_SEPARATOR = " · ";
+
+/**
+ * A line of keys, each with its word, as nodes a narrow column may break only
+ * between. Each key and its word is one span the stylesheet keeps on one line,
+ * and the separator rides at the head of the span it leads into, so no line
+ * ends on a key parted from its word or on a dot. The text reads exactly as
+ * the line joined by the separator does.
+ */
+export function keyLineNodes(keys: readonly string[]): Node[] {
+  return keys.flatMap((words, i) => {
+    const span = document.createElement("span");
+    span.textContent = i === 0 ? words : `${KEY_SEPARATOR.trimStart()}${words}`;
+    return i === 0 ? [span] : [document.createTextNode(" "), span];
+  });
+}
+
 /**
  * What an operation's own artifact says the thing it reads IS.
  *
@@ -854,7 +872,7 @@ export class Navigator {
     }
     for (const line of lines) {
       const p = document.createElement("p");
-      p.textContent = line;
+      p.append(...keyLineNodes(line.split(KEY_SEPARATOR)));
       this.keysEl.append(p);
     }
   }

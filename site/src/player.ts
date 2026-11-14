@@ -23,7 +23,14 @@ import {
   rotationModes,
   type ModeId,
 } from "./modes";
-import { fmt, Navigator, SCRUB_COARSE_S, SCRUB_STEP_S, windowSubStops } from "./navigator";
+import {
+  fmt,
+  keyLineNodes,
+  Navigator,
+  SCRUB_COARSE_S,
+  SCRUB_STEP_S,
+  windowSubStops,
+} from "./navigator";
 import { GROUND } from "./palette";
 import {
   LOOP_END_GUARD_S,
@@ -55,9 +62,9 @@ export const SCRUB_DWELL_MS = 120;
 
 /** The panel's heading, which also names the group of names. */
 const RENDERINGS = "RENDERINGS";
-/** The keys, said in the rail's own words for them, each key with its word.
- *  Each is set in a span the line may not break inside, so a narrow panel
- *  never leaves a key at the end of one line and its word on the next. */
+/** The keys, said in the rail's own words for them, each key with its word,
+ *  set as the rail sets its own lines: a narrow panel breaks only between
+ *  them, and never ends a line on a separator. */
 const KEY_LINE = ["SPACE PAUSE", "←→ SCRUB", ", . STOPS"];
 
 /** The plate's ground as three channels, so the panel's ground can carry an
@@ -117,11 +124,7 @@ export class Player {
     const heading = root.querySelector<HTMLElement>("#player-heading")!;
     heading.textContent = RENDERINGS;
     heading.setAttribute("aria-hidden", "true");
-    root.querySelector<HTMLElement>("#player-keys")!.replaceChildren(...KEY_LINE.flatMap((words, i) => {
-      const key = document.createElement("span");
-      key.textContent = words;
-      return i === 0 ? [key] : [" · ", key];
-    }));
+    root.querySelector<HTMLElement>("#player-keys")!.replaceChildren(...keyLineNodes(KEY_LINE));
 
     // The renderings by the names the piece gives them, in the order the full
     // work plays them; THE STACK is in no pass, so it has no name here. A
