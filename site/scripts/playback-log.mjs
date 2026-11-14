@@ -66,10 +66,10 @@
  *
  * Every run is a fresh page, and a fresh page holds no season's points until a
  * frame asks for them: whatever `--t` is, each boundary it crosses is crossed
- * for the first time. A crossing with the points already here is reached on one
- * page only, by pinning `--mode` and giving `--seconds` more than one loop of
- * the schedule, so the same boundary comes round again under the same hand.
- * Each boundary's line says which of the two it was.
+ * for the first time. A boundary crossed a second time is reached on one page
+ * only, by pinning `--mode` and giving `--seconds` more than one loop of the
+ * schedule, so the same boundary comes round again under the same hand. Each
+ * boundary's line says which of the two it was.
  *
  * The page is sized as the laptop surface the probes use, and the run is
  * refused if the canvas does not come out at the backing that surface gives on

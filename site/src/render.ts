@@ -18,7 +18,7 @@ import { drawHand, modeAt, type ModeId } from "./modes";
 import { completedStackState, NO_OPS, type StackRenderState } from "./modes/operations";
 import { GROUND } from "./palette";
 import { drawPlate, shortenedThreeR, type View } from "./plate";
-import { CUT_YEAR, stateAt, type Schedule } from "./timeline";
+import { CUT_YEAR, stateAt, type Schedule, type State } from "./timeline";
 
 /** Where a frame is drawn. `main()` keeps one and `resize()` updates it in
  *  place; the probes make their own at a fixed size and DPR. */
@@ -99,6 +99,21 @@ function drawCutBeat(
   ], { x: 0, y: 295 }, smoothstep(k));
 }
 
+/**
+ * Ask for the season after this one, on this one's frames.
+ *
+ * It is first drawn when this season ends, so its record is here when the
+ * work done ahead of the hand-over looks for it. The window season reads more
+ * files than its points, and they are asked for with them. Called once the
+ * frame is drawn, so whatever the frame itself had to ask for was asked
+ * first and does not wait behind this.
+ */
+function askAhead(st: State, data: Loaded): void {
+  if (st.next === null) return;
+  data.prefetchPoints(st.next);
+  if (data.byYear.get(st.next)?.points_by_day) data.prefetchWindow();
+}
+
 export function renderTo(
   { ctx, view, dpr }: Target,
   t: number,
@@ -167,6 +182,7 @@ export function renderTo(
       { x: 0, y: 232 }, ramp(p, 0.14, 0.30, 0.80, 0.97), "voice");
     drawSlug(ctx, view, ["NO SHOT WAS GIVEN A PLACE"],
       { x: 0, y: 176 }, ramp(p, 0.44, 0.62, 0.84, 0.99), "voice");
+    askAhead(st, data);
     return;
   }
 
@@ -217,4 +233,6 @@ export function renderTo(
   // not any one hand's reading of it, and it is the only moment in the piece
   // where the plate is briefly empty of everything.
   drawCutBeat(ctx, view, data, schedule, st.t);
+
+  askAhead(st, data);
 }

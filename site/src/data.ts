@@ -1028,6 +1028,16 @@ export interface Loaded {
    *  done ahead of need, which must not decide what is fetched or when: asking
    *  never starts a fetch. */
   residentPoints(year: number): Points | null;
+  /** Ask for a season's points ahead of the frame that draws them. It returns
+   *  nothing and waits for nothing, and a request it starts is not counted as
+   *  loading until a frame asks for the same points: nothing on screen is
+   *  missing them yet. A failure is reported like any other. */
+  prefetchPoints(year: number): void;
+  /** The same, for every file a frame of the window season reads on a route
+   *  that rotates the hands, one asset at a time: call it on every frame of
+   *  the season before, and each call asks for at most the next. The quarrel
+   *  is not among them: only a hand the rotation never reaches reads it. */
+  prefetchWindow(): void;
   /** The window season's calendar for the same points: per-day count deltas,
    *  the re-clock's artifact. Null for every season that ships no calendar and
    *  while the fetch is in flight; the base falls back to the shared arrival
@@ -1075,7 +1085,8 @@ export interface Loaded {
    *  arrived (THE FEED readout): the rail says the piece is
    *  still filling rather than leaving a cold seek to read as a sparse
    *  record. Probing NEVER fetches — only assets some draw call already
-   *  requested appear — and the list empties on completion. */
+   *  requested appear — and the list empties on completion. A file asked for
+   *  ahead of need is left out until a frame asks for it too. */
   pendingAssets(): string[];
   /** Presentation-facing state for the assets behind the current rendering.
    *  `degraded` is deliberately distinct from `ready`: an optional stage may
@@ -1177,12 +1188,21 @@ interface Lazy<T> {
   error(): string | null;
   /** True while a request is in flight. A probe, never a trigger. */
   pending(): boolean;
+  /** Begin a request ahead of need, unless the asset has arrived, has failed
+   *  or is already on its way. */
+  prefetch(): void;
+  /** True while the request in flight was begun by `prefetch` and nothing has
+   *  since asked for the asset itself. */
+  quiet(): boolean;
 }
 
 function lazy<T>(name: string, fetcher: () => Promise<T>): Lazy<T> {
   let value: T | null = null;
   let failure: string | null = null;
   let inFlight = false;
+  // Set only where `prefetch` starts a request, so one already wanted is
+  // never made quiet again.
+  let quiet = false;
   let request: Promise<T | null> | null = null;
   const begin = (force: boolean): Promise<T | null> => {
     if (value) return Promise.resolve(value);
@@ -1203,20 +1223,31 @@ function lazy<T>(name: string, fetcher: () => Promise<T>): Lazy<T> {
       })
       .finally(() => {
         inFlight = false;
+        quiet = false;
         request = null;
       });
     return request;
   };
   return {
     get(): T | null {
+      quiet = false;
       if (!value && !failure && !inFlight) void begin(false);
       return value;
     },
     peek: () => value,
-    load: () => begin(false),
+    load: () => {
+      quiet = false;
+      return begin(false);
+    },
     retry: () => begin(true),
     error: () => failure,
     pending: () => inFlight,
+    prefetch(): void {
+      if (value || failure || request) return;
+      quiet = true;
+      void begin(false);
+    },
+    quiet: () => quiet,
   };
 }
 
@@ -1277,22 +1308,24 @@ export async function load(): Promise<Loaded> {
   let windowFile = (optionalValues.get("window") as WindowFile | undefined) ?? null;
 
   const pointLoaders = new Map<number, Lazy<Points>>();
-  const fetchPoints = (year: number): Points | null => {
+  const pointLoader = (year: number): Lazy<Points> => {
     let l = pointLoaders.get(year);
     if (!l) {
       l = lazy(`points/season_${year}.bin`,
         () => getBinary(`points/season_${year}.bin`).then(decodePoints));
       pointLoaders.set(year, l);
     }
-    return l.get();
+    return l;
   };
+  const fetchPoints = (year: number): Points | null => pointLoader(year).get();
+  const prefetchPoints = (year: number): void => pointLoader(year).prefetch();
 
   // Only the window season ships a calendar; every other year answers null
   // without fetching, so a caller probing the wrong season costs nothing. The
   // seasons row's own points_by_day block is the door - self-describing, no
   // year literal.
   const dayPointLoaders = new Map<number, Lazy<DayPoints>>();
-  const fetchPointsByDay = (year: number): DayPoints | null => {
+  const dayPointLoader = (year: number): Lazy<DayPoints> | null => {
     if (!seasons.find((s) => s.year === year)?.points_by_day) return null;
     let l = dayPointLoaders.get(year);
     if (!l) {
@@ -1300,8 +1333,10 @@ export async function load(): Promise<Loaded> {
         () => getBinary(`points_by_day/season_${year}.bin`).then(decodePointsByDay));
       dayPointLoaders.set(year, l);
     }
-    return l.get();
+    return l;
   };
+  const fetchPointsByDay = (year: number): DayPoints | null =>
+    dayPointLoader(year)?.get() ?? null;
 
   let paintFile = (optionalValues.get("paint") as PaintFile | undefined) ?? null;
 
@@ -1373,7 +1408,7 @@ export async function load(): Promise<Loaded> {
   ];
   const pending = (): string[] => [
     ...(preloadingWindow ? ["the window"] : []),
-    ...lazyEntries().filter(([, l]) => l.pending()).map(([name]) => name),
+    ...lazyEntries().filter(([, l]) => l.pending() && !l.quiet()).map(([name]) => name),
   ];
   const state = (): AssetState => {
     const p = pending();
@@ -1478,6 +1513,34 @@ export async function load(): Promise<Loaded> {
     return preloadRequest;
   };
 
+  // One asset at a time: each call asks for the first that has neither
+  // arrived nor failed, and for nothing while that one is on its way. Asked
+  // for together they would outnumber the connections a browser keeps open to
+  // one host, and a request waiting for a connection is running down the
+  // fetch timeout: on a slow link, files nobody had begun to send were given
+  // up on and latched as failed (measured). The points and their calendar
+  // lead, since most hands open the window on them. Each asset is asked for
+  // under the condition its own reader asks under, so nothing is requested
+  // here that a frame would not request. The season before the window's is
+  // left to the frames now drawing it.
+  const prefetchWindow = (): void => {
+    const windowYear = seasons.find((s) => s.points_by_day)?.year;
+    const wanted: (Lazy<unknown> | null)[] = [
+      windowYear !== undefined ? pointLoader(windowYear) : null,
+      windowYear !== undefined ? dayPointLoader(windowYear) : null,
+      gameFile ? gameLoader : null,
+      windowFile ? measureLoader : null,
+      paintFile ? strokeLoader : null,
+      windowFile && windowFile.wash ? washLoader : null,
+      slateFile ? slateLoader : null,
+    ];
+    for (const l of wanted) {
+      if (!l || l.peek() || l.error() !== null) continue;
+      if (!l.pending()) l.prefetch();
+      return;
+    }
+  };
+
   loaded = {
     seasons,
     facts,
@@ -1485,6 +1548,8 @@ export async function load(): Promise<Loaded> {
     samples,
     points: fetchPoints,
     residentPoints: (year) => pointLoaders.get(year)?.peek() ?? null,
+    prefetchPoints,
+    prefetchWindow,
     pointsByDay: fetchPointsByDay,
     corpus,
     traces,

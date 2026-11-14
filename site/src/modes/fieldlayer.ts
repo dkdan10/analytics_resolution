@@ -179,15 +179,15 @@ const PREWARM_DEADLINE = 0.75;
  * grain and points.
  *
  * The arriving season's points are taken only if they are already here.
- * Building ahead must not start a fetch: it would move a request the piece
- * makes on the season's first frame to the tail before it. The window's
- * preload apart, that frame is where the piece first asks for a season's
- * points, so the first time a page plays up to a season they are not here:
- * the reveal's hands then build this season's lower states and no more, the
- * hand that develops in builds nothing, and the arriving layers and the
- * order are made whole when a frame of the hand-over first reads them, as
- * before. Once the points are here, as on every later time through, all of
- * it is built in the tail.
+ * Building ahead must not start a fetch: what is fetched, and when, is
+ * decided where a frame is drawn, never by work no frame has asked for.
+ * Every frame of a season asks for the next season's points, so in forward
+ * play they have had this season's arrival to land in before this stretch
+ * opens, and all of it is built in the tail. Where they are not here, as
+ * when a page lands inside the stretch or the file is slow or has failed,
+ * the reveal's hands build this season's lower states and no more, the hand
+ * that develops in builds nothing, and the arriving layers and the order are
+ * made whole when a frame of the hand-over first reads them.
  *
  * It takes no context. Nothing here can draw.
  */
