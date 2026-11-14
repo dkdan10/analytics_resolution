@@ -39,7 +39,7 @@ import { contextDisplay, ROOM_TEXT_MIN_PX } from "../display";
 import { drawSlug } from "../inscription";
 import { CUT_BEAT_SECONDS } from "../render";
 import { BONE_RGB, INSCRIPTION_FAMILY } from "../palette";
-import type { View } from "../plate";
+import { FREE_THROW_R, type View } from "../plate";
 import {
   CALIPER_SERIF,
   CALIPER_SERIF_CLOSE,
@@ -57,6 +57,7 @@ import {
 } from "../scalars";
 import { label } from "../textatlas";
 import { CUT_YEAR } from "../timeline";
+import { FREE_THROW_Y, THREE_R } from "../zone";
 import {
   MEASURE_CLOSE_TERMINAL_FROM,
   MEASURE_CLOSE_TERMINAL_TO,
@@ -81,6 +82,11 @@ export { MEASURE_WINDOW_TERMINAL_SPAN };
  *  the season numerals garland, so Act III leaves two rings around the same
  *  void — the seasons outside, the categories within. */
 const FIGURE_R = 110;
+
+/** Where the close states the recovered set, in court tenths: on the
+ *  centreline over the arc, read against a field the close has all but
+ *  emptied. */
+const SCOPE_CLOSE_Y = 250;
 
 /**
  * How many calipers are ever drawn at once.
@@ -369,16 +375,27 @@ function drawOrphaned(f: Frame, w: WindowFile | null): void {
     emptyCaliper(ctx, view, slot.x - 22, y, slot.x + 22, y, remains * 0.6);
   });
 
-  // The figures above are shares of the RECOVERED set, and they hold here for
-  // the rest of the loop with no evidence under them at all - so the one place
-  // a viewer sees them longest is the place the selection must be stated.
-  if (w.bias.scope) {
-    drawSlug(ctx, view, [w.bias.scope], { x: 0, y: 250 }, remains * 0.4);
-  }
-
   // Said once, on the first season after the window closes - which is read off
   // the corpus's own last date, not written here.
   const closedIn = w.corpus.date_last ? Number(w.corpus.date_last.slice(0, 4)) : null;
+
+  // The figures above are shares of the RECOVERED set, and they hold here for
+  // the rest of the loop with no evidence under them at all - so the one place
+  // a viewer sees them longest is the place the selection must be stated.
+  //
+  // Not where the close states it. There the window's field is nearly gone; here
+  // the late seasons' three-point band is lit, and the close's line sits on it.
+  // It stands instead in the stretch of the centreline the court leaves clear,
+  // midway between the top of the free-throw circle and the crown of the arc,
+  // which the drained mid-range keeps dark. On the season after the window it
+  // moves there from the close's line at the pace that season's own sentences
+  // come up, so the line the close left does not jump.
+  if (w.bias.scope) {
+    const clearY = (FREE_THROW_Y + FREE_THROW_R + THREE_R) / 2;
+    const moved = closedIn !== null && st.year === closedIn ? Math.min(1, st.phase * 2) : 1;
+    drawSlug(ctx, view, [w.bias.scope],
+      { x: 0, y: SCOPE_CLOSE_Y + (clearY - SCOPE_CLOSE_Y) * moved }, remains * 0.4);
+  }
   if (closedIn !== null && st.year === closedIn) {
     drawSlug(ctx, view, [
       `THE LEAGUE STILL PUBLISHES THESE ${spell(buckets.length)} CATEGORIES`,
@@ -620,7 +637,7 @@ function beatClose(f: Frame, w: WindowFile, k: number, m: Measures | null): void
   });
   // What survives the close is a proportion of the recovered subset, and it
   // survives for the rest of the loop. It says so.
-  if (w.bias.scope) drawSlug(ctx, view, [w.bias.scope], { x: 0, y: 250 }, a * 0.4);
+  if (w.bias.scope) drawSlug(ctx, view, [w.bias.scope], { x: 0, y: SCOPE_CLOSE_Y }, a * 0.4);
 
   const closing = Math.max(0, Math.min(1,
     (k - MEASURE_CLOSE_TERMINAL_FROM)

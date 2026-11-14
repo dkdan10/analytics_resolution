@@ -26,7 +26,7 @@ export const COURT = { x0: -250, x1: 250, y0: -50, y1: 420 } as const;
 // Geometry in tenths of feet from the hoop. The hoop sits 5.25 ft from the
 // baseline, which is why the baseline is at -52.5 and the plate clips at -50.
 const BASELINE_Y = -52.5;
-const FREE_THROW_R = 60;
+export const FREE_THROW_R = 60;
 const RIM_R = 7.5;
 const BACKBOARD_Y = -12.5;
 const BACKBOARD_HALF_W = 30;
