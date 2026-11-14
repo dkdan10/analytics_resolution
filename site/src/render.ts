@@ -19,7 +19,9 @@ import { prewarmOpening } from "./modes/fieldlayer";
 import { completedStackState, NO_OPS, type StackRenderState } from "./modes/operations";
 import { GROUND } from "./palette";
 import { drawPlate, shortenedThreeR, type View } from "./plate";
+import { SLUG_VOICE_TENTHS } from "./scalars";
 import { CODA_SECONDS, CUT_YEAR, stateAt, type Schedule } from "./timeline";
+import { THREE_R } from "./zone";
 
 /** Where a frame is drawn. `main()` keeps one and `resize()` updates it in
  *  place; the probes make their own at a fixed size and DPR. */
@@ -194,9 +196,11 @@ export function renderTo(
     const founded = factExternal<number>(data.facts, "league_founded");
     // `voice`, both of them: the piece opens on this, alone, over bare stone,
     // with nothing else competing. Splitting the timing changes no rank — both
-    // lines share the voice rank (ranks: inscription.ts, `SlugRank`).
+    // lines share the voice rank (ranks: inscription.ts, `SlugRank`). The span
+    // stands a line of its own type above the arc's crown, wholly clear of the
+    // engraving, rather than with its tops on it.
     drawSlug(ctx, view, [`${founded} — ${firstCharted ?? ""}`],
-      { x: 0, y: 232 }, ramp(p, 0.14, 0.30, 0.80, 0.97), "voice");
+      { x: 0, y: THREE_R + SLUG_VOICE_TENTHS }, ramp(p, 0.14, 0.30, 0.80, 0.97), "voice");
     drawSlug(ctx, view, ["NO SHOT WAS GIVEN A PLACE"],
       { x: 0, y: 176 }, ramp(p, 0.44, 0.62, 0.84, 0.99), "voice");
     // No hand draws here, so none is building ahead of the first season: the
