@@ -114,6 +114,15 @@
  * incomplete, so a browser that will not launch a fourth time costs a try
  * and not the minutes the sweep took.
  *
+ * EVERY PURITY RUN ALSO CARRIES THE LAYER ROWS. The field can build a layer a
+ * slice at a time, and the page lays each such layer against the same one
+ * baked whole, by hash, with controls that must differ. The run exits 1 when
+ * a layer differs, and 2 when the rows did not establish that none does: a
+ * layer that differed once and not again, a control that read equal, or a
+ * report with no such rows, which is what a page that never built one
+ * returns. Both are judged whatever the headline verdict reads, and exit
+ * after the ladder's own exits, with their lines already printed.
+ *
  * CONTINUITY, AND WHO JUDGES WHAT.
  * The page captures a range's frames and judges structure only: one cut in
  * the cut's range, none anywhere else, and a control - the last frame drawn
@@ -478,6 +487,41 @@ export function expectation(asked, rows) {
     moved: mine.filter((r) => r.status === "MOVED").map(rowName),
     uncompared: mine.filter((r) => !SETTLED.includes(r.status))
       .map((r) => `${rowName(r)} (${r.status})`),
+  };
+}
+
+/**
+ * What a purity report's layer rows hold the run to.
+ *
+ * The field can build a layer a slice at a time, and the page lays each such
+ * layer against the same one baked whole, by hash, with controls that must
+ * differ. `differs` is the layers that came out different on both readings,
+ * or failed a requirement of their case: the renderer's fault. `blind` is
+ * everything that leaves the question unanswered: a layer that differed once
+ * and was equal when taken again, a control that read equal, or no rows at
+ * all. A report without them is not a pass, because a page that never built
+ * a layer in slices proves nothing about one. Read from the rows, not from
+ * the page's own counts, so a page that miscounts cannot pass itself.
+ */
+export function layerBuildHeld(report) {
+  const rows = report.layerBuild?.rows;
+  if (!Array.isArray(rows)) return { differs: [], blind: ["the report carries no layer rows"] };
+  const name = (r) => `${r.season} ${r.palette} state ${r.state} ${r.variant}`;
+  const equal = rows.filter((r) => r.expect === "equal");
+  const controls = rows.filter((r) => r.expect === "differ");
+  return {
+    held: equal.filter((r) => r.ok).length,
+    equal: equal.length,
+    controlsHeld: controls.filter((r) => r.ok).length,
+    controls: controls.length,
+    differs: equal.filter((r) => !r.ok && !r.retake?.equal)
+      .map((r) => name(r) + (r.note ? ` (${r.note})` : "")),
+    blind: [
+      ...(equal.length ? [] : ["no layer was compared"]),
+      ...(controls.length ? [] : ["no control was taken"]),
+      ...controls.filter((r) => !r.ok).map((r) => `${name(r)} read equal to another state`),
+      ...equal.filter((r) => !r.ok && r.retake?.equal).map((r) => `${name(r)} differed once`),
+    ],
   };
 }
 
@@ -2290,6 +2334,7 @@ async function main() {
 
   const stamped = stamp(ladder);
   write(ladder);
+  const layers = kind === "purity" ? layerBuildHeld(report) : null;
 
   console.log(`probe-run: ${report.rows.length} row(s) in ${stamped.instrument.elapsedSeconds}s`);
   if (kind === "purity") {
@@ -2305,6 +2350,15 @@ async function main() {
       console.log("probe-run: an INCONCLUSIVE row measured nothing: take it again alone "
         + "(--mode, --beat), or with --exact");
     }
+    // Said whatever the headline reads: a row whose control moved makes the
+    // page's verdict INCONCLUSIVE, and these are judged by hash and owe
+    // nothing to that.
+    if (layers.equal !== undefined) {
+      console.log(`probe-run: layers built in slices: ${layers.held} of ${layers.equal} equal `
+        + `to the one baked whole; ${layers.controlsHeld} of ${layers.controls} controls differ`);
+    }
+    for (const name of layers.differs) console.error(`probe-run: layer DIFFERS: ${name}`);
+    for (const name of layers.blind) console.error(`probe-run: layer rows: ${name}`);
     if (ladder) {
       console.log(`probe-run: against ${ladder.against.map((a) => a.name).join(", ")}: `
         + Object.entries(ladder.counts).map(([k, n]) => `${n} ${k}`).join(", "));
@@ -2399,6 +2453,15 @@ async function main() {
       console.error(`probe-run: expected unchanged, never compared: ${name}`);
     }
     die("the expectation was not established, which is not a pass; report was written",
+      EXIT_NOT_ESTABLISHED);
+  }
+  // Last, so the lines above are not lost behind this exit. The layer lines
+  // themselves were printed with the verdict.
+  if (layers?.differs.length) {
+    die("a layer built in slices differs from the one baked whole; failing report was written");
+  }
+  if (layers?.blind.length) {
+    die("the layer rows were not established, which is not a pass; report was written",
       EXIT_NOT_ESTABLISHED);
   }
 }

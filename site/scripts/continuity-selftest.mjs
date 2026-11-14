@@ -37,6 +37,7 @@ import {
   fingerprintOf,
   flagProblems,
   judgeRows,
+  layerBuildHeld,
   loadMetrics,
   loosens,
   PERF_LIST_SHOWN,
@@ -1066,6 +1067,57 @@ add("not two perf verdicts paced by animation frames handed out at different int
   perfAgainst(byFrameReport(), byFrameReport({ paceKeptMs: FASTER_FRAME_MS })),
   perfAgainst(byFrameReport({ paceKeptMs: undefined }), byFrameReport({ paceKeptMs: undefined })),
 ].join(", "));
+
+// --- a purity report's layer rows ----------------------------------------------------
+// A layer built in slices is laid against the one baked whole, and the driver
+// exits on what the rows say. Each forged report below must produce exactly
+// its one outcome: held, a difference, or a question left unanswered.
+const layerRow = (variant, extra = {}) => ({
+  season: 2004, regime: "uneven", palette: "bone", state: 4, variant,
+  expect: "equal", calls: 9, built: "aa", whole: "aa", ok: true, ...extra,
+});
+const layerControl = (extra = {}) => layerRow("control", {
+  expect: "differ", calls: 0, built: "aa", whole: "bb", ok: true, ...extra,
+});
+const layerReport = (rows) => ({ layerBuild: { rows } });
+const layerSaid = (report) => {
+  const { differs, blind } = layerBuildHeld(report);
+  return differs.length ? `differs: ${differs.join("; ")}`
+    : blind.length ? `not established: ${blind.join("; ")}` : "held";
+};
+add("layer rows that all hold, with a control that differs", "held",
+  () => layerSaid(layerReport([layerRow("sliced"), layerRow("interleaved"), layerControl()])));
+add("a layer that differs on both readings",
+  "differs: 2004 bone state 4 sliced",
+  () => layerSaid(layerReport([
+    layerRow("sliced", {
+      whole: "bb", ok: false, retake: { built: "aa", whole: "bb", equal: false },
+    }),
+    layerControl(),
+  ])));
+add("a layer whose case failed a requirement (no retake excuses it)",
+  "differs: 2004 bone state 4 finished-late (not counted as finished in place)",
+  () => layerSaid(layerReport([
+    layerRow("finished-late", { ok: false, note: "not counted as finished in place" }),
+    layerControl(),
+  ])));
+add("a layer that differed once and was equal when taken again (not a pass, not a difference)",
+  "not established: 2004 bone state 4 sliced differed once",
+  () => layerSaid(layerReport([
+    layerRow("sliced", {
+      whole: "bb", ok: false, retake: { built: "aa", whole: "aa", equal: true },
+    }),
+    layerControl(),
+  ])));
+add("a control that read equal (the comparison saw nothing)",
+  "not established: 2004 bone state 4 control read equal to another state",
+  () => layerSaid(layerReport([layerRow("sliced"), layerControl({ whole: "aa", ok: false })])));
+add("a purity report with no layer rows at all (a page that never built one)",
+  "not established: the report carries no layer rows", () => layerSaid({ rows: [] }));
+add("layer rows with no layer compared, and with no control",
+  "not established: no layer was compared; not established: no control was taken",
+  () => [layerReport([layerControl()]), layerReport([layerRow("sliced")])]
+    .map(layerSaid).join("; "));
 
 // --- run ---------------------------------------------------------------------------
 let failed = 0;

@@ -154,7 +154,7 @@ function tone(share: number, strength: number): number {
  * the next, the last exactly 1 — stated explicitly rather than through
  * Math.pow so the endpoint's byte-identity rests on nothing but the branch.
  */
-function exposureStrength(state: number): number {
+export function exposureStrength(state: number): number {
   return state >= DEVELOP_STATES ? 1 : Math.pow(DEVELOP_STEP, state - DEVELOP_STATES);
 }
 
@@ -509,28 +509,45 @@ function accOf(len: number): Float32Array {
   return scratchAcc;
 }
 
-/** Quantize a float accumulation once, onto a fresh canvas — the single point
- *  where the field becomes 8-bit. Every surface this produces is written in
- *  one `putImageData` burst and never drawn on again (the prefix.ts
- *  discipline; the bytes are a pure function of `acc`). */
-function quantize(acc: Float32Array, w: number, h: number): HTMLCanvasElement {
-  const img = scratchImg && scratchImg.width === w && scratchImg.height === h
-    ? scratchImg
-    : (scratchImg = new ImageData(w, h));
-  const data = img.data;
-  const px = w * h;
-  for (let p = 0, o = 0, q = 0; p < px; p++, o += 4, q += 3) {
+/** Convert a band of rows of a float accumulation into an image's bytes: the
+ *  single point where the field becomes eight-bit, whether a layer is
+ *  converted whole or a band at a time. Each pixel is assigned once, from its
+ *  finished sum, so the bands of one image may be written in any number of
+ *  calls and come to the same bytes. */
+function quantizeRows(
+  acc: Float32Array,
+  data: Uint8ClampedArray,
+  w: number,
+  from: number,
+  to: number,
+): void {
+  const end = to * w;
+  for (let p = from * w, o = p * 4, q = p * 3; p < end; p++, o += 4, q += 3) {
     data[o] = acc[q] as number;
     data[o + 1] = acc[q + 1] as number;
     data[o + 2] = acc[q + 2] as number;
     data[o + 3] = 255;
   }
+}
 
+/** A fully written image on a fresh canvas. Every surface this produces is
+ *  written in one `putImageData` burst and never drawn on again (the prefix.ts
+ *  discipline; the bytes are a pure function of the image's). */
+function canvasOf(img: ImageData, w: number, h: number): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
   canvas.getContext("2d")!.putImageData(img, 0, 0);
   return canvas;
+}
+
+/** Quantize a float accumulation once, whole, onto a fresh canvas. */
+function quantize(acc: Float32Array, w: number, h: number): HTMLCanvasElement {
+  const img = scratchImg && scratchImg.width === w && scratchImg.height === h
+    ? scratchImg
+    : (scratchImg = new ImageData(w, h));
+  quantizeRows(acc, img.data, w, 0, h);
+  return canvasOf(img, w, h);
 }
 
 const layers = new Map<string, Layer>();
@@ -540,9 +557,23 @@ const layers = new Map<string, Layer>();
  * caches were last emptied, counted so a probe can name the frame that paid.
  * `syncBakes` is a layer baked on a cache miss, `syncSorts` a season's
  * emphasis order built, `revealSteps` an advance of the arrival's folded
- * prefix. No draw reads them, and `clearLayers` returns them to zero.
+ * prefix. `inlineFinishes` is the rest of a layer the job was building,
+ * finished inside a frame that needed it; `prewarmedLayers` a layer the job
+ * finished ahead of any frame that needed it; `prewarmDropped` a job
+ * abandoned unfinished. Every layer that enters the layer cache is counted
+ * once, under `syncBakes`, `inlineFinishes` or `prewarmedLayers`. A slice of
+ * the job is not counted: a probe lists every frame that moves a counter,
+ * and that would list every frame the job runs through. No draw reads them,
+ * and `clearLayers` returns them to zero.
  */
-export const fieldWork = { syncBakes: 0, syncSorts: 0, revealSteps: 0 };
+export const fieldWork = {
+  syncBakes: 0,
+  syncSorts: 0,
+  revealSteps: 0,
+  inlineFinishes: 0,
+  prewarmedLayers: 0,
+  prewarmDropped: 0,
+};
 
 function layerKey(
   year: number,
@@ -601,6 +632,156 @@ function foldLayerCells(
   }
 }
 
+// The live set, derived rather than guessed: at most the current and the
+// previous season are drawn, each at up to DEVELOP_STATES exposure states as
+// the ladder sweeps through them, in at most two palettes (bone for THE PLATE
+// and the text hands, zone for THE FIELD), and the cap is that product. Sized
+// to hold all of it, so neither the ladder revisiting a state nor the
+// rotation switching palettes evicts a layer that is still in play; the cost
+// is memory, and it is the deliberate side of the trade.
+// There are two ways in: a bake on a miss, and a layer built ahead of the
+// frame that draws it (`advancePrewarm`), which enters in the palette its
+// caller named and in no other. Either way the oldest entry is the one
+// dropped, never the one just entered, and a dropped layer that is asked for
+// again is baked on the miss, which costs time and no pixel.
+function storeLayer(key: string, layer: Layer): void {
+  layers.set(key, layer);
+  if (layers.size > 2 * 2 * DEVELOP_STATES) {
+    const oldest = layers.keys().next().value;
+    if (oldest !== undefined && oldest !== key) layers.delete(oldest);
+  }
+}
+
+/** Rows zeroed, or converted, in one slice of a layer built ahead. It decides
+ *  when work is done and cannot change a pixel: any cut of an image's rows
+ *  into bands comes to the same bytes. */
+const PREWARM_ROWS_PER_SLICE = 256;
+/** Cells folded in one slice. It decides when work is done and cannot change
+ *  a pixel: the cells are folded in the same order however they are cut. */
+const PREWARM_CELLS_PER_SLICE = 2048;
+/** Slices one call may run. It decides when work is done and cannot change a
+ *  pixel: it bounds what a call costs, never what a layer holds. */
+const PREWARM_SLICES_MAX = 3;
+/** Calls in a row that may leave the job unnamed before it is dropped, which
+ *  has to stay above the number of other callers in one frame or they would
+ *  drop each other's work in turn. It decides when work is done and cannot
+ *  change a pixel: a dropped job is built again from its first row. */
+const PREWARM_UNNAMED_CALLS = 2;
+
+type JobStage = "fill" | "fold" | "quantize" | "upload";
+
+/**
+ * A layer in the building: the one job `advancePrewarm` runs a slice at a
+ * time, so that a layer a coming frame will ask for can be paid for across
+ * the frames before it.
+ *
+ * Its progress outlives a frame. What it builds is a function of its key
+ * alone, and nothing drawn reads its progress: a draw meets the job only as a
+ * layer that is in the cache or is not, and `bakeLayer` returns the same
+ * bytes either way.
+ *
+ * They are the same bytes because the bodies are the same: a zeroed
+ * accumulator, `foldLayerCells` over consecutive runs of the cells in their
+ * one order, `quantizeRows` over consecutive bands, `canvasOf` once. What the
+ * job derives for itself (the backing size, the splats) it derives by the
+ * expressions `bakeLayer` uses. Between slices, three things hold:
+ *   - the fold never starts before the fill has covered every row of this
+ *     job;
+ *   - the upload never starts before the convert has written every pixel of
+ *     this job;
+ *   - a job that is dropped leaves nothing behind but an empty slot, and the
+ *     next one starts at the fill, at its first row.
+ *
+ * The job has an accumulator and an image of its own. It lives across frames,
+ * and the bakes' scratch pair is zeroed by every bake, delta and trail in
+ * between. `clearLayers` empties the slot and leaves this pair in place, for
+ * the scratch pair's own reason: neither buffer is read before it has been
+ * overwritten whole (the accumulator by the fill, the image by the convert),
+ * so emptying the caches has nothing to gain from dropping them, and holding
+ * them is memory on the side of the trade the layer cache already accepts.
+ */
+interface BakeJob {
+  key: string;
+  // Everything the fold reads, captured when the job starts.
+  pts: Points;
+  coloured: boolean;
+  view: View;
+  dpr: number;
+  pin: [number, number] | null;
+  strength: number;
+  grain: GrainProfile;
+  splats: GrainSplats;
+  w: number;
+  h: number;
+  stage: JobStage;
+  /** The next row to zero (fill) or to convert (quantize). */
+  row: number;
+  /** The next cell to fold. */
+  cell: number;
+  /** Slices done, for what a caller is owed. */
+  units: number;
+  /** Calls in a row whose list did not name this job. */
+  unnamed: number;
+}
+
+let bakeJob: BakeJob | null = null;
+let jobAcc: Float32Array | null = null;
+let jobImg: ImageData | null = null;
+
+/** How many slices a layer is built in: a function of its height and its
+ *  cell count, so what is owed can be reckoned before a job exists. A season
+ *  with no cells still spends one fold slice. */
+function unitsOf(n: number, h: number): number {
+  return 2 * Math.ceil(h / PREWARM_ROWS_PER_SLICE)
+    + Math.max(1, Math.ceil(n / PREWARM_CELLS_PER_SLICE)) + 1;
+}
+
+/** Run one slice of the job, and return its layer when that slice was the
+ *  upload. Each cursor moves in one place, clamped to its end there, because
+ *  the last slice of a stage is rarely a whole one. It moves no work counter:
+ *  who finished a layer is the caller's to say. */
+function stepJob(job: BakeJob): Layer | null {
+  const acc = jobAcc!;
+  const img = jobImg!;
+  job.units++;
+  if (job.stage === "fill") {
+    const to = Math.min(job.h, job.row + PREWARM_ROWS_PER_SLICE);
+    acc.fill(0, job.row * job.w * 3, to * job.w * 3);
+    job.row = to;
+    if (job.row >= job.h) {
+      job.stage = "fold";
+      job.cell = 0;
+    }
+    return null;
+  }
+  if (job.stage === "fold") {
+    const to = Math.min(job.pts.n, job.cell + PREWARM_CELLS_PER_SLICE);
+    foldLayerCells(
+      acc, job.w, job.h, job.view, job.dpr, job.pts, job.cell, to,
+      job.pin, job.strength, job.coloured, job.splats, job.grain,
+    );
+    job.cell = to;
+    if (job.cell >= job.pts.n) {
+      job.stage = "quantize";
+      job.row = 0;
+    }
+    return null;
+  }
+  if (job.stage === "quantize") {
+    const to = Math.min(job.h, job.row + PREWARM_ROWS_PER_SLICE);
+    quantizeRows(acc, img.data, job.w, job.row, to);
+    job.row = to;
+    if (job.row >= job.h) job.stage = "upload";
+    return null;
+  }
+  // The whole image at once, never a part of it: a canvas is written in one
+  // burst or it is not this file's kind of surface.
+  const layer: Layer = { canvas: canvasOf(img, job.w, job.h), key: job.key };
+  storeLayer(job.key, layer);
+  bakeJob = null;
+  return layer;
+}
+
 /**
  * Resolve a season's cells into an image.
  *
@@ -629,6 +810,18 @@ export function bakeLayer(
   const key = layerKey(year, coloured, view, dpr, pin, strength, grain);
   const hit = layers.get(key);
   if (hit) return hit;
+  // A job already building this layer is finished here, by the slices it had
+  // left: the layer it would have stored, at no more than a whole bake's
+  // cost. A miss on any other key bakes whole on the scratch pair below and
+  // leaves the job as it was.
+  if (bakeJob && bakeJob.key === key) {
+    fieldWork.inlineFinishes++;
+    const job = bakeJob;
+    for (;;) {
+      const done = stepJob(job);
+      if (done) return done;
+    }
+  }
   fieldWork.syncBakes++;
 
   const w = Math.max(1, Math.round(view.width * dpr));
@@ -643,20 +836,141 @@ export function bakeLayer(
   foldLayerCells(acc, w, h, view, dpr, pts, 0, pts.n, pin, strength, coloured, splats, grain);
 
   const layer: Layer = { canvas: quantize(acc, w, h), key };
-  layers.set(key, layer);
-  // The live set, derived rather than guessed: at most the current and the
-  // previous season are drawn (2), each at up to DEVELOP_STATES exposure
-  // states as the ladder sweeps through them, in at most two palettes (bone
-  // for THE PLATE and the text hands, zone for THE FIELD) — so a full
-  // rotation's working set is 2 seasons x DEVELOP_STATES states x 2 palettes.
-  // Sized to hold all of it so neither the ladder revisiting a state nor the
-  // rotation switching palettes evicts a layer that is still in play; the
-  // cost is memory, and it is the deliberate side of the trade.
-  if (layers.size > 2 * 2 * DEVELOP_STATES) {
-    const oldest = layers.keys().next().value;
-    if (oldest !== undefined && oldest !== key) layers.delete(oldest);
-  }
+  storeLayer(key, layer);
   return layer;
+}
+
+/** Something a coming frame will ask for, named so it can be built before
+ *  that frame: a season's layer at one state of its ladder, or a season's
+ *  emphasis order. */
+export type PrewarmRequest =
+  | {
+      what: "layer";
+      year: number;
+      pts: Points;
+      coloured: boolean;
+      view: View;
+      dpr: number;
+      pin: [number, number] | null;
+      /** A ladder state, from the lowest up to DEVELOP_STATES. */
+      state: number;
+      grain: GrainProfile;
+    }
+  | { what: "order"; pts: Points; pin: [number, number] | null };
+
+/**
+ * Pay toward what a coming frame will ask for.
+ *
+ * `requests` is what will be asked for, in the order it will first be read,
+ * and `owedShare` is how much of all of it should be done by now, which a
+ * caller derives from its clock alone. What has been done is history, and
+ * history decides only whether an entry already exists: `bakeLayer` and
+ * `revealOrder` return the same thing whatever was or was not built here, and
+ * that is all a frame can see of this. It takes no context and cannot draw.
+ *
+ * A layer request names a ladder state, never a strength. Its key is formed
+ * through `exposureStrength`, as `drawDeveloping` forms the one it bakes, so
+ * the float in the key is the same float.
+ *
+ * What is owed and what is done are reckoned from the list on every pass,
+ * never carried: a running total is where a slip would hide.
+ *
+ * A call's cost is bounded. It runs at most PREWARM_SLICES_MAX slices; or
+ * fewer and then one upload, which ends the call; or one sort and nothing
+ * else. The two pieces that cannot be cut never share a call.
+ *
+ * There is one job, and it belongs to whichever list names it. A call whose
+ * list does not name it leaves it alone and does nothing, so two callers in
+ * one frame take the slot turn about; only a job that more than
+ * PREWARM_UNNAMED_CALLS calls running have left unnamed is dropped.
+ */
+export function advancePrewarm(
+  requests: readonly PrewarmRequest[],
+  owedShare: number,
+): void {
+  if (!requests.length) return;
+
+  type LayerRequest = Extract<PrewarmRequest, { what: "layer" }>;
+  const keyOf = (r: LayerRequest): string =>
+    layerKey(r.year, r.coloured, r.view, r.dpr, r.pin, exposureStrength(r.state), r.grain);
+  const reckon = () => {
+    let total = 0;
+    let done = 0;
+    let named = false;
+    let next: PrewarmRequest | null = null;
+    for (const r of requests) {
+      if (r.what === "order") {
+        total += 1;
+        const have = revealOrders.get(r.pts);
+        if (have && have.pinKey === (r.pin ? r.pin.join(",") : "none")) done += 1;
+        else next ??= r;
+        continue;
+      }
+      const key = keyOf(r);
+      const units = unitsOf(r.pts.n, Math.max(1, Math.round(r.view.height * r.dpr)));
+      total += units;
+      if (layers.has(key)) done += units;
+      else if (bakeJob && bakeJob.key === key) {
+        done += bakeJob.units;
+        named = true;
+      } else next ??= r;
+    }
+    return { total, done, named, next };
+  };
+
+  let now = reckon();
+  // Whose the job is, settled once, before any work.
+  if (bakeJob) {
+    if (now.named) bakeJob.unnamed = 0;
+    else if (++bakeJob.unnamed > PREWARM_UNNAMED_CALLS) {
+      bakeJob = null;
+      fieldWork.prewarmDropped++;
+    } else return;
+  }
+
+  const share = Math.min(1, Math.max(0, owedShare));
+  let spent = 0;
+  while (now.done < share * now.total && spent < PREWARM_SLICES_MAX) {
+    if (bakeJob) {
+      spent++;
+      if (stepJob(bakeJob)) {
+        fieldWork.prewarmedLayers++;
+        return;
+      }
+      now = reckon();
+      continue;
+    }
+    const next = now.next;
+    if (!next) return;
+    if (next.what === "order") {
+      if (spent === 0) revealOrder(next.pts, next.pin);
+      return;
+    }
+    const { view, dpr, grain } = next;
+    const w = Math.max(1, Math.round(view.width * dpr));
+    const h = Math.max(1, Math.round(view.height * dpr));
+    if (!jobAcc || jobAcc.length !== w * h * 3) jobAcc = new Float32Array(w * h * 3);
+    if (!jobImg || jobImg.width !== w || jobImg.height !== h) jobImg = new ImageData(w, h);
+    bakeJob = {
+      key: keyOf(next),
+      pts: next.pts,
+      coloured: next.coloured,
+      view,
+      dpr,
+      pin: next.pin,
+      strength: exposureStrength(next.state),
+      grain,
+      splats: grainSplatsOf(view, dpr, grain),
+      w,
+      h,
+      stage: "fill",
+      row: 0,
+      cell: 0,
+      units: 0,
+      unnamed: 0,
+    };
+    now = reckon();
+  }
 }
 
 /**
@@ -1654,9 +1968,16 @@ export function clearLayers(): void {
   // emptying pays what a fresh page's first frame pays.
   revealOrders = new WeakMap();
   dayFoldPlans = new WeakMap();
+  // A job in flight is dropped with the caches it was building for. Its
+  // accumulator and image stay: the next job overwrites both whole before it
+  // reads either.
+  bakeJob = null;
   fieldWork.syncBakes = 0;
   fieldWork.syncSorts = 0;
   fieldWork.revealSteps = 0;
+  fieldWork.inlineFinishes = 0;
+  fieldWork.prewarmedLayers = 0;
+  fieldWork.prewarmDropped = 0;
 }
 
 /**

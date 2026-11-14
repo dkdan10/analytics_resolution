@@ -92,11 +92,13 @@
 
 import { renderTo, type Target } from "../render";
 import { displayFromQuery } from "../display";
+import { fieldWork } from "../field";
 import type { ModeId } from "../modes";
 import {
   completedStackState, OPERATIONS, opsToken, toggle, type StackOps,
 } from "../modes/operations";
 import { semanticStopById, semanticTime } from "../semantic";
+import { layerBuildRows } from "./layers";
 import type { PixelDiff } from "./shared";
 import {
   cold,
@@ -518,16 +520,27 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
        * measurement has moved and nothing else in that arm can be believed. An
        * instrument that cannot tell "the piece is impure" from "the instrument
        * drifted" is not evidence, and this is the difference between the two.
+       *
+       * `counted` also records what the field counted in each history: every
+       * capture opens by emptying the caches, which returns the counters to
+       * zero, so what stands after one is that history's work and no other's.
+       * It says which path built the layers a frame composited, a bake on the
+       * miss or a build ahead of it, and is no part of any verdict.
        */
       const arm = (
         cap: (t: number, m: ModeId, h: History, o: StackOps) => Uint8ClampedArray,
         floor = noise,
+        counted = false,
       ) => {
         const shots: Partial<Record<History, Uint8ClampedArray>> = {};
         const hashes: Partial<Record<History, string>> = {};
+        const work: Partial<Record<History, Record<string, number>>> = {};
         for (const h of HISTORIES) {
           shots[h] = cap(t, mode, h, cfg.ops);
           hashes[h] = hashPixels(shots[h]!);
+          if (counted) {
+            work[h] = Object.fromEntries(Object.entries(fieldWork).filter(([, n]) => n !== 0));
+          }
         }
         const control = cap(t, mode, "direct", cfg.ops);
         const stable = hashPixels(control) === hashes.direct;
@@ -546,6 +559,7 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
         }
         return {
           hashes,
+          ...(counted ? { work } : {}),
           controlStable: stable,
           identical,
           real,
@@ -554,7 +568,7 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
         };
       };
 
-      const renderer = arm(captureRenderer, noise);
+      const renderer = arm(captureRenderer, noise, true);
       const { identical: _si, real: _sr, ...surfaceArm } = arm(captureSurface, surfaceNoise);
       const surfaceReal = _sr;
 
@@ -591,6 +605,9 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
         verdict,
         controlStable: stable,
         hashes: renderer.hashes,
+        // What the field counted in each history, for a reader asking which
+        // path built what this row composited.
+        work: renderer.work,
         ...(renderer.control ? { control: renderer.control } : {}),
         ...(renderer.diffs ? { diffs: renderer.diffs } : {}),
         // Reported, never verdict-bearing: this arm cannot tell the piece's
@@ -617,6 +634,10 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
    }
   }
 
+  // After the sweep's rows, so what these leave for the collector cannot sit
+  // under a row's noise floor. Taken in every capture, narrowed or not.
+  const layerBuild = await layerBuildRows(data);
+
   const byMode = Object.fromEntries(
     modes.map((m) => {
       const mine = rows as { mode: string; verdict: string; diffs?: Record<string, { channels: number }> }[];
@@ -641,9 +662,13 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
     // A round-trip failure is an IMPURE verdict for the whole run: it is the
     // fifth rule failing on the configuration axis rather than the time axis,
     // and burying it in a sub-object nobody reads is how `withinNoiseBeats`
-    // came to be invisible for a day.
-    verdict: inconclusive ? "INCONCLUSIVE"
-      : impure === 0 && roundTripFailures === 0 ? "PURE" : "IMPURE",
+    // came to be invisible for a day. A layer built in slices is compared by
+    // hash and owes nothing to the noise floor, so a difference there is not
+    // excused by a row whose control moved.
+    verdict: layerBuild.failures > 0 ? "IMPURE"
+      : inconclusive || layerBuild.unsettled > 0 || layerBuild.controlFailures > 0
+        ? "INCONCLUSIVE"
+        : impure === 0 && roundTripFailures === 0 ? "PURE" : "IMPURE",
     surface: { width: PROBE_W, height: PROBE_H, dpr: PROBE_DPR },
     // Whether every target drew through one View, as the gallery does, or
     // through a new one each — the demonstration arm, and not the gallery.
@@ -695,6 +720,9 @@ export async function purityProbe(env: Env, q: URLSearchParams): Promise<unknown
       failures: roundTripFailures,
       rows: roundTrips,
     },
+    /** A layer built a slice at a time against the same layer baked whole.
+     *  Hash equality, with a control that must differ. */
+    layerBuild,
     surfaceNoiseFloor: runWide
       ? runWide.surface
       : worst(groupFloors.map((g) => g.surface)),
