@@ -179,6 +179,9 @@ export class Player {
       this.names.push({ id, el: b });
     }
     modes.addEventListener("keydown", (e) => {
+      // A chord is the browser's: with a modifier the arrows are its own
+      // shortcuts, going back a page among them.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       const dir = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1
         : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
       if (dir === 0) return;
@@ -240,6 +243,8 @@ export class Player {
     scrub.setAttribute("aria-valuemin", "0");
     scrub.setAttribute("aria-valuemax", String(Math.round(this.loop)));
     scrub.addEventListener("keydown", (e) => {
+      // A chord is the browser's here too; Shift alone is the coarse step.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === "ArrowRight" || e.key === "ArrowUp") this.nudge(true, e.shiftKey);
       else if (e.key === "ArrowLeft" || e.key === "ArrowDown") this.nudge(false, e.shiftKey);
       else if (e.key === "Home") this.home();

@@ -253,11 +253,13 @@ function bindTalkKeys(
  * scrub's step (Shift for the coarse one), Home returns to the start of the
  * pass on screen, `,` and `.` step through the stops of the rendering on
  * screen, and `h` shows the same instant in the next rendering, the key the
- * rail cycles its hands with. Nothing held, and no chord: the browser keeps
- * those.
+ * rail cycles its hands with. Here each key answers one press at a time, and
+ * a chord is the browser's, as it is on the panel's own controls.
  *
- * A key pressed while one of the panel's controls, a door or the credit's link
- * has focus belongs to that control, as on the rail.
+ * While one of the panel's controls, a door or the credit's link has focus,
+ * Space, Enter, the arrows, Home and End are left to it, as the rail leaves
+ * them to its own, so a held arrow on the focused scrub keeps moving it. The
+ * stop keys and `h` act wherever focus is.
  */
 function bindPlayerKeys(player: Player): void {
   window.addEventListener("keydown", (e) => {
