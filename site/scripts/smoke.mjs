@@ -140,20 +140,24 @@ function firstSeasonStart() {
 
 const FIRST_SEASON_S = firstSeasonStart();
 
-/** The public addresses: the bare one, which serves the player, the overview
- *  and the full work by name, the lectern, the rail, one direct address of the
- *  kind a citation is, and the player by name. The player is worked at its
- *  own address, which comes after the full work, whose canvas it is held to. */
+/** The public addresses: the full work by name, the bare one, the overview,
+ *  the lectern, the rail, one direct address of the kind a citation is, and
+ *  the player by name. The full work comes first because the player is held
+ *  to its canvas. */
 const ADDRESSES = [
+  "?experience=full",
   "",
   "?experience=overview",
-  "?experience=full",
   "?talk",
   "?nav",
   "?mode=hand&stop=hand.close",
   "?experience=player",
 ];
 const FULL_WORK = "?experience=full";
+/** The addresses that must serve the player, and are worked as it: the bare
+ *  one is listed by name, not recognised from the page, so a bare address
+ *  that stopped serving the player is refused and not passed over. */
+const PLAYER_ADDRESSES = ["", "?experience=player"];
 
 /** How long after a press the player's clock is first read: a frame or two
  *  for the press to reach it. */
@@ -523,7 +527,7 @@ async function watch(browser, size, address, spoil) {
 
     // The player is worked only once it has settled, and looked at once more
     // after, so a fault its transport raised is refused as a fault.
-    if (new URLSearchParams(address).get("experience") === "player") {
+    if (PLAYER_ADDRESSES.includes(address)) {
       const shown = await page.evaluate(lookAtPlayer);
       facts.player = { shown, fullCanvas: null, steps: shown.panel ? await exercisePlayer(page) : [] };
       const after = await page.evaluate(look);

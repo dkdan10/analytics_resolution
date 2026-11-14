@@ -52,10 +52,10 @@ In the player:
 
 | key | action |
 |---|---|
-| `space` | pause or resume (so does a click on the canvas) |
+| `space` | pause or resume (so does a click on the canvas); while one of the panel's controls, a door or the credit's link has keyboard focus, the key is that control's |
 | `←` `→` | back or forward by the scrub's step; with `shift`, by its coarse step |
 | `,` `.` | previous / next stop of the rendering on screen |
-| `h` | the same instant in the next rendering |
+| `h` | the same instant in the next rendering; from the opening card, that rendering's first season |
 | `home` | the start of the pass on screen |
 | `escape` | from `?experience=full` or `?experience=overview`, back to the player |
 
