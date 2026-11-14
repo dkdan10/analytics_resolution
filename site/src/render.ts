@@ -19,7 +19,7 @@ import { prewarmOpening } from "./modes/fieldlayer";
 import { completedStackState, NO_OPS, type StackRenderState } from "./modes/operations";
 import { GROUND } from "./palette";
 import { drawPlate, shortenedThreeR, type View } from "./plate";
-import { CUT_YEAR, stateAt, type Schedule } from "./timeline";
+import { CODA_SECONDS, CUT_YEAR, stateAt, type Schedule } from "./timeline";
 
 /** Where a frame is drawn. `main()` keeps one and `resize()` updates it in
  *  place; the probes make their own at a fixed size and DPR. */
@@ -244,10 +244,15 @@ export function renderTo(
 
   // The coda lets the completed evidence sit above the withdrawing hand. Hold
   // the ring through most of the seven seconds, then take the final fade to the
-  // same bare ground the prelude opens on.
+  // same bare ground the prelude opens on. It comes up over the share of the
+  // coda's own clock that one of its seconds is, rather than whole on the
+  // coda's first frame: over a hand that does not draw the ring, the whole
+  // ring appearing at once is a second cut, and over one that does, the
+  // overprint strengthens a ring already there instead of stepping it.
   if (st.coda > 0) {
     const ring = st.coda <= 0.65 ? 1 : Math.max(0, (1 - st.coda) / 0.35);
-    drawSettledInscriptions(ctx, view, inscriptions, st.t, ring);
+    const lift = smoothstep(st.coda * CODA_SECONDS);
+    drawSettledInscriptions(ctx, view, inscriptions, st.t, ring * lift);
   }
 
   // Last, and over whichever hand is drawing: the cut is the record's event,
