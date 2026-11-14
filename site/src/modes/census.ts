@@ -71,7 +71,7 @@ import {
   STRIKE_MAX_TENTHS,
   WORD_CLEAR_PAD,
 } from "../scalars";
-import { ARRIVAL_TAIL } from "../timeline";
+import { ARRIVAL_TAIL, type Act } from "../timeline";
 import {
   CENSUS_FILING_COMPLETE,
   CENSUS_FILING_FADE,
@@ -85,7 +85,7 @@ import {
   windowSecondAtPhase,
 } from "../window-score";
 import { drawSeasonField } from "./fieldlayer";
-import { drawActCue } from "./shared";
+import { actCueLevel, drawActCue } from "./shared";
 import type { Frame } from "./types";
 
 /** Compatibility exports; the canonical Census score is centralized. */
@@ -105,6 +105,10 @@ export {
  *  marks, and below the baseline, where the record has none either. */
 const HEADER_AT = { x: 0, y: 402 };
 const FOOTER_AT = { x: 0, y: -32 };
+
+/** The boundaries the census names: it has no native boundary event — its
+ *  taxonomy turnover happens most seasons, not at the acts. */
+const CUED_ACTS: readonly Act[] = [2, 5];
 
 /** The footer's ground, which no word may stand on: the plate's whole width,
  *  from its foot up to a whole em of the footer's registered size above its
@@ -539,11 +543,18 @@ function strikeHeader(
  * optional: without it a viewer is entitled to read the layout as a design.
  */
 function strikeDisclosure(f: Frame, opacity = 1): void {
-  const { ctx, view, remains } = f;
+  const { ctx, view, remains, display } = f;
+  // The act's title is struck just under this sentence while it crosses into
+  // the act. The room profile floors both larger, and there the title would
+  // read as a third line of it, so the sentence stands down on the title's own
+  // curve and returns as the title leaves.
+  const title = display === "room"
+    ? Math.max(0, ...CUED_ACTS.map((act) => actCueLevel(f, act)))
+    : 0;
   drawSlug(ctx, view, [
     "EACH NAME STRUCK AT THE MEAN DISTANCE AND BEARING",
     "OF THE SHOTS THE RECORD GAVE IT · BEARING MOVED FOR ROOM, DISTANCE NEVER",
-  ], HEADER_AT, remains * CENSUS_SUB_ALPHA * opacity, "aside", 62);
+  ], HEADER_AT, remains * CENSUS_SUB_ALPHA * opacity * (1 - title), "aside", 62);
 }
 
 /**
@@ -618,23 +629,28 @@ function drawReceipt(
   const k = Math.min(1, Math.max(0, ((localPhase - completeAt) / tail) * 3)) * opacity;
   if (k <= 0.01) return;
 
-  const px = Math.max(display === "room" ? 13 : 8.5, Math.min(11, view.width / 150));
+  const px = Math.max(display === "room" ? 13 : 8.5, Math.min(RECEIPT_TOP_PX, view.width / 150));
   const pad = Math.round(px * 1.6);
+  // The near receipt's own leading at the largest type it is set in, kept
+  // wherever the room profile floors the type above that size: at the bare
+  // LINE the room's rows were set solid and touched top to bottom. Near never
+  // exceeds that size, so its step is LINE exactly as before.
+  const step = Math.max(LINE, Math.round((px * LINE) / RECEIPT_TOP_PX));
   ctx.save();
   ctx.font = `${px}px ${SLUG_FAMILY}`;
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
 
   const total = Object.keys(season.classification[taxonomy] ?? {}).length;
-  let y = pad + LINE;
+  let y = pad + step;
   ctx.fillStyle = `rgba(${BONE_RGB}, ${CENSUS_SUB_ALPHA * remains * k})`;
   ctx.fillText(taxonomy, pad, y);
-  y += LINE + 3;
+  y += step + 3;
   ctx.fillStyle = `rgba(${BONE_RGB}, ${CENSUS_ROW_ALPHA * remains * k})`;
   for (const w of words) {
     if (!w.named) continue;
     ctx.fillText(`${w.name.toLowerCase()}   ${struckFigure(w.share)}`, pad, y);
-    y += LINE;
+    y += step;
   }
   // The tail is a count, never a cloud — the same rule the footer obeys.
   const rest = total - words.filter((x) => x.named).length;
@@ -825,10 +841,7 @@ export function drawCensusHand(f: Frame): void {
     dim: remains * CENSUS_FIELD_DIM, withPrevious: false, prewarm: true,
   });
 
-  // The boundaries named: the census has no native boundary event —
-  // its taxonomy turnover happens most seasons, not at the acts.
-  drawActCue(f, 2);
-  drawActCue(f, 5);
+  for (const act of CUED_ACTS) drawActCue(f, act);
 }
 
 // --- the canvas tables, kept whole -------------------------------------------
@@ -898,6 +911,8 @@ function census(season: Season, arrived: number): { groups: Group[]; classified:
 
 const LINE = 13;
 const GAP = 9;
+/** The largest type the receipt is set in on a near screen. */
+const RECEIPT_TOP_PX = 11;
 
 /** Flow a column of text, wrapping into the next column when it runs out of
  *  height — the tallies must never spill off the bottom of the frame. */

@@ -104,14 +104,22 @@ function cueStep(x: number): number {
   return c * c * (3 - 2 * c);
 }
 
-export function drawActCue(f: Frame, act: Act, at = CUE_AT): void {
+/** How far an act's cue is up at this frame, from 0 to 1: the envelope
+ *  `drawActCue` strikes the title with, so a hand that has to make room under
+ *  the title reads the same curve rather than a copy of it. */
+export function actCueLevel(f: Frame, act: Act): number {
   const seg = f.schedule.segments.find((s) => s.act === act);
-  if (!seg) return;
+  if (!seg) return 0;
   const u = f.st.t - seg.start;
-  if (u <= 0 || u >= ACT_CUE_SECONDS) return;
-  const a = cueStep(u / CUE_EDGE)
+  if (u <= 0 || u >= ACT_CUE_SECONDS) return 0;
+  return cueStep(u / CUE_EDGE)
     * (1 - cueStep((u - (ACT_CUE_SECONDS - CUE_EDGE)) / CUE_EDGE));
-  drawSlug(f.ctx, f.view, [ACT_TITLES[seg.act].toUpperCase()], at,
+}
+
+export function drawActCue(f: Frame, act: Act, at = CUE_AT): void {
+  const a = actCueLevel(f, act);
+  if (a <= 0) return;
+  drawSlug(f.ctx, f.view, [ACT_TITLES[act].toUpperCase()], at,
     f.remains * a * 0.45, "voice");
 }
 
