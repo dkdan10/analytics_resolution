@@ -959,7 +959,7 @@ export function advancePrewarm(
         total += 1;
         const have = dayFoldPlans.get(r.dayPts);
         if (have && have.pinKey === (r.pin ? r.pin.join(",") : "none")
-          && have.seedDay === r.seedDay) done += 1;
+          && have.seedDay === r.seedDay && have.windowLast === r.windowLast) done += 1;
         else next ??= r;
         continue;
       }
@@ -1481,6 +1481,10 @@ export interface WindowFoldClock {
 interface DayFoldPlan {
   pinKey: string;
   seedDay: number;
+  /** The window's last day the plan was cut at. The order is split there and
+   *  the calendars below are sized by it, so it is part of the key, with the
+   *  pin and the seed day: a plan cut at another day is never met again. */
+  windowLast: number;
   /** Record indices in fold order; pin cells excluded (the plate refuses
    *  them, exactly as `bakeLayer` and `revealOrder` do). */
   order: Int32Array;
@@ -1513,7 +1517,8 @@ function dayFoldPlan(
 ): DayFoldPlan {
   const pinKey = pin ? pin.join(",") : "none";
   const have = dayFoldPlans.get(dayPts);
-  if (have && have.pinKey === pinKey && have.seedDay === seedDay) return have;
+  if (have && have.pinKey === pinKey && have.seedDay === seedDay
+    && have.windowLast === windowLast) return have;
   fieldWork.syncSorts++;
 
   const [pinX, pinY] = pin ?? [NaN, NaN];
@@ -1561,7 +1566,7 @@ function dayFoldPlan(
   }
 
   const built: DayFoldPlan = {
-    pinKey, seedDay, order, cumBefore,
+    pinKey, seedDay, windowLast, order, cumBefore,
     seedCount: seed.length, bCum, bDayCount,
     windowEnd: seed.length + winDays.length,
     pinSeedN, pinBCum, pinBDay, pinTotal,

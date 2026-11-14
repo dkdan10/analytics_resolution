@@ -1207,10 +1207,6 @@ interface Lazy<T> {
   /** True while the request in flight was begun by `prefetch` and nothing has
    *  since asked for the asset itself. */
   quiet(): boolean;
-  /** True once a request begun by `prefetch` failed while still quiet. That
-   *  failure has no standing: it is neither latched nor reported, and the
-   *  asset is not asked for ahead again. A frame that needs it asks afresh. */
-  aheadFailed(): boolean;
 }
 
 function lazy<T>(name: string, fetcher: () => Promise<T>): Lazy<T> {
@@ -1273,7 +1269,6 @@ function lazy<T>(name: string, fetcher: () => Promise<T>): Lazy<T> {
       void begin(false);
     },
     quiet: () => quiet,
-    aheadFailed: () => aheadFailed,
   };
 }
 

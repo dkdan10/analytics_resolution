@@ -67,7 +67,7 @@ export function drawHand(mode: ModeId, f: Frame): void {
 
 /**
  * The window's files each hand's frames read beyond the season's points, in
- * the order those frames first ask for them.
+ * the order they are asked for ahead of the window.
  *
  * What is asked for ahead of the window follows the hand about to play it. A
  * file that hand never reads would be downloaded for nothing. A file a hand
@@ -76,9 +76,18 @@ export function drawHand(mode: ModeId, f: Frame): void {
  * costs a download: keep each to what the hand's own code reads. THE STACK
  * reads the paint and the quarrel only under an operation, so it names
  * neither.
+ *
+ * The order is the order to ask in, not the order a frame reads in. Files are
+ * asked for one at a time and none past the first that has not arrived, so
+ * where one fails ahead, every file after it is left to the frame that reads
+ * it. A file whose reader waits for another comes after that one, as the
+ * paint's wash, game and slate come after its strokes. The plate's frame
+ * reads its game before its calendar and neither waits for the other; the
+ * calendar leads because building ahead reads it too, for the window's fold
+ * order.
  */
 const WINDOW_READS: Record<ModeId, readonly WindowAsset[]> = {
-  plate: ["game", "calendar"],
+  plate: ["calendar", "game"],
   field: ["calendar"],
   ledger: ["calendar"],
   census: [],
