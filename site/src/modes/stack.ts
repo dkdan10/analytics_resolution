@@ -470,6 +470,13 @@ export function drawQuarrel(f: Frame, progress = f.st.phase): void {
   const a = remains * QUARREL_ALPHA;
   if (a <= 0.01) return;
   ctx.save();
+  // Held to the court's box. A record whose two claims lie a court apart
+  // still draws, but only as far as the plate: past it the segment ran off
+  // the canvas through the margin, where nothing else on the plate goes.
+  ctx.beginPath();
+  ctx.rect(view.sx(COURT.x0), view.sy(COURT.y1),
+    view.s(COURT.x1 - COURT.x0), view.s(COURT.y1 - COURT.y0));
+  ctx.clip();
   ctx.strokeStyle = `rgba(${BONE_RGB}, ${a})`;
   ctx.lineWidth = 1;
   ctx.beginPath();
