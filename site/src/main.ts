@@ -38,7 +38,7 @@ import {
   type StackRenderState,
   type StackOps,
 } from "./modes/operations";
-import { Navigator } from "./navigator";
+import { fmt, Navigator } from "./navigator";
 import { OVERVIEW_SECONDS, overviewAt } from "./overview";
 import { makeView } from "./plate";
 import { Player } from "./player";
@@ -369,21 +369,36 @@ function fmtDuration(seconds: number): string {
  * The doors out of an entry. The overview has one, to the full work; the
  * player has that and one to the overview. A door keeps the display profile
  * when the address named one, so a room setting survives the step through it.
+ *
+ * On the player the full work's door holds two wordings, each in a span: its
+ * whole length, as the overview words it, and the passes times the loop the
+ * player's clock counts. The body's `door` switch shows one of them.
  */
 function showDoors(route: Landing, schedule: Schedule, q: URLSearchParams): void {
-  const open = (door: HTMLAnchorElement, experience: string, text: string): void => {
+  const open = (door: HTMLAnchorElement, experience: string, ...words: (string | Node)[]): void => {
     door.hidden = false;
-    door.textContent = text;
+    door.replaceChildren(...words);
     const url = new URL(location.href);
     url.search = "";
     url.searchParams.set("experience", experience);
     if (q.get("display")) url.searchParams.set("display", displayProfile);
     door.href = url.toString();
   };
-  open(fullEntry, "full", `FULL ${fmtDuration(schedule.duration * ROTATION_PASSES)} WORK`);
-  if (route === "player") {
-    open(overviewEntry, "overview", `${fmtDuration(OVERVIEW_SECONDS)} OVERVIEW`);
+  const whole = `FULL ${fmtDuration(schedule.duration * ROTATION_PASSES)} WORK`;
+  if (route !== "player") {
+    open(fullEntry, "full", whole);
+    return;
   }
+  const span = (wording: string, text: string): HTMLElement => {
+    const el = document.createElement("span");
+    el.dataset.door = wording;
+    el.textContent = text;
+    return el;
+  };
+  open(fullEntry, "full",
+    span("sum", `FULL WORK · ${ROTATION_PASSES} × ${fmt(schedule.duration)}`),
+    span("plain", whole));
+  open(overviewEntry, "overview", `${fmtDuration(OVERVIEW_SECONDS)} OVERVIEW`);
 }
 
 function setStartup(text: string, state: "loading" | "ready" | "degraded" | "failed"): void {

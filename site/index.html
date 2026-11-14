@@ -264,7 +264,16 @@
         color: rgba(232, 226, 214, 0.86);
       }
       #player-title > div { min-height: 1.5em; }
-      #player-keys { order: 2; }
+      /* The heading reads as the rail's act rows do, the key line as the
+         rail's keys. */
+      #player-heading { letter-spacing: 0.14em; color: rgba(232, 226, 214, 0.58); }
+      #player-keys {
+        order: 2;
+        margin-top: 6px;
+        letter-spacing: 0.06em;
+        color: rgba(232, 226, 214, 0.66);
+      }
+      #player-keys > span { white-space: nowrap; }
       /* The rail's scrub: padding widens the grab area without thickening
          the bar. */
       #player-scrub {
@@ -283,8 +292,108 @@
         inset: 12px auto 13px 0;
         background: rgba(232, 226, 214, 0.45);
       }
-      #player-scrub .ticks { position: absolute; inset: 0; pointer-events: none; }
+      #player-scrub .ticks { position: absolute; inset: 0; pointer-events: none; display: none; }
+      /* The rail's ticks: an act a short stroke across the bar, a window stop
+         a shorter and brighter one, the cut the longest and brightest. */
+      #player-scrub .tick {
+        position: absolute;
+        top: 9px;
+        bottom: 10px;
+        width: 1px;
+        background: rgba(232, 226, 214, 0.35);
+      }
+      #player-scrub .tick[data-kind="beat"] { top: 11px; bottom: 12px; background: rgba(232, 226, 214, 0.55); }
+      #player-scrub .tick[data-kind="cut"] { top: 7px; bottom: 8px; background: rgba(232, 226, 214, 0.9); }
       #player-clock { color: rgba(232, 226, 214, 0.68); }
+
+      /* The panel's open choices, read off the body's dataset, where
+         player.ts writes PLAYER_SWITCHES. The parts of every value are always
+         in the page; these rules only choose which show. */
+      body.player:not([data-labels="on"]) #player-heading,
+      body.player:not([data-labels="on"]) #player-keys { display: none; }
+      body.player[data-ticks="on"] #player-scrub .ticks { display: block; }
+      body.player[data-door="sum"] #full-entry > [data-door="plain"],
+      body.player:not([data-door="sum"]) #full-entry > [data-door="sum"] { display: none; }
+      /* The scrub as a hairline along the window's bottom edge, the width of
+         the window, its grab area kept under the credit and the doors. */
+      body.player[data-scrub="bar"] #player-scrub {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        min-height: 0;
+        height: 16px;
+        padding: 13px 0 0;
+      }
+      body.player[data-scrub="bar"] #player-scrub .fill { inset: 13px auto 0 0; }
+      body.player[data-scrub="bar"] #player-scrub .tick { top: 9px; bottom: 0; }
+      body.player[data-scrub="bar"] #player-scrub .tick[data-kind="beat"] { top: 11px; }
+      body.player[data-scrub="bar"] #player-scrub .tick[data-kind="cut"] { top: 6px; }
+
+      /* A finger, not a mouse: every control on the player is as tall as a
+         fingertip needs, and the second door stands clear of the first at
+         that height. */
+      @media (pointer: coarse) {
+        #player > button,
+        #player-modes [role="radio"],
+        body.player #overview-entry,
+        body.player #full-entry { min-height: 44px; }
+        #player-scrub { min-height: 44px; padding: 20px 0 21px; }
+        #player-scrub .fill { inset: 20px auto 21px 0; }
+        #player-scrub .tick { top: 17px; bottom: 18px; }
+        #player-scrub .tick[data-kind="beat"] { top: 19px; bottom: 20px; }
+        #player-scrub .tick[data-kind="cut"] { top: 15px; bottom: 16px; }
+        body.player #overview-entry { bottom: 72px; }
+        body.player[data-scrub="bar"] #player-scrub { height: 44px; padding-top: 41px; }
+        body.player[data-scrub="bar"] #player-scrub .fill { inset: 41px auto 0 0; }
+        body.player[data-scrub="bar"] #player-scrub .tick { top: 37px; }
+        body.player[data-scrub="bar"] #player-scrub .tick[data-kind="beat"] { top: 39px; }
+        body.player[data-scrub="bar"] #player-scrub .tick[data-kind="cut"] { top: 34px; }
+        body.player[data-scrub="bar"] #credit,
+        body.player[data-scrub="bar"] #full-entry { bottom: 48px; }
+        body.player[data-scrub="bar"] #overview-entry { bottom: 100px; }
+        body.player[data-scrub="bar"] #asset-state { bottom: 80px; }
+      }
+
+      /* Docked: in a narrow portrait window the panel runs along the bottom
+         edge at full width, the names wrapped in rows over one row of
+         transport, scrub and clock, with no title and no key line. The
+         doors, the credit and the loading chip stand on top of it, at the
+         panel's measured height. */
+      @media (orientation: portrait) and (max-width: 600px) {
+        body.player[data-portrait="dock"] #player {
+          top: auto;
+          right: 0;
+          bottom: 0;
+          left: 0;
+          width: auto;
+          grid-template-columns: repeat(3, minmax(44px, auto)) 1fr auto;
+          align-items: center;
+          gap: 0 8px;
+        }
+        body.player[data-portrait="dock"] #player-modes { display: flex; flex-wrap: wrap; }
+        body.player[data-portrait="dock"] #player-title,
+        body.player[data-portrait="dock"] #player-keys { display: none; }
+        body.player[data-portrait="dock"] #player-scrub,
+        body.player[data-portrait="dock"] #player-clock { grid-column: auto; }
+        body.player[data-portrait="dock"] #credit,
+        body.player[data-portrait="dock"] #full-entry { bottom: calc(var(--player-height, 0px) + 12px); }
+        body.player[data-portrait="dock"] #overview-entry { bottom: calc(var(--player-height, 0px) + 48px); }
+        body.player[data-portrait="dock"] #asset-state { bottom: calc(var(--player-height, 0px) + 44px); }
+      }
+      @media (orientation: portrait) and (max-width: 600px) and (pointer: coarse) {
+        body.player[data-portrait="dock"] #overview-entry { bottom: calc(var(--player-height, 0px) + 64px); }
+      }
+
+      /* The player sets nothing in motion of its own: a visitor who asks
+         for less motion gets no transition on any of its parts. */
+      @media (prefers-reduced-motion: reduce) {
+        #player,
+        #player *,
+        body.player #overview-entry,
+        body.player #full-entry,
+        body.player #credit a { transition: none; }
+      }
       /* The rail's bone focus ring, over the panel, both doors and the
          credit's link. Only on the player: the overview's door keeps its own. */
       body.player #player :focus-visible,
