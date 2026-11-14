@@ -122,15 +122,20 @@ function windowValues(w: WindowFile | null): Map<string, string[]> {
     // close — the two honesty-load-bearing strings destroying each other. The
     // share leads; the scope stands beneath it.
     const share = `${(100 * widest.share).toFixed(1)}% ${widest.name.toUpperCase()}`;
+    // The scope opens its own line, so it carries no separator in front.
     out.set("CLOSEST DEFENDER",
-      w.bias.scope ? [share, `· ${w.bias.scope}`] : [share]);
+      w.bias.scope ? [share, w.bias.scope] : [share]);
   }
+  // Every count is grouped the same way, so a per-game figure in the
+  // thousands reads like the miles two names away.
+  const per = inv.per_game;
   out.set("SPEED & DISTANCE", [`${inv.miles_run.toLocaleString()} MI`]);
-  if (inv.per_game.drives !== null) out.set("DRIVES", [`${inv.per_game.drives}/GAME`]);
-  if (inv.per_game.touches !== null) out.set("TOUCHES", [`${inv.per_game.touches}/GAME`]);
-  if (inv.per_game.passes !== null) out.set("PASSING", [`${inv.per_game.passes}/GAME`]);
+  if (per.drives !== null) out.set("DRIVES", [`${per.drives.toLocaleString()}/GAME`]);
+  if (per.touches !== null) out.set("TOUCHES", [`${per.touches.toLocaleString()}/GAME`]);
+  if (per.passes !== null) out.set("PASSING", [`${per.passes.toLocaleString()}/GAME`]);
   if (inv.mean_seconds_per_touch !== null) {
-    out.set("POSSESSIONS", [`${inv.mean_seconds_per_touch}S/TOUCH`]);
+    // Spaced from its figure, or the S reads as one more digit.
+    out.set("POSSESSIONS", [`${inv.mean_seconds_per_touch} S/TOUCH`]);
   }
   return out;
 }
