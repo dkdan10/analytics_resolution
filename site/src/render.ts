@@ -42,7 +42,7 @@ function ramp(p: number, a: number, b: number, c: number, d: number): number {
 }
 
 /** How much of the prelude the court takes to arrive. */
-const PRELUDE_ENGRAVING = 0.62;
+export const PRELUDE_ENGRAVING = 0.62;
 
 /**
  * The one cut this piece is allowed, given the beat that says what it IS.

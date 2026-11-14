@@ -38,6 +38,16 @@ const HANDS: Record<ModeId, Hand> = {
  * stone by design: with no rail and no keyboard it would never leave it.
  */
 const ROTATION: ModeId[] = ["plate", "field", "ledger", "census", "measure", "hand"];
+/** The full work is one complete pass of the loop per hand, in rotation order. */
+export const ROTATION_PASSES = ROTATION.length;
+/** The pass that draws this hand; negative for THE STACK, which no pass draws. */
+export function passOfMode(id: ModeId): number {
+  return ROTATION.indexOf(id);
+}
+/** The rotation's order, as a copy: a caller cannot reorder the loop. */
+export function rotationModes(): readonly ModeId[] {
+  return [...ROTATION];
+}
 
 export function isModeId(v: string | null): v is ModeId {
   return v !== null && (MODE_IDS as readonly string[]).includes(v);

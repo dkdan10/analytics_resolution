@@ -14,7 +14,15 @@ import {
   type DisplayProfile,
 } from "./display";
 import { buildInscriptions } from "./inscription";
-import { isGalleryMode, isModeId, modeAt, MODE_IDS, MODE_TITLES, type ModeId } from "./modes";
+import {
+  isGalleryMode,
+  isModeId,
+  modeAt,
+  MODE_IDS,
+  MODE_TITLES,
+  ROTATION_PASSES,
+  type ModeId,
+} from "./modes";
 import {
   bitOf,
   completedStackState,
@@ -395,13 +403,11 @@ async function main(): Promise<void> {
 
   let clock: Clock;
   let nav: Navigator | null = null;
-  // The full work is one complete pass per gallery hand, in rotation order.
-  const GALLERY_PASSES = MODE_IDS.filter(isGalleryMode).length;
   if (overview) {
     clock = exhibitClock(0);
     credit.hidden = false;
     fullEntry.hidden = false;
-    fullEntry.textContent = `FULL ${fmtDuration(schedule.duration * GALLERY_PASSES)} WORK`;
+    fullEntry.textContent = `FULL ${fmtDuration(schedule.duration * ROTATION_PASSES)} WORK`;
     const fullUrl = new URL(location.href);
     fullUrl.search = "";
     fullUrl.searchParams.set("experience", "full");

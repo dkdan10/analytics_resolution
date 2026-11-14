@@ -81,15 +81,15 @@ interface Row {
   label: string;
 }
 
-function fmt(seconds: number): string {
+export function fmt(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
 /** Arrow keys on the scrub, and Shift for the coarse step. Presenter comfort,
  *  not material: nothing here reaches a mark. */
-const SCRUB_STEP_S = 2;
-const SCRUB_COARSE_S = 15;
+export const SCRUB_STEP_S = 2;
+export const SCRUB_COARSE_S = 15;
 
 /** The keys, said in the rail. A shortcut nobody is told about is not one. */
 const KEY_HINTS = [
