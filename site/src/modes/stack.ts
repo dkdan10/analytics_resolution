@@ -80,6 +80,7 @@ import { BONE_RGB, SLUG_FAMILY } from "../palette";
 import { COURT } from "../plate";
 import {
   QUARREL_ALPHA,
+  SLUG_MIN_PX,
   STACK_CALIPER_ALPHA,
   STACK_DISCLOSURE_INSET,
   STACK_FIELD_DIM,
@@ -383,20 +384,35 @@ function drawCount(f: Frame, progress: number): void {
   // the record's longest phrases, which are the whole of the second curve — ran
   // off the left edge and was clipped mid-word.
   //
-  // Near mode keeps the full fitted tally. In room mode the same narrow gutter
-  // cannot honestly carry the DESCRIPTION taxonomy's longest rows at a 13px
-  // floor. The floor was previously paired with `fillText(..., maxWidth)`,
-  // which retained nominal height by crushing glyphs to roughly one third of
-  // their natural width. At distance that is worse than omission. The audience
-  // therefore receives a legible filing summary here while every category's
-  // magnitude remains visible in the court's ticks; the near profile retains
-  // the complete row-by-row tally.
-  ctx.font = `${view.s(STACK_GUTTER_TENTHS)}px ${SLUG_FAMILY}`;
-  const widest = rows.reduce((m, r) => Math.max(m, ctx.measureText(r).width), 1);
+  // In room mode the same narrow gutter cannot honestly carry the DESCRIPTION
+  // taxonomy's longest rows at a 13px floor. The floor was previously paired
+  // with `fillText(..., maxWidth)`, which retained nominal height by crushing
+  // glyphs to roughly one third of their natural width. At distance that is
+  // worse than omission. The audience therefore receives a legible filing
+  // summary here while every category's magnitude remains visible in the
+  // court's ticks. Near mode keeps the complete row-by-row tally wherever it
+  // fits at the slug floor, and below that floor takes the same summary: a
+  // column fitted down to a size nobody can read is not a tally either.
+  //
+  // Each column is measured as it is drawn, heading and tail included, so the
+  // size is the one at which the lines actually set fit the gutter.
+  const base = view.s(STACK_GUTTER_TENTHS);
   const gutterWidth = Math.max(1, right - view.s(STACK_GUTTER_PAD_TENTHS));
   const room = contextDisplay(ctx) === "room";
-  const fitted = view.s(STACK_GUTTER_TENTHS) * Math.min(1, gutterWidth / widest);
-  const px = room ? Math.max(ROOM_TEXT_MIN_PX.aside, fitted) : fitted;
+  ctx.font = `${base}px ${SLUG_FAMILY}`;
+  const fit = (lines: string[]): number => base * Math.min(1, gutterWidth
+    / lines.reduce((m, r) => Math.max(m, ctx.measureText(r).width), 1));
+  // Which of the record's own columns this filing IS. The record supplies the
+  // name of its own field; this hand does not name it.
+  const heading = room ? taxonomy : data.taxonomyColumns[taxonomy] ?? taxonomy;
+  // The tail is a count, never a cloud — THE CENSUS's rule, kept.
+  const rest = Object.keys(season.classification[taxonomy] ?? {}).length - named.length;
+  const tail = rest > 0 ? [`${rest} more · a tick and a count`] : [];
+  const summary = [`${named.length} NAMED`, ...(rest > 0 ? [`${rest} MORE`] : []), "TICK=COUNT"];
+  const tally = !room && fit([heading, ...rows, ...tail]) >= SLUG_MIN_PX;
+  const shownRows = tally ? rows : summary;
+  const px = Math.max(room ? ROOM_TEXT_MIN_PX.aside : SLUG_MIN_PX,
+    fit([heading, ...shownRows, ...(tally ? tail : [])]));
   if (px < 1) {
     ctx.restore();
     return;
@@ -409,23 +425,16 @@ function drawCount(f: Frame, progress: number): void {
   };
   let y = view.sy(COURT.y1);
   ctx.fillStyle = `rgba(${BONE_RGB}, ${remains * STACK_GUTTER_SUB_ALPHA * progress})`;
-  // Which of the record's own columns this filing IS. The record supplies the
-  // name of its own field; this hand does not name it.
-  fillRow(room ? taxonomy : data.taxonomyColumns[taxonomy] ?? taxonomy, right, y);
+  fillRow(heading, right, y);
   y += px * 2.2;
   ctx.fillStyle = `rgba(${BONE_RGB}, ${remains * STACK_GUTTER_ROW_ALPHA * progress})`;
-  // The tail is a count, never a cloud — THE CENSUS's rule, kept.
-  const rest = Object.keys(season.classification[taxonomy] ?? {}).length - named.length;
-  const shownRows = room
-    ? [`${named.length} NAMED`, ...(rest > 0 ? [`${rest} MORE`] : []), "TICK=COUNT"]
-    : rows;
   for (const row of shownRows) {
     fillRow(row, right, y);
     y += px * 1.5;
   }
-  if (!room && rest > 0) {
+  if (tally) {
     ctx.fillStyle = `rgba(${BONE_RGB}, ${remains * STACK_GUTTER_SUB_ALPHA * progress})`;
-    fillRow(`${rest} more · a tick and a count`, right, y + px * 0.6);
+    for (const line of tail) fillRow(line, right, y + px * 0.6);
   }
   ctx.restore();
 }
