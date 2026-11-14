@@ -442,7 +442,16 @@ export function clearLedgerCaches(): void {
  * outgoing season's last words recede as the new season's first arrive instead
  * of vanishing at the boundary.
  */
-export function drawTerms(f: Frame, terms: Term[], elapsed: number, interval: number, dim: number): void {
+export function drawTerms(
+  f: Frame,
+  terms: Term[],
+  elapsed: number,
+  interval: number,
+  dim: number,
+  /** How much of each term may still show, for a register that has to give
+   *  way to another one drawn over the same floor. */
+  yieldTo?: (t: Term) => number,
+): void {
   const { ctx, view, dpr, remains } = f;
   if (dim <= 0.01) return;
   const room = contextDisplay(ctx) === "room";
@@ -454,7 +463,7 @@ export function drawTerms(f: Frame, terms: Term[], elapsed: number, interval: nu
     const age = elapsed - t.j * interval;
     if (age < 0 || age >= TERM_HOLD_SECONDS) continue;
     const fresh = 1 - age / TERM_HOLD_SECONDS;
-    const alpha = remains * dim
+    const alpha = remains * dim * (yieldTo ? yieldTo(t) : 1)
       * (TERM_ALPHA_AGED + (TERM_ALPHA_FRESH - TERM_ALPHA_AGED) * fresh);
     if (alpha <= 0.01) continue;
 
@@ -652,13 +661,21 @@ export function drawLedgerHand(f: Frame): void {
   // The outgoing season's last words, still receding. `ledgerUtterances`
   // returns its `elapsed` at the END of the writing for a season that is not
   // the current one, which is what the explicit `secs` here used to say.
+  //
+  // Each season is laid out against its own words only, so the receding words
+  // know nothing of the arriving ones. They give way here, at draw time and
+  // never in the year-keyed layout: a receding word goes the moment an arriving
+  // word lands on it, and dims as an arriving heading over it comes up.
+  const here = ledgerUtterances(f, year);
   const previousArrival = st.act === 3 ? windowEntryProgress(st.phase) : st.arrived;
   if (st.prev !== null && previousArrival < 1) {
     const out = ledgerUtterances(f, st.prev);
-    if (out) drawTerms(f, out.terms, out.elapsed, out.interval, 1 - previousArrival);
+    if (out) {
+      drawTerms(f, out.terms, out.elapsed, out.interval, 1 - previousArrival,
+        giveWayTo(f, year, sample ? here : null));
+    }
   }
   let speaking: Box[] = [];
-  const here = ledgerUtterances(f, year);
   if (sample && here) {
     const { terms, interval, elapsed } = here;
     speaking = terms.filter((t) => {
@@ -709,6 +726,44 @@ export function drawLedgerHand(f: Frame): void {
   // The Act II boundary named. Act V is omitted: the league's published
   // names arriving over the scatter IS this hand's Act V event.
   drawActCue(f, 2);
+}
+
+/**
+ * What share of a receding word may still show under what the arriving season
+ * has put down by this instant.
+ *
+ * Every word the arriving season has spoken so far covers, not only the ones
+ * still up: a receding word that returned when the word over it expired would
+ * be the old season speaking again. An arriving heading covers as far as it
+ * has come up, by the same law that draws it. The test is the one the layout
+ * itself uses, at the receding word's own clearance.
+ */
+function giveWayTo(
+  f: Frame,
+  year: number,
+  here: ReturnType<typeof ledgerUtterances>,
+): (t: Term) => number {
+  const covers: { box: Box; presence: number }[] = [];
+  if (here) {
+    for (const t of here.terms) {
+      if (here.elapsed - t.j * here.interval >= 0) covers.push({ box: t, presence: 1 });
+    }
+  }
+  if (actOf(year) === 3 || actOf(year) === 5) {
+    const boxes = leagueBoxes(publishedInstead(f.data));
+    const presence = headingPresence(f, actOf(year) === 3, boxes.length);
+    boxes.forEach((box, i) => {
+      if (presence[i]! > 0) covers.push({ box, presence: presence[i]! });
+    });
+  }
+  return (t) => {
+    const pad = TERM_CLEAR_PAD * t.size;
+    let left = 1;
+    for (const c of covers) {
+      if (overlaps(t, c.box, pad)) left = Math.min(left, 1 - c.presence);
+    }
+    return left;
+  };
 }
 
 function drawLabels(
@@ -808,6 +863,42 @@ function windowHeadingArrival(writing: number, count: number, index: number): nu
 }
 
 /**
+ * How far each published name stands up at this instant, in `names` order:
+ * its arrival times its departure. One law, read by the names' own draw and by
+ * the receding season's words that give way to them.
+ */
+function headingPresence(f: Frame, inWindow: boolean, count: number): number[] {
+  const { st } = f;
+  // THE LEDGER WITHDRAWS: in the close each heading and recomputed figure
+  // departs on the reverse of the accumulation law that brought it —
+  // strict reverse arrival order, eased over exactly one name's spacing, so
+  // the last figure written is the first to leave and every heading stands
+  // absent at wash 1. Act V later rebuilds the surviving bare headings from
+  // this same function. Per-NAME, never per-line: a scope tag departing separately
+  // from its share would leave, for a moment, a recovered-set share standing
+  // without the scope that keeps it honest. Each departure is statable on the
+  // fold's own calendar — value i completes leaving when the reverse clock
+  // reads (i / names) of the window's days.
+  const rem = closeRemnant(f);
+  // They accumulate across the act and settle into the mid-range, which by this
+  // point in the piece is very nearly empty: the derived measures occupy exactly
+  // the space the geometry vacated.
+  const writing = inWindow ? ledgerWindowWritingProgress(st.phase) : st.phase * LEAGUE_ACCUM_K;
+  const shown = inWindow ? count : Math.min(count, Math.ceil(writing * count));
+  const out: number[] = [];
+  for (let i = 0; i < count; i++) {
+    const arriving = i >= shown ? 0 : inWindow
+      ? windowHeadingArrival(writing, count, i)
+      : Math.min(1, (shown - i) * LEAGUE_ARRIVAL_K);
+    const departing = inWindow && rem !== null
+      ? Math.max(0, Math.min(1, rem * count - i))
+      : 1;
+    out.push(arriving * departing);
+  }
+  return out;
+}
+
+/**
  * The published names, with or without their values.
  *
  * `inWindow` is the whole point. Inside the window the names carry figures this
@@ -834,43 +925,24 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
   );
   const values = inWindow ? windowValues(data.window) : new Map<string, string[]>();
   const names = publishedInstead(data);
-  // THE LEDGER WITHDRAWS: in the close each heading and recomputed figure
-  // departs on the reverse of the accumulation law that brought it —
-  // strict reverse arrival order, eased over exactly one name's spacing, so
-  // the last figure written is the first to leave and every heading stands
-  // absent at wash 1. Act V later rebuilds the surviving bare headings from
-  // this same function. Per-NAME, never per-line: a scope tag departing separately
-  // from its share would leave, for a moment, a recovered-set share standing
-  // without the scope that keeps it honest. Each departure is statable on the
-  // fold's own calendar — value i completes leaving when the reverse clock
-  // reads (i / names) of the window's days.
   const rem = closeRemnant(f);
-
-  // They accumulate across the act and settle into the mid-range, which by this
-  // point in the piece is very nearly empty: the derived measures occupy exactly
-  // the space the geometry vacated. Two arcs, because one cannot hold all the
-  // phrases without them running off the floor.
   const writing = inWindow ? ledgerWindowWritingProgress(st.phase) : st.phase * LEAGUE_ACCUM_K;
-  const shown = inWindow ? names.length : Math.min(names.length, Math.ceil(writing * names.length));
-  // Both arcs sit inside the mid-range band, which by Act V is very nearly
+  const presence = headingPresence(f, inWindow, names.length);
+
+  // Two arcs, because one cannot hold all the phrases without them running off
+  // the floor. Both sit inside the mid-range band, which by Act V is very nearly
   // empty - `mid_share` says how nearly. The names occupy that emptiness, and
   // the spoken register reads these SAME boxes so it does not speak through them.
   const boxes = leagueBoxes(names);
   ctx.save();
-  for (let i = 0; i < shown; i++) {
+  for (let i = 0; i < names.length; i++) {
+    const visible = presence[i]!;
+    if (visible <= 0.01) continue;
     const text = names[i]!;
     const lab = label(text, px, dpr);
     const box = boxes[i]!;
     const x = view.sx(box.wx + box.w / 2);
     const y = view.sy(box.wy);
-    const arriving = inWindow
-      ? windowHeadingArrival(writing, names.length, i)
-      : Math.min(1, (shown - i) * LEAGUE_ARRIVAL_K);
-    const departing = inWindow && rem !== null
-      ? Math.max(0, Math.min(1, rem * names.length - i))
-      : 1;
-    const visible = arriving * departing;
-    if (visible <= 0.01) continue;
     ctx.globalAlpha = remains * LEAGUE_NAME_ALPHA * visible;
     ctx.drawImage(lab.canvas, x - lab.width / 2, y - lab.height / 2, lab.width, lab.height);
 
