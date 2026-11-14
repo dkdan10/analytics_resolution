@@ -15,6 +15,10 @@
  *   - said its files were degraded;
  *   - drew nothing above the ground within INK_MS of the card going.
  *
+ * A load is not let go at its first ink. It is watched for SETTLE_MS more, the
+ * same listeners on and the same looks taken, so an error thrown once the page
+ * is drawing, or a fault put up then, is refused as one at the open is.
+ *
  *   npm run smoke [-- --port <n>] [--headed]
  *
  * It needs a server: `npm run dev` on the default port, or, for the built
@@ -90,6 +94,12 @@ const origin = `http://localhost:${port}`;
 const STARTUP_MS = 60_000;
 /** How long the canvas has to show ink once the card has gone. */
 const INK_MS = 10_000;
+/** How long a load is watched on after its canvas first shows ink. */
+const SETTLE_MS = 2_000;
+/** How long after its startup card goes the seeded frame loop throws: before
+ *  the settle ends wherever the first ink falls, and after that ink on a page
+ *  that draws as soon as its card has gone. */
+const SEED_LATE_MS = SETTLE_MS / 2;
 /** How often the page is looked at. Polled from here on a timer rather than
  *  with Playwright's own wait, which asks the page for animation frames. */
 const POLL_MS = 100;
@@ -140,6 +150,24 @@ const SEEDS = [
     spoil: (page) => page.addInitScript(() => {
       throw new Error("seeded: a script that throws as the page opens");
     }),
+  },
+  {
+    // The page asks for each frame from the one before, so a frame that throws
+    // is the last one: the canvas keeps its ink and nothing draws again.
+    name: "a frame loop that throws on a later frame",
+    address: "?experience=full",
+    expect: "page error",
+    spoil: (page) => page.addInitScript((lateMs) => {
+      const ask = window.requestAnimationFrame.bind(window);
+      let cardGone = null;
+      window.requestAnimationFrame = (frame) => ask((now) => {
+        if (cardGone === null && document.getElementById("startup")?.hidden) cardGone = now;
+        if (cardGone !== null && now - cardGone >= lateMs) {
+          throw new Error("seeded: a frame loop that throws on a later frame");
+        }
+        frame(now);
+      });
+    }, SEED_LATE_MS),
   },
 ];
 
@@ -304,8 +332,20 @@ async function watch(browser, size, address, spoil) {
       await sleep(POLL_MS);
     }
 
-    const end = await page.evaluate(look);
-    facts.degraded ??= end.degraded;
+    // Ink is not the end of the load: stay, and keep looking, while the page
+    // goes on drawing. A page that never drew has been watched long enough.
+    const settleBy = Date.now() + (facts.ink.lit > 0 ? SETTLE_MS : 0);
+    let end;
+    for (;;) {
+      end = await page.evaluate(look);
+      facts.degraded ??= end.degraded;
+      if (end.fault !== null || Date.now() >= settleBy) break;
+      await sleep(POLL_MS);
+    }
+    if (end.fault !== null) {
+      facts.fault = end.fault;
+      return facts;
+    }
     facts.door = end.door;
     return facts;
   } finally {

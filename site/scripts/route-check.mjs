@@ -23,16 +23,27 @@
  * from the ROTATION declaration in site/src/modes/index.ts, which imports too
  * much to load here. The fold and the pass are recomputed as timeline.ts
  * writes them, not taken from route.ts, so a wrong fold cannot agree with
- * itself.
+ * itself. A local before the loop must lift as its start does, and every
+ * lifted time must read back through `passLocal` as that same pass and fold.
  *
  * THE STEP. `stepFrom` walks a small fixed list of stops: forward, back, both
  * wraps, and from a hair before a stop.
+ *
+ * THE RAIL'S MARGINS. route.ts keeps its own copies of two margins the rail
+ * writes inline: how far ahead a stop counts as reached (the stop walk in
+ * main.ts) and how far short of the loop's end a seek stops (navigator.ts).
+ * `stepFrom` walks as the rail walks only while the copies agree, so both are
+ * read from those files' text here and compared.
  *
  * THE CHECK IS SHOWN FAILING ON EVERY RUN. Each seeded defect below is written
  * into a copy of route.ts's own text, loaded the same way, and must be refused
  * by exactly the rows it breaks and no other. A defect let through, one
  * refused for the wrong rows, and one that no longer applies to the source are
  * each a failure of this check.
+ *
+ * THERE IS NO CLOCK ON THIS CHECK. A `toPass` that loses its bound on turns
+ * does not turn it red: the copy with no end clamp then folds below its local
+ * for ever, and the run hangs there.
  *
  * Dependency-free, and loaded as zone-gate.mjs loads zone.ts: Node strips the
  * types itself where it can, and esbuild (which vite brings) does it otherwise.
@@ -50,6 +61,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const SRC = resolve(here, "../src/route.ts");
 const MODES = resolve(here, "../src/modes/index.ts");
+const MAIN = resolve(here, "../src/main.ts");
+const NAVIGATOR = resolve(here, "../src/navigator.ts");
 const FACTS = resolve(here, "../../data/processed/facts.json");
 
 /** What the bare address must serve. Changed only together with LANDING. */
@@ -66,17 +79,22 @@ const TABLE = [
   ["experience=player", L],
   ["experience=bogus", L],
   ["experience=FULL", L],
+  ["experience=bogus&experience=overview", L],
+  ["experience=bogus&experience=full", L],
   ["talk", "canonical"],
   ["talk&experience=overview", "canonical"],
+  ["Talk", L],
   ["nav", "canonical"],
   ["nav=0", "canonical"],
   ["probe=purity", "canonical"],
   ["probe=", "canonical"],
   ["t=300", "canonical"],
   ["t=abc", "canonical"],
+  ["t=", "canonical"],
   ["year=2004", "canonical"],
   ["stop=hand.close", "canonical"],
   ["mode=field", "canonical"],
+  ["mode", "canonical"],
   ["mode=hand&stop=hand.close", "canonical"],
   ["ops=lci", "canonical"],
   ["experience=overview&t=5", "overview"],
@@ -148,6 +166,9 @@ const TINY = 4 * PASSES * D * Number.EPSILON;
 /** Locals inside the guard and at the loop's end: each must lift as the edge does. */
 const PAST_EDGE = [D - GUARD / 2, D];
 
+/** A local before the loop: it must lift as the loop's start does. */
+const BEFORE_START = -1;
+
 const liftId = (family, pass, local) => `${family}: pass ${pass}, local ${local}`;
 const END_CLAMP_ROWS = [];
 for (let pass = 0; pass < PASSES; pass++) {
@@ -168,6 +189,19 @@ const STEPS = [
   ["step back from a hair before a stop", 25 - HAIR, -1, 10],
 ];
 const HAIR_ROWS = STEPS.filter(([name]) => name.includes("hair")).map(([name]) => name);
+
+// --- the rail's own margins -----------------------------------------------------
+
+/** Every number a file's text writes in the place `pattern` captures. */
+const written = async (file, pattern) =>
+  [...(await readFile(file, "utf8")).matchAll(pattern)].map((m) => Number(m[1]));
+/** name, the constant here, the file the rail writes it in, each value written there */
+const MARGINS = [
+  ["the stop tolerance is the one the rail's stop walk writes", "STOP_TOLERANCE_S", "main.ts",
+    await written(MAIN, /starts\[k\]! <= now \+ ([\d.]+)/g)],
+  ["the end guard is the one the rail's scrub writes", "LOOP_END_GUARD_S", "navigator.ts",
+    await written(NAVIGATOR, /schedule\.duration - ([\d.]+)/g)],
+];
 
 // --- the seeded defects ---------------------------------------------------------
 
@@ -214,6 +248,12 @@ const SEEDS = [
     rows: END_CLAMP_ROWS,
   },
   {
+    name: "a pass read as always the first",
+    from: "Math.floor(Math.max(0, t) / D) % passes",
+    to: "0",
+    within: "read back",
+  },
+  {
     name: "a step with no tolerance",
     from: "local + tolerance",
     to: "local",
@@ -248,7 +288,7 @@ function judge(mod) {
 
   // A lift that throws fails its lift row and leaves its pass and near rows
   // unread, so those two count over the lifts that returned.
-  const counts = { returned: 0, pass: 0, lift: 0, near: 0, clamp: 0 };
+  const counts = { returned: 0, pass: 0, lift: 0, near: 0, back: 0, clamp: 0, start: 0 };
   let turned = 0;
   for (let pass = 0; pass < PASSES; pass++) {
     for (const local of LOCALS) {
@@ -268,6 +308,18 @@ function judge(mod) {
       else counts.lift++;
       if (!(folded - local <= TINY)) fail(liftId("near", pass, local), "near", `folds to ${folded}, past it by ${folded - local}`);
       else counts.near++;
+      const read = mod.passLocal(r, D, PASSES);
+      if (read.pass !== passAsRendered(r) % PASSES || read.local !== folded) {
+        fail(liftId("read back", pass, local), "read back", `reads back as pass ${read.pass}, local ${read.local}`);
+      } else counts.back++;
+    }
+    try {
+      const got = mod.toPass(pass, BEFORE_START, D, GUARD);
+      const want = mod.toPass(pass, 0, D, GUARD);
+      if (got !== want) fail(liftId("start clamp", pass, BEFORE_START), "start clamp", `lifts to ${got}, the start to ${want}`);
+      else counts.start++;
+    } catch (e) {
+      fail(liftId("start clamp", pass, BEFORE_START), "start clamp", `a throw (${e?.message ?? e})`);
     }
     for (const local of PAST_EDGE) {
       const row = liftId("end clamp", pass, local);
@@ -286,7 +338,9 @@ function judge(mod) {
   lines.push({ ok: clean("pass"), row: "every lift stays in its pass", text: `${counts.pass} of ${counts.returned} returned` });
   lines.push({ ok: clean("lift"), row: "no lift folds below its local", text: `${counts.lift} of ${lifts}; ${turned} needed lifting` });
   lines.push({ ok: clean("near"), row: "no lift folds past its local by more than TINY", text: `${counts.near} of ${counts.returned} returned; TINY is ${TINY.toExponential(1)} s` });
+  lines.push({ ok: clean("read back"), row: "every lifted time reads back as its pass and fold", text: `${counts.back} of ${counts.returned} returned` });
   lines.push({ ok: clean("end clamp"), row: "a local past the guard lifts as the edge does", text: `${counts.clamp} of ${END_CLAMP_ROWS.length}` });
+  lines.push({ ok: clean("start clamp"), row: "a local before the loop lifts as its start does", text: `${counts.start} of ${PASSES}` });
 
   for (const [name, local, dir, want] of STEPS) {
     let got;
@@ -298,6 +352,16 @@ function judge(mod) {
     const ok = got === want;
     lines.push({ ok, row: name, text: ok ? `-> ${got}` : `-> ${got}, expected ${want}` });
     if (!ok) fail(name, "step", `lands on ${got}, expected ${want}`);
+  }
+
+  for (const [row, name, where, rail] of MARGINS) {
+    const ok = rail.length > 0 && rail.every((v) => v === mod[name]);
+    lines.push({
+      ok,
+      row,
+      text: rail.length ? `${name} is ${mod[name]} s; ${where} writes ${[...new Set(rail)].join(", ")} s` : `${where} no longer writes it where it did`,
+    });
+    if (!ok) fail(row, "margin", rail.length ? `${name} is ${mod[name]}, ${where} writes ${[...new Set(rail)].join(", ")}` : `not found in ${where}`);
   }
   return { failures, lines, lifts };
 }
