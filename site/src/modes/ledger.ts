@@ -168,20 +168,44 @@ export function ledgerWindowRemnant(phase: number): number | null {
 
 function leagueBoxes(names: string[]): Box[] {
   const perArc = Math.ceil(names.length / 2);
+  const h = LEAGUE_NAME_TENTHS * 1.7;
+  // The clearance a spoken term keeps around itself, which the names keep from
+  // the sidelines and from each other.
+  const pad = TERM_CLEAR_PAD * LEAGUE_NAME_TENTHS;
+  const place = (text: string, r: number, a: number): Box => {
+    const w = widthTenths(text, LEAGUE_NAME_TENTHS);
+    // Centred on the arc, so the box's left edge is half a width back — but
+    // never off the floor: an arc's end slot sits near a sideline, and a long
+    // name centred there began outside the court.
+    const centred = r * Math.cos(a) - w / 2;
+    return {
+      wx: Math.max(COURT.x0 + pad, Math.min(COURT.x1 - pad - w, centred)),
+      wy: r * Math.sin(a),
+      w,
+      h,
+    };
+  };
+  const inner: Box[] = [];
   return names.map((text, i) => {
     const arc = i < perArc ? 0 : 1;
     const k = arc === 0 ? i : i - perArc;
     const count = arc === 0 ? perArc : names.length - perArc;
     const a = Math.PI - ((k + 0.5) / count) * Math.PI;
-    const r = arc === 0 ? LEAGUE_ARC_INNER : LEAGUE_ARC_OUTER;
-    const w = widthTenths(text, LEAGUE_NAME_TENTHS);
-    return {
-      // Centred on the arc, so the box's left edge is half a width back.
-      wx: r * Math.cos(a) - w / 2,
-      wy: r * Math.sin(a),
-      w,
-      h: LEAGUE_NAME_TENTHS * 1.7,
-    };
+    if (arc === 0) {
+      const box = place(text, LEAGUE_ARC_INNER, a);
+      inner.push(box);
+      return box;
+    }
+    // The two arcs' end slots fall low and close, where an outer name stood on
+    // the inner one beneath it and the pair read as one two-line label. An
+    // outer name that would meet an inner one rises along its own arc until it
+    // clears it, and no further.
+    const box = place(text, LEAGUE_ARC_OUTER, a);
+    const under = inner.filter((b) => overlaps(box, b, pad));
+    if (!under.length) return box;
+    const clear = Math.max(...under.map((b) => b.wy + (b.h + h) / 2 + pad));
+    const lifted = Math.asin(Math.min(1, clear / LEAGUE_ARC_OUTER));
+    return place(text, LEAGUE_ARC_OUTER, Math.cos(a) < 0 ? Math.PI - lifted : lifted);
   });
 }
 
