@@ -295,10 +295,13 @@ function drawMeasure(f: Frame, progress: number): void {
     const p = frames[frames.length - 1];
     if (!p) continue;
     caliper(ctx, view, p[0]!, p[1]!, p[2]!, p[3]!, a);
-    // The league's own name for the category this distance was cut into, at the
-    // caliper's midpoint. `aside`: it annotates the mark above it.
+    // The league's own name for the category this distance was cut into, over
+    // the caliper's midpoint and lifted from its HIGHER end rather than its
+    // middle: a caliper that stands up the court would otherwise run through
+    // its own name, and a short steep one would end on a letter. `aside`: it
+    // annotates the mark below it.
     drawSlug(ctx, view, [h.bucket_name.toUpperCase()],
-      { x: (p[0]! + p[2]!) / 2, y: (p[1]! + p[3]!) / 2 }, remains * progress, "aside",
+      { x: (p[0]! + p[2]!) / 2, y: Math.max(p[1]!, p[3]!) }, remains * progress, "aside",
       -view.s(STACK_GUTTER_TENTHS));
   }
 }
