@@ -337,19 +337,27 @@ function boxAt(x: number, y: number, ux: number, uy: number, g: Glyphs, size: nu
 
 /**
  * What a word covers on the floor at its current bearing: the word, and the
- * share figure struck beneath it.
+ * share figure struck beneath it together with the strip of floor between the
+ * two.
  *
  * Laid tangent to the hoop with its letters standing away from it, so "up" is
  * the bearing's own direction and "beneath" is toward the hoop, where
- * `strikeWords` puts the figure.
+ * `strikeWords` puts the figure. The strip is the figure's own width, from the
+ * figure up to the underside of the word's letters: nothing is drawn in it,
+ * and it is still the word's, because a smaller word laid there stands
+ * directly over the figure and the figure then reads as that word's share.
  */
 function boxesOf(w: Filed): [Box, Box] {
   const ux = Math.cos(w.bearing);
   const uy = Math.sin(w.bearing);
   const figure = w.dist - FIGURE_DROP * w.size;
+  const under: Glyphs = {
+    ...w.figureGlyphs,
+    up: Math.max(w.figureGlyphs.up, FIGURE_DROP * w.size - w.glyphs.down),
+  };
   return [
     boxAt(w.dist * ux, w.dist * uy, ux, uy, w.glyphs, w.size),
-    boxAt(figure * ux, figure * uy, ux, uy, w.figureGlyphs, w.size * CENSUS_SHARE_SCALE),
+    boxAt(figure * ux, figure * uy, ux, uy, under, w.size * CENSUS_SHARE_SCALE),
   ];
 }
 
