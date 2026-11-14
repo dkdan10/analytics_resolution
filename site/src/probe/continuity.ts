@@ -177,6 +177,8 @@ export async function continuityProbe(env: Env, q: URLSearchParams): Promise<unk
   // ONE as a single passage. Its two halves are ranges of their own, because
   // one is motion and the other an authored hold; the whole is listed beside
   // them, report-only, for anyone holding a figure that was taken over both.
+  // Where the hold is too short to be a range, the drawing half is the whole
+  // passage and nothing more is listed.
   const draw = derived.find((r) => r.id === `${ONE_WHOLE}.draw`);
   const held = derived.find((r) => r.id === `${ONE_WHOLE}.held`);
   const every: Range[] = [...derived];

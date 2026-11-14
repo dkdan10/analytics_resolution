@@ -1541,7 +1541,7 @@ export async function load(): Promise<Loaded> {
   // slow link, files nobody had begun to send were given up on and latched as
   // failed (measured). The season's points lead: every hand but the paint's
   // opens the window on them, and the paint's draws them only while its
-  // calipers are absent and as the sheet receding under the season after.
+  // calipers are absent.
   // Each loader is offered under the condition its own getter asks under, and
   // only where the caller names it: whether a frame will read the file
   // depends on the hand, which this module does not know. The chain stops at

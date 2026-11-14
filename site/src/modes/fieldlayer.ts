@@ -94,11 +94,11 @@ function residenceEnvelope(phase: number): number {
   const washFrom = PLATE_WITHDRAW_SPAN.from;
   // DELAYED to the game phase, for a measured reason: at the window entry's
   // one-frame test the residence was part of a ground outweighing the
-  // tracked figure by orders of magnitude. "One" opens on bare stone plus
-  // the possession alone; the dwelling rises with the game/night expansion
-  // — game start to night's end, derived from the shared beat table, no new
-  // scalar — and is complete
-  // before the season floods over it, as before.
+  // tracked figure by orders of magnitude. "One" carries no dwelling: the
+  // season before recedes, then the possession alone. The dwelling rises
+  // with the game/night expansion — game start to night's end, derived from
+  // the shared beat table, no new scalar — and is complete before the season
+  // floods over it.
   if (phase < night.from) return 0;
   if (phase < night.to) return developed((phase - night.from) / (night.to - night.from));
   if (phase < washFrom) return 1;
