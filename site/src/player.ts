@@ -12,11 +12,6 @@
  *
  * `update` runs on every frame, so it writes the DOM only when a value it
  * shows has changed.
- *
- * What is still open about the panel's look is a set of switches on the
- * body's dataset (`PLAYER_SWITCHES`), read by the stylesheet. Every part any
- * value shows is always in the page, so a console can flip one with no
- * rebuild and no new address.
  */
 
 import type { Loaded } from "./data";
@@ -38,7 +33,7 @@ import {
   toPass,
   wrapLoop,
 } from "./route";
-import { ACT_TITLES, CUT_YEAR, stateAt, WINDOW_YEAR, type Act, type Schedule } from "./timeline";
+import { ACT_TITLES, stateAt, WINDOW_YEAR, type Schedule } from "./timeline";
 
 /** What the panel moves: the full work's clock, and nothing else. */
 export interface PlayerTransport {
@@ -57,33 +52,6 @@ export interface PlayerTransport {
  * no rebuild: zero follows every move, and `Infinity` follows on release only.
  */
 export const SCRUB_DWELL_MS = 120;
-
-/** The panel's open choices, each written to the body's dataset under its own
- *  key, where the stylesheet reads it. */
-export interface PlayerSwitches {
-  /** The heading over the names and the line of keys at the panel's foot. */
-  labels: "on" | "off";
-  /** The scrub in the panel, or a hairline along the window's bottom edge. */
-  scrub: "panel" | "bar";
-  /** The acts, the cut and the window's stops struck into the scrub. */
-  ticks: "off" | "on";
-  /** The full work's door as the passes times the loop the clock counts, or
-   *  as its whole length. */
-  door: "sum" | "plain";
-  /** In a narrow portrait window, the panel where it is everywhere else, or
-   *  docked along the bottom edge at full width. */
-  portrait: "panel" | "dock";
-}
-
-/** What the player opens with. The constructor writes each value to the
- *  body's dataset once, and only the stylesheet reads them from there. */
-export const PLAYER_SWITCHES: Readonly<PlayerSwitches> = {
-  labels: "on",
-  scrub: "panel",
-  ticks: "off",
-  door: "sum",
-  portrait: "panel",
-};
 
 /** The panel's heading, which also names the group of names. */
 const RENDERINGS = "RENDERINGS";
@@ -122,10 +90,6 @@ export class Player {
   private readonly names: { id: ModeId; el: HTMLButtonElement }[] = [];
   /** The title's lines: the act, the season, and the stop inside the window. */
   private readonly titleLines: HTMLElement[] = [];
-  /** The scrub's landmarks: the acts, the cut and the end of the last season
-   *  are fixed; the window's stops follow the rendering on screen. */
-  private readonly ticksEl: HTMLElement;
-  private readonly fixedTicks: { at: number; kind: string }[] = [];
   /** The instant under a dragged pointer, while a drag is in progress: the
    *  clock, the fill and the title show it in place of the transport's
    *  position. */
@@ -147,11 +111,9 @@ export class Player {
     this.loop = schedule.duration;
     root.style.setProperty("--player-ground", groundChannels(GROUND));
     document.body.dataset.dwell = String(SCRUB_DWELL_MS);
-    for (const [key, value] of Object.entries(PLAYER_SWITCHES)) document.body.dataset[key] = value;
 
-    // Written whatever the switch says: the stylesheet decides whether they
-    // show. The heading is hidden from assistive technology because the group
-    // it heads carries the same word as its name.
+    // The heading is hidden from assistive technology because the group it
+    // heads carries the same word as its name.
     const heading = root.querySelector<HTMLElement>("#player-heading")!;
     heading.textContent = RENDERINGS;
     heading.setAttribute("aria-hidden", "true");
@@ -226,19 +188,6 @@ export class Player {
     const scrub = root.querySelector<HTMLElement>("#player-scrub")!;
     this.scrubEl = scrub;
     this.fill = scrub.querySelector<HTMLElement>(".fill")!;
-    // The landmarks the rail strikes into its own scrub, derived the way the
-    // rail derives them: a tick where the act changes, one at the cut, and
-    // one where the last season ends.
-    this.ticksEl = scrub.querySelector<HTMLElement>(".ticks")!;
-    let act: Act | null = null;
-    for (const seg of schedule.segments) {
-      if (seg.act !== act) {
-        act = seg.act;
-        this.fixedTicks.push({ at: seg.start, kind: "act" });
-      }
-      if (seg.year === CUT_YEAR) this.fixedTicks.push({ at: seg.start, kind: "cut" });
-    }
-    this.fixedTicks.push({ at: schedule.lastEnds, kind: "act" });
     scrub.setAttribute("aria-label", "position in the loop");
     scrub.setAttribute("aria-valuemin", "0");
     scrub.setAttribute("aria-valuemax", String(Math.round(this.loop)));
@@ -388,8 +337,8 @@ export class Player {
     return [ACT_TITLES[st.act], season, stop].map((line) => line.toUpperCase());
   }
 
-  /** Check the name of the rendering on screen, make it the group's one tab
-   *  stop, and strike its window stops into the scrub. */
+  /** Check the name of the rendering on screen and make it the group's one
+   *  tab stop. */
   private syncModes(mode: ModeId): void {
     if (mode === this.shownMode) return;
     this.shownMode = mode;
@@ -397,23 +346,6 @@ export class Player {
       el.setAttribute("aria-checked", String(id === mode));
       el.tabIndex = id === mode ? 0 : -1;
     }
-    this.buildTicks(mode);
-  }
-
-  /** The scrub's landmarks for a rendering: the fixed ticks, and the stops
-   *  its window walks, at the same seconds the stops are. */
-  private buildTicks(mode: ModeId): void {
-    const ticks = [
-      ...this.fixedTicks,
-      ...windowSubStops(mode, this.schedule, this.data).map((s) => ({ at: s.at, kind: "beat" })),
-    ];
-    this.ticksEl.replaceChildren(...ticks.map((t) => {
-      const el = document.createElement("i");
-      el.className = "tick";
-      el.dataset.kind = t.kind;
-      el.style.left = `${(t.at / this.loop) * 100}%`;
-      return el;
-    }));
   }
 
   /**

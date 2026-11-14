@@ -17,8 +17,8 @@
  * address arithmetic, the backing budget, the ground, the timeline, the data,
  * the renderer's prelude share, the score's stops and the probes' noise rule),
  * and refuses a server that does not serve them. The size is the laptop
- * surface the probes use unless the flags give another; a size that is the
- * phone's below is opened as the phone, touch and all. The browser is the
+ * surface the probes use unless the flags give another; a size that is one of
+ * the phones below is opened as that phone, touch and all. The browser is the
  * installed Chrome with the flags the probes pass, headless unless `--headed`.
  * Everything it writes lands under the gitignored docs/shots/landing/.
  *
@@ -37,7 +37,7 @@
  *    5  the tab order is the checked name, the three transport buttons, the
  *       scrub, the overview's door, the full work's door and the credit's link;
  *    6  the credit is shown with its link, and meets neither door nor the panel,
- *       at the run's size, a smaller laptop's and the phone's;
+ *       at the run's size, a smaller laptop's and each phone's;
  *    7  every text inside the panel that carries a digit is the clock or a
  *       season the record names;
  *    8  the panel's ground is the plate's, at the stylesheet's alpha, and no
@@ -46,10 +46,15 @@
  *   10  a name pressed on the first frame shown checks that name and brings the
  *       clock to the first season within the press's time;
  *   11  the full work, and a direct address, show none of the player's chrome
- *       and hide the cursor.
+ *       and hide the cursor;
+ *   12  every control on the panel, both doors and the loading chip lie inside
+ *       the window, and the panel, the doors and the chip meet none of each
+ *       other nor the credit, at the same sizes as six. The chip shows only
+ *       while a file is pending or has failed, so it is put up for the
+ *       measurement and taken down again before anything paints.
  *
  * The assertions read a few looks, each taken from pages opened fresh: a
- * player page at each layout size (one, six, seven and eight), the paused
+ * player page at each layout size (one, six, seven, eight and twelve), the paused
  * openings (two and seven), the probe page (three, four and nine), and pages
  * of their own for five, ten and eleven. A check that has only ever seen a
  * healthy player cannot be told from one that passes whatever it is shown, so
@@ -65,9 +70,8 @@
  *   - `--film`: page captures a set time after the first frame shown, for the
  *     overview (at its own address, which the bare one serves today) and the
  *     player's three openings, filed by opening and size;
- *   - `--pairs`: one capture per value of each of the player's switches, and
- *     with reduced motion asked for and not, at three sizes, named alike in
- *     every arm so `sheet.mjs` flips them;
+ *   - `--pairs`: one capture with reduced motion asked for and one without, at
+ *     every layout size, named alike in both arms so `sheet.mjs` flips them;
  *   - `--sweep`: how much ink lies under the panel and each door, frame by
  *     frame through the window and at every season's middle, for every hand,
  *     at four sizes and both display profiles;
@@ -126,24 +130,19 @@ function laptopSurface() {
   return { width: Number(m[1]), height: Number(m[2]), deviceDpr: Number(m[3]) };
 }
 
-/** The player's switches and the values each may take, read from the one
- *  declaration of them, so a value that is removed there stops being shot. */
-function switchValues() {
-  const src = readFileSync(join(HERE, "..", "src", "player.ts"), "utf8");
-  const body = /export interface PlayerSwitches \{([\s\S]*?)\n\}/.exec(src);
-  if (!body) die("src/player.ts no longer declares PlayerSwitches");
-  const out = {};
-  for (const m of body[1].matchAll(/^\s*(\w+):\s*((?:"[^"]+"\s*\|?\s*)+);/gm)) {
-    out[m[1]] = [...m[2].matchAll(/"([^"]+)"/g)].map((v) => v[1]);
-  }
-  if (!Object.keys(out).length) die("src/player.ts declares PlayerSwitches with no values");
-  return out;
-}
-
 const LAPTOP = laptopSurface();
 /** A phone held upright, as the smoke run opens one, with a finger for a
  *  pointer: the player's coarse-pointer rules are part of what it shows there. */
 const PHONE = { width: 390, height: 844, deviceDpr: 3, touch: true };
+/** The phones the panel docks on: three held upright and two on their side.
+ *  Each has a finger for a pointer, which is what docks a short window. */
+const PHONES = [
+  PHONE,
+  { width: 375, height: 667, deviceDpr: 2, touch: true },
+  { width: 320, height: 568, deviceDpr: 2, touch: true },
+  { width: 844, height: 390, deviceDpr: 3, touch: true },
+  { width: 667, height: 375, deviceDpr: 2, touch: true },
+];
 /** A smaller laptop window, where the court runs closest to the panel. */
 const SMALL_LAPTOP = { width: 1200, height: 800, deviceDpr: LAPTOP.deviceDpr };
 /** The other laptop windows the ink under the chrome is swept at. */
@@ -161,19 +160,18 @@ const asked = {
 if (!(asked.width > 0) || !(asked.height > 0) || !(asked.deviceDpr > 0)) die("the size is not a size");
 const sameSize = (a, b) => a.width === b.width && a.height === b.height && a.deviceDpr === b.deviceDpr;
 /** The run's own size: the laptop's unless the flags give another. */
-const SIZE = sameSize(asked, PHONE) ? PHONE : asked;
+const SIZE = PHONES.find((p) => sameSize(asked, p)) ?? asked;
 const labelOf = (s) => `${s.width}x${s.height}`;
 const sizeLine = (s) => `${s.width}x${s.height} at ${s.deviceDpr}${s.touch ? ", touch" : ""}`;
 const distinct = (sizes) => sizes.filter((s, i) => sizes.findIndex((o) => labelOf(o) === labelOf(s)) === i);
-/** Where the credit is held clear of the doors and the panel, and where the
- *  switches are shot. */
-const LAYOUT_SIZES = distinct([SIZE, SMALL_LAPTOP, PHONE]);
+/** Where the chrome is held inside the window and clear of itself, and where
+ *  the reduced-motion pair is shot. */
+const LAYOUT_SIZES = distinct([SIZE, SMALL_LAPTOP, ...PHONES]);
 
 const port = Number(flags.port ?? 5173);
 const origin = `http://localhost:${port}`;
 const headless = !flags.headed;
 const delayMs = flags.delay === undefined ? 0 : Number(flags.delay);
-const SWITCH_VALUES = switchValues();
 
 /** How long a page may take to show its first frame, counted from the
  *  request, before the run gives up on it. */
@@ -344,8 +342,8 @@ function startState() {
   };
 }
 
-/** Sent to the page as source: everything assertions one, six, seven and
- *  eight read from one player page. */
+/** Sent to the page as source: everything assertions one, six, seven, eight
+ *  and twelve read from one player page. */
 async function lookAtPlayer(paths) {
   const m = await window.__landingReach(paths);
   const schedule = await window.__landingSchedule(m.timeline);
@@ -370,6 +368,18 @@ async function lookAtPlayer(paths) {
   const ratio = window.devicePixelRatio;
   const credit = document.getElementById("credit");
   const link = credit?.querySelector("a[href]") ?? null;
+  const controls = [
+    ...[...document.querySelectorAll('#player-modes [role="radio"]')].map((el) => ({
+      name: `the name ${el.textContent}`, shown: shown(el), box: box(el),
+    })),
+    ...["player-prev", "player-play", "player-next", "player-scrub"].map((id) => ({ name: `#${id}`, ...part(id) })),
+  ];
+  // Put up and taken down inside this one task, so no frame ever paints it.
+  const chipEl = document.getElementById("asset-state");
+  const chipWasHidden = chipEl ? chipEl.hidden : true;
+  if (chipEl) chipEl.hidden = false;
+  const chip = part("asset-state");
+  if (chipEl) chipEl.hidden = chipWasHidden;
 
   const digits = [];
   const panel = document.getElementById("player");
@@ -419,6 +429,8 @@ async function lookAtPlayer(paths) {
       panel: part("player"),
       overviewDoor: part("overview-entry"),
       fullDoor: part("full-entry"),
+      chip,
+      controls,
     },
     digits,
     loop: m.navigator.fmt(schedule.duration),
@@ -585,6 +597,21 @@ function clockSeconds(text) {
 
 const SEASONS = seasonStrings();
 
+/** The parts of the chrome by the names the assertions say them in. */
+const PARTS = {
+  panel: "the panel",
+  overviewDoor: "the overview's door",
+  fullDoor: "the full work's door",
+  chip: "the loading chip",
+  credit: "the credit",
+};
+/** The pairs assertion twelve holds apart: every pair of the panel, the doors,
+ *  the chip and the credit, but the credit's own three, which six holds. */
+const APART = [
+  ["panel", "overviewDoor"], ["panel", "fullDoor"], ["overviewDoor", "fullDoor"],
+  ["chip", "panel"], ["chip", "overviewDoor"], ["chip", "fullDoor"], ["chip", "credit"],
+];
+
 const ASSERTIONS = [
   {
     n: 1,
@@ -737,6 +764,31 @@ const ASSERTIONS = [
       ...Object.entries(c.shown).filter(([, on]) => on).map(([part]) => `${c.address}: ${part} is shown`),
       ...(c.cursor === "none" ? [] : [`${c.address}: the cursor is ${c.cursor}, not none`]),
     ]),
+  },
+  {
+    n: 12,
+    name: "every control lies in the window, and the panel, the doors and the chip stand apart",
+    problems: (f) => Object.entries(f.player).filter(([size]) => f.layoutSizes.includes(size)).flatMap(([size, p]) => {
+      const l = p.layout;
+      const [w, h] = l.viewport;
+      const out = [];
+      const inside = (b) => b.x >= -0.5 && b.y >= -0.5 && b.x + b.w <= w + 0.5 && b.y + b.h <= h + 0.5;
+      for (const [name, part] of [
+        ...l.controls.map((c) => [c.name, c]),
+        [PARTS.overviewDoor, l.overviewDoor],
+        [PARTS.fullDoor, l.fullDoor],
+        [PARTS.chip, l.chip],
+      ]) {
+        if (!part.shown) out.push(`${size}: ${name} is not shown`);
+        else if (!inside(part.box)) out.push(`${size}: ${name} runs off the window (${fmtBox(part.box)})`);
+      }
+      for (const [a, b] of APART) {
+        if (l[a].shown && l[b].shown && overlaps(l[a].box, l[b].box)) {
+          out.push(`${size}: ${PARTS[a]} (${fmtBox(l[a].box)}) meets ${PARTS[b]} (${fmtBox(l[b].box)})`);
+        }
+      }
+      return out;
+    }),
   },
 ];
 
@@ -1069,6 +1121,15 @@ const SEEDS = [
       panel.style.setProperty("--player-ground", now.map((c) => 255 - c).join(", "));
     },
   },
+  {
+    name: "the overview's door set down on the full work's door",
+    assertion: 12,
+    look: "player",
+    spoil: () => {
+      const full = getComputedStyle(document.getElementById("full-entry"));
+      document.getElementById("overview-entry").style.bottom = full.bottom;
+    },
+  },
 ];
 
 /** The facts with the seed's look taken again, spoiled. */
@@ -1203,32 +1264,10 @@ async function film() {
   return lines;
 }
 
-/** `--pairs`: every value of every switch, and reduced motion on and off. */
+/** `--pairs`: reduced motion on and off. */
 async function pairs() {
   const lines = [];
   for (const size of LAYOUT_SIZES) {
-    const h = await open(size, { reducedMotion: "reduce" });
-    try {
-      await arrive(h, "?experience=player&stop=window.crest");
-      await settle(h, SETTLE_MS * 2);
-      const defaults = await h.page.evaluate((keys) => Object.fromEntries(keys.map((k) => [k, document.body.dataset[k]])),
-        Object.keys(SWITCH_VALUES));
-      for (const [key, values] of Object.entries(SWITCH_VALUES)) {
-        for (const value of values) {
-          await h.page.evaluate(({ d, key, value }) => {
-            Object.assign(document.body.dataset, d);
-            document.body.dataset[key] = value;
-          }, { d: defaults, key, value });
-          await twoFrames(h.page);
-          const dir = join(OUT, "pairs", `${key}-${value}`);
-          mkdirSync(dir, { recursive: true });
-          await h.page.screenshot({ path: join(dir, `${labelOf(size)}.png`) });
-        }
-      }
-      h.check();
-    } finally {
-      await h.close();
-    }
     for (const [motion, reducedMotion] of [["on", "reduce"], ["off", "no-preference"]]) {
       const m = await open(size, { reducedMotion });
       try {
@@ -1243,9 +1282,9 @@ async function pairs() {
         await m.close();
       }
     }
-    lines.push(`  ${sizeLine(size)}: ${Object.entries(SWITCH_VALUES).map(([k, v]) => `${k} ${v.join("/")}`).join(", ")}, reduced motion on/off`);
+    lines.push(`  ${sizeLine(size)}: reduced motion on/off`);
   }
-  lines.push(`  -> ${rel(join(OUT, "pairs"))}/<switch>-<value>/<size>.png`);
+  lines.push(`  -> ${rel(join(OUT, "pairs"))}/reduced-motion-<on|off>/<size>.png`);
   return lines;
 }
 
@@ -1376,7 +1415,8 @@ try {
   for (const [size, p] of Object.entries(player)) {
     console.log(`landing: ${size}: canvas ${p.canvas.backing.join("x")} at ${p.canvas.bounded.toFixed(4)}, `
       + `pointer ${p.canvas.coarse ? "coarse" : "fine"}, panel ${fmtBox(p.layout.panel.box)}, `
-      + `credit ${fmtBox(p.layout.credit.box)}, doors ${fmtBox(p.layout.overviewDoor.box)} and ${fmtBox(p.layout.fullDoor.box)}`);
+      + `credit ${fmtBox(p.layout.credit.box)}, doors ${fmtBox(p.layout.overviewDoor.box)} and ${fmtBox(p.layout.fullDoor.box)}, `
+      + `chip ${fmtBox(p.layout.chip.box)}`);
   }
   const facts = {
     probe,
@@ -1434,7 +1474,7 @@ try {
     reported.push("film");
   }
   if (flags.pairs) {
-    console.log("landing: pairs, opened paused at the window's crest");
+    console.log(`landing: pairs, the opening ${MOTION_PAIR_AFTER_S} s after the first frame shown, reduced motion asked for and not`);
     for (const line of await pairs()) console.log(line);
     reported.push("pairs");
   }

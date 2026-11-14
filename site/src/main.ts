@@ -372,34 +372,25 @@ function fmtDuration(seconds: number): string {
  * player has that and one to the overview. A door keeps the display profile
  * when the address named one, so a room setting survives the step through it.
  *
- * On the player the full work's door holds two wordings, each in a span: its
- * whole length, as the overview words it, and the passes times the loop the
- * player's clock counts. The body's `door` switch shows one of them.
+ * The overview words the full work's door as its whole length. The player
+ * words it as the passes times the loop its own clock counts, so the door
+ * and the clock beside it agree.
  */
 function showDoors(route: Landing, schedule: Schedule, q: URLSearchParams): void {
-  const open = (door: HTMLAnchorElement, experience: string, ...words: (string | Node)[]): void => {
+  const open = (door: HTMLAnchorElement, experience: string, words: string): void => {
     door.hidden = false;
-    door.replaceChildren(...words);
+    door.textContent = words;
     const url = new URL(location.href);
     url.search = "";
     url.searchParams.set("experience", experience);
     if (q.get("display")) url.searchParams.set("display", displayProfile);
     door.href = url.toString();
   };
-  const whole = `FULL ${fmtDuration(schedule.duration * ROTATION_PASSES)} WORK`;
   if (route !== "player") {
-    open(fullEntry, "full", whole);
+    open(fullEntry, "full", `FULL ${fmtDuration(schedule.duration * ROTATION_PASSES)} WORK`);
     return;
   }
-  const span = (wording: string, text: string): HTMLElement => {
-    const el = document.createElement("span");
-    el.dataset.door = wording;
-    el.textContent = text;
-    return el;
-  };
-  open(fullEntry, "full",
-    span("sum", `FULL WORK · ${ROTATION_PASSES} × ${fmt(schedule.duration)}`),
-    span("plain", whole));
+  open(fullEntry, "full", `FULL WORK · ${ROTATION_PASSES} × ${fmt(schedule.duration)}`);
   open(overviewEntry, "overview", `${fmtDuration(OVERVIEW_SECONDS)} OVERVIEW`);
 }
 
