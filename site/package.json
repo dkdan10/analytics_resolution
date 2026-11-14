@@ -21,6 +21,7 @@
     "probe:continuity": "node scripts/probe-run.mjs continuity",
     "check:continuity": "node scripts/continuity-selftest.mjs",
     "shots": "node scripts/shots.mjs",
+    "playback": "node scripts/playback-log.mjs",
     "test": "npm run check:numbers && npm run gate && npm run disclose -- --check && tsc --noEmit"
   },
   "devDependencies": {

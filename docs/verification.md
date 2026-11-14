@@ -89,6 +89,7 @@ cd site && npm run probe:perf -- --assert-presentation
 cd site && npm run probe:continuity       # consecutive frames of the moving passages, compared
 cd site && npm run check:continuity       # that probe's measures, each shown failing
 cd site && npm run shots -- --list hands  # exact frames, for looking at
+cd site && npm run playback -- --out <name> --t <seconds> --seconds <n>  # the full work's own playback: frame intervals, requests, loading state
 ```
 
 Read a purity verdict on the **RENDERER** arm against the run's own measured noise floor:
