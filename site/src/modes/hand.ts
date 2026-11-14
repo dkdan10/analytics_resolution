@@ -162,6 +162,7 @@ import {
   HAND_NIGHT_GROUND_ALPHA,
   HAND_WINDOW_PHASES,
   WINDOW_CREST_PHASE,
+  WINDOW_ONE_LEAD_SPAN,
   handWindowPhases,
   windowOneClipSeconds,
   windowOneLeadProgress,
@@ -299,7 +300,8 @@ export const HAND_PHASES = HAND_WINDOW_PHASES;
  *  holds. The rail lists the same five through HAND_PHASES, so a presenter
  *  stepping to "THE NIGHT" lands where this hand agrees the night begins. */
 interface Window5 {
-  /** 0..1 through the opening phase, where ONE possession plays at true rate. */
+  /** 0..1 from the one possession's first frame to the end of the opening
+   *  phase: nothing through the preceding season's lead. */
   one: number;
   /** 0..1 through the game phase — the found game's own eased clock. */
   game: number;
@@ -336,7 +338,11 @@ function windowAt(
     / ((leave.to - leave.from) * closeLength),
   );
   return {
-    one: Math.min(1, p / beatOne.to),
+    // The scope line rides this, and it names the recovered set of 2015-16:
+    // it comes up with the possession, never over the receding sheet of the
+    // season before.
+    one: Math.max(0, Math.min(1,
+      (p - WINDOW_ONE_LEAD_SPAN.to) / (beatOne.to - WINDOW_ONE_LEAD_SPAN.to))),
     game: Math.max(0, Math.min(1,
       (p - beatGame.from) / (beatGame.to - beatGame.from))),
     night: Math.max(0, Math.min(1,
