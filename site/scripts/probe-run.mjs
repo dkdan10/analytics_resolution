@@ -17,6 +17,8 @@
  *   npm run probe:perf    -- [--surface probe|laptop|overview] [--pace <ms>|raf]
  *   npm run probe:perf    -- --against <name>,<name>,<name> [--assert-no-regression]
  *                            [--assert-presentation]
+ *   npm run probe:perf    -- --mode plate --t <seconds in a settled tail> --frames <n>
+ *                            --warmup 0 --assert-built-ahead
  *   npm run probe:continuity -- [--range plate.game,hand.game] [--fps <n>]
  *                               [--surface laptop|probe|overview] [--crop court]
  *                               [--pairs marks] [--no-control] [--assert-continuity]
@@ -123,6 +125,20 @@
  * returns. Both are judged whatever the headline verdict reads, and exit
  * after the ladder's own exits, with their lines already printed.
  *
+ * A WALK THAT BUILDS AHEAD IS HELD TO HAVING BUILT WHAT WAS THEN ASKED FOR.
+ * In a season's settled tail a hand builds the layers the coming hand-over
+ * will ask for. A request formed from the wrong pin, grain, state or palette
+ * builds a layer under a key no frame ever asks for, and no pixel shows it:
+ * the frame that misses bakes the same bytes whole, so every hash holds and
+ * only the stall is back. `--assert-built-ahead` reads the one place it does
+ * show, the renderer's own counts of whole work, frame by frame: from the
+ * first frame that finished a layer ahead of need, no later frame of the row
+ * may bake a layer whole or finish one in place. It exits 1 where one did,
+ * and 2 where a row counted no work or built nothing ahead: such a walk says
+ * nothing about a tail, and is not a pass. Whole work before that first
+ * layer is the landing's, and is not held. The emphasis order is not held
+ * either: one sorted ahead of need and one sorted at need are counted alike.
+ *
  * CONTINUITY, AND WHO JUDGES WHAT.
  * The page captures a range's frames and judges structure only: one cut in
  * the cut's range, none anywhere else, and a control - the last frame drawn
@@ -197,12 +213,12 @@ const VALUED = ["mode", "beat", "t", "stop", "display", "frames", "playback", "o
   "against", "expect-unchanged", "warmup", "step", "pace",
   "surface", "fps", "crop", "pairs", "write-budget", "from", "fields"];
 const SWITCHES = ["exact", "headed", "assert-presentation", "assert-no-regression",
-  "no-control", "assert-continuity", "ruling", "init-budgets"];
+  "assert-built-ahead", "no-control", "assert-continuity", "ruling", "init-budgets"];
 /** The valued flags that travel to the page as its query. */
 const FORWARDED = ["mode", "beat", "t", "stop", "display", "frames", "playback", "ops",
   "range", "samples", "view", "warmup", "step", "pace"];
 /** Flags only the perf probe reads. */
-const PERF_ONLY = ["warmup", "step", "pace", "assert-no-regression"];
+const PERF_ONLY = ["warmup", "step", "pace", "assert-no-regression", "assert-built-ahead"];
 /** The one continuity flag the perf probe reads as well. It travels to the
  *  page from the perf path alone: the purity probe shares the list above and
  *  draws on one surface. */
@@ -235,7 +251,7 @@ const CONTINUITY_ONLY = ["surface", "fps", "crop", "pairs", "write-budget", "fro
  *  default run filed under its name. */
 const NOT_CONTINUITY = ["beat", "t", "stop", "frames", "playback", "ops", "samples",
   "expect-unchanged", "assert-presentation", "warmup", "step", "pace",
-  "assert-no-regression"];
+  "assert-no-regression", "assert-built-ahead"];
 /** Flags that shape a capture, and so mean nothing to a run that launches
  *  no browser. */
 const CAPTURE_FLAGS = ["range", "mode", "surface", "fps", "crop", "pairs", "view", "display",
@@ -925,6 +941,51 @@ export function perfAssertion(differential) {
       .map((r) => `${r.row} (${r.status})`),
     compared: rows.length,
   };
+}
+
+/** The counters that say a frame paid for a whole layer: one baked on a miss,
+ *  and the rest of one the job was still building. */
+const WHOLE_LAYER_WORK = ["syncBakes", "inlineFinishes"];
+/** The counter that says a layer was finished ahead of any frame needing it. */
+const BUILT_AHEAD_WORK = "prewarmedLayers";
+
+/**
+ * What `--assert-built-ahead` makes of a perf report.
+ *
+ * `late` is every frame that paid for a whole layer after the row's first
+ * layer built ahead: by then the walk is past its landing, and a layer baked
+ * whole is one the tail before it did not build, or built under another key.
+ * `blind` is every row that leaves the question open, a row whose probe
+ * counted no work or whose walk built nothing ahead, and a report with no
+ * rows at all. Neither is a pass. Read from each frame's own counts and never
+ * from the row's totals, which cannot say whether a bake came before the
+ * first layer built ahead or after it.
+ */
+export function builtAheadHeld(report) {
+  const rows = report.rows ?? [];
+  const late = [];
+  const blind = rows.length ? [] : ["the report carries no rows"];
+  let held = 0;
+  for (const row of rows) {
+    if (row.work === undefined || !Array.isArray(row.workAt)) {
+      blind.push(`${perfKey(row)}: this probe counted no work`);
+      continue;
+    }
+    const first = row.workAt.findIndex(([, work]) => (work[BUILT_AHEAD_WORK] ?? 0) > 0);
+    if (first < 0) {
+      blind.push(`${perfKey(row)}: no layer was built ahead in the walk`);
+      continue;
+    }
+    const mine = [];
+    for (const [t, work] of row.workAt.slice(first + 1)) {
+      for (const k of WHOLE_LAYER_WORK) {
+        if ((work[k] ?? 0) > 0) mine.push(`${perfKey(row)}: ${k} ${work[k]} at ${t}`);
+      }
+    }
+    if (mine.length) late.push(...mine);
+    else held++;
+  }
+  return { rows: rows.length, held, late, blind };
 }
 
 /** The absolute limits `--assert-presentation` holds every row to. */
@@ -1941,7 +2002,7 @@ async function main() {
       + "       probe-run.mjs purity [--t s,s,...]\n"
       + "       probe-run.mjs perf [--range ids] [--step s] [--warmup n] "
       + "[--surface probe|laptop|overview] [--pace ms|raf] [--against names] "
-      + "[--assert-no-regression]\n"
+      + "[--assert-no-regression] [--assert-built-ahead]\n"
       + "       probe-run.mjs continuity [--range ids] [--mode ids] [--fps n] "
       + "[--surface laptop|probe|overview] [--crop court] [--pairs marks] [--view fresh] "
       + "[--display near|room] [--exact] [--no-control] [--against name] "
@@ -2151,11 +2212,14 @@ async function main() {
     pageViewport: PAGE_VIEWPORT,
   };
   let differential = null;
+  const builtAhead = kind === "perf" && bools.has("assert-built-ahead")
+    ? builtAheadHeld(report) : null;
   const stamp = (ladder) => ({
     ...report,
     ...(ladder ? { ladder } : {}),
     ...(differential ? { differential } : {}),
     ...(presentation ? { presentationAcceptance: presentation } : {}),
+    ...(builtAhead ? { builtAhead } : {}),
     instrument,
   });
 
@@ -2418,6 +2482,14 @@ async function main() {
       }
     }
   }
+  if (builtAhead) {
+    console.log(`probe-run: built ahead: ${builtAhead.held} of ${builtAhead.rows} row(s) paid `
+      + "for no whole layer after the first one built ahead");
+    for (const line of builtAhead.late) {
+      console.error(`probe-run: a whole layer paid for after building ahead: ${line}`);
+    }
+    for (const line of builtAhead.blind) console.error(`probe-run: built ahead: ${line}`);
+  }
   console.log(`probe-run: wrote ${path.replace(`${REPO}/`, "")}`);
   if (differential) {
     const held = perfAssertion(differential);
@@ -2441,6 +2513,14 @@ async function main() {
       console.error(`probe-run: presentation threshold failed: ${failure}`);
     }
     die("presentation performance acceptance failed; failing report was written");
+  }
+  if (builtAhead?.late.length) {
+    die("a walk that built layers ahead still paid for a whole one afterwards; "
+      + "failing report was written");
+  }
+  if (builtAhead?.blind.length) {
+    die("what was built ahead was not established, which is not a pass; report was written",
+      EXIT_NOT_ESTABLISHED);
   }
   const held = stamped.ladder?.expectUnchanged;
   if (held?.moved.length) {

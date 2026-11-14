@@ -74,10 +74,13 @@ export interface FieldOpts {
   reveal?: boolean;
   /** BUILD AHEAD: in the closing stretch of a season, pay for what the
    *  coming hand-over will ask for (its layers, its emphasis order), a little
-   *  a frame, so the boundary does not hold whole bakes. It decides when work
-   *  is done and never what is drawn: a frame meets what was built only as an
-   *  entry already in a cache, and the entry is the one a miss would have
-   *  made. Off unless a hand asks. THE STACK does not ask: it draws two
+   *  a frame, so the boundary holds no whole bake where the arriving season's
+   *  points were already here in that stretch. Where they were not, only what
+   *  this season's own points can make is built, and the hand-over pays for
+   *  the rest whole. It decides when work is done and never what is drawn: a
+   *  frame meets what was built only as an entry already in a cache, and the
+   *  entry is the one a miss would have made. Off unless a hand asks. THE
+   *  STACK does not ask: it draws two
    *  palettes a frame under a talk-only instrument, and what it keeps live
    *  already fills the layer cache. */
   prewarm?: boolean;
@@ -168,12 +171,23 @@ const PREWARM_DEADLINE = 0.75;
  * when a frame asks for it.
  *
  * The list names what the next season's opening frames ask `bakeLayer` and
- * the emphasis order for, by the arguments they will pass, in the order they
- * will first be read: this season is the one that will be receding then, so
- * its requests are formed from this frame's own season, grain and points.
+ * the emphasis order for, by the arguments they will pass, in the order of
+ * the frames that first read them. It is not the order within a frame: the
+ * opening frame draws the receding season before the arriving one, and the
+ * list names the arriving layer first. This season is the one that will be
+ * receding then, so its requests are formed from this frame's own season,
+ * grain and points.
+ *
  * The arriving season's points are taken only if they are already here.
  * Building ahead must not start a fetch: it would move a request the piece
- * makes on the season's first frame to the tail before it.
+ * makes on the season's first frame to the tail before it. The window's
+ * preload apart, that frame is where the piece first asks for a season's
+ * points, so the first time a page plays up to a season they are not here:
+ * the reveal's hands then build this season's lower states and no more, the
+ * hand that develops in builds nothing, and the arriving layers and the
+ * order are made whole when a frame of the hand-over first reads them, as
+ * before. Once the points are here, as on every later time through, all of
+ * it is built in the tail.
  *
  * It takes no context. Nothing here can draw.
  */
@@ -216,6 +230,10 @@ function prewarmNext(
     if (arriving) requests.push(arrivingAt(arriving, DEVELOP_STATES));
     if (receding) requests.push(layerOf(season, pts, grain, DEVELOP_STATES - 1));
     // The window season arrives on its calendar and reads no emphasis order.
+    // Elsewhere the order is one sort that cannot be cut. Asking for it here
+    // moves it whole out of the boundary frame and makes it no shorter: it
+    // can still run past a frame by itself (measured), in a passage where
+    // nothing is arriving.
     if (arriving && !arriving.season.points_by_day) {
       requests.push({ what: "order", pts: arriving.pts, pin: pinCoordOf(arriving.season) });
     }

@@ -29,6 +29,7 @@ import {
   assertion,
   budgetsInForce,
   budgetSourceProblems,
+  builtAheadHeld,
   captureProblems,
   compareContinuity,
   CONTINUITY_CONTROLS,
@@ -941,6 +942,51 @@ add("a long frame with no work counted in it is counted where the printed list h
     return line;
   });
 
+// A walk that builds ahead, held to having built what was then asked for. A
+// request formed from the wrong pin builds a layer under a key no frame asks
+// for, and the walk shows it only as a layer baked whole after the tail: each
+// forged row below must produce exactly its one outcome.
+const TAIL_S = PASS_S + AT_S;
+/** Where the season after that tail opens, a whole pass in. */
+const BOUNDARY_S = PASS_S + 112;
+const builtAheadRow = (after = [], before = [[TAIL_S, { syncBakes: 1 }]]) => instantReport({}, {
+  work: {},
+  workAt: [
+    ...before,
+    [TAIL_S + 1, { prewarmedLayers: 1 }],
+    [TAIL_S + 2, { syncSorts: 1 }],
+    [TAIL_S + 3, { prewarmedLayers: 1 }],
+    ...after,
+    [BOUNDARY_S + 1, { revealSteps: 1 }],
+  ],
+});
+const builtAheadSaid = (report) => {
+  const { late, blind } = builtAheadHeld(report);
+  return late.length ? `paid whole: ${late.join("; ")}`
+    : blind.length ? `not established: ${blind.join("; ")}` : "held";
+};
+add("a walk whose every layer after the landing was built ahead", "held",
+  () => builtAheadSaid(builtAheadRow()));
+add("a walk that baked several layers whole before the first one built ahead (a landing's work)",
+  "held", () => builtAheadSaid(builtAheadRow([], [
+    [TAIL_S, { syncBakes: 1 }], [TAIL_S + 0.5, { syncBakes: 3, syncSorts: 1 }],
+  ])));
+add("a walk whose request missed the draw's key, so the boundary baked the layer whole",
+  `paid whole: plate/t=${AT_S}: syncBakes 1 at ${BOUNDARY_S}`,
+  () => builtAheadSaid(builtAheadRow([[BOUNDARY_S, { syncBakes: 1, syncSorts: 1 }]])));
+add("a walk that finished a layer in place after building others ahead",
+  `paid whole: plate/t=${AT_S}: inlineFinishes 1 at ${BOUNDARY_S}`,
+  () => builtAheadSaid(builtAheadRow([[BOUNDARY_S, { inlineFinishes: 1 }]])));
+add("a walk that built nothing ahead (not a pass: it says nothing about a tail)",
+  `not established: plate/t=${AT_S}: no layer was built ahead in the walk`,
+  () => builtAheadSaid(instantReport({}, {
+    work: {}, workAt: [[TAIL_S, { syncBakes: 1 }], [BOUNDARY_S, { syncBakes: 2, syncSorts: 1 }]],
+  })));
+add("a walk from a probe that counted no work, and a report with no rows",
+  `not established: plate/t=${AT_S}: this probe counted no work; `
+  + "not established: the report carries no rows",
+  () => [instantReport(), instantReport({ rows: [] })].map(builtAheadSaid).join("; "));
+
 const RESIDENT = { resident: ["points"], missing: [], errors: [] };
 const captured = (report, pageErrors = []) => {
   const found = captureProblems({ report, pageErrors }, ASKED, CONTINUITY_CONTROLS);
@@ -962,6 +1008,12 @@ const refusals = (kind, flags, bools = []) => {
 };
 add("purity given --surface", "refused: 1", () => refusals("purity", { surface: "laptop" }));
 add("perf given --assert-continuity", "refused: 1", () => refusals("perf", {}, ["assert-continuity"]));
+add("--assert-built-ahead given to perf, to purity and to continuity",
+  "accepted, refused: 1, refused: 1", () => [
+    refusals("perf", WALKED, ["assert-built-ahead"]),
+    refusals("purity", {}, ["assert-built-ahead"]),
+    refusals("continuity", {}, ["assert-built-ahead"]),
+  ].join(", "));
 add("continuity given --samples", "refused: 1", () => refusals("continuity", { samples: "3" }));
 add("purity and continuity given --pace", "refused: 1, refused: 1", () => [
   refusals("purity", { pace: PACED.pace }), refusals("continuity", { pace: PACED.pace }),
