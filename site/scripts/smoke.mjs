@@ -1,0 +1,385 @@
+#!/usr/bin/env node
+/**
+ * Every public address, opened the way a visitor opens it.
+ *
+ * NOT a probe, and never part of `npm test` or the build. The probes draw the
+ * frames they ask for onto surfaces of their own; none of them loads an
+ * address and lets the page start itself, so none of them sees the startup
+ * card, the chrome or the frame loop a visitor gets. This opens each address
+ * the piece is reached by, at the laptop surface the probes use and at a
+ * phone's, and refuses a load that
+ *
+ *   - threw an uncaught error, or wrote an error to the console;
+ *   - put up the fault screen;
+ *   - still showed its startup card STARTUP_MS after it was asked for;
+ *   - said its files were degraded;
+ *   - drew nothing above the ground within INK_MS of the card going.
+ *
+ *   npm run smoke [-- --port <n>] [--headed]
+ *
+ * It needs a server: `npm run dev` on the default port, or, for the built
+ * bundle, `npm run build && npm run preview` with `--port 4173`. The browser
+ * is the installed Chrome with the flags the probes and the shots pass, and it
+ * is headless unless `--headed` opens a window. Every load is a fresh browser
+ * context, so no load starts from another's files.
+ *
+ * `?talk` opens paused on bare stone by design. There the rail is asked to be
+ * on screen with its buttons, Space is pressed, and only then is the canvas
+ * watched.
+ *
+ * The canvas is read through a small copy taken pixel for pixel, never
+ * blended: a sampled pixel keeps its value, so "above the ground" is what
+ * `__frameStats` counts as lit - a channel more than one level above the
+ * brightest channel of the page's own `--ground` - and the share printed is
+ * that rule's share over the sampled grid, at the first look that found ink.
+ * It moves with how fast the page came up, so two runs agree on whether a load
+ * drew and at what size, not on the share to the last digit.
+ *
+ * ON THE FAULT SCREEN THE CONSOLE IS THE FAULT'S. `main.ts:fault` writes its
+ * reason there and replaces the page with one line, taking the startup card
+ * and the canvas with it. A load that faulted is refused for the fault, with
+ * what the console said as its reason, and nothing else on the page is asked.
+ *
+ * A detector that has only ever watched a healthy page cannot be told from one
+ * that passes whatever it is shown. So every run also opens pages broken on
+ * purpose (SEEDS), in the same browser, and each must be refused for its own
+ * reason and no other: a page refused for a second reason fails its seed as
+ * surely as one let through.
+ */
+
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+
+function die(msg) {
+  console.error(`smoke: ${msg}`);
+  process.exit(1);
+}
+
+function parseArgs(argv) {
+  const flags = {};
+  for (let i = 0; i < argv.length; i++) {
+    if (!argv[i].startsWith("--")) die(`not a flag: ${argv[i]}`);
+    const k = argv[i].slice(2);
+    const v = argv[i + 1];
+    if (v === undefined || v.startsWith("--")) flags[k] = true;
+    else { flags[k] = v; i++; }
+  }
+  return flags;
+}
+
+/** Every flag read here; anything else, or a valued one given bare, is refused
+ *  and never dropped. */
+const VALUED = ["port"];
+const SWITCHES = ["headed"];
+
+const flags = parseArgs(process.argv.slice(2));
+for (const [k, v] of Object.entries(flags)) {
+  if (v === true && VALUED.includes(k)) die(`--${k} needs a value`);
+  if (v !== true && SWITCHES.includes(k)) die(`--${k} takes no value (got ${v})`);
+  if (!VALUED.includes(k) && !SWITCHES.includes(k)) die(`no such flag: --${k}`);
+}
+if (flags.port !== undefined && !/^\d+$/.test(flags.port)) die(`--port is a plain number: ${flags.port}`);
+const port = Number(flags.port ?? 5173);
+const headless = !flags.headed;
+const origin = `http://localhost:${port}`;
+
+/** How long a page may keep its startup card up, counted from the request. */
+const STARTUP_MS = 60_000;
+/** How long the canvas has to show ink once the card has gone. */
+const INK_MS = 10_000;
+/** How often the page is looked at. Polled from here on a timer rather than
+ *  with Playwright's own wait, which asks the page for animation frames. */
+const POLL_MS = 100;
+/** Columns in the copy the canvas is read through. */
+const READBACK_WIDTH = 480;
+
+/** The laptop surface, from the one place it is declared, by the expression
+ *  `playback-log.mjs` reads it with. */
+function laptopSurface() {
+  const src = readFileSync(join(HERE, "..", "src", "probe", "shared.ts"), "utf8");
+  const m = /LAPTOP_SURFACE\s*=\s*\{\s*width:\s*(\d+),\s*height:\s*(\d+),\s*deviceDpr:\s*([\d.]+)\s*\}/
+    .exec(src);
+  if (!m) die("src/probe/shared.ts no longer declares LAPTOP_SURFACE as a width, a height and a ratio");
+  return { width: Number(m[1]), height: Number(m[2]), deviceDpr: Number(m[3]) };
+}
+
+const SIZES = [laptopSurface(), { width: 390, height: 844, deviceDpr: 3 }];
+
+/** The public addresses: the bare one, both named experiences, the lectern,
+ *  the rail, and one direct address of the kind a citation is. */
+const ADDRESSES = [
+  "",
+  "?experience=overview",
+  "?experience=full",
+  "?talk",
+  "?nav",
+  "?mode=hand&stop=hand.close",
+];
+
+/** Pages broken on purpose. Each names the one condition it must be refused
+ *  for, and is opened at the laptop surface. */
+const SEEDS = [
+  {
+    name: "a frame loop that never starts",
+    address: "?probe=shots",
+    expect: "empty canvas",
+  },
+  {
+    name: "the seasons file refused",
+    address: "?experience=full",
+    expect: "fault",
+    spoil: (page) => page.route((u) => u.pathname.endsWith("/data/seasons.json"), (r) => r.abort()),
+  },
+  {
+    name: "a script that throws as the page opens",
+    address: "?experience=full",
+    expect: "page error",
+    spoil: (page) => page.addInitScript(() => {
+      throw new Error("seeded: a script that throws as the page opens");
+    }),
+  },
+];
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function waitForServer(timeoutMs) {
+  const t0 = Date.now();
+  for (;;) {
+    try { if ((await fetch(`${origin}/`)).ok) return; } catch { /* not up */ }
+    if (Date.now() - t0 > timeoutMs) die(`no server at ${origin}`);
+    await sleep(250);
+  }
+}
+
+// --- the decision: facts in, refusals out ------------------------------------
+
+/**
+ * Why a load is refused, as `{ condition, detail }`, one per condition broken.
+ * Decides from the facts alone and reads nothing else.
+ */
+function judge(f) {
+  const out = [];
+  const say = (condition, detail) => out.push({ condition, detail });
+  if (f.pageErrors.length) say("page error", f.pageErrors.join(" | "));
+  if (f.fault !== null) {
+    say("fault", `"${f.fault}"${f.consoleErrors.length ? `; the console said: ${f.consoleErrors.join(" | ")}` : ""}`);
+    return out;
+  }
+  if (f.consoleErrors.length) say("console error", f.consoleErrors.join(" | "));
+  if (!f.startupHidden) {
+    say("startup", `the startup card still read "${f.startupText}" after ${STARTUP_MS / 1000} s`);
+  }
+  if (f.rail !== null && !(f.rail.shown && f.rail.buttons > 0)) {
+    say("rail", f.rail.shown ? "the rail is on screen with no buttons" : "the rail is not on screen");
+  }
+  if (f.degraded !== null) say("degraded", `the page said "${f.degraded}"`);
+  const ink = f.ink;
+  if (!ink || ink.canvas === null) say("empty canvas", "no #plate on the page");
+  else if (ink.groundMax === null) say("empty canvas", `cannot be told: --ground is not a colour ("${ink.ground}")`);
+  else if (!(ink.lit > 0)) {
+    say("empty canvas", `nothing above the ground within ${INK_MS / 1000} s (canvas ${ink.canvas.join("x")})`);
+  }
+  return out;
+}
+
+/** What is wrong with the seeded loads: a seed let through, or refused for
+ *  anything but its own condition alone. */
+function seedProblems(seeded) {
+  const problems = [];
+  for (const { seed, refusals } of seeded) {
+    const got = refusals.map((r) => r.condition);
+    if (!got.length) problems.push(`seeded failure "${seed.name}" was let through`);
+    else if (got.length !== 1 || got[0] !== seed.expect) {
+      problems.push(`seeded failure "${seed.name}" was refused for [${got.join(", ")}], not for [${seed.expect}]`);
+    }
+  }
+  return problems;
+}
+
+// --- the shell: it opens pages and writes down what it saw --------------------
+
+/** Sent to the page as source: the state of its chrome. */
+function look() {
+  // As laid out, so the lines of the fault screen and the card stay apart.
+  const text = (el) => el.innerText.replace(/\s+/g, " ").trim();
+  const fault = document.getElementById("fault");
+  const startup = document.getElementById("startup");
+  const chip = document.getElementById("asset-state");
+  const door = document.getElementById("full-entry");
+  return {
+    fault: fault ? text(fault) : null,
+    startupHidden: !startup || startup.hidden,
+    startupText: startup ? text(startup) : null,
+    degraded: document.body.dataset.assetState === "degraded"
+      ? (chip && !chip.hidden ? text(chip) : "degraded") : null,
+    door: door && !door.hidden ? text(door) : null,
+  };
+}
+
+/** Sent to the page as source: the rail, as a presenter would find it. */
+function lookAtRail() {
+  const nav = document.getElementById("nav");
+  return {
+    shown: nav !== null && !nav.hidden && getComputedStyle(nav).display !== "none",
+    buttons: nav ? nav.querySelectorAll("button").length : 0,
+  };
+}
+
+/** Sent to the page as source: the canvas, read through a small copy. */
+function readback(columns) {
+  const plate = document.getElementById("plate");
+  if (!(plate instanceof HTMLCanvasElement)) return { canvas: null };
+  const ground = getComputedStyle(document.documentElement).getPropertyValue("--ground").trim();
+  const hex = /^#([0-9a-f]{6})$/i.exec(ground);
+  const canvas = [plate.width, plate.height];
+  if (!hex) return { canvas, ground, groundMax: null };
+  const groundMax = Math.max(...[0, 2, 4].map((i) => parseInt(hex[1].slice(i, i + 2), 16)));
+  const w = Math.min(plate.width, columns);
+  const h = Math.max(1, Math.round((plate.height * w) / plate.width));
+  const copy = document.createElement("canvas");
+  copy.width = w;
+  copy.height = h;
+  const c = copy.getContext("2d", { willReadFrequently: true });
+  // Sampled, not averaged: a thin bright line blended with the ground around
+  // it could fall under the threshold it is above on the canvas itself.
+  c.imageSmoothingEnabled = false;
+  c.drawImage(plate, 0, 0, w, h);
+  const d = c.getImageData(0, 0, w, h).data;
+  let lit = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    if (Math.max(d[i], d[i + 1], d[i + 2]) > groundMax + 1) lit++;
+  }
+  return { canvas, ground, groundMax, lit, share: lit / (w * h) };
+}
+
+const pathOf = (address) => `/${address}`;
+
+/** One load of one address at one size: the facts `judge` decides from. */
+async function watch(browser, size, address, spoil) {
+  const context = await browser.newContext({
+    viewport: { width: size.width, height: size.height },
+    deviceScaleFactor: size.deviceDpr,
+  });
+  const page = await context.newPage();
+  const facts = {
+    pageErrors: [], consoleErrors: [], fault: null, startupHidden: true, startupText: null,
+    rail: null, degraded: null, ink: null, door: null,
+  };
+  page.on("pageerror", (e) => facts.pageErrors.push(String(e).split("\n")[0]));
+  page.on("console", (m) => { if (m.type() === "error") facts.consoleErrors.push(m.text().split("\n")[0]); });
+  try {
+    if (spoil) await spoil(page);
+    const startupBy = Date.now() + STARTUP_MS;
+    try {
+      await page.goto(`${origin}${pathOf(address)}`, { waitUntil: "domcontentloaded", timeout: STARTUP_MS });
+    } catch (e) {
+      throw new Error(`${pathOf(address)} did not open: ${String(e).split("\n")[0]}`);
+    }
+    let seen;
+    for (;;) {
+      seen = await page.evaluate(look);
+      facts.degraded ??= seen.degraded;
+      if (seen.fault !== null || seen.startupHidden || Date.now() > startupBy) break;
+      await sleep(POLL_MS);
+    }
+    if (seen.fault !== null) {
+      facts.fault = seen.fault;
+      return facts;
+    }
+    facts.startupHidden = seen.startupHidden;
+    facts.startupText = seen.startupText;
+
+    if (new URLSearchParams(address).has("talk")) {
+      facts.rail = await page.evaluate(lookAtRail);
+      await page.keyboard.press("Space");
+    }
+
+    const inkBy = Date.now() + INK_MS;
+    for (;;) {
+      facts.ink = await page.evaluate(readback, READBACK_WIDTH);
+      if (facts.ink.lit > 0 || Date.now() > inkBy) break;
+      await sleep(POLL_MS);
+    }
+
+    const end = await page.evaluate(look);
+    facts.degraded ??= end.degraded;
+    facts.door = end.door;
+    return facts;
+  } finally {
+    await context.close();
+  }
+}
+
+const sizeOf = (s) => `${s.width}x${s.height} at ${s.deviceDpr}`;
+const pad = Math.max(...[...ADDRESSES, ...SEEDS.map((s) => s.address)].map((a) => pathOf(a).length));
+
+function loadLine(address, size, facts) {
+  const ink = facts.ink;
+  const canvas = ink?.canvas ? `canvas ${ink.canvas.join("x")}` : "no canvas";
+  // Two significant figures: the first look that finds ink often finds a few
+  // pixels of it, which a fixed number of places would print as nothing.
+  const lit = ink?.share === undefined ? "lit -"
+    : `lit ${ink.share === 0 ? "0" : (ink.share * 100).toPrecision(2)}%`;
+  return `${pathOf(address).padEnd(pad)}  ${sizeOf(size)}  ${canvas}  ${lit}`
+    + `${facts.door !== null ? `  door "${facts.door}"` : ""}`;
+}
+
+const { chromium } = await import("playwright");
+await waitForServer(30_000);
+// The same flags the probes, the shots and the playback pass: under software
+// rasterisation the page is not the one a visitor's machine draws.
+const browser = await chromium.launch({
+  channel: "chrome",
+  headless,
+  args: ["--use-gl=angle", "--enable-gpu-rasterization", "--ignore-gpu-blocklist"],
+});
+console.log(`smoke: chrome ${browser.version()}, ${headless ? "headless" : "headed"}, ${origin}; `
+  + `sizes ${SIZES.map(sizeOf).join(", ")}`);
+
+let refused = 0;
+let loads = 0;
+try {
+  for (const size of SIZES) {
+    for (const address of ADDRESSES) {
+      const facts = await watch(browser, size, address);
+      const refusals = judge(facts);
+      loads++;
+      if (refusals.length) refused++;
+      console.log(`smoke: ${loadLine(address, size, facts)}  ${refusals.length ? "REFUSED" : "ok"}`);
+      for (const r of refusals) console.log(`         ${r.condition}: ${r.detail}`);
+    }
+  }
+
+  const seeded = [];
+  for (const seed of SEEDS) {
+    const facts = await watch(browser, SIZES[0], seed.address, seed.spoil);
+    const refusals = judge(facts);
+    seeded.push({ seed, refusals });
+    const got = refusals.map((r) => r.condition);
+    const own = got.length === 1 && got[0] === seed.expect;
+    console.log(`smoke: seeded failure: ${seed.name}`);
+    console.log(`         ${loadLine(seed.address, SIZES[0], facts)}`);
+    for (const r of refusals) console.log(`         ${r.condition}: ${r.detail}`);
+    console.log(`         ${!got.length ? `LET THROUGH, where it must be refused for ${seed.expect}`
+      : own ? `caught for ${seed.expect}, its own reason`
+        : `refused for [${got.join(", ")}], NOT for [${seed.expect}] alone`}`);
+  }
+  const problems = seedProblems(seeded);
+  for (const p of problems) console.log(`smoke: ${p}`);
+
+  if (refused || problems.length) {
+    console.log(`SMOKE RED: ${refused} of ${loads} loads refused, ${problems.length} of ${SEEDS.length} `
+      + "seeded failures not caught for their own reason alone");
+    process.exitCode = 1;
+  } else {
+    console.log(`SMOKE GREEN: ${loads} loads, ${SEEDS.length} seeded failures each caught`);
+  }
+} catch (e) {
+  console.error(`smoke: ${String(e).split("\n")[0]}`);
+  process.exitCode = 1;
+} finally {
+  await browser.close();
+}
