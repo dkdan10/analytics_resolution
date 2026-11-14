@@ -357,9 +357,11 @@ function strikeWords(f: Frame, words: Filed[], alpha: number, coloured: boolean)
     const rgb = coloured && w.zone >= 0 ? ZONE_RGB[w.zone] : undefined;
     strike(ctx, w.name, x, y, px, alpha * CENSUS_WORD_ALPHA, rotation, rgb);
     // The share numeral rides beneath, subordinate: the word's own size already
-    // carries the share and this only says exactly how much.
+    // carries the share and this only says exactly how much. "Beneath" is the
+    // word's own downward direction once it is turned by `rotation`, which on
+    // the screen is (-sin, +cos): toward the hoop for every word on the floor.
     const sub = px * CENSUS_SHARE_SCALE;
-    strike(ctx, struckFigure(w.share), x + Math.sin(rotation) * px * 0.95,
+    strike(ctx, struckFigure(w.share), x - Math.sin(rotation) * px * 0.95,
            y + Math.cos(rotation) * px * 0.95, sub, alpha * CENSUS_WORD_ALPHA * 0.8, rotation);
   }
 }
