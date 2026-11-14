@@ -338,6 +338,10 @@ export function drawSlug(
   /** Turns the lines about `at`, offset and all, for words that ride with a
    *  numeral as it turns into the ring. */
   rotation = 0,
+  /** Set the block up from `at`: its last line there, the rest above it. For
+   *  a block whose clearance lies below it, which then holds at any type size
+   *  and line count. */
+  upward = false,
 ): void {
   if (alpha <= 0.01) return;
   const r = SLUG_RANK[rank];
@@ -359,6 +363,7 @@ export function drawSlug(
     x = 0;
     y = 0;
   }
+  if (upward) offsetPx -= (lines.length - 1) * px * 1.9;
   lines.forEach((line, i) => {
     ctx.fillText(line, x, y + offsetPx + i * px * 1.9);
   });

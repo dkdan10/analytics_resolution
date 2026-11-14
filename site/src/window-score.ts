@@ -287,7 +287,7 @@ export const PLATE_WINDOW_STOPS = [
   { id: "crest", title: "the filed record returns", at: WINDOW_CREST_PHASE },
   { id: "close", title: "the close", at: BEAT_CLOSE.from },
   { id: "last-gesture", title: "the last gesture", at: PLATE_GESTURE_LAST_PHASE },
-  { id: "shell", title: "the record's last file", at: PLATE_SHELL_FROM_PHASE },
+  { id: "shell", title: "the last public day", at: PLATE_SHELL_FROM_PHASE },
   { id: "receipt", title: "the receipt, held", at: PLATE_SHELL_FULL_PHASE },
 ] as const satisfies readonly WindowStop[];
 

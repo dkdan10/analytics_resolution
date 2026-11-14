@@ -39,7 +39,7 @@ import {
   windowOneClipSeconds,
 } from "../window-score";
 import { drawSeasonField } from "./fieldlayer";
-import { drawActCue, terminalShell } from "./shared";
+import { drawActCue } from "./shared";
 import { drawQuarrel } from "./stack";
 import type { Frame } from "./types";
 
@@ -228,26 +228,29 @@ export function drawPlateHand(f: Frame): void {
   // decision; this exists so that decision can be made from captured frames.
   if (f.candidate === "quarrel" && inWindow) drawQuarrel(f);
 
-  // The terminal beat. The public feed's last archive is a 32-byte shell: a file
-  // that exists and holds nothing. Named, not dramatised — both the filename and
-  // the byte count come from the corpus probe.
+  // The terminal beat: the day the public tracking data ends. The date is the
+  // corpus probe's last game day in the public files, and the line under it
+  // says only that the public data ends there; when the feed itself was
+  // switched off is a later date, which this receipt does not claim.
   if (st.act === 3 && data.corpus) {
-    const last = terminalShell(data.corpus);
-    if (last) {
-      // The shell arrives while the last gesture is still fading — the plate
-      // hands itself from the corpus's last trace to the record's last file
-      // with no dead interval between them. Both anchors live in window-score.
-      const closing = progressInWindowSpan(st.phase, PLATE_SHELL_SPAN);
-      drawSlug(
-        ctx,
-        view,
-        [data.corpus.date_range[1], last, `${data.corpus.empty_shell_bytes} BYTES · NO CONTENT`],
-        // Above the settled numeral annulus: the receipt's final line must not
-        // cross the evidence it concludes during the terminal hold.
-        { x: 0, y: 250 },
-        closing,
-      );
-    }
+    // The receipt arrives while the last gesture is still fading — the plate
+    // hands itself from the corpus's last trace to its last public day with no
+    // dead interval between them. Both anchors live in window-score.
+    const closing = progressInWindowSpan(st.phase, PLATE_SHELL_SPAN);
+    drawSlug(
+      ctx,
+      view,
+      [data.corpus.date_range[1], "THE PUBLIC TRACKING DATA ENDS"],
+      // Set up from its last line, which stands above the three-point arc's
+      // crown and the settled numeral annulus: whatever size the display
+      // profile gives the type, the receipt crosses neither during the hold.
+      { x: 0, y: 250 },
+      closing,
+      "statement",
+      0,
+      0,
+      true,
+    );
   }
 
   // The act boundaries named, over everything: the plate has no native
