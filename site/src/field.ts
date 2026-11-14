@@ -555,16 +555,17 @@ const layers = new Map<string, Layer>();
 /**
  * Whole pieces of work this file has paid inside single frames since its
  * caches were last emptied, counted so a probe can name the frame that paid.
- * `syncBakes` is a layer baked on a cache miss, `syncSorts` a season's
- * emphasis order built, `revealSteps` an advance of the arrival's folded
- * prefix. `inlineFinishes` is the rest of a layer the job was building,
- * finished inside a frame that needed it; `prewarmedLayers` a layer the job
- * finished ahead of any frame that needed it; `prewarmDropped` a job
- * abandoned unfinished. Every layer that enters the layer cache is counted
- * once, under `syncBakes`, `inlineFinishes` or `prewarmedLayers`. A slice of
- * the job is not counted: a probe lists every frame that moves a counter,
- * and that would list every frame the job runs through. No draw reads them,
- * and `clearLayers` returns them to zero.
+ * `syncBakes` is a layer or the residence baked on a miss, `syncSorts` a
+ * season's emphasis order or the window calendar's fold order built,
+ * `revealSteps` an advance of the arrival's folded prefix. `inlineFinishes`
+ * is the rest of a layer or the residence the job was building, finished
+ * inside a frame that needed it; `prewarmedLayers` one the job finished ahead
+ * of any frame that needed it; `prewarmDropped` a job abandoned unfinished.
+ * Every layer that enters the layer cache, and every residence that enters
+ * its slot, is counted once, under `syncBakes`, `inlineFinishes` or
+ * `prewarmedLayers`. A slice of the job is not counted: a probe lists every
+ * frame that moves a counter, and that would list every frame the job runs
+ * through. No draw reads them, and `clearLayers` returns them to zero.
  */
 export const fieldWork = {
   syncBakes: 0,
@@ -659,6 +660,12 @@ const PREWARM_ROWS_PER_SLICE = 256;
 /** Cells folded in one slice. It decides when work is done and cannot change
  *  a pixel: the cells are folded in the same order however they are cut. */
 const PREWARM_CELLS_PER_SLICE = 2048;
+/** Residence cells folded in one slice. A residence cell lands on far more
+ *  pixels than a season's cell, so a slice holds far fewer of them: as many
+ *  as cost no more than a slice of a season's cells. It decides when work is
+ *  done and cannot change a pixel: the cells are folded in the same order
+ *  however they are cut. */
+const PREWARM_RESIDENCE_CELLS_PER_SLICE = 24;
 /** Slices one call may run. It decides when work is done and cannot change a
  *  pixel: it bounds what a call costs, never what a layer holds. */
 const PREWARM_SLICES_MAX = 3;
@@ -672,20 +679,22 @@ const PREWARM_UNNAMED_CALLS = 2;
 type JobStage = "fill" | "fold" | "quantize" | "upload";
 
 /**
- * A layer in the building: the one job `advancePrewarm` runs a slice at a
- * time, so that a layer a coming frame will ask for can be paid for across
- * the frames before it.
+ * A layer, or the residence, in the building: the one job `advancePrewarm`
+ * runs a slice at a time, so that what a coming frame will ask for can be
+ * paid for across the frames before it.
  *
  * Its progress outlives a frame. What it builds is a function of its key
  * alone, and nothing drawn reads its progress: a draw meets the job only as a
- * layer that is in the cache or is not, and `bakeLayer` returns the same
- * bytes either way.
+ * layer that is in the cache or is not, or a residence that is in its slot
+ * or is not, and `bakeLayer` and `bakeResidence` return the same bytes
+ * either way.
  *
  * They are the same bytes because the bodies are the same: a zeroed
- * accumulator, `foldLayerCells` over consecutive runs of the cells in their
- * one order, `quantizeRows` over consecutive bands, `canvasOf` once. What the
- * job derives for itself (the backing size, the splats) it derives by the
- * expressions `bakeLayer` uses. Between slices, three things hold:
+ * accumulator, `foldLayerCells` or `foldResidenceCells` over consecutive runs
+ * of the cells in their one order, `quantizeRows` over consecutive bands,
+ * `canvasOf` once. What the job derives for itself (the backing size, the
+ * splats) it derives by the expressions the whole bake uses. Between slices,
+ * three things hold:
  *   - the fold never starts before the fill has covered every row of this
  *     job;
  *   - the upload never starts before the convert has written every pixel of
@@ -702,17 +711,10 @@ type JobStage = "fill" | "fold" | "quantize" | "upload";
  * so emptying the caches has nothing to gain from dropping them, and holding
  * them is memory on the side of the trade the layer cache already accepts.
  */
-interface BakeJob {
+interface JobProgress {
   key: string;
-  // Everything the fold reads, captured when the job starts.
-  pts: Points;
-  coloured: boolean;
   view: View;
   dpr: number;
-  pin: [number, number] | null;
-  strength: number;
-  grain: GrainProfile;
-  splats: GrainSplats;
   w: number;
   h: number;
   stage: JobStage;
@@ -726,22 +728,44 @@ interface BakeJob {
   unnamed: number;
 }
 
+/** A season's layer, with everything its fold reads, captured when the job
+ *  starts. */
+interface LayerJob extends JobProgress {
+  kind: "layer";
+  pts: Points;
+  coloured: boolean;
+  pin: [number, number] | null;
+  strength: number;
+  grain: GrainProfile;
+  splats: GrainSplats;
+}
+
+/** The residence, with its cells in the one order every fold takes them in. */
+interface ResidenceJob extends JobProgress {
+  kind: "residence";
+  occ: Occupancy;
+  cells: readonly ResidenceCell[];
+}
+
+type BakeJob = LayerJob | ResidenceJob;
+
 let bakeJob: BakeJob | null = null;
 let jobAcc: Float32Array | null = null;
 let jobImg: ImageData | null = null;
 
-/** How many slices a layer is built in: a function of its height and its
- *  cell count, so what is owed can be reckoned before a job exists. A season
- *  with no cells still spends one fold slice. */
-function unitsOf(n: number, h: number): number {
+/** How many slices a layer or the residence is built in: a function of its
+ *  height, its cell count and how many cells a slice folds, so what is owed
+ *  can be reckoned before a job exists. One with no cells still spends one
+ *  fold slice. */
+function unitsOf(n: number, h: number, cellsPerSlice: number): number {
   return 2 * Math.ceil(h / PREWARM_ROWS_PER_SLICE)
-    + Math.max(1, Math.ceil(n / PREWARM_CELLS_PER_SLICE)) + 1;
+    + Math.max(1, Math.ceil(n / cellsPerSlice)) + 1;
 }
 
-/** Run one slice of the job, and return its layer when that slice was the
- *  upload. Each cursor moves in one place, clamped to its end there, because
- *  the last slice of a stage is rarely a whole one. It moves no work counter:
- *  who finished a layer is the caller's to say. */
+/** Run one slice of the job, and return what it built when that slice was
+ *  the upload. Each cursor moves in one place, clamped to its end there,
+ *  because the last slice of a stage is rarely a whole one. It moves no work
+ *  counter: who finished a layer is the caller's to say. */
 function stepJob(job: BakeJob): Layer | null {
   const acc = jobAcc!;
   const img = jobImg!;
@@ -757,13 +781,19 @@ function stepJob(job: BakeJob): Layer | null {
     return null;
   }
   if (job.stage === "fold") {
-    const to = Math.min(job.pts.n, job.cell + PREWARM_CELLS_PER_SLICE);
-    foldLayerCells(
-      acc, job.w, job.h, job.view, job.dpr, job.pts, job.cell, to,
-      job.pin, job.strength, job.coloured, job.splats, job.grain,
-    );
+    const n = job.kind === "layer" ? job.pts.n : job.cells.length;
+    const to = Math.min(n, job.cell + (job.kind === "layer"
+      ? PREWARM_CELLS_PER_SLICE : PREWARM_RESIDENCE_CELLS_PER_SLICE));
+    if (job.kind === "layer") {
+      foldLayerCells(
+        acc, job.w, job.h, job.view, job.dpr, job.pts, job.cell, to,
+        job.pin, job.strength, job.coloured, job.splats, job.grain,
+      );
+    } else {
+      foldResidenceCells(acc, job.w, job.h, job.view, job.dpr, job.occ, job.cells, job.cell, to);
+    }
     job.cell = to;
-    if (job.cell >= job.pts.n) {
+    if (job.cell >= n) {
       job.stage = "quantize";
       job.row = 0;
     }
@@ -777,9 +807,11 @@ function stepJob(job: BakeJob): Layer | null {
     return null;
   }
   // The whole image at once, never a part of it: a canvas is written in one
-  // burst or it is not this file's kind of surface.
+  // burst or it is not this file's kind of surface. A season's layer enters
+  // the layer cache; the residence enters its own slot, which is not in it.
   const layer: Layer = { canvas: canvasOf(img, job.w, job.h), key: job.key };
-  storeLayer(job.key, layer);
+  if (job.kind === "layer") storeLayer(job.key, layer);
+  else residence = layer;
   bakeJob = null;
   return layer;
 }
@@ -843,8 +875,9 @@ export function bakeLayer(
 }
 
 /** Something a coming frame will ask for, named so it can be built before
- *  that frame: a season's layer at one state of its ladder, or a season's
- *  emphasis order. */
+ *  that frame: a season's layer at one state of its ladder, a season's
+ *  emphasis order, the residence, or the window calendar's fold order. Each
+ *  carries the arguments the frame will pass for it. */
 export type PrewarmRequest =
   | {
       what: "layer";
@@ -858,7 +891,15 @@ export type PrewarmRequest =
       state: number;
       grain: GrainProfile;
     }
-  | { what: "order"; pts: Points; pin: [number, number] | null };
+  | { what: "order"; pts: Points; pin: [number, number] | null }
+  | { what: "residence"; occ: Occupancy; view: View; dpr: number }
+  | {
+      what: "dayPlan";
+      dayPts: DayPoints;
+      pin: [number, number] | null;
+      seedDay: number;
+      windowLast: number;
+    };
 
 /**
  * Pay toward what a coming frame will ask for.
@@ -866,9 +907,10 @@ export type PrewarmRequest =
  * `requests` is what will be asked for, in the order it will first be read,
  * and `owedShare` is how much of all of it should be done by now, which a
  * caller derives from its clock alone. What has been done is history, and
- * history decides only whether an entry already exists: `bakeLayer` and
- * `revealOrder` return the same thing whatever was or was not built here, and
- * that is all a frame can see of this. It takes no context and cannot draw.
+ * history decides only whether an entry already exists: `bakeLayer`,
+ * `bakeResidence`, `revealOrder` and `dayFoldPlan` return the same thing
+ * whatever was or was not built here, and that is all a frame can see of
+ * this. It takes no context and cannot draw.
  *
  * A layer request names a ladder state, never a strength. Its key is formed
  * through `exposureStrength`, as `drawDeveloping` forms the one it bakes, so
@@ -878,8 +920,9 @@ export type PrewarmRequest =
  * never carried: a running total is where a slip would hide.
  *
  * A call's cost is bounded. It runs at most PREWARM_SLICES_MAX slices; or
- * fewer and then one upload, which ends the call; or one sort and nothing
- * else. The two pieces that cannot be cut never share a call.
+ * fewer and then one upload, which ends the call; or one sort, an emphasis
+ * order or the calendar's fold order, and nothing else. The two pieces that
+ * cannot be cut never share a call.
  *
  * There is one job, and it belongs to whichever list names it. A call whose
  * list does not name it leaves it alone and does nothing, so two callers in
@@ -895,9 +938,10 @@ export function advancePrewarm(
 ): void {
   if (!requests.length) return;
 
-  type LayerRequest = Extract<PrewarmRequest, { what: "layer" }>;
-  const keyOf = (r: LayerRequest): string =>
-    layerKey(r.year, r.coloured, r.view, r.dpr, r.pin, exposureStrength(r.state), r.grain);
+  type Baked = Extract<PrewarmRequest, { what: "layer" | "residence" }>;
+  const keyOf = (r: Baked): string => r.what === "layer"
+    ? layerKey(r.year, r.coloured, r.view, r.dpr, r.pin, exposureStrength(r.state), r.grain)
+    : residenceKey(r.view, r.dpr);
   const reckon = () => {
     let total = 0;
     let done = 0;
@@ -911,10 +955,21 @@ export function advancePrewarm(
         else next ??= r;
         continue;
       }
+      if (r.what === "dayPlan") {
+        total += 1;
+        const have = dayFoldPlans.get(r.dayPts);
+        if (have && have.pinKey === (r.pin ? r.pin.join(",") : "none")
+          && have.seedDay === r.seedDay) done += 1;
+        else next ??= r;
+        continue;
+      }
       const key = keyOf(r);
-      const units = unitsOf(r.pts.n, Math.max(1, Math.round(r.view.height * r.dpr)));
+      const h = Math.max(1, Math.round(r.view.height * r.dpr));
+      const units = r.what === "layer"
+        ? unitsOf(r.pts.n, h, PREWARM_CELLS_PER_SLICE)
+        : unitsOf(residenceCellsOf(r.occ).length, h, PREWARM_RESIDENCE_CELLS_PER_SLICE);
       total += units;
-      if (layers.has(key)) done += units;
+      if (r.what === "layer" ? layers.has(key) : residence?.key === key) done += units;
       else if (bakeJob && bakeJob.key === key) {
         done += bakeJob.units;
         named = true;
@@ -951,21 +1006,19 @@ export function advancePrewarm(
       if (spent === 0) revealOrder(next.pts, next.pin);
       return;
     }
-    const { view, dpr, grain } = next;
+    if (next.what === "dayPlan") {
+      if (spent === 0) dayFoldPlan(next.dayPts, next.pin, next.seedDay, next.windowLast);
+      return;
+    }
+    const { view, dpr } = next;
     const w = Math.max(1, Math.round(view.width * dpr));
     const h = Math.max(1, Math.round(view.height * dpr));
     if (!jobAcc || jobAcc.length !== w * h * 3) jobAcc = new Float32Array(w * h * 3);
     if (!jobImg || jobImg.width !== w || jobImg.height !== h) jobImg = new ImageData(w, h);
-    bakeJob = {
+    const progress: JobProgress = {
       key: keyOf(next),
-      pts: next.pts,
-      coloured: next.coloured,
       view,
       dpr,
-      pin: next.pin,
-      strength: exposureStrength(next.state),
-      grain,
-      splats: grainSplatsOf(view, dpr, grain),
       w,
       h,
       stage: "fill",
@@ -974,6 +1027,18 @@ export function advancePrewarm(
       units: 0,
       unnamed: 0,
     };
+    bakeJob = next.what === "layer"
+      ? {
+          ...progress,
+          kind: "layer",
+          pts: next.pts,
+          coloured: next.coloured,
+          pin: next.pin,
+          strength: exposureStrength(next.state),
+          grain: next.grain,
+          splats: grainSplatsOf(view, dpr, next.grain),
+        }
+      : { ...progress, kind: "residence", occ: next.occ, cells: residenceCellsOf(next.occ) };
     now = reckon();
   }
 }
@@ -1449,6 +1514,7 @@ function dayFoldPlan(
   const pinKey = pin ? pin.join(",") : "none";
   const have = dayFoldPlans.get(dayPts);
   if (have && have.pinKey === pinKey && have.seedDay === seedDay) return have;
+  fieldWork.syncSorts++;
 
   const [pinX, pinY] = pin ?? [NaN, NaN];
   const seed: number[] = [];
@@ -1985,11 +2051,13 @@ export function clearLayers(): void {
   wetLives.clear();
   wetTrails.clear();
   residence = null;
-  // Both orders are pure functions of the arguments they were built from, so
-  // dropping them moves no pixel; what it changes is that the frame after an
-  // emptying pays what a fresh page's first frame pays.
+  // Both orders, and the residence's cells, are pure functions of the
+  // arguments they were built from, so dropping them moves no pixel; what it
+  // changes is that the frame after an emptying pays what a fresh page's
+  // first frame pays.
   revealOrders = new WeakMap();
   dayFoldPlans = new WeakMap();
+  residenceCells = new WeakMap();
   // A job in flight is dropped with the caches it was building for. Its
   // accumulator and image stay: the next job overwrites both whole before it
   // reads either.
@@ -2019,6 +2087,10 @@ export function clearLayers(): void {
  * `SPLAT_SPACING_K` as the shot lattice — the J2 null is a function of K
  * alone, so it suppresses this lattice's beat exactly as it does the record's.
  * Nothing here reads `t`; the beat envelope lives at the draw call.
+ *
+ * Like a layer, it can be built a slice at a time ahead of the frame that
+ * draws it (`advancePrewarm`), and a frame meets that only as a slot that
+ * holds it or does not.
  */
 
 /** Court tenths per occupancy cell: pipeline/window.py grids ball frames on
@@ -2042,13 +2114,46 @@ export interface Occupancy {
   frames_total: number;
 }
 
-export function bakeResidence(occ: Occupancy, view: View, dpr: number): Layer {
-  const key = `residence|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}`;
-  if (residence && residence.key === key) return residence;
+function residenceKey(view: View, dpr: number): string {
+  return `residence|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}`;
+}
 
-  const w = Math.max(1, Math.round(view.width * dpr));
-  const h = Math.max(1, Math.round(view.height * dpr));
-  const acc = new Float32Array(w * h * 3);
+/** One cell of the occupancy grid: its key in the artifact and its frames. */
+type ResidenceCell = readonly [string, number];
+
+// The grid's cells in the one order every fold of the residence takes them
+// in, whole or a slice at a time, held per artifact so that reckoning what a
+// residence is owed does not list the grid again on every call. Replaced by
+// `clearLayers`, like the orders.
+let residenceCells = new WeakMap<Occupancy, readonly ResidenceCell[]>();
+
+function residenceCellsOf(occ: Occupancy): readonly ResidenceCell[] {
+  let cells = residenceCells.get(occ);
+  if (!cells) {
+    cells = Object.entries(occ.grid);
+    residenceCells.set(occ, cells);
+  }
+  return cells;
+}
+
+/**
+ * Fold a run of the residence's cells into a float accumulator. One body, so
+ * a residence built a run of cells at a time adds the same numbers in the
+ * same order as one built whole, and the two cannot differ in a byte. Its
+ * geometry is derived here on every run, from the view and the pixel ratio
+ * alone.
+ */
+function foldResidenceCells(
+  acc: Float32Array,
+  w: number,
+  h: number,
+  view: View,
+  dpr: number,
+  occ: Occupancy,
+  cells: readonly ResidenceCell[],
+  from: number,
+  to: number,
+): void {
   const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
 
   const spacing = view.s(CELL_TENTHS) * dpr;
@@ -2060,7 +2165,8 @@ export function bakeResidence(occ: Occupancy, view: View, dpr: number): Layer {
     (Math.PI * radius * radius * FALLOFF_DISC_INTEGRAL) / (spacing * spacing),
   );
 
-  for (const [cell, frames] of Object.entries(occ.grid)) {
+  for (let i = from; i < to; i++) {
+    const [cell, frames] = cells[i]!;
     const comma = cell.indexOf(",");
     const cx = Number(cell.slice(0, comma)) * CELL_TENTHS + CELL_TENTHS / 2;
     const cy = Number(cell.slice(comma + 1)) * CELL_TENTHS + CELL_TENTHS / 2;
@@ -2090,23 +2196,34 @@ export function bakeResidence(occ: Occupancy, view: View, dpr: number): Layer {
       }
     }
   }
+}
+
+export function bakeResidence(occ: Occupancy, view: View, dpr: number): Layer {
+  const key = residenceKey(view, dpr);
+  if (residence && residence.key === key) return residence;
+  // A job already building the residence is finished here, by the slices it
+  // had left, as `bakeLayer` finishes one of its own. Otherwise the residence
+  // is baked whole, on an accumulator and an image of its own, and the job
+  // is left as it was.
+  if (bakeJob && bakeJob.key === key) {
+    fieldWork.inlineFinishes++;
+    const job = bakeJob;
+    for (;;) {
+      const done = stepJob(job);
+      if (done) return done;
+    }
+  }
+  fieldWork.syncBakes++;
+
+  const w = Math.max(1, Math.round(view.width * dpr));
+  const h = Math.max(1, Math.round(view.height * dpr));
+  const acc = new Float32Array(w * h * 3);
+  const cells = residenceCellsOf(occ);
+  foldResidenceCells(acc, w, h, view, dpr, occ, cells, 0, cells.length);
 
   const img = new ImageData(w, h);
-  const data = img.data;
-  const px = w * h;
-  for (let p = 0, o = 0, q = 0; p < px; p++, o += 4, q += 3) {
-    data[o] = acc[q] as number;
-    data[o + 1] = acc[q + 1] as number;
-    data[o + 2] = acc[q + 2] as number;
-    data[o + 3] = 255;
-  }
-
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  canvas.getContext("2d")!.putImageData(img, 0, 0);
-
-  residence = { canvas, key };
+  quantizeRows(acc, img.data, w, 0, h);
+  residence = { canvas: canvasOf(img, w, h), key };
   return residence;
 }
 

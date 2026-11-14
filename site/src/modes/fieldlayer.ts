@@ -74,11 +74,12 @@ export interface FieldOpts {
    *  envelope, documented above. */
   reveal?: boolean;
   /** BUILD AHEAD: in the closing stretch of a season, pay for what the
-   *  coming hand-over will ask for (its layers, its emphasis order), a little
+   *  coming hand-over will ask for (its layers, its emphasis order, and
+   *  before the window the residence and the calendar's fold order), a little
    *  a frame, so the boundary holds no whole bake where the arriving season's
    *  points were already here in that stretch. Where they were not, only what
-   *  this season's own points can make is built, and the hand-over pays for
-   *  the rest whole. It decides when work is done and never what is drawn: a
+   *  can be made without them is built, and the hand-over pays for the rest
+   *  whole. It decides when work is done and never what is drawn: a
    *  frame meets what was built only as an entry already in a cache, and the
    *  entry is the one a miss would have made. Off unless a hand asks. THE
    *  STACK does not ask: it draws two
@@ -171,25 +172,31 @@ const PREWARM_DEADLINE = 0.75;
  * history, and history decides only whether a layer is already made when a
  * frame asks for it.
  *
- * The list names what the next season's opening frames ask `bakeLayer` and
- * the emphasis order for, by the arguments they will pass, in the order of
- * the frames that first read them. It is not the order within a frame: the
- * opening frame draws the receding season before the arriving one, and the
- * list names the arriving layer first. `receding` is the season that will be
+ * The list names what the next season's opening frames ask `bakeLayer`,
+ * `bakeResidence` and the two orders for, by the arguments they will pass,
+ * in the order of the frames that first read them. It is not the order
+ * within a frame: the opening frame draws the receding season before the
+ * arriving one, and the list names the arriving layer first. Before the
+ * window season the residence leads, where the hand lays it, as the first
+ * thing that season's opening frame draws, and the calendar's fold order
+ * follows it on the reveal's hands. `receding` is the season that will be
  * going out under the next one, with its own grain and points, or null where
- * the next season's opening frames draw none.
+ * the next season's opening frames draw none. `residence` is whether the
+ * hand lays the residence.
  *
- * The arriving season's points are taken only if they are already here.
- * Building ahead must not start a fetch: what is fetched, and when, is
- * decided by the loop that plays the frames, never by work no frame has
- * asked for. Where that loop plays the seasons in order it asks for the next
- * season's points on every frame, so they have had this season's arrival to
- * land in before this stretch opens, and all of it is built here. Where they
- * are not here, as when a page lands inside the stretch, the file is slow or
- * has failed, or the route does not play in order, the reveal's hands build
- * the receding season's lower states and no more, the hand that develops in
- * builds nothing, and the arriving layers and the order are made whole when
- * a frame of the hand-over first reads them.
+ * The arriving season's points, and the window season's calendar, are taken
+ * only if they are already here. Building ahead must not start a fetch: what
+ * is fetched, and when, is decided by the loop that plays the frames, never
+ * by work no frame has asked for. Where that loop plays the seasons in order
+ * it asks for the next season's files on every frame, so they have had this
+ * season's arrival to land in before this stretch opens, and all of it is
+ * built here. Where one is not here, as when a page lands inside the
+ * stretch, a file is slow or has failed, or the route does not play in
+ * order, what needs it is not built, and is made whole when a frame of the
+ * hand-over first reads it. What does not need it is still built: the
+ * receding season's lower states on the reveal's hands, and before the
+ * window the residence where the hand lays it. The hand that develops in
+ * builds nothing without the arriving points.
  *
  * It takes no context. Nothing here can draw.
  */
@@ -200,6 +207,7 @@ function payAhead(
   next: number,
   coloured: boolean,
   reveal: boolean,
+  residence: boolean,
   left: number,
   receding: { season: Season; grain: GrainProfile; pts: Points } | null,
 ): void {
@@ -217,6 +225,23 @@ function payAhead(
     layerOf(a.season, a.pts, grainProfileFor(a.season.resolution.regime), state);
 
   const requests: PrewarmRequest[] = [];
+  // Formed from the expressions `drawSeasonField` passes on the window
+  // season's frames, so each is the entry those frames ask for.
+  if (nextSeason?.points_by_day) {
+    if (residence && data.window) {
+      requests.push({ what: "residence", occ: data.window.occupancy, view, dpr });
+    }
+    const dayPts = reveal ? data.residentPointsByDay(next) : null;
+    if (dayPts) {
+      requests.push({
+        what: "dayPlan",
+        dayPts,
+        pin: pinCoordOf(nextSeason),
+        seedDay: data.slateFile?.day ?? -1,
+        windowLast: nextSeason.points_by_day?.window_last_day ?? 0,
+      });
+    }
+  }
   if (reveal) {
     if (arriving) requests.push(arrivingAt(arriving, DEVELOP_STATES));
     if (receding) {
@@ -251,7 +276,8 @@ function payAhead(
  * Build ahead of the next season, on a season's own frames.
  *
  * This season is the one that will be receding then, so its requests are
- * formed from this frame's own season, grain and points.
+ * formed from this frame's own season, grain and points. Whether the hand
+ * lays the residence is this frame's own option, passed on.
  */
 function prewarmNext(
   f: Frame,
@@ -259,6 +285,7 @@ function prewarmNext(
   dim: number,
   withPrevious: boolean,
   reveal: boolean,
+  residence: boolean,
   season: Season,
   grain: GrainProfile,
   pts: Points | null,
@@ -275,7 +302,9 @@ function prewarmNext(
   const receding = withPrevious && st.next !== CUT_YEAR && pts !== null
     ? { season, grain, pts }
     : null;
-  payAhead(view, dpr, data, st.next, coloured, reveal, (1 - st.phase) * seg.duration, receding);
+  payAhead(
+    view, dpr, data, st.next, coloured, reveal, residence, (1 - st.phase) * seg.duration, receding,
+  );
 }
 
 /**
@@ -286,7 +315,8 @@ function prewarmNext(
  * whole, on the hand-over every loop of the piece opens with. No season is
  * receding there, so only the arriving one's requests are formed. The caller
  * names the field the hand about to play will lay, since no hand is drawing
- * to pass it. Outside the prelude it does nothing.
+ * to pass it; the first season is not the window's, so no residence is
+ * asked for. Outside the prelude it does nothing.
  */
 export function prewarmOpening(
   view: View,
@@ -298,7 +328,7 @@ export function prewarmOpening(
 ): void {
   if (st.act !== 0 || st.next === null) return;
   payAhead(
-    view, dpr, data, st.next, coloured, reveal, (1 - st.preludePhase) * ACT0_SECONDS, null,
+    view, dpr, data, st.next, coloured, reveal, false, (1 - st.preludePhase) * ACT0_SECONDS, null,
   );
 }
 
@@ -426,7 +456,7 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
   });
 
   // Last, and after every draw of this frame: paying ahead takes no context.
-  if (prewarm) prewarmNext(f, coloured, dim, withPrevious, reveal, season, grain, pts);
+  if (prewarm) prewarmNext(f, coloured, dim, withPrevious, reveal, residence, season, grain, pts);
 }
 
 /**

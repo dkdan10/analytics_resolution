@@ -14,12 +14,16 @@
  * can be reached: left to run, run with whole bakes of layers of other bytes
  * between its calls (the job's buffers must be its own), finished by the
  * frame that needed it, early and late, sharing its one slot with a second
- * caller, and started after another job was abandoned half built.
+ * caller, and started after another job was abandoned half built. The
+ * residence is built by the same job, and its rows take the same ways in:
+ * left to run, with other bakes between its calls, finished by the frame,
+ * and abandoned half built for another caller's layer and then built again.
  *
  * A comparison that reported equal whatever it was shown would be worse than
  * none, so each regime carries a control: one layer against the same season a
- * state lower, which must differ. A readback that returned nothing, or a hash
- * that saw nothing, reads those two as equal and fails it.
+ * state lower, which must differ. The residence's control lays it against a
+ * season's finished layer. A readback that returned nothing, or a hash that
+ * saw nothing, reads those two as equal and fails it.
  *
  * COMPARED BY HASH, NEVER THROUGH `aboveNoise`. Nothing here is drawn through
  * a rasteriser: a layer is written by `putImageData` and read by
@@ -34,10 +38,11 @@
  * all of it.
  */
 
-import type { Loaded } from "../data";
+import type { Loaded, Season } from "../data";
 import {
   advancePrewarm,
   bakeLayer,
+  bakeResidence,
   clearLayers,
   exposureStrength,
   fieldWork,
@@ -51,14 +56,21 @@ import { DEVELOP_STATES } from "../scalars";
 import { hashPixels, PROBE_DPR, PROBE_H, PROBE_W, viewOf } from "./shared";
 
 type LayerRequest = Extract<PrewarmRequest, { what: "layer" }>;
+type ResidenceRequest = Extract<PrewarmRequest, { what: "residence" }>;
+/** What the job builds: a season's layer, or the residence. */
+type Built = LayerRequest | ResidenceRequest;
 
 export interface LayerBuildRow {
   season: number;
   regime: string;
   palette: "bone" | "zone";
+  /** The ladder state the layer was built at; zero for the residence, which
+   *  has no ladder. */
   state: number;
   variant: "sliced" | "interleaved" | "finished-early" | "finished-late"
-    | "alternating" | "abandoned" | "control";
+    | "alternating" | "abandoned" | "control"
+    | "residence-sliced" | "residence-interleaved" | "residence-finished"
+    | "residence-abandoned" | "residence-control";
   expect: "equal" | "differ";
   /** `advancePrewarm` calls made with this layer's own list. */
   calls: number;
@@ -96,8 +108,9 @@ interface Reading {
   failed?: string;
 }
 
-const bakeOf = (r: LayerRequest): Layer =>
-  bakeLayer(r.year, r.pts, r.coloured, r.view, r.dpr, r.pin, exposureStrength(r.state), r.grain);
+const bakeOf = (r: Built): Layer => r.what === "layer"
+  ? bakeLayer(r.year, r.pts, r.coloured, r.view, r.dpr, r.pin, exposureStrength(r.state), r.grain)
+  : bakeResidence(r.occ, r.view, r.dpr);
 
 /** A layer's bytes, hashed, and its backing store given back at once:
  *  `clearLayers` only drops the reference, and these rows would otherwise
@@ -113,7 +126,7 @@ function hashAndRelease(layer: Layer): string {
 }
 
 /** The layer baked whole, on empty caches. */
-function wholeOf(req: LayerRequest): { hash: string; failed?: string } {
+function wholeOf(req: Built): { hash: string; failed?: string } {
   clearLayers();
   const layer = bakeOf(req);
   const failed = fieldWork.syncBakes === 1 ? undefined
@@ -125,7 +138,7 @@ function wholeOf(req: LayerRequest): { hash: string; failed?: string } {
 
 /** Whether a bake of this request finds the layer already there, which is
  *  what shows a job that stored it under any other key. */
-function hitOf(req: LayerRequest): { layer: Layer; failed?: string } {
+function hitOf(req: Built): { layer: Layer; failed?: string } {
   const { syncBakes, inlineFinishes } = fieldWork;
   const layer = bakeOf(req);
   const hit = fieldWork.syncBakes === syncBakes && fieldWork.inlineFinishes === inlineFinishes;
@@ -135,7 +148,7 @@ function hitOf(req: LayerRequest): { layer: Layer; failed?: string } {
 /** The layer built by the job alone, on empty caches, `between` run after
  *  each call but the last. */
 function jobOf(
-  req: LayerRequest,
+  req: Built,
   between?: (calls: number) => void,
 ): { built: string; calls: number; failed?: string } {
   clearLayers();
@@ -157,7 +170,7 @@ function jobOf(
 
 /** The job left to run. A layer finished in a call or two was not built in
  *  slices, and its equality would say nothing about slicing. */
-function sliced(req: LayerRequest): Reading {
+function sliced(req: Built): Reading {
   const job = jobOf(req);
   const whole = wholeOf(req);
   const failed = job.failed ?? whole.failed
@@ -175,17 +188,17 @@ function sliced(req: LayerRequest): Reading {
  * in its key: the year goes into the key and into no pixel, so the job's own
  * layer under another year would leave in a shared image exactly what the
  * job was about to write there, and a job converting into the bakes' image
- * would read equal. So it is baked in the other palette at the lowest state,
- * and the row fails if what was baked between hashed equal to the job's
- * layer after all.
+ * would read equal. So `other` bakes, for its `k`th call, a layer no other
+ * call asks for and of other bytes: for a season's layer the same season in
+ * the other palette at the lowest state, and for the residence a season's
+ * layer at the lowest state. The row fails if what was baked between hashed
+ * equal to the job's after all.
  */
-function interleaved(req: LayerRequest, expected: number): Reading {
+function interleaved(req: Built, expected: number, other: (k: number) => Layer): Reading {
   const between: string[] = [];
   const job = jobOf(req, (calls) => {
     if (calls !== 1 && calls !== Math.floor(expected / 2) && calls !== expected - 1) return;
-    between.push(hashAndRelease(bakeLayer(
-      -req.year - between.length, req.pts, !req.coloured, req.view, req.dpr, req.pin,
-      exposureStrength(LOWEST_STATE), req.grain)));
+    between.push(hashAndRelease(other(between.length)));
   });
   const whole = wholeOf(req);
   const failed = job.failed ?? whole.failed
@@ -199,7 +212,7 @@ function interleaved(req: LayerRequest, expected: number): Reading {
 /** The job caught unfinished by a frame that needs its layer: `after` calls
  *  in, a bake of the same layer must finish the job in place, and count as
  *  that and as nothing else. */
-function finished(req: LayerRequest, after: number): Reading {
+function finished(req: Built, after: number): Reading {
   clearLayers();
   for (let k = 0; k < after; k++) advancePrewarm([req], 1);
   let failed = fieldWork.prewarmedLayers === 0 ? undefined
@@ -284,6 +297,41 @@ function abandoned(left: LayerRequest, leftCalls: number, req: LayerRequest): Re
   return { built, whole: whole.hash, calls, ...(failed ? { failed } : {}) };
 }
 
+/** A job left half built for another caller's layer and then asked for
+ *  again: it must be dropped once, and built the second time from its first
+ *  row, as if it had never been started, though the job's accumulator then
+ *  holds the other layer's sums. `calls` counts the second build's. */
+function restarted(req: Built, leftCalls: number, other: LayerRequest): Reading {
+  clearLayers();
+  for (let k = 0; k < leftCalls; k++) advancePrewarm([req], 1);
+  let failed = fieldWork.prewarmedLayers === 0 ? undefined
+    : "the job to be abandoned had already finished";
+  for (let k = 0; k < CALLS_MAX && fieldWork.prewarmedLayers === 0; k++) {
+    advancePrewarm([other], 1);
+  }
+  failed ??= fieldWork.prewarmedLayers === 1 && fieldWork.prewarmDropped === 1 ? undefined
+    : "the unfinished job was not dropped exactly once for the other caller's layer";
+  // The other caller's layer is not compared, and its backing is given back.
+  const otherLayer = bakeOf(other);
+  otherLayer.canvas.width = 0;
+  otherLayer.canvas.height = 0;
+  let calls = 0;
+  while (fieldWork.prewarmedLayers < 2) {
+    if (calls >= CALLS_MAX) {
+      clearLayers();
+      return { built: "", whole: "", calls, failed: failed ?? "the job never finished its layer" };
+    }
+    advancePrewarm([req], 1);
+    calls++;
+  }
+  const hit = hitOf(req);
+  const built = hashAndRelease(hit.layer);
+  clearLayers();
+  const whole = wholeOf(req);
+  failed ??= hit.failed ?? whole.failed;
+  return { built, whole: whole.hash, calls, ...(failed ? { failed } : {}) };
+}
+
 export async function layerBuildRows(data: Loaded): Promise<{
   what: string;
   /** Rows expecting equality. */
@@ -318,10 +366,19 @@ export async function layerBuildRows(data: Loaded): Promise<{
     return { season, regime, request };
   });
   type Of = (typeof seasons)[number];
+  const windowSeason = data.seasons.find((s) => s.points_by_day);
+  if (!windowSeason) throw new Error("no season ships a calendar");
+  if (!data.window) throw new Error("the window's occupancy is not resident");
+  const windowPts = data.points(windowSeason.year);
+  if (!windowPts) throw new Error(`the points of ${windowSeason.year} are not resident`);
+  const win = { season: windowSeason, regime: windowSeason.resolution.regime };
+  const residence: ResidenceRequest = {
+    what: "residence", occ: data.window.occupancy, view, dpr: PROBE_DPR,
+  };
 
   const rows: LayerBuildRow[] = [];
   const rowOf = (
-    of: Of, req: LayerRequest, variant: LayerBuildRow["variant"],
+    of: { season: Season; regime: string }, req: Built, variant: LayerBuildRow["variant"],
     first: Reading, again: (() => Reading) | null, note?: string,
   ): LayerBuildRow => {
     const ok = !first.failed && first.built === first.whole;
@@ -331,8 +388,8 @@ export async function layerBuildRows(data: Loaded): Promise<{
     const row: LayerBuildRow = {
       season: of.season.year,
       regime: of.regime,
-      palette: req.coloured ? "zone" : "bone",
-      state: req.state,
+      palette: req.what === "layer" && req.coloured ? "zone" : "bone",
+      state: req.what === "layer" ? req.state : 0,
       variant,
       expect: "equal",
       calls: first.calls,
@@ -349,7 +406,9 @@ export async function layerBuildRows(data: Loaded): Promise<{
       ...(first.failed ?? note ? { note: first.failed ?? note } : {}),
     };
     rows.push(row);
-    console.log(`layer ${row.season} ${row.palette} state ${row.state} ${variant}: `
+    const what = req.what === "layer"
+      ? `layer ${row.season} ${row.palette} state ${row.state}` : `residence ${row.season}`;
+    console.log(`${what} ${variant}: `
       + (ok ? "equal" : row.retake?.equal ? "DIFFERED ONCE" : `DIFFERS${row.note ? ` (${row.note})` : ""}`));
     return row;
   };
@@ -370,21 +429,41 @@ export async function layerBuildRows(data: Loaded): Promise<{
     return out;
   };
 
-  // The order keeps two job builds in a row from ever being the same layer.
-  // The job's image is reused, so a write one job skipped and the job before
-  // it made would be hidden if both had built the same thing.
+  /** One residence case, taken again if its hashes disagreed. */
+  const residenceRow = async (
+    variant: LayerBuildRow["variant"], take: () => Reading, note?: string,
+  ): Promise<LayerBuildRow> => {
+    await breathe();
+    return rowOf(win, residence, variant, take(), take, note);
+  };
+
+  // The order keeps two job builds in a row from ever being the same layer,
+  // and the residence's cases sit between the layers' so that it holds for
+  // them too. The job's image is reused, so a write one job skipped and the
+  // job before it made would be hidden if both had built the same thing.
   const bone: LayerBuildRow[][] = [];
   for (let state = LOWEST_STATE; state <= top; state++) {
     bone.push(await each("sliced", (of) => of.request(false, state), (_, r) => sliced(r)));
   }
   await each("sliced", (of) => of.request(true, top), (_, r) => sliced(r));
+  const residenceSliced = await residenceRow("residence-sliced", () => sliced(residence));
   /** How many calls each regime's finished bone layer took to build. */
   const callsOf = new Map(seasons.map((of, i) => [of, bone[top - 1]![i]!.calls]));
+  /** How many calls the residence took to build. */
+  const residenceCalls = residenceSliced.calls;
   await each("interleaved", (of) => of.request(false, top),
-    (of, r) => interleaved(r, callsOf.get(of)!));
+    (of, r) => interleaved(r, callsOf.get(of)!, (k) => bakeLayer(
+      -r.year - k, r.pts, !r.coloured, r.view, r.dpr, r.pin,
+      exposureStrength(LOWEST_STATE), r.grain)));
+  await residenceRow("residence-interleaved", () => interleaved(residence, residenceCalls,
+    (k) => bakeLayer(
+      -windowSeason.year - k, windowPts, false, view, PROBE_DPR, pinCoordOf(windowSeason),
+      exposureStrength(LOWEST_STATE), grainProfileFor(windowSeason.resolution.regime))));
   await each("finished-early", (of) => of.request(false, top), (_, r) => finished(r, 1));
   await each("finished-late", (of) => of.request(false, top),
     (of, r) => finished(r, callsOf.get(of)! - 1));
+  await residenceRow("residence-finished",
+    () => finished(residence, Math.floor(residenceCalls / 2)));
 
   const [blind, uneven, sighted, refusal] = seasons as [Of, Of, Of, Of];
   {
@@ -405,6 +484,9 @@ export async function layerBuildRows(data: Loaded): Promise<{
     rowOf(refusal, req, "abandoned", take(), take,
       `the job abandoned was building ${uneven.season.year}`);
   }
+  await residenceRow("residence-abandoned",
+    () => restarted(residence, Math.floor(residenceCalls / 2), blind.request(false, top)),
+    `abandoned for ${blind.season.year}'s layer, then built again`);
 
   // The controls make no canvas: each lays a hash already taken against one
   // that must not match it, the same season a state lower.
@@ -427,14 +509,37 @@ export async function layerBuildRows(data: Loaded): Promise<{
     console.log(`layer ${of.season.year} bone state ${top} control: `
       + (ok ? "differs from the state below" : "READ EQUAL TO THE STATE BELOW"));
   });
+  // The residence's control lays it against a season's finished layer, of
+  // the same size and palette.
+  {
+    const against = bone[top - 1]![seasons.indexOf(refusal)]!;
+    const ok = residenceSliced.built !== "" && against.whole !== ""
+      && residenceSliced.built !== against.whole;
+    rows.push({
+      season: windowSeason.year,
+      regime: win.regime,
+      palette: "bone",
+      state: 0,
+      variant: "residence-control",
+      expect: "differ",
+      calls: 0,
+      built: residenceSliced.built,
+      whole: against.whole,
+      ok,
+      note: `against the finished bone layer of ${refusal.season.year}`,
+    });
+    console.log(`residence ${windowSeason.year} control: `
+      + (ok ? "differs from a season's layer" : "READ EQUAL TO A SEASON'S LAYER"));
+  }
   clearLayers();
 
   const equal = rows.filter((r) => r.expect === "equal");
   const controls = rows.filter((r) => r.expect === "differ");
   return {
-    what: "a layer built a slice at a time against the same layer baked whole, "
-      + "each read back from its canvas and compared by hash; a control lays one "
-      + "layer against the same season a state lower, which must differ. A case "
+    what: "a layer, or the residence, built a slice at a time against the same "
+      + "baked whole, each read back from its canvas and compared by hash; a control "
+      + "lays one layer against the same season a state lower, and the residence "
+      + "against a season's finished layer, each of which must differ. A case "
       + "that misses is taken once more: differing twice is a failure, differing "
       + "once is unsettled and not a pass. Compared by hash and NOT through "
       + "aboveNoise: nothing here passes through a rasteriser",

@@ -1046,6 +1046,9 @@ export interface Loaded {
    *  while the fetch is in flight; the base falls back to the shared arrival
    *  envelope rather than blocking. */
   pointsByDay(year: number): DayPoints | null;
+  /** A season's calendar if it is already here, and null otherwise, for the
+   *  reason `residentPoints` gives: asking never starts a fetch. */
+  residentPointsByDay(year: number): DayPoints | null;
   corpus: Corpus | null;
   /** Act III's gestures; null if the bloom stage has not been run. */
   traces: TracesFile | null;
@@ -1589,6 +1592,7 @@ export async function load(): Promise<Loaded> {
     prefetchPoints,
     prefetchWindow,
     pointsByDay: fetchPointsByDay,
+    residentPointsByDay: (year) => dayPointLoaders.get(year)?.peek() ?? null,
     corpus,
     traces,
     window: windowFile,
