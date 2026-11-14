@@ -695,7 +695,9 @@ export function drawCensusHand(f: Frame): void {
   // The outgoing season is NOT drawn here, unlike every other hand. The tally
   // counts this season's arrived shots, so a field still carrying the previous
   // season's marks would contradict a census reading "3 SHOTS CLASSIFIED".
-  drawSeasonField(f, { dim: remains * CENSUS_FIELD_DIM, withPrevious: false });
+  drawSeasonField(f, {
+    dim: remains * CENSUS_FIELD_DIM, withPrevious: false, prewarm: true,
+  });
 
   // The boundaries named: the census has no native boundary event —
   // its taxonomy turnover happens most seasons, not at the acts.

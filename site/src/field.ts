@@ -990,9 +990,12 @@ export function advancePrewarm(
  * drawLayer's cutoff) and the top state draws alone at `dim` — byte-identical
  * to the single finished-layer blit this path replaced.
  *
- * The states are baked lazily through `bake`, so a frame only pays for the one
- * or two states it actually composites. A pure function of its arguments:
- * nothing here reads a clock or remembers a frame.
+ * The states are asked for through `bake` and baked on a miss, so a frame that
+ * lands on empty caches pays only for the states it composites. In forward
+ * play a hand that builds ahead has had them made during the tail before, and
+ * the hand-over finds them in the cache; the miss is what a landing pays. A
+ * pure function of its arguments: nothing here reads a clock or remembers a
+ * frame.
  */
 export function drawDeveloping(
   ctx: CanvasRenderingContext2D,
@@ -1014,6 +1017,10 @@ export function drawDeveloping(
   // from a hand's first frame to the first frame their alpha cleared the
   // blit's own floor, which moved the cost from a season's opening — where
   // cold work belongs — to its middle.
+  // Where the season will recede under the next, a hand that builds ahead
+  // has that lower state made during the tail, for the hand-over that draws
+  // it; this skip still keeps a frame that lands here from baking it for
+  // nothing.
   if (upper > 1 && frac < 1) {
     drawLayer(ctx, bake(exposureStrength(upper - 1)), view, (1 - frac) * dim);
   }
@@ -1328,13 +1335,15 @@ export function drawReveal(
   const r = Math.min(1, Math.max(0, arrived));
   if (r <= 0 || dim <= 0.002) return;
   // The finished layer is both this ladder's top step and the tail the
-  // arrival hands over to. It is baked at the arrival's OPENING frame — the
-  // boundary, where the season's cold work (the order, the accumulator)
-  // already lives — so its one cold cost sits in the frame a viewer and a
-  // probe can attribute rather than surprising the middle of the season
-  // (measured: left lazy, it landed a full-plate bake at the
-  // reveal's top step, mid-window). Warm frames pay a cache hit; no pixel
-  // depends on when this ran.
+  // arrival hands over to. It is asked for at the arrival's OPENING frame —
+  // the boundary, where a landing's cold work (the order, the accumulator)
+  // already lives — so a frame that lands there pays its one cold cost where
+  // a viewer and a probe can attribute it, rather than surprising the middle
+  // of the season (measured: left lazy, it landed a full-plate bake at the
+  // reveal's top step, mid-window). In forward play that frame finds the
+  // layer and the order made, where the tail before it ran in a hand that
+  // builds ahead. Warm frames pay a cache hit; no pixel depends on when this
+  // ran.
   const top = bakeLayer(year, pts, coloured, view, dpr, pin, 1, grain);
   const u = r * REVEAL_STEPS;
   const step = Math.floor(u);
@@ -1906,11 +1915,13 @@ function wetTrailLayer(
 
 /**
  * Draw the window season's base on its own calendar. The finished layer is
- * baked at the window's OPENING frame (the reveal's own staging idiom), so the
- * close-flood is a blit swap whose cold cost sat at an attributable boundary;
- * from the flood on, the frame drawn is `bakeLayer`'s canvas — byte-identical
- * to what every later consumer (the exit handover, the develop-out of the next
- * pass) reads.
+ * asked for at the window's OPENING frame (the reveal's own staging idiom),
+ * so the close-flood is a blit swap, and a frame that lands in the window
+ * pays the layer's cold cost at an attributable boundary. In forward play
+ * the opening frame finds it made, where the tail before it ran in a hand
+ * that builds ahead. From the flood on, the frame drawn is `bakeLayer`'s
+ * canvas — byte-identical to what every later consumer (the exit handover,
+ * the develop-out of the next pass) reads.
  */
 export function drawWindowReveal(
   ctx: CanvasRenderingContext2D,

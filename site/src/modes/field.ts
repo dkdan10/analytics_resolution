@@ -57,7 +57,9 @@ export function drawFieldHand(f: Frame): void {
   // belongs to no zone and colouring it would invent a category it never had.
   // In the window the residence rises beneath the colours — bone, because the
   // ball belongs to no zone either.
-  drawSeasonField(f, { coloured: true, dim: remains, residence: true, reveal: true });
+  drawSeasonField(f, {
+    coloured: true, dim: remains, residence: true, reveal: true, prewarm: true,
+  });
 
   // Whose categories these are, named on the plate rather than only on a wall.
   // Clocked in SECONDS, not phase: the

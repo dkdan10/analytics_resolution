@@ -1024,6 +1024,10 @@ export interface Loaded {
    *  and gains it a frame or two later, rather than blocking the first paint on
    *  4 MB. */
   points(year: number): Points | null;
+  /** A season's points if they are already here, and null otherwise. For work
+   *  done ahead of need, which must not decide what is fetched or when: asking
+   *  never starts a fetch. */
+  residentPoints(year: number): Points | null;
   /** The window season's calendar for the same points: per-day count deltas,
    *  the re-clock's artifact. Null for every season that ships no calendar and
    *  while the fetch is in flight; the base falls back to the shared arrival
@@ -1165,6 +1169,9 @@ async function getBinary(path: string): Promise<ArrayBuffer> {
  * explicit retry. */
 interface Lazy<T> {
   get(): T | null;
+  /** What has arrived, and nothing else: unlike `get`, it never begins a
+   *  request. */
+  peek(): T | null;
   load(): Promise<T | null>;
   retry(): Promise<T | null>;
   error(): string | null;
@@ -1205,6 +1212,7 @@ function lazy<T>(name: string, fetcher: () => Promise<T>): Lazy<T> {
       if (!value && !failure && !inFlight) void begin(false);
       return value;
     },
+    peek: () => value,
     load: () => begin(false),
     retry: () => begin(true),
     error: () => failure,
@@ -1476,6 +1484,7 @@ export async function load(): Promise<Loaded> {
     byYear: new Map(seasons.map((s) => [s.year, s])),
     samples,
     points: fetchPoints,
+    residentPoints: (year) => pointLoaders.get(year)?.peek() ?? null,
     pointsByDay: fetchPointsByDay,
     corpus,
     traces,

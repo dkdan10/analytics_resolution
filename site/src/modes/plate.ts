@@ -206,7 +206,9 @@ export function drawPlateHand(f: Frame): void {
   // the plate is never empty and the drift stays continuous.
   // In the window, THE RESIDENCE goes down beneath it all: where the ball
   // lived, under where the shots ended.
-  drawSeasonField(f, { dim: fieldDim, residence: true, reveal: true, yieldMask });
+  drawSeasonField(f, {
+    dim: fieldDim, residence: true, reveal: true, yieldMask, prewarm: true,
+  });
 
   // THE GAME'S SHARE (THE PLATE's brief, above all others: ALL the
   // information on the plate). The found game's every body and the ball, in
