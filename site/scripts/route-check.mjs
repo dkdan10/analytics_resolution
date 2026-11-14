@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * The address table: which entry each query string opens.
+ * The address table: which entry each query string opens, and the arithmetic
+ * that carries a loop time to a chosen pass.
  *
  * `site/src/route.ts:entryOf` decides what every address serves, the bare one
  * included, and the bare one is where the public arrives. This holds it to a
@@ -11,6 +12,21 @@
  * that followed the constant would stay green through an accidental change of
  * what `/` serves; this one turns red on it. Moving the landing is two edits
  * made together on purpose: the constant in route.ts and the pin here.
+ *
+ * THE LIFT. `toPass` must put a local into the pass it was asked for and never
+ * a hair before it: a time that folds back just below a stop's start draws the
+ * last frame of the span before it, with no error anywhere. So for every pass
+ * of the rotation, over a grid of the loop and a seeded set of locals at full
+ * float precision, the lifted time must stay in its pass, fold back to no less
+ * than its local, and overshoot by no more than a few units in the last place.
+ * The loop's length is read from data/processed/facts.json and the pass count
+ * from the ROTATION declaration in site/src/modes/index.ts, which imports too
+ * much to load here. The fold and the pass are recomputed as timeline.ts
+ * writes them, not taken from route.ts, so a wrong fold cannot agree with
+ * itself.
+ *
+ * THE STEP. `stepFrom` walks a small fixed list of stops: forward, back, both
+ * wraps, and from a hair before a stop.
  *
  * THE CHECK IS SHOWN FAILING ON EVERY RUN. Each seeded defect below is written
  * into a copy of route.ts's own text, loaded the same way, and must be refused
@@ -33,6 +49,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SRC = resolve(here, "../src/route.ts");
+const MODES = resolve(here, "../src/modes/index.ts");
+const FACTS = resolve(here, "../../data/processed/facts.json");
 
 /** What the bare address must serve. Changed only together with LANDING. */
 const EXPECT_LANDING = "overview";
@@ -73,10 +91,90 @@ const LANDING_ROWS = TABLE.filter(([, want]) => want === L).map(([query]) => add
 /** The landing a seeded defect moves to: whichever one the pin does not name. */
 const OTHER_LANDING = EXPECT_LANDING === "overview" ? "player" : "overview";
 
+/** A TypeScript module by path, as zone-gate.mjs loads zone.ts. */
+async function loadTs(file) {
+  try {
+    return { mod: await import(pathToFileURL(file).href), via: "node type-stripping" };
+  } catch {
+    const { transformSync } = await import("esbuild");
+    const js = transformSync(await readFile(file, "utf8"), { loader: "ts", format: "esm" }).code;
+    const url = `data:text/javascript;base64,${Buffer.from(js).toString("base64")}`;
+    return { mod: await import(url), via: "esbuild" };
+  }
+}
+
+const problems = [];
+
+const { mod: route, via } = await loadTs(SRC);
+
+// --- the loop the lift is checked over ------------------------------------------
+
+/** One loop's length in seconds, as the pipeline derived it. */
+const D = JSON.parse(await readFile(FACTS, "utf8")).derived?.["loop.seconds"]?.value;
+if (!(Number.isFinite(D) && D > 0)) problems.push(`facts.json gives no loop length (got ${D})`);
+const rotation = /const ROTATION: ModeId\[\] = \[([^\]]*)\];/.exec(await readFile(MODES, "utf8"));
+/** The rotation's length: one pass of the loop per hand. */
+const PASSES = rotation ? (rotation[1].match(/"[a-z]+"/g) ?? []).length : 0;
+if (!(PASSES > 0)) problems.push("the ROTATION declaration in modes/index.ts was not found");
+
+/** The fold and the pass, written as timeline.ts:stateAt and passAt write them. */
+const foldAsRendered = (t) => ((t % D) + D) % D;
+const passAsRendered = (t) => Math.floor(Math.max(0, t) / D);
+
+const GUARD = route.LOOP_END_GUARD_S;
+const EDGE = D - GUARD;
+
+/** A seeded generator of doubles at full precision: a grid of round numbers
+ *  never needs a lift, so it cannot show one missing. */
+function unitSource(seed) {
+  let s = seed | 0;
+  const u32 = () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return (t ^ (t >>> 14)) >>> 0;
+  };
+  return () => ((u32() >>> 5) * 67108864 + (u32() >>> 6)) / 9007199254740992;
+}
+const unit = unitSource(20151027);
+const LOCALS = [
+  ...Array.from({ length: 1000 }, (_, k) => (k * D) / 1000),
+  EDGE,
+  ...Array.from({ length: 1000 }, () => unit() * EDGE),
+];
+/** A few units in the last place at the loop's far end: an overshoot no
+ *  frame can show, and far below any nudge a person could see. */
+const TINY = 4 * PASSES * D * Number.EPSILON;
+/** Locals inside the guard and at the loop's end: each must lift as the edge does. */
+const PAST_EDGE = [D - GUARD / 2, D];
+
+const liftId = (family, pass, local) => `${family}: pass ${pass}, local ${local}`;
+const END_CLAMP_ROWS = [];
+for (let pass = 0; pass < PASSES; pass++) {
+  for (const local of PAST_EDGE) END_CLAMP_ROWS.push(liftId("end clamp", pass, local));
+}
+
+// --- the step -------------------------------------------------------------------
+
+const STOPS = [0, 10, 25, 40];
+const HAIR = route.STOP_TOLERANCE_S / 2;
+/** name, local, direction, the stop it must land on */
+const STEPS = [
+  ["step forward from inside a span", 12, 1, 25],
+  ["step back from inside a span", 12, -1, 0],
+  ["step forward past the last stop wraps to the first", 41, 1, 0],
+  ["step back from the first span wraps to the last", 3, -1, 40],
+  ["step forward from a hair before a stop", 25 - HAIR, 1, 40],
+  ["step back from a hair before a stop", 25 - HAIR, -1, 10],
+];
+const HAIR_ROWS = STEPS.filter(([name]) => name.includes("hair")).map(([name]) => name);
+
+// --- the seeded defects ---------------------------------------------------------
+
 /**
- * Defects, each written into route.ts's text. `from` must occur exactly once,
- * and `rows` is every row the defect breaks: the check must refuse those and
- * nothing else.
+ * Defects, each written into route.ts's text. `from` must occur exactly once.
+ * `rows` is every row the defect breaks, exactly; `within` names the one family
+ * of rows it may break, for a defect whose rows depend on float rounding.
  */
 const SEEDS = [
   {
@@ -103,27 +201,37 @@ const SEEDS = [
     to: `LANDING = "${OTHER_LANDING}" as Landing`,
     rows: [PIN_ROW, ...LANDING_ROWS],
   },
+  {
+    name: "a lift with no nudge",
+    from: "wrapLoop(r, D) < at;",
+    to: "false;",
+    within: "lift",
+  },
+  {
+    name: "a lift with no end clamp",
+    from: "Math.min(Math.max(0, local), D - guard)",
+    to: "Math.max(0, local)",
+    rows: END_CLAMP_ROWS,
+  },
+  {
+    name: "a step with no tolerance",
+    from: "local + tolerance",
+    to: "local",
+    rows: HAIR_ROWS,
+  },
 ];
 
-/** A TypeScript module by path, as zone-gate.mjs loads zone.ts. */
-async function loadTs(file) {
-  try {
-    return { mod: await import(pathToFileURL(file).href), via: "node type-stripping" };
-  } catch {
-    const { transformSync } = await import("esbuild");
-    const js = transformSync(await readFile(file, "utf8"), { loader: "ts", format: "esm" }).code;
-    const url = `data:text/javascript;base64,${Buffer.from(js).toString("base64")}`;
-    return { mod: await import(url), via: "esbuild" };
-  }
-}
+// --- judging ----------------------------------------------------------------------
 
-/** Every row the module fails, as `{ row, detail }`. Decides nothing else. */
+/** Every row the module fails, as `{ row, family, detail }`, and what to print. */
 function judge(mod) {
   const failures = [];
-  const results = [];
+  const lines = [];
+  const fail = (row, family, detail) => failures.push({ row, family, detail });
+
   const pinned = mod.LANDING === EXPECT_LANDING;
-  results.push({ row: PIN_ROW, ok: pinned, text: `serves ${JSON.stringify(mod.LANDING)}, pinned ${JSON.stringify(EXPECT_LANDING)}` });
-  if (!pinned) failures.push({ row: PIN_ROW, detail: `LANDING is ${JSON.stringify(mod.LANDING)}` });
+  lines.push({ ok: pinned, row: PIN_ROW, text: `serves ${JSON.stringify(mod.LANDING)}, pinned ${JSON.stringify(EXPECT_LANDING)}` });
+  if (!pinned) fail(PIN_ROW, "landing", `LANDING is ${JSON.stringify(mod.LANDING)}`);
   for (const [query, entry] of TABLE) {
     const row = addressOf(query);
     const want = entry === L ? EXPECT_LANDING : entry;
@@ -134,10 +242,64 @@ function judge(mod) {
       got = `a throw (${e?.message ?? e})`;
     }
     const ok = got === want;
-    results.push({ row, ok, text: ok ? `-> ${got}` : `-> ${got}, expected ${want}` });
-    if (!ok) failures.push({ row, detail: `opens ${got}, expected ${want}` });
+    lines.push({ ok, row, text: ok ? `-> ${got}` : `-> ${got}, expected ${want}` });
+    if (!ok) fail(row, "address", `opens ${got}, expected ${want}`);
   }
-  return { failures, results };
+
+  // A lift that throws fails its lift row and leaves its pass and near rows
+  // unread, so those two count over the lifts that returned.
+  const counts = { returned: 0, pass: 0, lift: 0, near: 0, clamp: 0 };
+  let turned = 0;
+  for (let pass = 0; pass < PASSES; pass++) {
+    for (const local of LOCALS) {
+      if (foldAsRendered(pass * D + local) < local) turned++;
+      let r;
+      try {
+        r = mod.toPass(pass, local, D, GUARD);
+      } catch (e) {
+        fail(liftId("lift", pass, local), "lift", `a throw (${e?.message ?? e})`);
+        continue;
+      }
+      counts.returned++;
+      const folded = foldAsRendered(r);
+      if (passAsRendered(r) !== pass) fail(liftId("pass", pass, local), "pass", `lands in pass ${passAsRendered(r)}`);
+      else counts.pass++;
+      if (!(folded >= local)) fail(liftId("lift", pass, local), "lift", `folds to ${folded}, below it by ${local - folded}`);
+      else counts.lift++;
+      if (!(folded - local <= TINY)) fail(liftId("near", pass, local), "near", `folds to ${folded}, past it by ${folded - local}`);
+      else counts.near++;
+    }
+    for (const local of PAST_EDGE) {
+      const row = liftId("end clamp", pass, local);
+      try {
+        const got = mod.toPass(pass, local, D, GUARD);
+        const want = mod.toPass(pass, EDGE, D, GUARD);
+        if (got !== want) fail(row, "end clamp", `lifts to ${got}, the edge to ${want}`);
+        else counts.clamp++;
+      } catch (e) {
+        fail(row, "end clamp", `a throw (${e?.message ?? e})`);
+      }
+    }
+  }
+  const lifts = PASSES * LOCALS.length;
+  const clean = (family) => !failures.some((f) => f.family === family);
+  lines.push({ ok: clean("pass"), row: "every lift stays in its pass", text: `${counts.pass} of ${counts.returned} returned` });
+  lines.push({ ok: clean("lift"), row: "no lift folds below its local", text: `${counts.lift} of ${lifts}; ${turned} needed lifting` });
+  lines.push({ ok: clean("near"), row: "no lift folds past its local by more than TINY", text: `${counts.near} of ${counts.returned} returned; TINY is ${TINY.toExponential(1)} s` });
+  lines.push({ ok: clean("end clamp"), row: "a local past the guard lifts as the edge does", text: `${counts.clamp} of ${END_CLAMP_ROWS.length}` });
+
+  for (const [name, local, dir, want] of STEPS) {
+    let got;
+    try {
+      got = mod.stepFrom(STOPS, local, dir, mod.STOP_TOLERANCE_S);
+    } catch (e) {
+      got = `a throw (${e?.message ?? e})`;
+    }
+    const ok = got === want;
+    lines.push({ ok, row: name, text: ok ? `-> ${got}` : `-> ${got}, expected ${want}` });
+    if (!ok) fail(name, "step", `lands on ${got}, expected ${want}`);
+  }
+  return { failures, lines, lifts };
 }
 
 /** Write `from` -> `to` into the source, or say why it cannot be written. */
@@ -161,16 +323,30 @@ async function loadSpoiled(text) {
 
 const sameSet = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
 
-const problems = [];
-
-const { mod: route, via } = await loadTs(SRC);
-console.log(`route-check: site/src/route.ts (${via}); the bare address is pinned to ${EXPECT_LANDING}`);
-const sound = judge(route);
-const width = Math.max(...sound.results.map((r) => r.row.length));
-for (const r of sound.results) {
-  console.log(`  ${r.ok ? "PASS" : "FAIL"}  ${r.row.padEnd(width)}  ${r.text}`);
+/** Rows by name while there are few, by family and count once there are many. */
+function said(failures) {
+  if (failures.length <= 8) return failures.map((f) => f.row).join(", ");
+  const by = new Map();
+  for (const f of failures) by.set(f.family, (by.get(f.family) ?? 0) + 1);
+  return [...by].map(([family, n]) => `${n} ${family} rows`).join(", ");
 }
-for (const f of sound.failures) problems.push(`${f.row}: ${f.detail}`);
+
+// --- the run --------------------------------------------------------------------
+
+console.log(
+  `route-check: site/src/route.ts (${via}); the bare address is pinned to ${EXPECT_LANDING}; ` +
+    `a loop of ${D} s, ${PASSES} passes`,
+);
+const sound = judge(route);
+const width = Math.max(...sound.lines.map((l) => l.row.length));
+for (const l of sound.lines) console.log(`  ${l.ok ? "PASS" : "FAIL"}  ${l.row.padEnd(width)}  ${l.text}`);
+const shown = new Map();
+for (const f of sound.failures) {
+  const n = (shown.get(f.family) ?? 0) + 1;
+  shown.set(f.family, n);
+  if (n <= 3) problems.push(`${f.row}: ${f.detail}`);
+}
+for (const [family, n] of shown) if (n > 3) problems.push(`... ${n - 3} more ${family} rows`);
 
 const source = await readFile(SRC, "utf8");
 let caught = 0;
@@ -184,33 +360,42 @@ for (const seed of SEEDS) {
   }
   let refused;
   try {
-    refused = judge(await loadSpoiled(spoiled.text)).failures.map((f) => f.row);
+    refused = judge(await loadSpoiled(spoiled.text)).failures;
   } catch (e) {
     console.log(`         the spoiled copy did not load: ${e?.message ?? e}`);
     problems.push(`seeded defect "${seed.name}" did not load`);
     continue;
   }
+  const own = !seed.rows
+    ? `${seed.within} rows alone`
+    : seed.rows.length <= 8
+      ? `exactly ${seed.rows.join(", ")}`
+      : `exactly its ${seed.rows.length} rows, ${seed.rows[0]} to ${seed.rows.at(-1)}`;
+  const ok = seed.rows
+    ? sameSet(refused.map((f) => f.row), seed.rows)
+    : refused.every((f) => f.family === seed.within);
   if (refused.length === 0) {
-    console.log(`         LET THROUGH, where it must be refused for ${seed.rows.join(", ")}`);
+    console.log(`         LET THROUGH, where it must be refused for ${own}`);
     problems.push(`seeded defect "${seed.name}" was let through`);
-  } else if (!sameSet(refused, seed.rows)) {
-    console.log(`         refused for ${refused.join(", ")}, NOT for exactly ${seed.rows.join(", ")}`);
-    problems.push(`seeded defect "${seed.name}" was refused for [${refused.join(", ")}], not for [${seed.rows.join(", ")}]`);
+  } else if (!ok) {
+    console.log(`         refused for ${said(refused)}, NOT for ${own}`);
+    problems.push(`seeded defect "${seed.name}" was refused for [${said(refused)}], not for ${own}`);
   } else {
     caught++;
-    console.log(`         refused for ${refused.join(", ")}: its own rows`);
+    console.log(`         refused for ${said(refused)}: its own rows`);
   }
 }
 
 if (problems.length) {
   for (const p of problems) console.error(`route-check: ${p}`);
   console.error(
-    `\nROUTES RED: ${sound.failures.length} of ${TABLE.length + 1} rows refused, ` +
+    `\nROUTES RED: ${sound.failures.length} rows refused, ` +
       `${SEEDS.length - caught} of ${SEEDS.length} seeded defects not refused for their own rows alone`,
   );
   process.exit(1);
 }
 console.log(
   `\nROUTES GREEN: ${TABLE.length} addresses, the bare address serves ${route.LANDING}, ` +
+    `${sound.lifts} lifts over ${PASSES} passes, ` +
     `${SEEDS.length} seeded defects each refused for its own rows`,
 );
