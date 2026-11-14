@@ -510,7 +510,7 @@ function accOf(len: number): Float32Array {
 }
 
 /** Convert a band of rows of a float accumulation into an image's bytes: the
- *  single point where the field becomes eight-bit, whether a layer is
+ *  one place a baked layer's sums become bytes, whether the layer is
  *  converted whole or a band at a time. Each pixel is assigned once, from its
  *  finished sum, so the bands of one image may be written in any number of
  *  calls and come to the same bytes. */
@@ -662,10 +662,11 @@ const PREWARM_CELLS_PER_SLICE = 2048;
 /** Slices one call may run. It decides when work is done and cannot change a
  *  pixel: it bounds what a call costs, never what a layer holds. */
 const PREWARM_SLICES_MAX = 3;
-/** Calls in a row that may leave the job unnamed before it is dropped, which
- *  has to stay above the number of other callers in one frame or they would
- *  drop each other's work in turn. It decides when work is done and cannot
- *  change a pixel: a dropped job is built again from its first row. */
+/** Calls in a row that may leave the job unnamed before it is dropped. It has
+ *  to be at least the number of calls other lists can make between two calls
+ *  of the list that names the job, or they would drop each other's work in
+ *  turn. It decides when work is done and cannot change a pixel: a dropped
+ *  job is built again from its first row. */
 const PREWARM_UNNAMED_CALLS = 2;
 
 type JobStage = "fill" | "fold" | "quantize" | "upload";
@@ -693,8 +694,9 @@ type JobStage = "fill" | "fold" | "quantize" | "upload";
  *     next one starts at the fill, at its first row.
  *
  * The job has an accumulator and an image of its own. It lives across frames,
- * and the bakes' scratch pair is zeroed by every bake, delta and trail in
- * between. `clearLayers` empties the slot and leaves this pair in place, for
+ * and in between the bakes' scratch accumulator is zeroed by every bake,
+ * delta and trail, and their scratch image is rewritten by every bake.
+ * `clearLayers` empties the slot and leaves this pair in place, for
  * the scratch pair's own reason: neither buffer is read before it has been
  * overwritten whole (the accumulator by the fill, the image by the convert),
  * so emptying the caches has nothing to gain from dropping them, and holding
@@ -882,7 +884,10 @@ export type PrewarmRequest =
  * There is one job, and it belongs to whichever list names it. A call whose
  * list does not name it leaves it alone and does nothing, so two callers in
  * one frame take the slot turn about; only a job that more than
- * PREWARM_UNNAMED_CALLS calls running have left unnamed is dropped.
+ * PREWARM_UNNAMED_CALLS calls running have left unnamed is dropped. Custody
+ * is settled before the share is read, so a call whose list does not name
+ * the job counts against it even when that call is owed nothing; only a call
+ * with an empty list does not count.
  */
 export function advancePrewarm(
   requests: readonly PrewarmRequest[],

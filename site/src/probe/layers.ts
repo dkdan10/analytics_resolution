@@ -11,10 +11,10 @@
  *
  * Each case builds one layer through the job and the same layer whole, reads
  * both canvases back and compares the hashes. The variants are the ways a job
- * can be reached: left to run, run with whole bakes of other layers between
- * its calls (the job's buffers must be its own), finished by the frame that
- * needed it, early and late, sharing its one slot with a second caller, and
- * started after another job was abandoned half built.
+ * can be reached: left to run, run with whole bakes of layers of other bytes
+ * between its calls (the job's buffers must be its own), finished by the
+ * frame that needed it, early and late, sharing its one slot with a second
+ * caller, and started after another job was abandoned half built.
  *
  * A comparison that reported equal whatever it was shown would be worse than
  * none, so each regime carries a control: one layer against the same season a
@@ -79,6 +79,9 @@ export interface LayerBuildRow {
 const REGIMES: readonly GrainRegime[] = [
   "uniformly_blind", "uneven", "uniformly_sighted", "categorical_refusal",
 ];
+
+/** The lowest state of the exposure ladder. */
+const LOWEST_STATE = 1;
 
 /** Where a job that never finishes is given up on, in calls: far past any
  *  layer's whole build, so reaching it means the job is stuck. */
@@ -167,20 +170,29 @@ function sliced(req: LayerRequest): Reading {
  * first call, its middle call and the call before its last. Each is a layer
  * no season has, so each is a real bake on the bakes' own scratch pair, and
  * the job's layer comes out right only if its two buffers are its own.
+ *
+ * The layer baked between must differ from the job's in its bytes, not only
+ * in its key: the year goes into the key and into no pixel, so the job's own
+ * layer under another year would leave in a shared image exactly what the
+ * job was about to write there, and a job converting into the bakes' image
+ * would read equal. So it is baked in the other palette at the lowest state,
+ * and the row fails if what was baked between hashed equal to the job's
+ * layer after all.
  */
 function interleaved(req: LayerRequest, expected: number): Reading {
-  let foreign = 0;
+  const between: string[] = [];
   const job = jobOf(req, (calls) => {
     if (calls !== 1 && calls !== Math.floor(expected / 2) && calls !== expected - 1) return;
-    const other = bakeLayer(
-      -req.year - foreign++, req.pts, false, req.view, req.dpr, req.pin, 1, req.grain);
-    other.canvas.width = 0;
-    other.canvas.height = 0;
+    between.push(hashAndRelease(bakeLayer(
+      -req.year - between.length, req.pts, !req.coloured, req.view, req.dpr, req.pin,
+      exposureStrength(LOWEST_STATE), req.grain)));
   });
   const whole = wholeOf(req);
   const failed = job.failed ?? whole.failed
     ?? (job.calls < 4 ? "too few calls to bake between" : undefined)
-    ?? (foreign === 0 ? "no other layer was baked between the job's calls" : undefined);
+    ?? (between.length === 0 ? "no other layer was baked between the job's calls" : undefined)
+    ?? (between.includes(whole.hash)
+      ? "a layer baked between the job's calls had the job's own bytes" : undefined);
   return { built: job.built, whole: whole.hash, calls: job.calls, ...(failed ? { failed } : {}) };
 }
 
@@ -362,7 +374,7 @@ export async function layerBuildRows(data: Loaded): Promise<{
   // The job's image is reused, so a write one job skipped and the job before
   // it made would be hidden if both had built the same thing.
   const bone: LayerBuildRow[][] = [];
-  for (let state = 1; state <= top; state++) {
+  for (let state = LOWEST_STATE; state <= top; state++) {
     bone.push(await each("sliced", (of) => of.request(false, state), (_, r) => sliced(r)));
   }
   await each("sliced", (of) => of.request(true, top), (_, r) => sliced(r));
