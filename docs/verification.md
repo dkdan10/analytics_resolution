@@ -52,6 +52,7 @@ python3 pipeline/checks/mutations.py --list  # every seeded defect and the check
 python3 pipeline/checks/break_gates.py       # the same catalogue through real subprocesses (needs raw dumps)
 python3 pipeline/checks/fixtures.py          # the window stage's offset, touch and shooter rules on synthetic inputs (run in CI)
 python3 pipeline/checks/check_heroes.py      # the four hero calipers in window.json, checked as geometry (run in CI)
+python3 pipeline/checks/capture_grid.py      # the lines the record files shots on, per season and axis: printed, not gated
 cd site && npm test && npm run build         # the source checks, then the gated seven-step build
 ```
 
