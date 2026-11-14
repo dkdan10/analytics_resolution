@@ -93,6 +93,7 @@ cd site && npm run check:continuity       # that probe's measures, each shown fa
 cd site && npm run shots -- --list hands  # exact frames, for looking at
 cd site && npm run playback -- --out <name> --t <seconds> --seconds <n>  # the full work's own playback: frame intervals, requests, loading state
 cd site && npm run smoke                  # every public address loaded at the laptop's size and a phone's: fails on a page error, a fault screen or an empty canvas
+cd site && npm run check:landing          # the player at ?experience=player: what it draws with, where its controls sit, what a pick and a seek cost; --film, --pairs, --sweep and --delay <ms> add captures and timings under docs/shots/landing/
 ```
 
 Read a purity verdict on the **RENDERER** arm against the run's own measured noise floor:
