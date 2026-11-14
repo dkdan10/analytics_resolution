@@ -343,10 +343,8 @@ function drawCompletedGameEvents(
 
 /**
  * The stroke's vertex path, begun on the ctx — ONE walk for every consumer.
- * `plateStroke` styles and strokes it; the entry yield mask
- * strokes the same path wider in `destination-out`, and sharing the walk is
- * what guarantees the wake and the stroke cannot drift apart. Returns false
- * when the stroke has no path to draw.
+ * `plateStroke` styles and strokes it. Returns false when the stroke has no
+ * path to draw.
  *
  * `head` and `tail` are reaches. An end that falls between two vertices is
  * put on their chord, and the whole vertices between the ends are the stored

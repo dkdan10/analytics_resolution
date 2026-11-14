@@ -2107,9 +2107,7 @@ export function clearLayers(): void {
 const CELL_TENTHS = 10;
 
 /** The residence's cell-splat radius in device pixels — the occupancy grain,
- *  the scale at which the window already says "the game lived here". The
- *  entry yield's wake derives its stroke widths from this, so
- *  the mask has no radius of its own to author. */
+ *  the scale at which the window already says "the game lived here". */
 export function residenceSplatRadius(view: View, dpr: number): number {
   const spacing = view.s(CELL_TENTHS) * dpr;
   return Math.max(SPLAT_MIN_PX, spacing * SPLAT_SPACING_K);

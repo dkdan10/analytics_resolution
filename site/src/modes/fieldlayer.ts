@@ -39,19 +39,6 @@ export interface FieldOpts {
    *  ground their registers, and a glow under their type would be one more
    *  thing to read around rather than the ground disagreeing with the marks. */
   residence?: boolean;
-  /** THE ENTRY YIELD MASK, at the window's entry — PLATE only: the hand
-   *  where the collision between the receding season and the arriving
-   *  strokes was measured, and the only reveal hand drawing the strokes.
-   *  When present, the PREVIOUS season's layer composites through a
-   *  per-frame scratch: its exposure states drawn in, then this callback
-   *  erases along every body/ball vertex the clock
-   *  has reached (`destination-out`; the caller sets its own widths and
-   *  strengths), then ONE `lighter` blit — so the old field locally dries in
-   *  the strokes' wake while untouched marks persist whole and the no-clear
-   *  recession stands. Pure in t: the wake is the disc-union along a
-   *  monotone stroke prefix, recomputed from scratch every frame; nothing
-   *  survives between frames. */
-  yieldMask?: (ctx: CanvasRenderingContext2D) => void;
   /** THE PER-MARK ARRIVAL (stage B of the two-stage arrival; stage A is the
    *  development, below): the arriving season's cells
    *  surface individually in the record's own emphasis order — descending
@@ -139,21 +126,6 @@ function windowBaseClock(phase: number, season: Season): WindowFoldClock | null 
   const rise = Math.min(1, Math.max(0, (phase - night.from) / (night.to - night.from)));
   const seasonU = Math.min(1, Math.max(0, (phase - seasonBeat.from) / (seasonBeat.to - seasonBeat.from)));
   return { rise, dayFrac: seasonClock(seasonU) * meta.window_days, flood: false };
-}
-
-/** Scratch for the entry yield's per-frame composite — reused, not
- *  reallocated (the field's own accOf discipline). Never a cache: it is
- *  cleared and fully redrawn inside the one frame that uses it, so no byte
- *  survives to the next and purity needs nothing registered. */
-let yieldScratch: HTMLCanvasElement | null = null;
-
-function yieldScratchOf(w: number, h: number): HTMLCanvasElement {
-  if (!yieldScratch || yieldScratch.width !== w || yieldScratch.height !== h) {
-    yieldScratch = document.createElement("canvas");
-    yieldScratch.width = w;
-    yieldScratch.height = h;
-  }
-  return yieldScratch;
 }
 
 /** The share of a season's settled tail by which everything built ahead is
@@ -377,37 +349,10 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
         bakeLayer(
           st.prev!, prevPts, coloured, view, dpr, pinCoordOf(prevSeason), strength, prevGrain,
         );
-      if (opts.yieldMask && previousArrival < 1) {
-        // THE ENTRY YIELD: the receding layer draws into the scratch, the
-        // wake erases locally, one blit carries the result. `lighter` over
-        // transparent black premultiplies each develop state by its own
-        // alpha, so the blit adds exactly what the direct path would have —
-        // minus what the wake took down.
-        const w = Math.max(1, Math.round(view.width * dpr));
-        const h = Math.max(1, Math.round(view.height * dpr));
-        const scratch = yieldScratchOf(w, h);
-        const sctx = scratch.getContext("2d")!;
-        sctx.setTransform(1, 0, 0, 1, 0, 0);
-        sctx.clearRect(0, 0, w, h);
-        sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        drawDeveloping(
-          sctx, view, DEVELOP_STATES - developed(previousArrival) * DEVELOP_STATES,
-          dim, bakePrev,
-        );
-        sctx.save();
-        sctx.globalCompositeOperation = "destination-out";
-        opts.yieldMask(sctx);
-        sctx.restore();
-        ctx.save();
-        ctx.globalCompositeOperation = "lighter";
-        ctx.drawImage(scratch, 0, 0, view.width, view.height);
-        ctx.restore();
-      } else {
-        drawDeveloping(
-          ctx, view, DEVELOP_STATES - developed(previousArrival) * DEVELOP_STATES,
-          dim, bakePrev,
-        );
-      }
+      drawDeveloping(
+        ctx, view, DEVELOP_STATES - developed(previousArrival) * DEVELOP_STATES,
+        dim, bakePrev,
+      );
       drawPin(ctx, view, pinFractionOf(prevSeason), pinCoordOf(prevSeason), {
         dpr, opacity: fading,
       });

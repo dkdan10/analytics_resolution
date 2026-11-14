@@ -250,63 +250,6 @@ export const SCALARS = {
       "lower it and the window's ground goes back to bare stone.",
   },
 
-  // --- the entry yield — the old season under arriving bodies --------------
-  //
-  // THE OLD SEASON YIELDS TO THE BODY (decided 2026-08-10, against a measured
-  // entry collision). At the window's entry the previous season's completed
-  // field outweighed the arriving possession by orders of magnitude at the
-  // one-frame test. The repair keeps the no-clear recession — the transition
-  // must stay a recession, never a cut — and adds a LOCAL drying: the prior
-  // layer composites through a per-frame mask that erases part of it along
-  // every body/ball vertex the clock has reached — an accumulating patina in
-  // the strokes' own wake, never a tracking spotlight. Untouched old marks
-  // persist whole; the wake dries the ground toward wash-tone rather than
-  // clearing it. The wake's radius is DERIVED from the residence's
-  // cell-splat radius — the occupancy grain, the scale at which the window
-  // already says "the game lived here" — so only the strength is authored.
-  OLD_YIELD_STRENGTH: {
-    class: "authored",
-    value: 0.65,
-    material: true,
-    controls:
-      "how much of the previous season's light the arriving bodies' wake " +
-      "takes down, per pass of the two-width penumbra (the core compounds " +
-      "both passes; below 1 the old marks always survive to a wash tone). " +
-      "At 0 the entry collision returns — the possession drawn into an " +
-      "undimmed prior field; at 1 the wake CLEARS the old season along the " +
-      "paths, which the entry rule forbids: the transition must stay a " +
-      "recession, never a cut.",
-  },
-  YIELD_CORE_W: {
-    class: "authored",
-    value: 2,
-    material: true,
-    controls:
-      "how wide the wake's core is, in multiples of the residence's " +
-      "cell-splat radius: the band along each arriving path where the old " +
-      "season is taken down at the full OLD_YIELD_STRENGTH. Wider and the " +
-      "possession clears a road through the prior field; narrower and the " +
-      "new strokes sit directly on undimmed old marks.",
-  },
-  YIELD_PENUMBRA_W: {
-    class: "authored",
-    value: 3.2,
-    material: true,
-    controls:
-      "how far the wake's soft edge reaches, in the same multiples: the " +
-      "outer band, taken down more gently, that keeps the core from reading " +
-      "as a hard-edged trench. At the core's own width the edge is a line.",
-  },
-  YIELD_PENUMBRA_A: {
-    class: "authored",
-    value: 0.35,
-    material: true,
-    controls:
-      "how much of OLD_YIELD_STRENGTH the soft edge applies. Higher and the " +
-      "outer band dims as far as the core, so the wake simply looks wider; " +
-      "at nothing there is no edge and the core's boundary shows.",
-  },
-
   // --- the wet day — the window fold's visible front -----------------------
   //
   // THE WET DAY (decided 2026-08-10): the window's season fold is honest but
@@ -1661,7 +1604,6 @@ export const RESIDENCE_TONE_K: number = SCALARS.RESIDENCE_TONE_K.value;
 export const RESIDENCE_ALPHA: number = SCALARS.RESIDENCE_ALPHA.value;
 export const WINDOW_WET_GAIN: number = SCALARS.WINDOW_WET_GAIN.value;
 export const WINDOW_WET_DAYS: number = SCALARS.WINDOW_WET_DAYS.value;
-export const OLD_YIELD_STRENGTH: number = SCALARS.OLD_YIELD_STRENGTH.value;
 export const ONE_INK: number = SCALARS.ONE_INK.value;
 
 export const RIM_FT: number = SCALARS.RIM_FT.value;
@@ -1800,9 +1742,6 @@ export const GAME_CLOCK_K: number = SCALARS.GAME_CLOCK_K.value;
 export const GAME_DRIED: number = SCALARS.GAME_DRIED.value;
 export const GAME_WET_SECONDS: number = SCALARS.GAME_WET_SECONDS.value;
 export const WET_STROKES: number = SCALARS.WET_STROKES.value;
-export const YIELD_CORE_W: number = SCALARS.YIELD_CORE_W.value;
-export const YIELD_PENUMBRA_W: number = SCALARS.YIELD_PENUMBRA_W.value;
-export const YIELD_PENUMBRA_A: number = SCALARS.YIELD_PENUMBRA_A.value;
 export const PLATE_WINDOW_FIELD_DIM: number = SCALARS.PLATE_WINDOW_FIELD_DIM.value;
 export const FIELD_INSCRIPTION_ALPHA: number = SCALARS.FIELD_INSCRIPTION_ALPHA.value;
 export const HAND_NIGHT_GROUND_ALPHA: number = SCALARS.HAND_NIGHT_GROUND_ALPHA.value;
