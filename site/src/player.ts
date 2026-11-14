@@ -25,7 +25,7 @@ import {
 } from "./modes";
 import {
   fmt,
-  keyLineNodes,
+  keyLine,
   Navigator,
   SCRUB_COARSE_S,
   SCRUB_STEP_S,
@@ -64,7 +64,7 @@ export const SCRUB_DWELL_MS = 120;
 const RENDERINGS = "RENDERINGS";
 /** The keys, said in the rail's own words for them, each key with its word,
  *  set as the rail sets its own lines: a narrow panel breaks only between
- *  them, and never ends a line on a separator. */
+ *  them, and the break stands for the separator it replaces. */
 const KEY_LINE = ["SPACE PAUSE", "←→ SCRUB", ", . STOPS"];
 
 /** The plate's ground as three channels, so the panel's ground can carry an
@@ -124,7 +124,7 @@ export class Player {
     const heading = root.querySelector<HTMLElement>("#player-heading")!;
     heading.textContent = RENDERINGS;
     heading.setAttribute("aria-hidden", "true");
-    root.querySelector<HTMLElement>("#player-keys")!.replaceChildren(...keyLineNodes(KEY_LINE));
+    root.querySelector<HTMLElement>("#player-keys")!.replaceChildren(keyLine(KEY_LINE));
 
     // The renderings by the names the piece gives them, in the order the full
     // work plays them; THE STACK is in no pass, so it has no name here. A

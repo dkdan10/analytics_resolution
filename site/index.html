@@ -275,8 +275,8 @@
         margin-top: 6px;
         letter-spacing: 0.06em;
         color: rgba(232, 226, 214, 0.66);
+        overflow: hidden;
       }
-      #player-keys > span { white-space: nowrap; }
       /* The rail's scrub: padding widens the grab area without thickening
          the bar. */
       #player-scrub {
@@ -535,9 +535,22 @@
         line-height: 1.7;
         letter-spacing: 0.06em;
         color: rgba(232, 226, 214, 0.66);
+        overflow: hidden;
       }
       #keys p { margin: 0; }
-      #keys p > span { white-space: nowrap; }
+      /* A line of keys, in the rail and in the player. Each key and its word
+         stay together, and every pair after the first opens with its
+         separator. The line hangs out of its column to the left by the width
+         of one separator, a dot and a space at the keys' tracking, and the
+         column clips it: a pair that starts a line leaves its separator out
+         of sight, so the break itself separates and no line starts or ends
+         on a dot. The first pair has no separator and is set back in. */
+      #keys .key-line, #player-keys .key-line {
+        --separator: calc(2ch + 2 * 0.06em);
+        margin: 0 0 0 calc(-1 * var(--separator));
+      }
+      .key-line > span { white-space: nowrap; }
+      .key-line > span:first-child { margin-left: var(--separator); }
 
       /* THE STACK's operation panel. Present only while THE STACK is the hand
          drawing, and never in exhibit — the rail itself does not exist there.
