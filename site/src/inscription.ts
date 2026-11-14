@@ -305,6 +305,58 @@ export function drawSlug(
   ctx.restore();
 }
 
+/** The room profile's size for a numeral on the ring, unless its slot cannot
+ *  hold one that large (`ringFloorPx`). */
+const ROOM_RING_MIN_PX = 14;
+
+/**
+ * The room profile's floor for a numeral on the ring; near has none.
+ *
+ * The ring is laid out in court tenths and the room's floor is in pixels, so
+ * on a window short enough the floor alone would strike every figure wider than
+ * its slot and the whole ring would read as one unbroken string of digits. The
+ * floor is therefore capped by what a slot holds: the arc between two slots at
+ * this view, set as the widest figure on the ring followed by a word space of
+ * the face it is struck in — the ring read as a line of figures with word
+ * spaces between them. Measured on the destination, at the floor's own size and
+ * with `strike`'s letter-spacing, so the ruler and the pen agree; nothing is
+ * kept between frames.
+ */
+function ringFloorPx(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  inscriptions: Inscription[],
+): number {
+  if (contextDisplay(ctx) !== "room" || inscriptions.length === 0) return 0;
+  const slotPitch = view.s(RING_R) * Math.PI / inscriptions.length;
+  ctx.save();
+  ctx.font = `${ROOM_RING_MIN_PX}px ${INSCRIPTION_FAMILY}`;
+  ctx.letterSpacing = `${Math.max(1, ROOM_RING_MIN_PX * STRIKE_LETTER_SPACING)}px`;
+  let widest = 0;
+  for (const ins of inscriptions) {
+    widest = Math.max(widest, ctx.measureText(`${ins.text} `).width);
+  }
+  ctx.letterSpacing = "0px";
+  ctx.restore();
+  return Math.min(ROOM_RING_MIN_PX, ROOM_RING_MIN_PX * slotPitch / widest);
+}
+
+/**
+ * A numeral's size, wherever it is on its way.
+ *
+ * Central size carries the measurement: 39·9 is struck large and 9·7 small, so
+ * the figure shrinks with the thing it counts. The ring is uniform, because
+ * there the numerals are a garland and have to stay legible. The room's floor
+ * comes in with the migration rather than on the frame the numeral lands, so a
+ * figure that has shrunk on its way out does not jump to the floor as it
+ * settles.
+ */
+function numeralPx(ins: Inscription, p: Placement, view: View, floor: number): number {
+  const byWeight = 0.55 + 1.05 * Math.min(1, ins.weight / 0.4);
+  const sized = FACE_SIZE * (byWeight + (1 - byWeight) * p.settled);
+  return Math.max(sized * p.scale * (view.scale / 2), floor * p.settled);
+}
+
 /**
  * Draw every inscription struck so far. Later seasons are still central; the
  * ones behind them have already settled onto the ring, which is why the piece
@@ -316,20 +368,13 @@ export function drawInscriptions(
   inscriptions: Inscription[],
   t: number,
 ): void {
+  const floor = ringFloorPx(ctx, view, inscriptions);
   ctx.save();
   for (const ins of inscriptions) {
     const p = placementAt(ins, t);
     if (!p) continue;
 
-    // Central size carries the measurement: 39·9 is struck large and 9·7 small,
-    // so the figure shrinks with the thing it counts. The ring is uniform,
-    // because there the numerals are a garland and have to stay legible.
-    const byWeight = 0.55 + 1.05 * Math.min(1, ins.weight / 0.4);
-    const sized = FACE_SIZE * (byWeight + (1 - byWeight) * p.settled);
-    const px = Math.max(
-      sized * p.scale * (view.scale / 2),
-      contextDisplay(ctx) === "room" && p.settled >= 0.999 ? 14 : 0,
-    );
+    const px = numeralPx(ins, p, view, floor);
     // Struck upright in the middle, turning into the ring as it settles.
     const rotation = (Math.PI / 2 - ins.angle) * p.settled;
     strike(ctx, ins.text, view.sx(p.x), view.sy(p.y), px, p.alpha, rotation);
@@ -378,16 +423,12 @@ export function drawSettledInscriptions(
   alpha: number,
 ): void {
   if (alpha <= 0.01) return;
+  const floor = ringFloorPx(ctx, view, inscriptions);
   ctx.save();
   for (const ins of inscriptions) {
     const p = placementAt(ins, t);
     if (!p || p.settled < 0.999) continue;
-    const byWeight = 0.55 + 1.05 * Math.min(1, ins.weight / 0.4);
-    const sized = FACE_SIZE * (byWeight + (1 - byWeight) * p.settled);
-    const px = Math.max(
-      sized * p.scale * (view.scale / 2),
-      contextDisplay(ctx) === "room" ? 14 : 0,
-    );
+    const px = numeralPx(ins, p, view, floor);
     const rotation = (Math.PI / 2 - ins.angle) * p.settled;
     // A stronger overprint than the engraved under-layer; still cut through
     // `strike`, so face/shadow material remains one system.
