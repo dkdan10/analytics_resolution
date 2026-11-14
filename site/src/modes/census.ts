@@ -49,7 +49,7 @@
 import { factNum, type Place, type Season } from "../data";
 import { drawSlug, strike, STRIKE_LETTER_SPACING, struckFigure } from "../inscription";
 import { BONE_RGB, INSCRIPTION_FAMILY, SLUG_FAMILY, ZONE_RGB } from "../palette";
-import { COURT } from "../plate";
+import { COURT, type View } from "../plate";
 import {
   CENSUS_FIELD_DIM,
   CENSUS_HEAD_ALPHA,
@@ -110,13 +110,12 @@ const FOOTER_AT = { x: 0, y: -32 };
  *  taxonomy turnover happens most seasons, not at the acts. */
 const CUED_ACTS: readonly Act[] = [2, 5];
 
-/** The footer's ground, which no word may stand on: the plate's whole width,
- *  from its foot up to a whole em of the footer's registered size above its
- *  first line's centre. Half of that is the line's own letters; the other
- *  half is clear stone between them and a word in the near profile, and is
- *  what still covers them where the room profile floors the footer's type
- *  larger in pixels. In court tenths like the rest of the layout, so one
- *  season files the same way on every screen. */
+/** The top of the footer's ground, which no word may stand on: a whole em of
+ *  the footer's registered size above its first line's centre. Half of that
+ *  is the line's own letters; the other half is clear stone between them and
+ *  a word in the near profile, and is what still covers them where the room
+ *  profile floors the footer's type larger in pixels. In court tenths like the
+ *  rest of the layout, so one season files the same way on every screen. */
 const FOOTER_TOP = FOOTER_AT.y + SLUG_STATEMENT_TENTHS;
 
 /** Where the share figure is struck beneath its word, as a fraction of the
@@ -180,7 +179,9 @@ export interface Glyphs {
 const NOMINAL_PX = 100;
 const measured = new Map<string, Glyphs>();
 const lettered = new Map<string, Glyphs[]>();
+const slugWidths = new Map<string, number>();
 let ruler: CanvasRenderingContext2D | null = null;
+let slugRuler: CanvasRenderingContext2D | null = null;
 
 /** The ruler, set the way `strike` sets its pen: the same face, letter-spacing
  *  and baseline, or the collision boxes would be measuring a different string
@@ -246,12 +247,50 @@ function lettersOf(text: string, sizeTenths: number): Glyphs[] {
   return per.map((g) => scaled(g, sizeTenths));
 }
 
+/** A view with nothing but a scale: one court tenth is `NOMINAL_PX` of the
+ *  footer's registered size, so no pixel floor binds on what is measured. */
+const RULER_SCALE = NOMINAL_PX / SLUG_STATEMENT_TENTHS;
+const RULER_VIEW: View = {
+  scale: RULER_SCALE,
+  width: 0,
+  height: 0,
+  sx: (x) => x * RULER_SCALE,
+  sy: (y) => -y * RULER_SCALE,
+  s: (len) => len * RULER_SCALE,
+};
+
+/**
+ * How wide `drawSlug` sets a statement line, in court tenths at its registered
+ * size.
+ *
+ * Taken through `drawSlug` itself, with the fill replaced by a measurement:
+ * the face and the letter-spacing are that function's own, and a copy of
+ * either kept here would go stale without a word.
+ */
+function slugWidthOf(line: string): number {
+  let w = slugWidths.get(line);
+  if (w === undefined) {
+    slugRuler ??= document.createElement("canvas").getContext("2d")!;
+    const pen = slugRuler;
+    let px = 0;
+    pen.fillText = (text: string): void => {
+      const m = pen.measureText(text);
+      px = m.actualBoundingBoxLeft + m.actualBoundingBoxRight;
+    };
+    drawSlug(pen, RULER_VIEW, [line], FOOTER_AT, 1);
+    w = px / RULER_SCALE;
+    slugWidths.set(line, w);
+  }
+  return w;
+}
+
 /** Drop the rulers' maps. Registered in probe/shared.ts:cold() — an
  *  unregistered cache does not produce a false IMPURE, it produces a false
  *  PURE, because every history then shares the same stale map. */
 export function clearCensusCaches(): void {
   measured.clear();
   lettered.clear();
+  slugWidths.clear();
 }
 
 /**
@@ -443,9 +482,48 @@ function onPlate(w: Filed, boxes: [Box, Box]): boolean {
       .every((g) => inStone(boxAt(figure * ux, figure * uy, ux, uy, g, sub)));
 }
 
-/** A box is clear of the footer's ground by its own clear floor. */
-function offFooter(k: Box): boolean {
-  return k.cy - reach(k, 0, 1) >= FOOTER_TOP + k.pad;
+/** The footer's lines, for the pen and for the layout that keeps words off
+ *  them. */
+function footerLines(
+  total: number, struck: number, tail: number, beyond: number, homeless: number,
+): string[] {
+  const lines = [`${struck} OF ${total} STRUCK · ${tail} A TICK AND A COUNT`];
+  if (beyond > 0) lines.push(`${beyond} PLACED BEYOND THIS FLOOR`);
+  if (homeless > 0) lines.push(`${homeless} WITH NO ROOM AT ITS OWN DISTANCE`);
+  return lines;
+}
+
+/** How many categories the record has under a taxonomy this season. */
+function categoriesOf(season: Season, taxonomy: string): number {
+  return Object.keys(season.classification[taxonomy] ?? {}).length;
+}
+
+/**
+ * The footer's ground, which no word may stand on.
+ *
+ * From the plate's foot up to FOOTER_TOP, and as wide as the footer's own
+ * lines and no wider: a word in the corner, a long way from the footer's
+ * letters, is not on them and is not moved for them. The width is the widest
+ * line the footer can print for a taxonomy of this many categories — every
+ * count at the count of categories, which none can exceed — set at twice its
+ * registered size, the size whose letters reach FOOTER_TOP. So the ground
+ * keeps one proportion in both directions, and covers the footer the same way
+ * where the room profile floors its type larger in pixels.
+ */
+function footerGround(categories: number): Box {
+  const widest = Math.max(
+    ...footerLines(categories, categories, categories, categories, categories).map(slugWidthOf),
+  );
+  return {
+    cx: FOOTER_AT.x,
+    cy: (COURT.y0 + FOOTER_TOP) / 2,
+    tx: 1,
+    ty: 0,
+    // The whole registered width: half the line at twice the size.
+    halfAlong: widest,
+    halfAcross: (FOOTER_TOP - COURT.y0) / 2,
+    pad: 0,
+  };
 }
 
 /** Two words collide when anything one strikes — the word or its figure —
@@ -467,7 +545,8 @@ function collides(a: [Box, Box], b: [Box, Box]): boolean {
  * Deterministic, order-fixed and stateless: the same season at the same arrival
  * gives the same layout, and scrubbing backwards rebuilds it.
  */
-function layOut(words: Filed[]): void {
+function layOut(words: Filed[], categories: number): void {
+  const ground = footerGround(categories);
   const placed: [Box, Box][] = [];
   for (const w of words) {
     // A word nobody will strike must not take up room. The first build laid out
@@ -487,7 +566,8 @@ function layOut(words: Filed[]): void {
         // a solution, it is a different mistake. Tested on everything the word
         // strikes, not on its centre. The footer's ground is type, so a box
         // keeps its own clear floor from it as it does from a word.
-        if (!onPlate(w, boxes) || !boxes.every(offFooter)) continue;
+        if (!onPlate(w, boxes)) continue;
+        if (boxes.some((k) => overlaps(k, ground))) continue;
         if (placed.some((p) => collides(boxes, p))) continue;
         ok = true;
         break;
@@ -582,7 +662,7 @@ function strikeSixfold(
   for (const taxonomy of Object.keys(f.data.taxonomyColumns)) {
     const words = filing(season, taxonomy, arrived, zoneNames,
                          season.vocabulary.covering_90pct?.[taxonomy] ?? 1);
-    layOut(words);
+    layOut(words, categoriesOf(season, taxonomy));
     strikeTicks(f, words, k * SIXFOLD_ALPHA * f.remains);
     strikeWords(f, words, k * SIXFOLD_ALPHA * f.remains, false);
   }
@@ -645,7 +725,7 @@ function strikeFooter(
   opacity = 1,
 ): void {
   const { ctx, view, remains } = f;
-  const total = Object.keys(season.classification[taxonomy] ?? {}).length;
+  const total = categoriesOf(season, taxonomy);
   const struck = words.filter((w) => w.named && !w.homeless).length;
   // Three DIFFERENT things, kept apart. The first build called them all "no
   // room", which put a category the record files beyond the halfcourt in the
@@ -655,10 +735,8 @@ function strikeFooter(
   const homeless = words.filter((w) => w.named && w.homeless).length;
   // STRUCK, not NAMED: a category can be named and still lose its place to a
   // collision, and this line has to add up to what is actually on the floor.
-  const lines = [`${struck} OF ${total} STRUCK · ${total - struck} A TICK AND A COUNT`];
-  if (beyond > 0) lines.push(`${beyond} PLACED BEYOND THIS FLOOR`);
-  if (homeless > 0) lines.push(`${homeless} WITH NO ROOM AT ITS OWN DISTANCE`);
-  drawSlug(ctx, view, lines, FOOTER_AT, remains * CENSUS_SUB_ALPHA * opacity);
+  drawSlug(ctx, view, footerLines(total, struck, total - struck, beyond, homeless),
+           FOOTER_AT, remains * CENSUS_SUB_ALPHA * opacity);
 }
 
 /**
@@ -883,7 +961,7 @@ export function drawCensusHand(f: Frame): void {
   } else {
     const words = filing(season, taxonomy, arrived, zoneNames,
                          season.vocabulary.covering_90pct?.[taxonomy] ?? 1);
-    layOut(words);
+    layOut(words, categoriesOf(season, taxonomy));
     strikeTicks(f, words, remains * filingOpacity);
     strikeWords(f, words, remains * filingOpacity, taxonomy === "ZONE");
     strikeHeader(f, season, taxonomy, arrived, filingOpacity);
