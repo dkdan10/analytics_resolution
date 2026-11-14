@@ -15,7 +15,10 @@
    never accumulated, and the purity probe compares the same instant reached by different seek
    paths.
 6. **Data rights.** Bulk NBA data is never committed; derived data is.
-7. **Every stroke stays one traceable record.** No particle systems, no synthesised motion.
+7. **Every stroke stays one traceable record.** No particle systems, no synthesised motion. A
+   stroke's tip may travel the stored chord between two recorded vertices in that segment's
+   recorded duration: every position drawn lies on the record's own polyline, and no time is
+   invented.
 
 ## The gate
 
