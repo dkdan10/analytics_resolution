@@ -646,7 +646,10 @@
       }
       #nav :focus:not(:focus-visible) { outline: none; }
 
-      .act {
+      /* The list's act headings. Scoped to the list: the scrub's act ticks
+         carry the same class, and a heading's margin and rule would hang
+         them under the bar and off its end. */
+      #nav-list .act {
         margin: 14px 16px 4px;
         font-size: 12px;
         letter-spacing: 0.14em;
