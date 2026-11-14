@@ -8,9 +8,10 @@
  * full work at an address, on the frame loop the page itself runs, fetching
  * each file when the page first asks for it - and logs what happened:
  *
- *   - every animation frame: the timestamp its callback was given and how long
- *     the callback ran. The page's clock is that timestamp, so every frame is
- *     also an instant `t` of the piece.
+ *   - every animation frame: the timestamp its callback was given, how long
+ *     after that timestamp the callback began, and how long it ran. The page's
+ *     clock is that timestamp, so every frame is also an instant `t` of the
+ *     piece.
  *   - long animation frames, where the browser reports them.
  *   - what the loading chip said on every frame.
  *   - every request for a file under `data/`: when it was asked for and when
@@ -32,14 +33,43 @@
  * server. The browser is headless unless `--headed` opens a window, and the log
  * says which it was.
  *
- * An interval runs from one callback's timestamp to the next and is filed under
- * the callback it starts at: that callback's own work is what holds the next
- * one off. The timestamps are the display's ticks, so a callback can run a
- * little past the one the next is given; the piece's clock reads the same
- * ticks, and the interval is what the piece saw. One is reported when it is
- * longer than `--over`, or by default longer than one and a half of the run's
- * own modal interval - the tick rate is read from the run and never assumed,
- * and the log says what the page's `visibilityState` was while it ran.
+ * Two things are read off every frame, because neither says enough alone. The
+ * timestamp a callback is given is the display tick its frame began at, and it
+ * is the piece's clock, so the interval from one timestamp to the next is what
+ * the piece saw pass. But the next tick is handed out on time while a callback
+ * is still running: one that runs past the next tick and ends before the one
+ * after leaves the interval at a single tick, and shows only as the following
+ * callback beginning late. So each callback's start is logged against its own
+ * timestamp, and a frame is HELD when its callback ended after the next tick
+ * was due, or when the interval to the next timestamp is long.
+ *
+ * A long interval is owed to the callback that ran over, which is often the
+ * frame before the one the interval starts at. Held frames that follow one
+ * another are therefore reported together, under the callback that outlasted a
+ * tick or, where none did, under the first of them, with the work counted in
+ * each. Intervals are whole ticks, so a stall reads up to a tick shorter in
+ * timestamps than the callback behind it; the callback's own time, the ticks
+ * lost after it and the browser's long animation frame are printed beside it.
+ *
+ * The tick is read from the run and never assumed: it is the shortest interval
+ * the run kept returning to, and the log says what share of the intervals sat
+ * at it. `--over` states one figure for both tests; by default an interval is
+ * long past one and a half ticks, and a callback is late past one. A run whose
+ * commonest interval is not the tick, or whose page was ever not visible, says
+ * so in a warning: it did not keep the display's rate, and its intervals are
+ * the browser's throttle more than the piece's work.
+ *
+ * `t` is counted from the first animation frame, which must be the piece's
+ * own. The run is refused if more than one function ever asked for animation
+ * frames, if the first frame left no loading state behind it, or if the page
+ * loaded more than once - a file saved under `src/` while it plays reloads it.
+ *
+ * Every run is a fresh page, and a fresh page holds no season's points until a
+ * frame asks for them: whatever `--t` is, each boundary it crosses is crossed
+ * for the first time. A crossing with the points already here is reached on one
+ * page only, by pinning `--mode` and giving `--seconds` more than one loop of
+ * the schedule, so the same boundary comes round again under the same hand.
+ * Each boundary's line says which of the two it was.
  *
  * The page is sized as the laptop surface the probes use, and the run is
  * refused if the canvas does not come out at the backing that surface gives on
@@ -157,7 +187,8 @@ const isData = (href) => new URL(href).pathname.includes("/data/");
  */
 function observe(modulePaths) {
   const rec = {
-    ts: [], ms: [], chip: [], chips: [], workAt: [], counters: [], missing: [],
+    ts: [], late: [], ms: [], chip: [], chips: [], workAt: [], counters: [], missing: [],
+    askers: [],
     requests: [], loaf: [], loafSupported: false, visibility: [],
     specs: {}, ambiguous: [], mods: {}, stopped: false,
   };
@@ -233,9 +264,10 @@ function observe(modulePaths) {
 
   let chipEl = null;
   const chipIndex = new Map();
-  const record = (ts, ms) => {
+  const record = (ts, began, ms) => {
     if (rec.stopped) return;
     const frame = rec.ts.push(ts) - 1;
+    rec.late.push(began - ts);
     rec.ms.push(ms);
     chipEl ??= document.getElementById("asset-state");
     const shown = chipEl ? !chipEl.hidden : null;
@@ -254,10 +286,19 @@ function observe(modulePaths) {
 
   const nativeRaf = window.requestAnimationFrame.bind(window);
   let reached = null;
+  // Every function that asks for a frame, by identity. The piece has one; a
+  // second would put frames in the log that are not the piece's.
+  const askers = new Map();
   window.requestAnimationFrame = (callback) => {
+    if (!rec.stopped) {
+      if (!askers.has(callback)) {
+        askers.set(callback, rec.askers.push({ name: callback.name || "(unnamed)", asked: 0 }) - 1);
+      }
+      rec.askers[askers.get(callback)].asked++;
+    }
     const wrapped = (ts) => {
       const began = performance.now();
-      try { callback(ts); } finally { record(ts, performance.now() - began); }
+      try { callback(ts); } finally { record(ts, began, performance.now() - began); }
     };
     if (reached === true) return nativeRaf(wrapped);
     // The first request for a frame comes once the page's module graph has
@@ -287,6 +328,10 @@ const pageErrors = [];
 const consoleErrors = [];
 page.on("pageerror", (e) => pageErrors.push(String(e)));
 page.on("console", (m) => { if (m.type() === "error") consoleErrors.push(m.text()); });
+// One page, loaded once, is one playback. A reload starts the observer again
+// from nothing, with the files of the first load already in the browser.
+let loads = 0;
+page.on("domcontentloaded", () => { loads++; });
 
 await page.addInitScript(observe, {
   field: "/src/field.ts", wash: "/src/wash.ts", display: "/src/display.ts",
@@ -334,8 +379,28 @@ const facts = await page.evaluate(({ surface, mode }) => {
       : typeof modes?.isModeId === "function" && typeof modes?.isGalleryMode === "function"
         ? modes.isModeId(mode) && modes.isGalleryMode(mode) : undefined,
     ambiguous: rec.ambiguous,
+    askers: rec.askers,
+    firstState: rec.chips[rec.chip[0]]?.state ?? null,
   };
 }, { surface, mode });
+/** Why this page's frames cannot be laid against the piece's clock, if they
+ *  cannot. Asked before the passage is played and again after it. */
+function unanchored(askers) {
+  if (loads !== 1) {
+    return `the page loaded ${loads} times: it reloaded itself, or a file under src/ was saved `
+      + "while it played. What was logged is not one playback";
+  }
+  if (askers.length > 1) {
+    return `${askers.length} functions asked for animation frames (${askers.map((a) => a.name).join(", ")}): `
+      + "t is counted from the first frame, which is only the piece's when the piece alone asks";
+  }
+  return null;
+}
+if (unanchored(facts.askers)) await stop(unanchored(facts.askers));
+if (facts.firstState === null) {
+  await stop("the first animation frame left no loading state on the page, so it was not the "
+    + "piece's frame, and every t would be counted from the wrong instant");
+}
 if (facts.ambiguous.length) {
   await stop(`the page loaded ${facts.ambiguous.join(", ")} under two addresses: a file was `
     + "saved while it was open. Nothing may be edited during a run");
@@ -366,6 +431,7 @@ for (;;) {
     const { ts } = window.__playback;
     return ts[ts.length - 1] - ts[0];
   });
+  if (loads !== 1) await stop(unanchored([]));
   if (span >= seconds * 1000) break;
   if (Date.now() > playedBy) await stop(`the page stopped drawing ${(span / 1000).toFixed(2)} s in`);
   await sleep(250);
@@ -398,6 +464,7 @@ const taken = await page.evaluate(async ({ startT, mode }) => {
 }, { startT, mode });
 const browserVersion = browser.version();
 await browser.close();
+if (unanchored(taken.askers)) die(unanchored(taken.askers));
 
 // --- what the run says -----------------------------------------------------
 const round = (v, places = 2) => (v === null ? null : Number(v.toFixed(places)));
@@ -417,13 +484,24 @@ if (lastFrame === taken.ts.length - 1) lastFrame--;
 const intervals = [];
 for (let i = 0; i <= lastFrame; i++) intervals.push(taken.ts[i + 1] - taken.ts[i]);
 
-// The modal interval: the fullest bin a millisecond wide, and the median of
-// what fell in it.
+// Intervals in bins a millisecond wide. The modal interval is the fullest
+// bin's; the tick is the shortest bin the run kept returning to, since no
+// interval is shorter than the display's and a run that mostly missed its
+// ticks has its fullest bin at a multiple of one. A bin counts as returned to
+// from a twentieth of the intervals.
 const bins = new Map();
 for (const d of intervals) bins.set(Math.round(d), [...(bins.get(Math.round(d)) ?? []), d]);
 const fullest = [...bins.values()].sort((a, b) => b.length - a.length)[0];
+const recurring = [...bins.entries()]
+  .filter(([, ds]) => ds.length >= Math.max(3, intervals.length / 20))
+  .sort((a, b) => a[0] - b[0]);
+const atTick = recurring.length ? recurring[0][1] : fullest;
 const modalMs = median(fullest);
-const threshold = overMs ?? modalMs * 1.5;
+const tickMs = median(atTick);
+const tickShare = atTick.length / intervals.length;
+// A long interval, and a callback that ended late: `--over` states both.
+const longMs = overMs ?? tickMs * 1.5;
+const lateMs = overMs ?? tickMs;
 
 const boundaries = [];
 if (taken.schedule) {
@@ -438,26 +516,55 @@ if (taken.schedule) {
 }
 
 const workByFrame = new Map(taken.workAt);
-const over = [];
+/** How long after its own timestamp a frame's callback ended. */
+const endedAfter = (i) => taken.late[i] + taken.ms[i];
+const isHeld = (i) => endedAfter(i) > lateMs || intervals[i] > longMs;
+/** Whether the callback alone outlasted a tick, wherever it began. */
+const ranOver = (i) => taken.ms[i] > tickMs;
+const frameRow = (i) => ({
+  frame: i,
+  t: round(tOf(taken.ts[i]), 3),
+  intervalMs: round(intervals[i]),
+  callbackMs: round(taken.ms[i]),
+  beganLateMs: round(taken.late[i]),
+  endedPastTickMs: round(Math.max(0, endedAfter(i) - tickMs)),
+  work: workByFrame.get(i) ?? null,
+});
+// Held frames, grouped. A group opens at a callback that outlasted a tick, or
+// at a held frame with none before it, and takes in the held frames after it
+// until one is not held or another callback outlasts a tick.
+const held = [];
+let open = null;
 for (let i = 0; i <= lastFrame; i++) {
-  if (!(intervals[i] > threshold)) continue;
+  if (!isHeld(i)) { open = null; continue; }
+  if (open !== null && !ranOver(i)) { open.then.push(frameRow(i)); continue; }
   const t = tOf(taken.ts[i]);
   const crossed = boundaries.filter((b) => b.t <= t).at(-1);
-  over.push({
-    frame: i,
-    t: round(t, 3),
-    intervalMs: round(intervals[i]),
-    callbackMs: round(taken.ms[i]),
-    work: workByFrame.get(i) ?? null,
+  open = {
+    ...frameRow(i),
+    ranOver: ranOver(i),
     ...(crossed ? { afterBoundary: { year: crossed.year, seconds: round(t - crossed.t, 3) } } : {}),
-    longAnimationFrames: taken.loaf
-      .filter((l) => l.start < taken.ts[i + 1] && l.start + l.ms > taken.ts[i])
-      .map((l) => ({
-        t: round(tOf(l.start), 3), ms: round(l.ms), blockingMs: round(l.blockingMs),
-        scripts: l.scripts.map((s) => ({ invoker: s.invoker, fn: s.fn, ms: round(s.ms) })),
-      })),
-  });
+    then: [],
+  };
+  held.push(open);
 }
+for (const h of held) {
+  const frames = [h, ...h.then];
+  const until = taken.ts[frames.at(-1).frame + 1];
+  // Ticks the timestamps skipped across the group: none where a callback ran
+  // past its tick and the next was still handed out on time.
+  h.ticksLost = frames.reduce((n, f) => n + Math.round(intervals[f.frame] / tickMs) - 1, 0);
+  const counted = {};
+  for (const f of frames) for (const [k, n] of Object.entries(f.work ?? {})) counted[k] = (counted[k] ?? 0) + n;
+  h.workInAll = Object.keys(counted).length ? counted : null;
+  h.longAnimationFrames = taken.loaf
+    .filter((l) => l.start < until && l.start + l.ms > taken.ts[h.frame])
+    .map((l) => ({
+      t: round(tOf(l.start), 3), ms: round(l.ms), blockingMs: round(l.blockingMs),
+      scripts: l.scripts.map((s) => ({ invoker: s.invoker, fn: s.fn, ms: round(s.ms) })),
+    }));
+}
+const heldFrames = new Set(held.flatMap((h) => [h.frame, ...h.then.map((f) => f.frame)]));
 
 // The chip, as the stretches of frames over which it said one thing.
 const chipRuns = [];
@@ -497,17 +604,26 @@ for (const r of requests) firstAsked[r.file] ??= { askedT: r.askedT, askedMs: r.
 const others = taken.resources.filter((r) => !isData(r.url)).map((r) => r.end - r.start);
 const dataTook = requests.map((r) => r.tookMs).filter((ms) => ms !== null);
 
+const passOf = (t) => (taken.schedule ? Math.floor(t / taken.schedule.duration) : 0);
 const arriving = boundaries.map((b) => {
   const boundaryMs = (b.t - startT) * 1000;
   const mine = requests.filter((r) => r.file === `points/season_${b.year}.bin`);
   const asked = mine[0] ?? null;
   const ended = mine.find((r) => r.endedMs !== null && r.status === 200) ?? null;
+  // A request that was answered with something other than the file, or
+  // rejected, has ended: it failed, which is not the same as still being out.
+  const failed = mine.filter((r) => r.error !== null || (r.status !== null && r.status !== 200))
+    .map((r) => r.error ?? `status ${r.status}`);
   return {
     year: b.year,
     boundaryT: round(b.t, 3),
     askedBeforeBoundaryMs: asked ? round(boundaryMs - asked.askedMs) : null,
     endedBeforeBoundaryMs: ended ? round(boundaryMs - ended.endedMs) : null,
+    failed,
     hereBeforeBoundary: ended !== null && ended.endedMs < boundaryMs,
+    // Whether this page had already asked for the file on an earlier time
+    // round the loop. A fresh page never has.
+    askedInAnEarlierPass: asked !== null && passOf(startT + asked.askedMs / 1000) < passOf(b.t),
   };
 });
 
@@ -515,6 +631,16 @@ const stateAtFirstFrame = taken.visibility.filter(([at]) => at <= origin0).at(-1
 const visibilityChanges = taken.visibility
   .filter(([at]) => at > origin0 && at <= taken.ts[lastFrame + 1])
   .map(([at, state]) => ({ t: round(tOf(at), 3), state }));
+
+const warnings = [];
+if (atTick !== fullest) {
+  warnings.push(`the commonest interval (${round(modalMs)} ms) is not the tick (${round(tickMs)} ms, `
+    + `${(tickShare * 100).toFixed(1)}% of intervals): this run did not keep the display's rate`);
+}
+if (stateAtFirstFrame !== "visible" || visibilityChanges.length) {
+  warnings.push("the page was not visible throughout: a page that is not is given frames at a "
+    + "rate of the browser's choosing, and these intervals are that rate");
+}
 
 const log = {
   probe: "playback",
@@ -525,13 +651,22 @@ const log = {
   seconds,
   frames: lastFrame + 1,
   interval: {
+    tickMs: round(tickMs), atTick: round(tickShare, 4),
     modalMs: round(modalMs), medianMs: round(median(intervals)),
-    maxMs: round(Math.max(...intervals)), overMs: round(threshold),
-    overIs: overMs === null ? "one and a half modal intervals" : "--over",
+    maxMs: round(Math.max(...intervals)),
+    longOverMs: round(longMs), lateOverMs: round(lateMs),
+    overIs: overMs === null ? "an interval over one and a half ticks, a callback ended over one tick "
+      + "after its timestamp" : "--over, for both",
+  },
+  callback: {
+    medianMs: round(median(taken.ms.slice(0, lastFrame + 1))),
+    medianBeganLateMs: round(median(taken.late.slice(0, lastFrame + 1))),
   },
   visibilityState: stateAtFirstFrame,
   visibilityChanges,
-  over,
+  warnings,
+  askers: taken.askers,
+  held,
   work: {
     counters: taken.counters,
     missing: taken.missing,
@@ -556,11 +691,16 @@ const log = {
         scripts: l.scripts.map((s) => ({ invoker: s.invoker, fn: s.fn, source: s.source, ms: round(s.ms) })) }))
     : "not reported by this browser",
   schedule: taken.schedule ? "from the page's own timeline" : "the page serves no /src/timeline.ts",
+  loop: taken.schedule
+    ? { seconds: round(taken.schedule.duration, 3), passes: [passOf(startT), passOf(startT + seconds)] }
+    : null,
   pageErrors,
   consoleErrors,
   frameLog: {
-    is: "milliseconds since the first frame, and each callback's own milliseconds",
+    is: "each callback's timestamp in milliseconds since the first frame, how long after its "
+      + "timestamp it began, and how long it ran",
     at: taken.ts.slice(0, lastFrame + 2).map((ts) => round(ts - origin0, 3)),
+    beganLateMs: taken.late.slice(0, lastFrame + 2).map((ms) => round(ms)),
     callbackMs: taken.ms.slice(0, lastFrame + 2).map((ms) => round(ms)),
   },
   instrument: {
@@ -586,22 +726,34 @@ console.log(`playback: chrome ${browserVersion}, ${headless ? "headless" : "head
   + `${surface.width}x${surface.height} at ${surface.deviceDpr}, canvas ${facts.canvas.join("x")}`);
 console.log(`playback: ${log.hand ?? "the hand is not known"}${mode ? " (pinned)" : ""}, `
   + `${log.frames} frames from t ${startT} for ${seconds} s`);
-console.log(`playback: interval modal ${log.interval.modalMs} ms, median ${log.interval.medianMs} ms, `
+console.log(`playback: tick ${log.interval.tickMs} ms (${(tickShare * 100).toFixed(1)}% of intervals), `
+  + `interval modal ${log.interval.modalMs} ms, median ${log.interval.medianMs} ms, `
   + `longest ${log.interval.maxMs} ms; visibilityState ${stateAtFirstFrame}`
   + `${visibilityChanges.length ? `, changed ${visibilityChanges.length} times` : ""}`);
+console.log(`playback: callbacks ran a median ${log.callback.medianMs} ms and began a median `
+  + `${log.callback.medianBeganLateMs} ms after their timestamps`);
+for (const w of warnings) console.log(`playback: WARNING ${w}`);
 console.log(taken.counters.length
   ? `playback: counted work read each frame (${taken.counters.join(", ")})`
     + `${taken.missing.length ? `; this page has no ${taken.missing.join(", ")}` : ""}`
   : `playback: this page counts no work (no ${taken.missing.join(", ")})`);
-console.log(`playback: ${over.length} interval${over.length === 1 ? "" : "s"} over `
-  + `${log.interval.overMs} ms (${log.interval.overIs})`);
-for (const o of over) {
-  console.log(`  ${at(o.t)}  frame ${o.frame}  interval ${o.intervalMs} ms  callback ${o.callbackMs} ms  `
-    + `${taken.counters.length ? workOf(o.work) : "work not counted"}`
-    + `${o.afterBoundary ? `  (${o.afterBoundary.seconds} s into ${o.afterBoundary.year})` : ""}`);
+const counted = (w) => (taken.counters.length ? workOf(w) : "work not counted");
+const timing = (f) => `interval ${f.intervalMs} ms  callback ${f.callbackMs} ms, began ${f.beganLateMs} ms `
+  + `late${f.endedPastTickMs > 0 ? `, ended ${f.endedPastTickMs} ms past the next tick` : ""}`;
+console.log(`playback: ${held.length} held, alone or in a run: a callback ended more than ${log.interval.lateOverMs} ms `
+  + `after its timestamp, or an interval ran over ${log.interval.longOverMs} ms`
+  + `${overMs === null ? "" : " (--over)"}`);
+for (const h of held) {
+  console.log(`  ${at(h.t)}  frame ${h.frame}  ${timing(h)}  ${counted(h.work)}`
+    + `${h.ranOver ? "" : "  (began late: the callback alone fits a tick)"}`
+    + `${h.afterBoundary ? `  (${h.afterBoundary.seconds} s into ${h.afterBoundary.year})` : ""}`);
+  for (const f of h.then) console.log(`      then ${at(f.t)}  ${timing(f)}  ${counted(f.work)}`);
+  const longest = h.longAnimationFrames.reduce((m, l) => Math.max(m, l.ms), 0);
+  console.log(`      ${h.ticksLost} tick${h.ticksLost === 1 ? "" : "s"} lost in the timestamps`
+    + `${h.longAnimationFrames.length ? `; long animation frame ${longest} ms` : ""}`);
 }
-const quiet = log.work.at.filter((w) => !over.some((o) => o.frame === w.frame));
-if (quiet.length) console.log("playback: counted work in frames that held nothing up");
+const quiet = log.work.at.filter((w) => !heldFrames.has(w.frame));
+if (quiet.length) console.log("playback: counted work in frames whose callbacks ended inside their tick");
 for (const counter of taken.counters) {
   const frames = quiet.filter((w) => w[counter] !== undefined);
   if (!frames.length) continue;
@@ -627,13 +779,22 @@ console.log(`playback: request durations - data median ${log.requestDurations.da
   + `shortest ${log.requestDurations.data.minMs} ms; everything else median `
   + `${log.requestDurations.other.medianMs} ms, longest ${log.requestDurations.other.maxMs} ms`);
 if (!taken.schedule) console.log("playback: season boundaries are not known on this page");
+else {
+  console.log(`playback: one loop is ${log.loop.seconds} s, and this page `
+    + `${log.loop.passes[0] === log.loop.passes[1] ? "stayed inside one: nothing it crossed was crossed before"
+      : `played from pass ${log.loop.passes[0]} into pass ${log.loop.passes[1]}`}`);
+}
 const against = (ms) => `${Math.abs(ms)} ms ${ms >= 0 ? "before" : "after"}`;
+const outcome = (a) => (a.endedBeforeBoundaryMs !== null ? `ended ${against(a.endedBeforeBoundaryMs)}`
+  : a.failed.length ? `failed (${[...new Set(a.failed)].join(", ")}${a.failed.length > 1 ? `, ${a.failed.length} requests` : ""})`
+    : "did not end");
 for (const a of arriving) {
   console.log(`playback: ${a.year} arrives at t ${a.boundaryT.toFixed(3)}: its points were `
     + `${a.askedBeforeBoundaryMs === null ? "never asked for"
-      : `asked for ${against(a.askedBeforeBoundaryMs)} and `
-        + `${a.endedBeforeBoundaryMs === null ? "did not end" : `ended ${against(a.endedBeforeBoundaryMs)}`}`}`
-    + ` - ${a.hereBeforeBoundary ? "here" : "NOT here"} before the boundary`);
+      : `asked for ${against(a.askedBeforeBoundaryMs)}`
+        + `${a.askedInAnEarlierPass ? ", in an earlier pass of this page," : ""} and ${outcome(a)}`}`
+    + ` - ${a.hereBeforeBoundary ? "here" : "NOT here"} before the boundary`
+    + `${a.askedInAnEarlierPass ? "" : " (a first crossing)"}`);
 }
 console.log(`playback: ${path.replace(`${REPO}/`, "")}`);
 if (pageErrors.length) {
