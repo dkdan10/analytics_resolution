@@ -37,6 +37,7 @@ import {
 } from "../data";
 import { contextDisplay, ROOM_TEXT_MIN_PX } from "../display";
 import { drawSlug } from "../inscription";
+import { CUT_BEAT_SECONDS } from "../render";
 import { BONE_RGB, INSCRIPTION_FAMILY } from "../palette";
 import type { View } from "../plate";
 import {
@@ -54,6 +55,7 @@ import {
   NAMES_ONLY_ALPHA,
 } from "../scalars";
 import { label } from "../textatlas";
+import { CUT_YEAR } from "../timeline";
 import {
   MEASURE_CLOSE_TERMINAL_FROM,
   MEASURE_CLOSE_TERMINAL_TO,
@@ -297,9 +299,17 @@ function drawAbsent(f: Frame): void {
   // Nothing is being measured here, so the field keeps most of its strength -
   // the absence is the subject and the marks are what is absent from.
   drawSeasonField(f, { dim: remains * 0.8, reveal: true, prewarm: true });
+  // In over the first third of the season, out over the last.
   const held = Math.min(1, st.phase * 3) * Math.min(1, (1 - st.phase) * 3);
+  // It stands in the band the cut's statement takes, so either side of the cut
+  // its ramp runs from the edge of the cut's beat instead of the boundary, at
+  // the same pace: it is gone while the statement is up rather than set into it.
+  const cutAt = f.schedule.byYear.get(CUT_YEAR)?.start;
+  const season = f.schedule.byYear.get(st.year!)?.duration;
+  const clear = cutAt === undefined || !season ? 1
+    : Math.min(1, Math.max(0, (Math.abs(st.t - cutAt) - CUT_BEAT_SECONDS) * 3 / season));
   drawSlug(ctx, view, ["THE RECORD DOES NOT SAY WHO WAS NEAR"], { x: 0, y: 300 },
-    remains * held * 0.55);
+    remains * Math.min(held, clear) * 0.55);
 }
 
 /** Act II: the names arrive; the values cannot be made by anyone outside. */

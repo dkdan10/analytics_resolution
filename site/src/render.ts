@@ -67,7 +67,7 @@ export const PRELUDE_ENGRAVING = 0.62;
  * Drawn here rather than in a hand, because it is a property of the RECORD and
  * every hand is looking at the same record.
  */
-const CUT_BEAT_SECONDS = 3.2;
+export const CUT_BEAT_SECONDS = 3.2;
 
 function regimeText(regime: string): string {
   return regime.replace(/_/g, " ").toUpperCase();
@@ -94,8 +94,10 @@ function drawCutBeat(
   // outgoing season's numeral holds and migrates through STRIKE_AT's band for
   // the beat's first three seconds, and the piece's one cut must not have its
   // cause statement overprinted by a migrating numeral. The band above the
-  // arc is unoccupied in both bounding seasons at every point of the beat,
-  // and the migration path (strike line down to the ring) can never reach it.
+  // arc is unoccupied in both bounding seasons at every point of the beat
+  // (THE MEASURE's own sentence there has stood down before the beat begins),
+  // and the migration path, round the hoop inside the strike line, can never
+  // reach it.
   drawSlug(ctx, view, [
     `${before.season}   ${pct(before)}% OF RIM SHOTS UNPLACED   ${regimeText(before.resolution.regime)}`,
     `${after.season}   ${pct(after)}%   ${regimeText(after.resolution.regime)}`,
