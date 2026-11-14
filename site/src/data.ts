@@ -1031,7 +1031,9 @@ export interface Loaded {
   /** Ask for a season's points ahead of the frame that draws them. It returns
    *  nothing and waits for nothing, and a request it starts is not counted as
    *  loading until a frame asks for the same points: nothing on screen is
-   *  missing them yet. A failure is reported like any other. */
+   *  missing them yet. For the same reason a failure before then is not
+   *  reported: the points are not asked for ahead again, and the frame that
+   *  draws them asks at need. */
   prefetchPoints(year: number): void;
   /** The same, for the window season's points and then for the files `reads`
    *  names, in that order and one asset at a time: call it on every frame of
@@ -1080,7 +1082,9 @@ export interface Loaded {
   wash(): Wash | null;
   /** Every lazily-fetched asset whose latest attempt failed, with why. Failures
    *  do not retry from the animation loop; the visible RETRY action owns that
-   *  state change, so this remains finite and inspectable. */
+   *  state change, so this remains finite and inspectable. Only what a frame
+   *  asked for is here: a request made ahead of need that fails before any
+   *  frame asks for the asset is not. */
   assetErrors(): string[];
   /** Every lazily-fetched asset a frame has ASKED for that has not yet
    *  arrived (THE FEED readout): the rail says the piece is
@@ -1194,12 +1198,16 @@ interface Lazy<T> {
   error(): string | null;
   /** True while a request is in flight. A probe, never a trigger. */
   pending(): boolean;
-  /** Begin a request ahead of need, unless the asset has arrived, has failed
-   *  or is already on its way. */
+  /** Begin a request ahead of need, unless the asset has arrived, has failed,
+   *  is already on its way, or failed once when asked for ahead. */
   prefetch(): void;
   /** True while the request in flight was begun by `prefetch` and nothing has
    *  since asked for the asset itself. */
   quiet(): boolean;
+  /** True once a request begun by `prefetch` failed while still quiet. That
+   *  failure has no standing: it is neither latched nor reported, and the
+   *  asset is not asked for ahead again. A frame that needs it asks afresh. */
+  aheadFailed(): boolean;
 }
 
 function lazy<T>(name: string, fetcher: () => Promise<T>): Lazy<T> {
@@ -1209,6 +1217,10 @@ function lazy<T>(name: string, fetcher: () => Promise<T>): Lazy<T> {
   // Set only where `prefetch` starts a request, so one already wanted is
   // never made quiet again.
   let quiet = false;
+  // Set where a quiet request fails. Nothing on screen was missing the asset,
+  // so nothing is latched: only looking ahead for it stops, and the frame's
+  // own `get` begins a request at need.
+  let aheadFailed = false;
   let request: Promise<T | null> | null = null;
   const begin = (force: boolean): Promise<T | null> => {
     if (value) return Promise.resolve(value);
@@ -1223,6 +1235,10 @@ function lazy<T>(name: string, fetcher: () => Promise<T>): Lazy<T> {
         return v;
       })
       .catch((e: unknown) => {
+        if (quiet) {
+          aheadFailed = true;
+          return null;
+        }
         failure = e instanceof Error ? e.message : String(e);
         console.error(`FADEAWAY: ${name} will not be drawn - ${failure}`);
         return null;
@@ -1249,11 +1265,12 @@ function lazy<T>(name: string, fetcher: () => Promise<T>): Lazy<T> {
     error: () => failure,
     pending: () => inFlight,
     prefetch(): void {
-      if (value || failure || request) return;
+      if (value || failure || request || aheadFailed) return;
       quiet = true;
       void begin(false);
     },
     quiet: () => quiet,
+    aheadFailed: () => aheadFailed,
   };
 }
 
@@ -1519,17 +1536,23 @@ export async function load(): Promise<Loaded> {
     return preloadRequest;
   };
 
-  // One asset at a time: each call asks for the first that has neither
-  // arrived nor failed, and for nothing while that one is on its way. Asked
-  // for together they would outnumber the connections a browser keeps open to
-  // one host, and a request waiting for a connection is running down the
-  // fetch timeout: on a slow link, files nobody had begun to send were given
-  // up on and latched as failed (measured). The season's points lead, since
-  // every hand opens the window on them. Each loader is offered under the
-  // condition its own reader asks under, and only where the caller names it:
-  // whether a frame will read the file depends on the hand, which this module
-  // does not know. The season before the window's is left to the frames now
-  // drawing it.
+  // One asset at a time: each call asks for the first that has not arrived,
+  // and for nothing while that one is on its way. Asked for together they
+  // would outnumber the connections a browser keeps open to one host, and a
+  // request waiting for a connection is running down the fetch timeout: on a
+  // slow link, files nobody had begun to send were given up on and latched as
+  // failed (measured). The season's points lead: every hand but the paint's
+  // opens the window on them, and the paint's draws them only while its
+  // calipers are absent and as the sheet receding under the season after.
+  // Each loader is offered under the condition its own getter asks under, and
+  // only where the caller names it: whether a frame will read the file
+  // depends on the hand, which this module does not know. The chain stops at
+  // the first file that is not offered, has failed, or failed when asked for
+  // ahead, and asks for nothing past it: a hand may read a later file only
+  // once an earlier one is here, as the paint's wash, game and slate wait for
+  // its strokes, and a file the chain never reaches is asked for by the frame
+  // that reads it, at a cost of time only. The season before the window's is
+  // left to the frames now drawing it.
   const windowLoader = (asset: WindowAsset, windowYear: number): Lazy<unknown> | null => {
     switch (asset) {
       case "calendar": return dayPointLoader(windowYear);
@@ -1543,13 +1566,17 @@ export async function load(): Promise<Loaded> {
   const prefetchWindow = (reads: readonly WindowAsset[]): void => {
     const windowYear = seasons.find((s) => s.points_by_day)?.year;
     if (windowYear === undefined) return;
-    const ask = (l: Lazy<unknown> | null): boolean => {
-      if (!l || l.peek() || l.error() !== null) return false;
-      if (!l.pending()) l.prefetch();
-      return true;
+    // True where the chain goes on past this file, which is only where it has
+    // arrived. `prefetch` asks for nothing where the file has failed, failed
+    // when asked for ahead, or is on its way.
+    const passed = (l: Lazy<unknown> | null): boolean => {
+      if (!l) return false;
+      if (l.peek()) return true;
+      l.prefetch();
+      return false;
     };
-    if (ask(pointLoader(windowYear))) return;
-    for (const asset of reads) if (ask(windowLoader(asset, windowYear))) return;
+    if (!passed(pointLoader(windowYear))) return;
+    for (const asset of reads) if (!passed(windowLoader(asset, windowYear))) return;
   };
 
   loaded = {

@@ -615,9 +615,14 @@ async function main(): Promise<void> {
         target, t, data, schedule, inscriptions, modeOverride,
         talkMode, wantsNav, stack, null, displayProfile,
       );
-      // Only on the routes that play the piece in its own order, where the
-      // season after this one is the one drawn next. The overview draws its
-      // chapters from across the record and asks for nothing ahead.
+      // Every route but the overview, from every frame it draws, a held one
+      // too: these play the piece in its own order, where the season after
+      // this one is the one drawn next unless a presenter jumps. On a rail
+      // route the hand pinned at this frame names the window's files, as of
+      // this frame. The overview draws its chapters from across the record
+      // and asks for nothing ahead; its intro draws the prelude, though, so
+      // renderTo still builds the first season's layer and order there, which
+      // no overview frame reads: a cost of time and of no pixel.
       askAhead(t, data, schedule, modeOverride);
       nav?.update(t);
       if (displayProfile === "room" && !wantsNav) {

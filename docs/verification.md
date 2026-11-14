@@ -85,6 +85,7 @@ Chrome through Playwright against `npm run dev`; verdicts land in the gitignored
 
 ```bash
 cd site && npm run probe:purity           # the same instant reached five ways, compared by hash
+cd site && npm run probe:purity -- --t 23.9,24.0167,24.5,27.4,35.0167 --mode plate,field,ledger,measure,census  # the instants that reach the prelude's building ahead: run when that path changes
 cd site && npm run probe:perf -- --assert-presentation
 cd site && npm run probe:continuity       # consecutive frames of the moving passages, compared
 cd site && npm run check:continuity       # that probe's measures, each shown failing

@@ -104,17 +104,17 @@ function drawCutBeat(
  * Ask for the season after this one, on this one's frames.
  *
  * For the loop of a route that plays the seasons in order, called once that
- * loop has drawn its frame, so whatever the frame itself had to ask for was
- * asked first and does not wait behind this. The next season is first drawn
- * when this one ends, so its record is here when the work done ahead of the
- * hand-over looks for it. The window season reads more files than its
- * points, and which of them depends on the hand that will play it, so the
- * hand playing now names them.
+ * loop has drawn its frame, so the frame's own files are asked for first; and
+ * nothing is asked ahead while any file a frame asked for is still on its
+ * way, since a request made ahead would share the link with what the frame
+ * is waiting for. The next season is first drawn when this one ends, so its
+ * record is here when the work done ahead of the hand-over looks for it. The
+ * window season reads more files than its points, and which of them depends
+ * on the hand that will play it, so the hand playing now names them.
  *
  * `renderTo` does not call it. A caller that draws instants out of order may
  * never draw the season after the one it is on, and asking there would
- * download a file no frame reads and report its failure over a plate that
- * never missed it.
+ * download a file no frame reads.
  */
 export function askAhead(
   t: number,
@@ -122,6 +122,7 @@ export function askAhead(
   schedule: Schedule,
   modeOverride: ModeId | null,
 ): void {
+  if (data.pendingAssets().length > 0) return;
   const st = stateAt(t, schedule);
   if (st.next === null) return;
   data.prefetchPoints(st.next);

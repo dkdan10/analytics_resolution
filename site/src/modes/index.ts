@@ -70,15 +70,15 @@ export function drawHand(mode: ModeId, f: Frame): void {
  * the order those frames first ask for them.
  *
  * What is asked for ahead of the window follows the hand about to play it. A
- * file that hand never reads would be downloaded for nothing, and its failure
- * reported over a plate that never missed it. A file a hand reads and does
- * not name here is asked for by its own first frame, as on a landing, so a
- * list that falls short costs time and a list that runs long costs a false
- * report: keep each to what the hand's own code reads. THE STACK reads the
- * paint and the quarrel only under an operation, so it names neither.
+ * file that hand never reads would be downloaded for nothing. A file a hand
+ * reads and does not name here is asked for by its own first frame, as on a
+ * landing, so a list that falls short costs time and a list that runs long
+ * costs a download: keep each to what the hand's own code reads. THE STACK
+ * reads the paint and the quarrel only under an operation, so it names
+ * neither.
  */
 const WINDOW_READS: Record<ModeId, readonly WindowAsset[]> = {
-  plate: ["calendar", "game"],
+  plate: ["game", "calendar"],
   field: ["calendar"],
   ledger: ["calendar"],
   census: [],
