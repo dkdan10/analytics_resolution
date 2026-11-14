@@ -160,6 +160,8 @@ import {
   HAND_WINDOW_PHASES,
   WINDOW_CREST_PHASE,
   handWindowPhases,
+  windowOneClipSeconds,
+  windowOneLeadProgress,
 } from "../window-score";
 
 const ZONE = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
@@ -755,6 +757,34 @@ function bakeSeasonDrops(
   }
 }
 
+/**
+ * The outgoing season's completed sheet, at the weight its recession has
+ * reached. One draw for both boundaries that recede a season — the ordinary
+ * hand-over and the window's entry — so the two cannot drift apart: the same
+ * prefix key and the same bake the season had while it was current, its
+ * whole count of steps, alpha applied at the blit.
+ */
+function drawPreviousSheet(
+  f: Frame,
+  prev: number,
+  geom: string,
+  dw: number,
+  dh: number,
+  alpha: number,
+): void {
+  const { ctx, view, dpr, data } = f;
+  const prevSeason = data.byYear.get(prev);
+  const prevPts = data.points(prev);
+  if (!prevSeason || !prevPts) return;
+  const prevPin = pinCoordOf(prevSeason);
+  const sheet = prefixSurface(
+    `hand.season|${prev}|${assetId(prevPts)}|${prevPin ? prevPin.join(",") : "none"}|${geom}`,
+    Math.ceil(prevPts.n / DROP_STEP), dw, dh, dpr, DROP_STEP,
+    (c, a, b) => bakeSeasonDrops(c, view, prevPts, prevPin, a, b),
+  );
+  if (sheet) blit(ctx, sheet, view, alpha);
+}
+
 // --- the hand ----------------------------------------------------------------
 
 export function drawHandHand(f: Frame): void {
@@ -794,6 +824,13 @@ export function drawHandHand(f: Frame): void {
   // --- the drops the record kept --------------------------------------------
   let dropSurface: HTMLCanvasElement | null = null;
   if (inWindow && m && m.n && w) {
+    // The bare court before the one possession is kept, and it is reached the
+    // way every other boundary reaches its new season: the preceding season's
+    // sheet recedes, inside ONE, and is gone when the possession begins.
+    const leadU = windowOneLeadProgress(st.phase);
+    if (st.prev !== null && leadU < 1) {
+      drawPreviousSheet(f, st.prev, geom, dw, dh, remains * (1 - smooth(leadU)));
+    }
     // Paced by the day the shot was actually recorded on, so the flood runs as
     // the corpus did rather than as a fixed rate over an index — and since the
     // crescendo, through the register's one authored easing of that calendar.
@@ -826,22 +863,12 @@ export function drawHandHand(f: Frame): void {
     // for), only the outgoing is a fade, matching the pin's own linear
     // recession. The sheet reuses the exact prefix key the season had while it
     // was current, so crossing a boundary extends that surface by at most one
-    // step and scrubbing backwards rebuilds by src/prefix.ts's recursion. Scoped to
-    // the season branch: the boundary INTO the window is Act III's staged
-    // opening (bare plate, then one possession laid slowly), a deliberate
-    // exception recorded here rather than an omission.
+    // step and scrubbing backwards rebuilds by src/prefix.ts's recursion. The
+    // boundary INTO the window draws the same sheet through the same helper,
+    // on the window's own lead (above): Act III still opens on the bare plate
+    // before its one possession, and reaches it by this recession.
     if (st.prev !== null && st.arrived < 1) {
-      const prevSeason = data.byYear.get(st.prev);
-      const prevPts = data.points(st.prev);
-      if (prevSeason && prevPts) {
-        const prevPin = pinCoordOf(prevSeason);
-        const sheet = prefixSurface(
-          `hand.season|${st.prev}|${assetId(prevPts)}|${prevPin ? prevPin.join(",") : "none"}|${geom}`,
-          Math.ceil(prevPts.n / DROP_STEP), dw, dh, dpr, DROP_STEP,
-          (c, a, b) => bakeSeasonDrops(c, view, prevPts, prevPin, a, b),
-        );
-        if (sheet) blit(ctx, sheet, view, remains * (1 - st.arrived));
-      }
+      drawPreviousSheet(f, st.prev, geom, dw, dh, remains * (1 - st.arrived));
     }
     const pts = data.points(year);
     if (pts) {
@@ -978,13 +1005,14 @@ export function drawHandHand(f: Frame): void {
       }
 
       // ONE — the nested possession: the game artifact time-clipped to the
-      // declared span, every body and the ball at TRUE RATE from the
-      // window's open, the paint's physics. It holds until the game phase's
+      // declared span, every body and the ball at TRUE RATE from the end of
+      // the preceding season's lead, the paint's physics, on the clip clock
+      // THE PLATE reads too. It holds until the game phase's
       // clock has walked the whole possession, and gives way to the walk
       // above a vertex at a time: while a stroke's live head is inside the
       // possession the clip draws only what lies ahead of it — replaced by
       // itself, record for record, no double-deposit and no recede.
-      const oneFrames = st.phase * secondsFor(WINDOW_YEAR) * gf.hz;
+      const oneFrames = windowOneClipSeconds(st.phase) * gf.hz;
       const clipUpto = Math.min(pos.f1, pos.f0 + oneFrames);
       // ONE_INK: the beat-local envelope (declared in src/scalars.ts). Full
       // through the ONE beat, fading out across the game phase as the eased

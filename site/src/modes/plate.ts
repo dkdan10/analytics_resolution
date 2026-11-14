@@ -45,6 +45,7 @@ import {
   PLATE_WITHDRAW_SPAN,
   WINDOW_BEATS,
   progressInWindowSpan,
+  windowOneClipSeconds,
 } from "../window-score";
 import { drawSeasonField } from "./fieldlayer";
 import { drawActCue, terminalShell } from "./shared";
@@ -111,7 +112,7 @@ export function drawPlateHand(f: Frame): void {
         const gameFrame = gameU > 0 ? gameClock(gameU) * total : 0;
         const sp = strokeSpans(gm, gf);
         const pos = possessionFrames(gf);
-        const oneFrames = p * secondsFor(year) * gf.hz;
+        const oneFrames = windowOneClipSeconds(p) * gf.hz;
         const clipUpto = Math.min(pos.f1, pos.f0 + oneFrames);
         return {
           total, gameFrame, sp, pos,
@@ -214,7 +215,8 @@ export function drawPlateHand(f: Frame): void {
   // information on the plate). The found game's every body and the ball, in
   // bone at the traces' own weights — bodies fainter and thinner, the ball
   // brighter and wider — with pass beads and shot anchors, phased by THE
-  // PLATE's score: five seconds of possession, five held clean, then the full
+  // PLATE's score: the preceding season's lead, the possession at true rate,
+  // the possession held clean, then the full
   // game on its eased clock through the shared season boundary, held dried
   // through the window and washed at the close. The ball residence beneath is
   // untouched, and there is deliberately NO body wash on this plate — two

@@ -52,9 +52,11 @@ import {
 import {
   handWindowPhases,
   PLATE_WINDOW_SPANS,
+  WINDOW_ONE_LEAD_SECONDS,
   WINDOW_SEASON_CREST,
   type PhaseSpan,
 } from "../window-score";
+import { THRESHOLDS } from "./continuity-metrics";
 
 export interface Env {
   data: Loaded;
@@ -543,15 +545,21 @@ export function rangesOf(schedule: Schedule, data: Loaded): Range[] {
     // that flags it is counting pixels where it should be weighing them.
     add("plate.close", "plate", at(beatClose.from), at(beatClose.to));
 
-    // THE HAND's scales. ONE is a time-clip of the game artifact at true
-    // rate, so it draws for exactly as long as the declared possession lasts
-    // and then stands until the beat ends: two ranges, because the second is
-    // an authored hold and judging it as motion would call the score a fault.
+    // THE HAND's scales. ONE opens on the preceding season receding alone,
+    // then a time-clip of the game artifact at true rate, so it moves for the
+    // lead plus exactly as long as the declared possession lasts and then
+    // stands until the beat ends: two ranges, because the second is an
+    // authored hold and judging it as motion would call the score a fault.
+    // A hold shorter than the window a flicker is judged over cannot show
+    // the one fault a hold is watched for, so one that short is not listed.
     if (gf) {
       const pos = possessionFrames(gf);
-      const drawn = Math.min(at(handOne.to), at(handOne.from) + (pos.f1 - pos.f0) / gf.hz);
+      const drawn = Math.min(at(handOne.to),
+        at(handOne.from) + WINDOW_ONE_LEAD_SECONDS + (pos.f1 - pos.f0) / gf.hz);
       add("hand.one.draw", "hand", at(handOne.from), drawn);
-      if (drawn < at(handOne.to)) add("hand.one.held", "hand", drawn, at(handOne.to), "held");
+      if (at(handOne.to) - drawn >= THRESHOLDS.FLICKER_WINDOW_S) {
+        add("hand.one.held", "hand", drawn, at(handOne.to), "held");
+      }
     }
     add("hand.game", "hand", at(handGame.from), at(handGame.to), "moving",
       { marks: prefixMarks(handGame) });

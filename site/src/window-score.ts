@@ -102,6 +102,32 @@ export function windowEntryProgress(phase: number): number {
   return progressInWindowSpan(phase, WINDOW_ENTRY_SPAN);
 }
 
+/** The preceding season's lead over the one possession. The season begins
+ * its withdrawal alone, and the possession starts this many Window seconds
+ * later, so its first stroke is laid over a field that has already sunk
+ * rather than into one at full strength. A score second like its
+ * neighbours: it moves when the possession starts and changes nothing about
+ * how any mark is drawn. */
+export const WINDOW_ONE_LEAD_SECONDS = 4;
+export const WINDOW_ONE_LEAD_SPAN = {
+  id: "lead",
+  title: "the preceding season recedes before the possession",
+  from: 0,
+  to: phaseAtWindowSecond(WINDOW_ONE_LEAD_SECONDS),
+} as const satisfies PhaseSpan;
+
+export function windowOneLeadProgress(phase: number): number {
+  return progressInWindowSpan(phase, WINDOW_ONE_LEAD_SPAN);
+}
+
+/** Screen seconds the one possession has been drawing at `phase`: none
+ * through the lead, then one for one, so the clip still runs at true rate.
+ * THE PLATE and THE HAND both read the clip's clock here and nowhere else,
+ * so the two show the same recorded frame of it at the same instant. */
+export function windowOneClipSeconds(phase: number): number {
+  return Math.max(0, phase * WINDOW_DURATION_SECONDS - WINDOW_ONE_LEAD_SECONDS);
+}
+
 const BEAT_SEASON = WINDOW_BEATS[2];
 const BEAT_CLOSE = WINDOW_BEATS[3];
 
@@ -154,7 +180,12 @@ export const HAND_WINDOW_STOPS = HAND_WINDOW_PHASES.map((span) => ({
 
 // --- THE PLATE: evidence in a legible order --------------------------------
 
-export const PLATE_POSSESSION_SECONDS = 5;
+/** How long the possession takes to draw on the plate, to the second. */
+export const PLATE_POSSESSION_DRAW_SECONDS = 5;
+/** The possession's span ends once it is drawn: the preceding season's lead,
+ *  then the draw. The span itself still opens with the Window, so the rail's
+ *  "one possession" stop stays at its first instant. */
+export const PLATE_POSSESSION_SECONDS = WINDOW_ONE_LEAD_SECONDS + PLATE_POSSESSION_DRAW_SECONDS;
 export const PLATE_HOLD_END_SECONDS = 10;
 export const PLATE_POSSESSION_END_PHASE = phaseAtWindowSecond(PLATE_POSSESSION_SECONDS);
 export const PLATE_GAME_FROM_PHASE = phaseAtWindowSecond(PLATE_HOLD_END_SECONDS);
@@ -482,6 +513,7 @@ export const WINDOW_SCORE = {
     crestPhase: WINDOW_CREST_PHASE,
     crestLocal: WINDOW_SEASON_CREST,
     entry: WINDOW_ENTRY_SPAN,
+    oneLead: WINDOW_ONE_LEAD_SPAN,
   },
   hand: {
     spans: HAND_WINDOW_PHASES,
