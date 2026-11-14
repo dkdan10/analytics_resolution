@@ -20,7 +20,9 @@ import {
   modeAt,
   MODE_IDS,
   MODE_TITLES,
+  passOfMode,
   ROTATION_PASSES,
+  rotationModes,
   type ModeId,
 } from "./modes";
 import {
@@ -39,8 +41,17 @@ import {
 import { Navigator } from "./navigator";
 import { OVERVIEW_SECONDS, overviewAt } from "./overview";
 import { makeView } from "./plate";
-import { askAhead, renderTo, type Target } from "./render";
-import { entryOf } from "./route";
+import { Player } from "./player";
+import { askAhead, PRELUDE_ENGRAVING, renderTo, type Target } from "./render";
+import {
+  DIRECT_KEYS,
+  entryOf,
+  LANDING,
+  LOOP_END_GUARD_S,
+  toPass,
+  wrapLoop,
+  type Landing,
+} from "./route";
 import { semanticAt, semanticStopById, semanticTime } from "./semantic";
 import { clearAtlas } from "./textatlas";
 import {
@@ -65,6 +76,8 @@ const startupState = startup.querySelector(".startup-state")!;
 const contextLabel = document.getElementById("context-label")!;
 const overviewTitle = document.getElementById("overview-title")!;
 const fullEntry = document.getElementById("full-entry") as HTMLAnchorElement;
+const overviewEntry = document.getElementById("overview-entry") as HTMLAnchorElement;
+const playerRoot = document.getElementById("player")!;
 const credit = document.getElementById("credit")!;
 const assetButton = document.getElementById("asset-state") as HTMLButtonElement;
 
@@ -235,6 +248,43 @@ function bindTalkKeys(
   });
 }
 
+/**
+ * The player's keyboard: Space pauses and resumes, the arrows move by the
+ * scrub's step (Shift for the coarse one), and Home returns to the start of
+ * the pass on screen. Nothing held, and no chord: the browser keeps those.
+ *
+ * A key pressed while one of the panel's controls, a door or the credit's link
+ * has focus belongs to that control, as on the rail.
+ */
+function bindPlayerKeys(player: Player): void {
+  window.addEventListener("keydown", (e) => {
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    const el = document.activeElement;
+    if (el instanceof HTMLElement && el.closest("#player, #overview-entry, #full-entry, #credit")
+      && (e.key === " " || e.key === "Enter" || e.key.startsWith("Arrow")
+        || e.key === "Home" || e.key === "End")) {
+      return;
+    }
+    switch (e.key) {
+      case " ":
+        e.preventDefault();
+        player.togglePause();
+        break;
+      case "ArrowLeft":
+      case "ArrowRight":
+        e.preventDefault();
+        player.nudge(e.key === "ArrowRight", e.shiftKey);
+        break;
+      case "Home":
+        e.preventDefault();
+        player.home();
+        break;
+      default:
+        break;
+    }
+  });
+}
+
 interface StartSelection {
   offset: number;
   semanticMode: ModeId | null;
@@ -266,9 +316,62 @@ function startSelection(
   return { offset: 0, semanticMode: null };
 }
 
+/**
+ * Where the player opens, and whether it opens paused.
+ *
+ * With no direct key it opens on the prelude's held card, the engraving whole
+ * and both lines up. A direct key is honoured as the full work honours it,
+ * except that the player pins no hand: an address that names a hand of the
+ * rotation is carried to that hand's pass instead, so it opens on that hand at
+ * that instant. Any other address keeps its offset, so a time past one loop
+ * still selects its pass. A visitor who asks for reduced motion gets a still frame
+ * until they press play, unless the address asks to autoplay.
+ */
+function playerStart(
+  schedule: Schedule,
+  q: URLSearchParams,
+  selection: StartSelection,
+): { offset: number; paused: boolean } {
+  const paused = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    && q.get("autoplay") !== "1";
+  if (!DIRECT_KEYS.some((key) => q.has(key))) {
+    return { offset: ACT0_SECONDS * PRELUDE_ENGRAVING, paused };
+  }
+  const named = selection.semanticMode ?? q.get("mode");
+  if (!isModeId(named) || !rotationModes().includes(named)) {
+    return { offset: selection.offset, paused };
+  }
+  const local = wrapLoop(selection.offset, schedule.duration);
+  return {
+    offset: toPass(passOfMode(named), local, schedule.duration, LOOP_END_GUARD_S),
+    paused,
+  };
+}
+
 function fmtDuration(seconds: number): string {
   const whole = Math.max(0, Math.round(seconds));
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+/**
+ * The doors out of an entry. The overview has one, to the full work; the
+ * player has that and one to the overview. A door keeps the display profile
+ * when the address named one, so a room setting survives the step through it.
+ */
+function showDoors(route: Landing, schedule: Schedule, q: URLSearchParams): void {
+  const open = (door: HTMLAnchorElement, experience: string, text: string): void => {
+    door.hidden = false;
+    door.textContent = text;
+    const url = new URL(location.href);
+    url.search = "";
+    url.searchParams.set("experience", experience);
+    if (q.get("display")) url.searchParams.set("display", displayProfile);
+    door.href = url.toString();
+  };
+  open(fullEntry, "full", `FULL ${fmtDuration(schedule.duration * ROTATION_PASSES)} WORK`);
+  if (route === "player") {
+    open(overviewEntry, "overview", `${fmtDuration(OVERVIEW_SECONDS)} OVERVIEW`);
+  }
 }
 
 function setStartup(text: string, state: "loading" | "ready" | "degraded" | "failed"): void {
@@ -278,7 +381,9 @@ function setStartup(text: string, state: "loading" | "ready" | "degraded" | "fai
 
 async function main(): Promise<void> {
   const q = new URLSearchParams(location.search);
-  const overview = entryOf(q) === "overview";
+  const entry = entryOf(q);
+  const overview = entry === "overview";
+  const playerRoute = entry === "player";
   overviewExperience = overview;
   if (overview) ensureOverviewPrevious();
   const talkMode = q.has("talk");
@@ -287,6 +392,7 @@ async function main(): Promise<void> {
   displayProfile = displayFromQuery(q, talkMode);
   document.body.classList.toggle("display-room", displayProfile === "room");
   document.body.classList.toggle("overview", overview);
+  document.body.classList.toggle("player", playerRoute);
 
   setStartup("THE RECORD IS LOADING", "loading");
   const data = await load();
@@ -312,10 +418,10 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Talk and the guided entry never expose a cold Window. A semantic direct
-  // link also earns the same guarantee so a rehearsal bookmark cannot land on
-  // a sparse frame and fill in after the audience sees it.
-  if (talkMode || overview || q.has("stop")) {
+  // Talk, the guided entry and the player never expose a cold Window. A
+  // semantic direct link also earns the same guarantee so a rehearsal bookmark
+  // cannot land on a sparse frame and fill in after the audience sees it.
+  if (talkMode || overview || playerRoute || q.has("stop")) {
     setStartup("THE WINDOW IS LOADING", "loading");
     await data.preloadWindow();
   }
@@ -344,7 +450,7 @@ async function main(): Promise<void> {
     assetButton.disabled = true;
     assetButton.textContent = "RETRYING";
     void data.retryAssets().then(async () => {
-      if (talkMode || overview || q.has("stop")) await data.preloadWindow();
+      if (talkMode || overview || playerRoute || q.has("stop")) await data.preloadWindow();
       shownAssetState = "";
       syncAssetState();
     });
@@ -365,7 +471,9 @@ async function main(): Promise<void> {
   // A semantic stop is a complete address: it selects both the frame and the
   // hand that makes that frame meaningful. A conflicting legacy `?mode=` may
   // not turn `plate.shell` into a Ledger image at Plate's timestamp.
-  const requested = selection.semanticMode ?? q.get("mode");
+  // The player pins no hand: the rotation alone decides which one draws, and a
+  // hand an address names is reached through its pass instead.
+  const requested = playerRoute ? null : selection.semanticMode ?? q.get("mode");
   let modeOverride: ModeId | null =
     isModeId(requested) && (interactive || isGalleryMode(requested)) ? requested : null;
 
@@ -403,16 +511,29 @@ async function main(): Promise<void> {
 
   let clock: Clock;
   let nav: Navigator | null = null;
+  let player: Player | null = null;
   if (overview) {
     clock = exhibitClock(0);
     credit.hidden = false;
-    fullEntry.hidden = false;
-    fullEntry.textContent = `FULL ${fmtDuration(schedule.duration * ROTATION_PASSES)} WORK`;
-    const fullUrl = new URL(location.href);
-    fullUrl.search = "";
-    fullUrl.searchParams.set("experience", "full");
-    if (q.get("display")) fullUrl.searchParams.set("display", displayProfile);
-    fullEntry.href = fullUrl.toString();
+    showDoors("overview", schedule, q);
+    if (LANDING !== "overview") returnOnEscape(q, displayProfile);
+  } else if (playerRoute) {
+    // The full work's own clock in a visitor's hands: it plays, pauses and
+    // moves, and every frame is drawn by the full work's call below.
+    const start = playerStart(schedule, q, selection);
+    const tc = new TalkClock(start.offset, start.paused);
+    clock = tc;
+    const panel = new Player(playerRoot, schedule, {
+      seek: (s) => tc.seek(s),
+      togglePause: () => tc.togglePause(),
+      isPaused: () => tc.held,
+      position: () => tc.seconds,
+    });
+    player = panel;
+    bindPlayerKeys(panel);
+    canvas.addEventListener("click", () => panel.togglePause());
+    credit.hidden = false;
+    showDoors("player", schedule, q);
   } else if (interactive) {
     const tc = new TalkClock(selection.offset, talkMode && q.get("autoplay") !== "1");
     // The hand key and the rail's hand row are the same action, so they share
@@ -574,7 +695,7 @@ async function main(): Promise<void> {
 
   console.log(`FADEAWAY - ${data.seasons.length} seasons, runtime `
     + `${Math.round(schedule.duration)}s ` + `(Act 0 ${ACT0_SECONDS}s), `
-    + `experience ${overview ? `overview ${OVERVIEW_SECONDS}s` : clock.mode}`);
+    + `experience ${overview ? `overview ${OVERVIEW_SECONDS}s` : playerRoute ? "player" : clock.mode}`);
 
   const inscriptions = buildInscriptions(data.seasons, schedule);
   let firstFrameComposed = false;
@@ -615,15 +736,17 @@ async function main(): Promise<void> {
       );
       // Every route but the overview, from every frame it draws, a held one
       // too: these play the piece in its own order, where the season after
-      // this one is the one drawn next unless a presenter jumps. On a rail
-      // route the hand pinned at this frame names the window's files, as of
-      // this frame. The overview draws its chapters from across the record
-      // and asks for nothing ahead; its intro draws the prelude, though, so
-      // renderTo still builds the first season's layer and order there, which
-      // no overview frame reads: a cost of time and of no pixel.
+      // this one is the one drawn next unless a presenter or a visitor
+      // jumps. On a rail route the hand pinned at this frame names the
+      // window's files, as of this frame. The overview draws its chapters from
+      // across the record and asks for nothing ahead; its intro draws the
+      // prelude, though, so renderTo still builds the first season's layer and
+      // order there, which no overview frame reads: a cost of time and of no
+      // pixel.
       askAhead(t, data, schedule, modeOverride);
       nav?.update(t);
-      if (displayProfile === "room" && !wantsNav) {
+      player?.update(t);
+      if (displayProfile === "room" && !wantsNav && !playerRoute) {
         const st = stateAt(t, schedule);
         const mode = modeAt(t, schedule, modeOverride);
         const season = st.year === null ? "NO COORDINATES" : data.byYear.get(st.year)?.season ?? String(st.year);
@@ -676,8 +799,9 @@ function wakePointer(): void {
   }, { passive: true });
 }
 
-/** On the full work, Escape returns to the overview. Limited to that route so a
- *  direct address (a cited frame) keeps behaving as it always did. */
+/** On the full work, and on the overview when another entry is the landing,
+ *  Escape returns to the bare address. Limited to those routes so a direct
+ *  address (a cited frame) keeps behaving as it always did. */
 function returnOnEscape(q: URLSearchParams, display: string): void {
   const home = new URL(location.href);
   home.search = "";

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * The address table: which entry each query string opens, and the arithmetic
- * that carries a loop time to a chosen pass.
+ * The address table: which entry each query string opens, the arithmetic that
+ * carries a loop time to a chosen pass, and that neither the route nor the
+ * player draws.
  *
  * `site/src/route.ts:entryOf` decides what every address serves, the bare one
  * included, and the bare one is where the public arrives. This holds it to a
@@ -35,11 +36,18 @@
  * `stepFrom` walks as the rail walks only while the copies agree, so both are
  * read from those files' text here and compared.
  *
+ * NEITHER route.ts NOR player.ts DRAWS. Both stay out of check-numbers.mjs's
+ * MARK_LAYERS, which is right only while neither holds a canvas context, so
+ * the text of each is read for the names a canvas is drawn through and must
+ * hold none. A file that comes to need a context joins MARK_LAYERS before its
+ * first literal, and leaves this list.
+ *
  * THE CHECK IS SHOWN FAILING ON EVERY RUN. Each seeded defect below is written
- * into a copy of route.ts's own text, loaded the same way, and must be refused
- * by exactly the rows it breaks and no other. A defect let through, one
- * refused for the wrong rows, and one that no longer applies to the source are
- * each a failure of this check.
+ * into a copy of the source it names, route.ts unless it says otherwise; a
+ * copy of route.ts is loaded the same way the file is. Each must be refused by
+ * exactly the rows it breaks and no other. A defect let through, one refused
+ * for the wrong rows, and one that no longer applies to its source are each a
+ * failure of this check.
  *
  * THERE IS NO CLOCK ON THIS CHECK. A `toPass` that loses its bound on turns
  * does not turn it red: the copy with no end clamp then folds below its local
@@ -60,6 +68,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SRC = resolve(here, "../src/route.ts");
+const PLAYER = resolve(here, "../src/player.ts");
 const MODES = resolve(here, "../src/modes/index.ts");
 const MAIN = resolve(here, "../src/main.ts");
 const NAVIGATOR = resolve(here, "../src/navigator.ts");
@@ -76,7 +85,11 @@ const TABLE = [
   ["", L],
   ["experience=overview", "overview"],
   ["experience=full", "canonical"],
-  ["experience=player", L],
+  ["experience=player", "player"],
+  ["experience=player&t=0", "player"],
+  ["experience=player&stop=plate.game", "player"],
+  ["experience=player&talk", "canonical"],
+  ["experience=player&probe=shots", "canonical"],
   ["experience=bogus", L],
   ["experience=FULL", L],
   ["experience=bogus&experience=overview", L],
@@ -203,19 +216,28 @@ const MARGINS = [
     await written(NAVIGATOR, /schedule\.duration - ([\d.]+)/g)],
 ];
 
+// --- what draws -----------------------------------------------------------------
+
+/** The names a canvas is drawn through. */
+const DRAWS = /getContext|CanvasRenderingContext2D|renderTo/g;
+/** The files that must hold none of them, by the name a seed gives its source. */
+const DRAWS_NOTHING = ["route.ts", "player.ts"];
+const drawsRow = (file) => `${file} holds no canvas context`;
+
 // --- the seeded defects ---------------------------------------------------------
 
 /**
- * Defects, each written into route.ts's text. `from` must occur exactly once.
- * `rows` is every row the defect breaks, exactly; `within` names the one family
- * of rows it may break, for a defect whose rows depend on float rounding.
+ * Defects, each written into the text of `file`, route.ts where none is named.
+ * `from` must occur exactly once. `rows` is every row the defect breaks,
+ * exactly; `within` names the one family of rows it may break, for a defect
+ * whose rows depend on float rounding.
  */
 const SEEDS = [
   {
     name: "an entry that forgets probe",
     from: ` || q.has("probe")`,
     to: "",
-    rows: ["/?probe=purity", "/?probe="],
+    rows: ["/?probe=purity", "/?probe=", "/?experience=player&probe=shots"],
   },
   {
     name: "direct keys that lack ops",
@@ -259,12 +281,20 @@ const SEEDS = [
     to: "local",
     rows: HAIR_ROWS,
   },
+  {
+    name: "a player that takes a canvas context",
+    file: "player.ts",
+    from: "export class Player {",
+    to: `export class Player {\n  private readonly seeded = document.createElement("canvas").getContext("2d");`,
+    rows: [drawsRow("player.ts")],
+  },
 ];
 
 // --- judging ----------------------------------------------------------------------
 
-/** Every row the module fails, as `{ row, family, detail }`, and what to print. */
-function judge(mod) {
+/** Every row the module and the sources' text fail, as `{ row, family,
+ *  detail }`, and what to print. `texts` holds each source by file name. */
+function judge(mod, texts) {
   const failures = [];
   const lines = [];
   const fail = (row, family, detail) => failures.push({ row, family, detail });
@@ -363,14 +393,22 @@ function judge(mod) {
     });
     if (!ok) fail(row, "margin", rail.length ? `${name} is ${mod[name]}, ${where} writes ${[...new Set(rail)].join(", ")}` : `not found in ${where}`);
   }
+
+  for (const file of DRAWS_NOTHING) {
+    const row = drawsRow(file);
+    const named = [...new Set(texts[file].match(DRAWS) ?? [])];
+    const ok = named.length === 0;
+    lines.push({ ok, row, text: ok ? "names no way to draw" : `names ${named.join(", ")}` });
+    if (!ok) fail(row, "draws", `names ${named.join(", ")}`);
+  }
   return { failures, lines, lifts };
 }
 
 /** Write `from` -> `to` into the source, or say why it cannot be written. */
-function spoil(source, from, to) {
+function spoil(source, from, to, file) {
   const count =
     typeof from === "string" ? source.split(from).length - 1 : [...source.matchAll(from)].length;
-  if (count !== 1) return { problem: `it no longer applies to route.ts (${count} matches, not 1)` };
+  if (count !== 1) return { problem: `it no longer applies to ${file} (${count} matches, not 1)` };
   return { text: source.replace(from, to) };
 }
 
@@ -401,7 +439,8 @@ console.log(
   `route-check: site/src/route.ts (${via}); the bare address is pinned to ${EXPECT_LANDING}; ` +
     `a loop of ${D} s, ${PASSES} passes`,
 );
-const sound = judge(route);
+const sources = { "route.ts": await readFile(SRC, "utf8"), "player.ts": await readFile(PLAYER, "utf8") };
+const sound = judge(route, sources);
 const width = Math.max(...sound.lines.map((l) => l.row.length));
 for (const l of sound.lines) console.log(`  ${l.ok ? "PASS" : "FAIL"}  ${l.row.padEnd(width)}  ${l.text}`);
 const shown = new Map();
@@ -412,11 +451,11 @@ for (const f of sound.failures) {
 }
 for (const [family, n] of shown) if (n > 3) problems.push(`... ${n - 3} more ${family} rows`);
 
-const source = await readFile(SRC, "utf8");
 let caught = 0;
 for (const seed of SEEDS) {
   console.log(`  seeded defect: ${seed.name}`);
-  const spoiled = spoil(source, seed.from, seed.to);
+  const file = seed.file ?? "route.ts";
+  const spoiled = spoil(sources[file], seed.from, seed.to, file);
   if (spoiled.problem) {
     console.log(`         ${spoiled.problem}`);
     problems.push(`seeded defect "${seed.name}": ${spoiled.problem}`);
@@ -424,7 +463,9 @@ for (const seed of SEEDS) {
   }
   let refused;
   try {
-    refused = judge(await loadSpoiled(spoiled.text)).failures;
+    // Only route.ts is loaded: a defect in another source is read as text.
+    const mod = file === "route.ts" ? await loadSpoiled(spoiled.text) : route;
+    refused = judge(mod, { ...sources, [file]: spoiled.text }).failures;
   } catch (e) {
     console.log(`         the spoiled copy did not load: ${e?.message ?? e}`);
     problems.push(`seeded defect "${seed.name}" did not load`);

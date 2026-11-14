@@ -21,14 +21,16 @@ export const LANDING = "overview" as Landing;
 /**
  * Existing direct-frame and working addresses stay on the canonical work: the
  * presenter's keys, the rail, a probe, an explicit request for the full work,
- * and any direct key. Only an explicit request for the overview, or an address
- * that asks for none of these, chooses otherwise, and the bare address serves
- * `LANDING`.
+ * and any direct key. Only an explicit request for the overview or the player,
+ * or an address that asks for none of these, chooses otherwise, and the bare
+ * address serves `LANDING`. The player takes a direct key as where to open, so
+ * one beside it does not send the visitor to the canonical work.
  */
 export function entryOf(q: URLSearchParams): Entry {
   if (q.has("talk") || q.has("nav") || q.has("probe")) return "canonical";
   if (q.get("experience") === "full") return "canonical";
   if (q.get("experience") === "overview") return "overview";
+  if (q.get("experience") === "player") return "player";
   if (DIRECT_KEYS.some((key) => q.has(key))) return "canonical";
   return LANDING;
 }

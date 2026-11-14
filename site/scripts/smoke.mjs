@@ -31,6 +31,13 @@
  * on screen with its buttons, Space is pressed, and only then is the canvas
  * watched.
  *
+ * `?experience=player` is also used, once it has settled. Its panel, both
+ * doors and the credit must be on screen, and its canvas the size the full
+ * work's is at the same viewport. Then its transport is worked as a visitor
+ * works it, and each step must move the clock it shows: the play button stops
+ * the clock and starts it again, Space stops it, a click on the scrub moves it
+ * while it is stopped, and Space starts it again.
+ *
  * The canvas is read through a small copy taken pixel for pixel, never
  * blended: a sampled pixel keeps its value, so "above the ground" is what
  * `__frameStats` counts as lit - a channel more than one level above the
@@ -119,7 +126,8 @@ function laptopSurface() {
 const SIZES = [laptopSurface(), { width: 390, height: 844, deviceDpr: 3 }];
 
 /** The public addresses: the bare one, both named experiences, the lectern,
- *  the rail, and one direct address of the kind a citation is. */
+ *  the rail, one direct address of the kind a citation is, and the player.
+ *  The player comes after the full work, whose canvas it is held to. */
 const ADDRESSES = [
   "",
   "?experience=overview",
@@ -127,7 +135,21 @@ const ADDRESSES = [
   "?talk",
   "?nav",
   "?mode=hand&stop=hand.close",
+  "?experience=player",
 ];
+const FULL_WORK = "?experience=full";
+
+/** How long after a press the player's clock is first read: a frame or two
+ *  for the press to reach it. */
+const PRESS_MS = 300;
+/** How long a stopped clock must keep its text. Its text is whole seconds,
+ *  so a running clock changes it inside this. */
+const HOLD_MS = 1_500;
+/** How long a started clock has to change its text. */
+const MOVE_MS = 3_000;
+/** Where along the scrub the click falls, as a share of its width: far from
+ *  the opening instant, so the clock it lands on cannot be the one it left. */
+const SCRUB_AT = 0.75;
 
 /** Pages broken on purpose. Each names the one condition it must be refused
  *  for, and is opened at the laptop surface. */
@@ -210,6 +232,16 @@ function judge(f) {
   else if (!(ink.lit > 0)) {
     say("empty canvas", `nothing above the ground within ${INK_MS / 1000} s (canvas ${ink.canvas.join("x")})`);
   }
+  if (f.player) {
+    const p = f.player;
+    for (const [part, on] of Object.entries(p.shown)) if (!on) say("player", `${part} is not on screen`);
+    const here = ink?.canvas ? ink.canvas.join("x") : "none";
+    if (!p.fullCanvas) say("player", `no ${FULL_WORK} canvas at this size to hold it to`);
+    else if (here !== p.fullCanvas.join("x")) {
+      say("player", `canvas ${here}, where ${FULL_WORK}'s is ${p.fullCanvas.join("x")}`);
+    }
+    for (const s of p.steps) if (!s.ok) say("player", `${s.name}: ${s.saw}`);
+  }
   return out;
 }
 
@@ -237,6 +269,7 @@ function look() {
   const startup = document.getElementById("startup");
   const chip = document.getElementById("asset-state");
   const door = document.getElementById("full-entry");
+  const back = document.getElementById("overview-entry");
   return {
     fault: fault ? text(fault) : null,
     startupHidden: !startup || startup.hidden,
@@ -244,7 +277,78 @@ function look() {
     degraded: document.body.dataset.assetState === "degraded"
       ? (chip && !chip.hidden ? text(chip) : "degraded") : null,
     door: door && !door.hidden ? text(door) : null,
+    overviewDoor: back && !back.hidden ? text(back) : null,
   };
+}
+
+/** Sent to the page as source: which of the player's parts are on screen. */
+function lookAtPlayer() {
+  const shown = (id) => {
+    const el = document.getElementById(id);
+    return el !== null && !el.hidden && getComputedStyle(el).display !== "none";
+  };
+  return {
+    panel: shown("player"),
+    "overview door": shown("overview-entry"),
+    "full door": shown("full-entry"),
+    credit: shown("credit"),
+  };
+}
+
+/** Sent to the page as source: what the player's clock reads. */
+function playerClock() {
+  return document.getElementById("player-clock")?.textContent ?? null;
+}
+
+/**
+ * The player's transport, worked as a visitor works it. Each step says what
+ * the clock read, and whether that is what the step must leave behind. The
+ * clock's own text is the witness: a press that reaches nothing leaves it as
+ * it was, running or still.
+ */
+async function exercisePlayer(page) {
+  const clock = () => page.evaluate(playerClock);
+  const steps = [];
+  /** The clock must keep one reading for HOLD_MS. */
+  const stops = async (name) => {
+    await sleep(PRESS_MS);
+    const a = await clock();
+    await sleep(HOLD_MS);
+    const b = await clock();
+    steps.push({ name, ok: a !== null && a === b, saw: a === b ? `held at ${a}` : `went from ${a} to ${b}` });
+    return b;
+  };
+  /** The clock must leave `from` within MOVE_MS. */
+  const moves = async (name, from) => {
+    const by = Date.now() + MOVE_MS;
+    let now = await clock();
+    while (now === from && Date.now() < by) {
+      await sleep(POLL_MS);
+      now = await clock();
+    }
+    steps.push({ name, ok: now !== null && now !== from, saw: now !== from ? `${from} to ${now}` : `still ${now}` });
+    return now;
+  };
+
+  await page.click("#player-play");
+  const paused = await stops("play stops the clock");
+  await page.click("#player-play");
+  await moves("play starts it again", paused);
+  await page.keyboard.press("Space");
+  const still = await stops("Space stops it");
+  const box = await page.locator("#player-scrub").boundingBox();
+  if (!box) {
+    steps.push({ name: "a click on the scrub moves it", ok: false, saw: "the scrub has no box" });
+  } else {
+    await page.mouse.click(box.x + box.width * SCRUB_AT, box.y + box.height / 2);
+    await sleep(PRESS_MS);
+    const landed = await clock();
+    steps.push({ name: "a click on the scrub moves it", ok: landed !== null && landed !== still,
+      saw: landed !== still ? `${still} to ${landed}` : `still ${landed}` });
+    await page.keyboard.press("Space");
+    await moves("Space starts it again", landed);
+  }
+  return steps;
 }
 
 /** Sent to the page as source: the rail, as a presenter would find it. */
@@ -294,7 +398,7 @@ async function watch(browser, size, address, spoil) {
   const page = await context.newPage();
   const facts = {
     pageErrors: [], consoleErrors: [], fault: null, startupHidden: true, startupText: null,
-    rail: null, degraded: null, ink: null, door: null,
+    rail: null, degraded: null, ink: null, door: null, overviewDoor: null, player: null,
   };
   page.on("pageerror", (e) => facts.pageErrors.push(String(e).split("\n")[0]));
   page.on("console", (m) => { if (m.type() === "error") facts.consoleErrors.push(m.text().split("\n")[0]); });
@@ -347,6 +451,16 @@ async function watch(browser, size, address, spoil) {
       return facts;
     }
     facts.door = end.door;
+    facts.overviewDoor = end.overviewDoor;
+
+    // The player is worked only once it has settled, and looked at once more
+    // after, so a fault its transport raised is refused as a fault.
+    if (new URLSearchParams(address).get("experience") === "player") {
+      const shown = await page.evaluate(lookAtPlayer);
+      facts.player = { shown, fullCanvas: null, steps: shown.panel ? await exercisePlayer(page) : [] };
+      const after = await page.evaluate(look);
+      if (after.fault !== null) facts.fault = after.fault;
+    }
     return facts;
   } finally {
     await context.close();
@@ -364,6 +478,7 @@ function loadLine(address, size, facts) {
   const lit = ink?.share === undefined ? "lit -"
     : `lit ${ink.share === 0 ? "0" : (ink.share * 100).toPrecision(2)}%`;
   return `${pathOf(address).padEnd(pad)}  ${sizeOf(size)}  ${canvas}  ${lit}`
+    + `${facts.overviewDoor !== null ? `  door "${facts.overviewDoor}"` : ""}`
     + `${facts.door !== null ? `  door "${facts.door}"` : ""}`;
 }
 
@@ -383,12 +498,17 @@ let refused = 0;
 let loads = 0;
 try {
   for (const size of SIZES) {
+    /** Each load's canvas at this size, by address. */
+    const canvases = new Map();
     for (const address of ADDRESSES) {
       const facts = await watch(browser, size, address);
+      canvases.set(address, facts.ink?.canvas ?? null);
+      if (facts.player) facts.player.fullCanvas = canvases.get(FULL_WORK) ?? null;
       const refusals = judge(facts);
       loads++;
       if (refusals.length) refused++;
       console.log(`smoke: ${loadLine(address, size, facts)}  ${refusals.length ? "REFUSED" : "ok"}`);
+      for (const s of facts.player?.steps ?? []) console.log(`         ${s.ok ? "ok" : "NO"}  ${s.name}: ${s.saw}`);
       for (const r of refusals) console.log(`         ${r.condition}: ${r.detail}`);
     }
   }
