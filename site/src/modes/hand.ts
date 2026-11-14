@@ -98,7 +98,9 @@
  * measurement rather than an easing curve.
  */
 
-import { factNum, type PaintFile, type Slate, type Strokes, type WindowFile } from "../data";
+import {
+  factNum, type Measures, type PaintFile, type Slate, type Strokes, type WindowFile,
+} from "../data";
 import {
   drawGameEventsWet,
   GAME_PREFIX_STEPS,
@@ -155,6 +157,7 @@ import {
 import type { Frame } from "./types";
 import {
   HAND_INVENTORY_FULL_CLOSE_LOCAL,
+  HAND_INVENTORY_LEAVE_CLOSE_LOCAL,
   HAND_NIGHT_SECONDS,
   HAND_NIGHT_GROUND_ALPHA,
   HAND_WINDOW_PHASES,
@@ -310,7 +313,8 @@ interface Window5 {
   kept: number;
   /** 0..1 as the paint is taken back off the plate over the close. */
   wash: number;
-  /** 0..1 through the inventory's entrance, then held through the close. */
+  /** 0..1 through the inventory's entrance, held, then back to 0 as it
+   *  leaves before the close ends. */
   inventory: number;
 }
 
@@ -323,6 +327,14 @@ function windowAt(
   const [beatOne, beatGame, beatNight, beatSeason, beatClose] = phases;
   const seasonU = Math.max(0, Math.min(1,
     (p - beatSeason.from) / (beatSeason.to - beatSeason.from)));
+  // The inventory counts the strokes, so it leaves after they have washed
+  // off, and inside the close: the sentence after the window takes its line.
+  const closeLength = beatClose.to - beatClose.from;
+  const leave = HAND_INVENTORY_LEAVE_CLOSE_LOCAL;
+  const inventoryLeft = smooth(
+    (p - (beatClose.from + leave.from * closeLength))
+    / ((leave.to - leave.from) * closeLength),
+  );
   return {
     one: Math.min(1, p / beatOne.to),
     game: Math.max(0, Math.min(1,
@@ -339,7 +351,7 @@ function windowAt(
     inventory: smooth(
       (p - beatClose.from)
       / ((beatClose.to - beatClose.from) * HAND_INVENTORY_FULL_CLOSE_LOCAL),
-    ),
+    ) * (1 - inventoryLeft),
   };
 }
 
@@ -785,6 +797,45 @@ function drawPreviousSheet(
   if (sheet) blit(ctx, sheet, view, alpha);
 }
 
+/**
+ * The window's own drops, the recovered set, as far as `dayFrac` of the
+ * calendar has brought them: the cached surface at its last whole step and
+ * the live tail past it, both at `alpha`. Paced by the day the shot was
+ * actually recorded on, so the flood runs as the corpus did rather than as a
+ * fixed rate over an index — and since the crescendo, through the register's
+ * one authored easing of that calendar. One draw for the window and for the
+ * season after it, which recedes exactly the layer the close ended on.
+ * Returns the surface, which the crest composites again above the paint.
+ */
+function drawWindowDrops(
+  f: Frame,
+  m: Measures,
+  w: WindowFile,
+  geom: string,
+  dw: number,
+  dh: number,
+  span: number,
+  dayFrac: number,
+  alpha: number,
+): HTMLCanvasElement | null {
+  const { ctx, view, dpr } = f;
+  const cum = cumulativeByDay(m, m.day, m.n, (d) => d, span);
+  const upto = arrivedThrough(cum, dayFrac);
+  const surface = prefixSurface(
+    `hand.window|${assetId(m)}|${geom}`,
+    Math.floor(upto / DROP_STEP), dw, dh, dpr, DROP_STEP,
+    (c, a, b) => bakeWindowDrops(c, view, m, w, a, b),
+  );
+  if (surface) blit(ctx, surface, view, alpha);
+  // The live tail: everything past the last whole step, bounded by the step
+  // and never by the resident record count.
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  bakeWindowDrops(ctx, view, m, w, Math.floor(upto / DROP_STEP) * DROP_STEP, upto);
+  ctx.restore();
+  return surface;
+}
+
 // --- the hand ----------------------------------------------------------------
 
 export function drawHandHand(f: Frame): void {
@@ -814,6 +865,8 @@ export function drawHandHand(f: Frame): void {
   ctx.clip();
 
   const inWindow = year === WINDOW_YEAR && data.window !== null;
+  // The season after the window, while the window's own drops recede under it.
+  const leaving = st.prev === WINDOW_YEAR && data.window !== null;
   const handScore = handWindowPhases(data.slateFile?.span.seconds ?? HAND_NIGHT_SECONDS);
   const [, beatGame, beatNight, beatSeason] = handScore;
   const w = data.window;
@@ -831,23 +884,7 @@ export function drawHandHand(f: Frame): void {
     if (st.prev !== null && leadU < 1) {
       drawPreviousSheet(f, st.prev, geom, dw, dh, remains * (1 - smooth(leadU)));
     }
-    // Paced by the day the shot was actually recorded on, so the flood runs as
-    // the corpus did rather than as a fixed rate over an index — and since the
-    // crescendo, through the register's one authored easing of that calendar.
-    const cum = cumulativeByDay(m, m.day, m.n, (d) => d, span);
-    const upto = arrivedThrough(cum, win!.dayFrac);
-    dropSurface = prefixSurface(
-      `hand.window|${assetId(m)}|${geom}`,
-      Math.floor(upto / DROP_STEP), dw, dh, dpr, DROP_STEP,
-      (c, a, b) => bakeWindowDrops(c, view, m, w, a, b),
-    );
-    if (dropSurface) blit(ctx, dropSurface, view, remains);
-    // The live tail: everything past the last whole step, bounded by the step
-    // and never by the resident record count.
-    ctx.save();
-    ctx.globalAlpha = remains;
-    bakeWindowDrops(ctx, view, m, w, Math.floor(upto / DROP_STEP) * DROP_STEP, upto);
-    ctx.restore();
+    dropSurface = drawWindowDrops(f, m, w, geom, dw, dh, span, win!.dayFrac, remains);
 
     // (THE NIGHT's calipers-as-drops over-pass lives BELOW the game surface
     // draw in this function: the record's endpoints must read over the motion
@@ -867,8 +904,31 @@ export function drawHandHand(f: Frame): void {
     // boundary INTO the window draws the same sheet through the same helper,
     // on the window's own lead (above): Act III still opens on the bare plate
     // before its one possession, and reaches it by this recession.
+    //
+    // The boundary OUT of the window recedes what the window last showed
+    // rather than a sheet it never drew: its own drops, the recovered set, at
+    // the calendar's end, the live tail past their last step and the crest's
+    // re-composite over them, each on this season's arrival. At the boundary
+    // that is the close's final picture, so the season after it arrives over
+    // the same plate the close left. It reads the calipers the way the
+    // window's own frames read them, and draws nothing in their place while
+    // they are on their way: the whole season's sheet is not this layer.
     if (st.prev !== null && st.arrived < 1) {
-      drawPreviousSheet(f, st.prev, geom, dw, dh, remains * (1 - st.arrived));
+      const receding = remains * (1 - st.arrived);
+      if (leaving) {
+        const mx = data.measures();
+        if (mx && mx.n && w) {
+          const lastDay = mx.day[mx.n - 1]!;
+          const closed = windowAt(1, lastDay, handScore);
+          const recedingDrops = drawWindowDrops(
+            f, mx, w, geom, dw, dh, lastDay, closed.dayFrac, receding);
+          if (recedingDrops && closed.kept > 0) {
+            blit(ctx, recedingDrops, view, receding * closed.kept * KEPT_OVER_PAINT);
+          }
+        }
+      } else {
+        drawPreviousSheet(f, st.prev, geom, dw, dh, receding);
+      }
     }
     const pts = data.points(year);
     if (pts) {
@@ -1182,10 +1242,12 @@ export function drawHandHand(f: Frame): void {
   // which persist through the close — so its alpha does not carry
   // (1 - wash), and it stands beside the drops at the close's end when they
   // most resemble a picture of the season. Anchored at the top of the plate,
-  // outside the orange mass that made it illegible at the crest.
-  if (inWindow && w?.bias.scope && win) {
+  // outside the orange mass that made it illegible at the crest. After the
+  // window it recedes with those drops, on the next season's arrival.
+  const scopeShare = win ? win.one : leaving ? 1 - st.arrived : 0;
+  if (w?.bias.scope && scopeShare > 0) {
     drawSlug(ctx, view, [w.bias.scope], { x: 0, y: 370 },
-      remains * win.one * 0.42);
+      remains * scopeShare * 0.42);
   }
 
   if (!inWindow && st.year === WINDOW_YEAR + 1) {
