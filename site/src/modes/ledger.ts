@@ -885,6 +885,11 @@ function headingPresence(f: Frame, inWindow: boolean, count: number): number[] {
   // the space the geometry vacated.
   const writing = inWindow ? ledgerWindowWritingProgress(st.phase) : st.phase * LEAGUE_ACCUM_K;
   const shown = inWindow ? count : Math.min(count, Math.ceil(writing * count));
+  // The coda lifts the completed ring over every hand, and the ring runs
+  // between these two arcs. The names leave first, together, inside the share
+  // of the coda's clock that the close gives a single name to leave in, so the
+  // ring comes up over a ledger that has already emptied rather than through it.
+  const coda = Math.max(0, 1 - st.coda * count);
   const out: number[] = [];
   for (let i = 0; i < count; i++) {
     const arriving = i >= shown ? 0 : inWindow
@@ -893,7 +898,7 @@ function headingPresence(f: Frame, inWindow: boolean, count: number): number[] {
     const departing = inWindow && rem !== null
       ? Math.max(0, Math.min(1, rem * count - i))
       : 1;
-    out.push(arriving * departing);
+    out.push(arriving * departing * coda);
   }
   return out;
 }
