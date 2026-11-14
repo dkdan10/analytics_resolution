@@ -993,11 +993,12 @@ export function advancePrewarm(
  * The states are asked for through `bake` and baked on a miss, so a frame that
  * lands on empty caches pays only for the states it composites. In forward
  * play a hand that builds ahead has had a season's states made during the
- * tail before, where that season's points were already here in that tail,
- * and the hand-over finds them in the cache. Everywhere else the miss pays,
- * as on a landing, or on the hand-over of a season whose points came after
- * that tail. A pure function of its arguments: nothing here reads a clock or
- * remembers a frame.
+ * stretch before that season, the prelude's close or the last season's tail,
+ * where its points were already here in that stretch, and the hand-over
+ * finds them in the cache. Everywhere else the miss pays, as on a landing,
+ * or on the hand-over of a season whose points came after that stretch. A
+ * pure function of its arguments: nothing here reads a clock or remembers a
+ * frame.
  */
 export function drawDeveloping(
   ctx: CanvasRenderingContext2D,
@@ -1343,10 +1344,10 @@ export function drawReveal(
   // a viewer and a probe can attribute it, rather than surprising the middle
   // of the season (measured: left lazy, it landed a full-plate bake at the
   // reveal's top step, mid-window). In forward play that frame finds the
-  // layer and the order made, where the tail before it ran in a hand that
-  // builds ahead and this season's points were already here in that tail;
-  // where they were not, it pays for both as a landing does. Warm frames pay
-  // a cache hit; no pixel depends on when this ran.
+  // layer and the order made, where the stretch before it was played for a
+  // hand that builds ahead and this season's points were already here in
+  // that stretch; where they were not, it pays for both as a landing does.
+  // Warm frames pay a cache hit; no pixel depends on when this ran.
   const top = bakeLayer(year, pts, coloured, view, dpr, pin, 1, grain);
   const u = r * REVEAL_STEPS;
   const step = Math.floor(u);

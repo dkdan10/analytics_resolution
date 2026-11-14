@@ -14,11 +14,12 @@
 import { factExternal, type Loaded } from "./data";
 import { setContextDisplay, type DisplayProfile } from "./display";
 import { drawSettledInscriptions, drawSlug, type Inscription } from "./inscription";
-import { drawHand, modeAt, type ModeId } from "./modes";
+import { drawHand, modeAt, openingFieldOf, windowReadsOf, type ModeId } from "./modes";
+import { prewarmOpening } from "./modes/fieldlayer";
 import { completedStackState, NO_OPS, type StackRenderState } from "./modes/operations";
 import { GROUND } from "./palette";
 import { drawPlate, shortenedThreeR, type View } from "./plate";
-import { CUT_YEAR, stateAt, type Schedule, type State } from "./timeline";
+import { CUT_YEAR, stateAt, type Schedule } from "./timeline";
 
 /** Where a frame is drawn. `main()` keeps one and `resize()` updates it in
  *  place; the probes make their own at a fixed size and DPR. */
@@ -102,16 +103,31 @@ function drawCutBeat(
 /**
  * Ask for the season after this one, on this one's frames.
  *
- * It is first drawn when this season ends, so its record is here when the
- * work done ahead of the hand-over looks for it. The window season reads more
- * files than its points, and they are asked for with them. Called once the
- * frame is drawn, so whatever the frame itself had to ask for was asked
- * first and does not wait behind this.
+ * For the loop of a route that plays the seasons in order, called once that
+ * loop has drawn its frame, so whatever the frame itself had to ask for was
+ * asked first and does not wait behind this. The next season is first drawn
+ * when this one ends, so its record is here when the work done ahead of the
+ * hand-over looks for it. The window season reads more files than its
+ * points, and which of them depends on the hand that will play it, so the
+ * hand playing now names them.
+ *
+ * `renderTo` does not call it. A caller that draws instants out of order may
+ * never draw the season after the one it is on, and asking there would
+ * download a file no frame reads and report its failure over a plate that
+ * never missed it.
  */
-function askAhead(st: State, data: Loaded): void {
+export function askAhead(
+  t: number,
+  data: Loaded,
+  schedule: Schedule,
+  modeOverride: ModeId | null,
+): void {
+  const st = stateAt(t, schedule);
   if (st.next === null) return;
   data.prefetchPoints(st.next);
-  if (data.byYear.get(st.next)?.points_by_day) data.prefetchWindow();
+  if (data.byYear.get(st.next)?.points_by_day) {
+    data.prefetchWindow(windowReadsOf(modeAt(t, schedule, modeOverride)));
+  }
 }
 
 export function renderTo(
@@ -182,7 +198,11 @@ export function renderTo(
       { x: 0, y: 232 }, ramp(p, 0.14, 0.30, 0.80, 0.97), "voice");
     drawSlug(ctx, view, ["NO SHOT WAS GIVEN A PLACE"],
       { x: 0, y: 176 }, ramp(p, 0.44, 0.62, 0.84, 0.99), "voice");
-    askAhead(st, data);
+    // No hand draws here, so none is building ahead of the first season: the
+    // prelude does it for the hand about to play. After every draw of this
+    // frame, and it takes no context.
+    const opening = openingFieldOf(modeAt(t, schedule, modeOverride));
+    if (opening) prewarmOpening(view, dpr, st, data, opening.coloured, opening.reveal);
     return;
   }
 
@@ -233,6 +253,4 @@ export function renderTo(
   // not any one hand's reading of it, and it is the only moment in the piece
   // where the plate is briefly empty of everything.
   drawCutBeat(ctx, view, data, schedule, st.t);
-
-  askAhead(st, data);
 }

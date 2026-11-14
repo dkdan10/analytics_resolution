@@ -31,7 +31,7 @@ import {
 import { Navigator } from "./navigator";
 import { OVERVIEW_SECONDS, overviewAt } from "./overview";
 import { makeView } from "./plate";
-import { renderTo, type Target } from "./render";
+import { askAhead, renderTo, type Target } from "./render";
 import { semanticAt, semanticStopById, semanticTime } from "./semantic";
 import { clearAtlas } from "./textatlas";
 import {
@@ -615,6 +615,10 @@ async function main(): Promise<void> {
         target, t, data, schedule, inscriptions, modeOverride,
         talkMode, wantsNav, stack, null, displayProfile,
       );
+      // Only on the routes that play the piece in its own order, where the
+      // season after this one is the one drawn next. The overview draws its
+      // chapters from across the record and asks for nothing ahead.
+      askAhead(t, data, schedule, modeOverride);
       nav?.update(t);
       if (displayProfile === "room" && !wantsNav) {
         const st = stateAt(t, schedule);

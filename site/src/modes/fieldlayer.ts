@@ -7,15 +7,16 @@
  * receding as the current one develops) cannot drift apart between hands.
  */
 
-import type { Season } from "../data";
+import type { Loaded, Season } from "../data";
 import {
   advancePrewarm, bakeLayer, bakeResidence, developed, drawDeveloping, drawLayer,
   drawReveal, drawWindowReveal, grainProfileFor, windowPinArrived,
   type GrainProfile, type Points, type PrewarmRequest, type WindowFoldClock,
 } from "../field";
 import { drawPin } from "../marks";
+import type { View } from "../plate";
 import { DEVELOP_STATES, RESIDENCE_ALPHA } from "../scalars";
-import { ARRIVAL_TAIL, CUT_YEAR, SEASON_SECONDS } from "../timeline";
+import { ACT0_SECONDS, ARRIVAL_TAIL, CUT_YEAR, SEASON_SECONDS, type State } from "../timeline";
 import {
   PLATE_WITHDRAW_SPAN,
   WINDOW_BEATS,
@@ -162,34 +163,95 @@ const PREWARM_DEADLINE = 0.75;
 /**
  * Ask for what the coming hand-over will read, and pay toward it.
  *
- * Called on a season's own frames; it pays only inside the last stretch of
- * the season, as long as an ordinary season's settled tail. That stretch is
- * measured in seconds from the season's end, never as a phase: the window
- * season is many times longer, and a phase test would open the work that
- * much earlier there. What is owed rises with the clock alone; what has been
- * built is history, and history decides only whether a layer is already made
- * when a frame asks for it.
+ * It pays only inside the last stretch before the hand-over, as long as an
+ * ordinary season's settled tail. That stretch is measured in seconds, which
+ * the caller gives as `left`, never as a phase: the window season is many
+ * times longer, and a phase test would open the work that much earlier
+ * there. What is owed rises with the clock alone; what has been built is
+ * history, and history decides only whether a layer is already made when a
+ * frame asks for it.
  *
  * The list names what the next season's opening frames ask `bakeLayer` and
  * the emphasis order for, by the arguments they will pass, in the order of
  * the frames that first read them. It is not the order within a frame: the
  * opening frame draws the receding season before the arriving one, and the
- * list names the arriving layer first. This season is the one that will be
- * receding then, so its requests are formed from this frame's own season,
- * grain and points.
+ * list names the arriving layer first. `receding` is the season that will be
+ * going out under the next one, with its own grain and points, or null where
+ * the next season's opening frames draw none.
  *
  * The arriving season's points are taken only if they are already here.
  * Building ahead must not start a fetch: what is fetched, and when, is
- * decided where a frame is drawn, never by work no frame has asked for.
- * Every frame of a season asks for the next season's points, so in forward
- * play they have had this season's arrival to land in before this stretch
- * opens, and all of it is built in the tail. Where they are not here, as
- * when a page lands inside the stretch or the file is slow or has failed,
- * the reveal's hands build this season's lower states and no more, the hand
- * that develops in builds nothing, and the arriving layers and the order are
- * made whole when a frame of the hand-over first reads them.
+ * decided by the loop that plays the frames, never by work no frame has
+ * asked for. Where that loop plays the seasons in order it asks for the next
+ * season's points on every frame, so they have had this season's arrival to
+ * land in before this stretch opens, and all of it is built here. Where they
+ * are not here, as when a page lands inside the stretch, the file is slow or
+ * has failed, or the route does not play in order, the reveal's hands build
+ * the receding season's lower states and no more, the hand that develops in
+ * builds nothing, and the arriving layers and the order are made whole when
+ * a frame of the hand-over first reads them.
  *
  * It takes no context. Nothing here can draw.
+ */
+function payAhead(
+  view: View,
+  dpr: number,
+  data: Loaded,
+  next: number,
+  coloured: boolean,
+  reveal: boolean,
+  left: number,
+  receding: { season: Season; grain: GrainProfile; pts: Points } | null,
+): void {
+  const lead = (1 - ARRIVAL_TAIL) * SEASON_SECONDS;
+  if (left >= lead) return;
+  const owed = Math.min(1, (lead - left) / (lead * PREWARM_DEADLINE));
+
+  const nextSeason = data.byYear.get(next);
+  const nextPts = data.residentPoints(next);
+  const arriving = nextSeason && nextPts ? { season: nextSeason, pts: nextPts } : null;
+  const layerOf = (s: Season, p: Points, g: GrainProfile, state: number): PrewarmRequest => ({
+    what: "layer", year: s.year, pts: p, coloured, view, dpr, pin: pinCoordOf(s), state, grain: g,
+  });
+  const arrivingAt = (a: { season: Season; pts: Points }, state: number): PrewarmRequest =>
+    layerOf(a.season, a.pts, grainProfileFor(a.season.resolution.regime), state);
+
+  const requests: PrewarmRequest[] = [];
+  if (reveal) {
+    if (arriving) requests.push(arrivingAt(arriving, DEVELOP_STATES));
+    if (receding) {
+      requests.push(layerOf(receding.season, receding.pts, receding.grain, DEVELOP_STATES - 1));
+    }
+    // The window season arrives on its calendar and reads no emphasis order.
+    // Elsewhere the order is one sort that cannot be cut. Asking for it here
+    // moves it whole out of the boundary frame and makes it no shorter: it
+    // can still run past a frame by itself (measured), in a passage where
+    // nothing is arriving.
+    if (arriving && !arriving.season.points_by_day) {
+      requests.push({ what: "order", pts: arriving.pts, pin: pinCoordOf(arriving.season) });
+    }
+    if (receding) {
+      for (let state = DEVELOP_STATES - 2; state >= 1; state--) {
+        requests.push(layerOf(receding.season, receding.pts, receding.grain, state));
+      }
+    }
+  } else if (arriving) {
+    // A hand whose season develops in as one image climbs the arriving
+    // season's whole ladder. The one such hand that builds ahead draws no
+    // outgoing season, so none is asked for; a hand that develops in and also
+    // recedes would add the receding season's lower states here.
+    for (let state = 1; state <= DEVELOP_STATES; state++) {
+      requests.push(arrivingAt(arriving, state));
+    }
+  }
+  if (requests.length) advancePrewarm(requests, owed);
+}
+
+/**
+ * Build ahead of the next season, on a season's own frames.
+ *
+ * This season is the one that will be receding then, so its requests are
+ * formed from this frame's own season, grain and points.
  */
 function prewarmNext(
   f: Frame,
@@ -208,50 +270,36 @@ function prewarmNext(
   if (st.next === null || dim <= 0) return;
   const seg = f.schedule.byYear.get(season.year);
   if (!seg) return;
-  const lead = (1 - ARRIVAL_TAIL) * SEASON_SECONDS;
-  const left = (1 - st.phase) * seg.duration;
-  if (left >= lead) return;
-  const owed = Math.min(1, (lead - left) / (lead * PREWARM_DEADLINE));
+  // This season recedes under the next only where the next draws a previous
+  // one, and the cut draws none.
+  const receding = withPrevious && st.next !== CUT_YEAR && pts !== null
+    ? { season, grain, pts }
+    : null;
+  payAhead(view, dpr, data, st.next, coloured, reveal, (1 - st.phase) * seg.duration, receding);
+}
 
-  const nextSeason = data.byYear.get(st.next);
-  const nextPts = data.residentPoints(st.next);
-  const arriving = nextSeason && nextPts ? { season: nextSeason, pts: nextPts } : null;
-  const layerOf = (s: Season, p: Points, g: GrainProfile, state: number): PrewarmRequest => ({
-    what: "layer", year: s.year, pts: p, coloured, view, dpr, pin: pinCoordOf(s), state, grain: g,
-  });
-  const arrivingAt = (a: { season: Season; pts: Points }, state: number): PrewarmRequest =>
-    layerOf(a.season, a.pts, grainProfileFor(a.season.resolution.regime), state);
-
-  const requests: PrewarmRequest[] = [];
-  if (reveal) {
-    // This season recedes under the next only where the next draws a previous
-    // one, and the cut draws none.
-    const receding = withPrevious && st.next !== CUT_YEAR && pts !== null;
-    if (arriving) requests.push(arrivingAt(arriving, DEVELOP_STATES));
-    if (receding) requests.push(layerOf(season, pts, grain, DEVELOP_STATES - 1));
-    // The window season arrives on its calendar and reads no emphasis order.
-    // Elsewhere the order is one sort that cannot be cut. Asking for it here
-    // moves it whole out of the boundary frame and makes it no shorter: it
-    // can still run past a frame by itself (measured), in a passage where
-    // nothing is arriving.
-    if (arriving && !arriving.season.points_by_day) {
-      requests.push({ what: "order", pts: arriving.pts, pin: pinCoordOf(arriving.season) });
-    }
-    if (receding) {
-      for (let state = DEVELOP_STATES - 2; state >= 1; state--) {
-        requests.push(layerOf(season, pts, grain, state));
-      }
-    }
-  } else if (arriving) {
-    // A hand whose season develops in as one image climbs the arriving
-    // season's whole ladder. The one such hand that builds ahead draws no
-    // outgoing season, so none is asked for; a hand that develops in and also
-    // recedes would add this season's lower states here.
-    for (let state = 1; state <= DEVELOP_STATES; state++) {
-      requests.push(arrivingAt(arriving, state));
-    }
-  }
-  if (requests.length) advancePrewarm(requests, owed);
+/**
+ * Build ahead of the first season, on the prelude's frames.
+ *
+ * The prelude draws no hand, so nothing in it reaches a field, and the first
+ * season's opening frames would otherwise make their layer and their order
+ * whole, on the hand-over every loop of the piece opens with. No season is
+ * receding there, so only the arriving one's requests are formed. The caller
+ * names the field the hand about to play will lay, since no hand is drawing
+ * to pass it. Outside the prelude it does nothing.
+ */
+export function prewarmOpening(
+  view: View,
+  dpr: number,
+  st: State,
+  data: Loaded,
+  coloured: boolean,
+  reveal: boolean,
+): void {
+  if (st.act !== 0 || st.next === null) return;
+  payAhead(
+    view, dpr, data, st.next, coloured, reveal, (1 - st.preludePhase) * ACT0_SECONDS, null,
+  );
 }
 
 export function drawSeasonField(f: Frame, opts: FieldOpts): void {

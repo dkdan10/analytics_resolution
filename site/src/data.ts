@@ -1033,11 +1033,12 @@ export interface Loaded {
    *  loading until a frame asks for the same points: nothing on screen is
    *  missing them yet. A failure is reported like any other. */
   prefetchPoints(year: number): void;
-  /** The same, for every file a frame of the window season reads on a route
-   *  that rotates the hands, one asset at a time: call it on every frame of
-   *  the season before, and each call asks for at most the next. The quarrel
-   *  is not among them: only a hand the rotation never reaches reads it. */
-  prefetchWindow(): void;
+  /** The same, for the window season's points and then for the files `reads`
+   *  names, in that order and one asset at a time: call it on every frame of
+   *  the season before, and each call asks for at most the next. The caller
+   *  names what the hand about to play the window reads there, so a file that
+   *  hand never reads is neither downloaded nor reported when it fails. */
+  prefetchWindow(reads: readonly WindowAsset[]): void;
   /** The window season's calendar for the same points: per-day count deltas,
    *  the re-clock's artifact. Null for every season that ships no calendar and
    *  while the fetch is in flight; the base falls back to the shared arrival
@@ -1115,6 +1116,11 @@ export interface Loaded {
    *  KEY ORDER is the record's own and is what the window's beats run through. */
   taxonomyColumns: Record<string, string>;
 }
+
+/** A file the window season's frames read beyond the points every season
+ *  has. Which of them a hand reads is that hand's to say. The quarrel is not
+ *  one of them: no hand reads it but under an operation a presenter applies. */
+export type WindowAsset = "calendar" | "game" | "measures" | "strokes" | "wash" | "slate";
 
 export type AssetStatus = "loading" | "ready" | "degraded" | "failed";
 
@@ -1518,27 +1524,32 @@ export async function load(): Promise<Loaded> {
   // for together they would outnumber the connections a browser keeps open to
   // one host, and a request waiting for a connection is running down the
   // fetch timeout: on a slow link, files nobody had begun to send were given
-  // up on and latched as failed (measured). The points and their calendar
-  // lead, since most hands open the window on them. Each asset is asked for
-  // under the condition its own reader asks under, so nothing is requested
-  // here that a frame would not request. The season before the window's is
-  // left to the frames now drawing it.
-  const prefetchWindow = (): void => {
-    const windowYear = seasons.find((s) => s.points_by_day)?.year;
-    const wanted: (Lazy<unknown> | null)[] = [
-      windowYear !== undefined ? pointLoader(windowYear) : null,
-      windowYear !== undefined ? dayPointLoader(windowYear) : null,
-      gameFile ? gameLoader : null,
-      windowFile ? measureLoader : null,
-      paintFile ? strokeLoader : null,
-      windowFile && windowFile.wash ? washLoader : null,
-      slateFile ? slateLoader : null,
-    ];
-    for (const l of wanted) {
-      if (!l || l.peek() || l.error() !== null) continue;
-      if (!l.pending()) l.prefetch();
-      return;
+  // up on and latched as failed (measured). The season's points lead, since
+  // every hand opens the window on them. Each loader is offered under the
+  // condition its own reader asks under, and only where the caller names it:
+  // whether a frame will read the file depends on the hand, which this module
+  // does not know. The season before the window's is left to the frames now
+  // drawing it.
+  const windowLoader = (asset: WindowAsset, windowYear: number): Lazy<unknown> | null => {
+    switch (asset) {
+      case "calendar": return dayPointLoader(windowYear);
+      case "game": return gameFile ? gameLoader : null;
+      case "measures": return windowFile ? measureLoader : null;
+      case "strokes": return paintFile ? strokeLoader : null;
+      case "wash": return windowFile && windowFile.wash ? washLoader : null;
+      case "slate": return slateFile ? slateLoader : null;
     }
+  };
+  const prefetchWindow = (reads: readonly WindowAsset[]): void => {
+    const windowYear = seasons.find((s) => s.points_by_day)?.year;
+    if (windowYear === undefined) return;
+    const ask = (l: Lazy<unknown> | null): boolean => {
+      if (!l || l.peek() || l.error() !== null) return false;
+      if (!l.pending()) l.prefetch();
+      return true;
+    };
+    if (ask(pointLoader(windowYear))) return;
+    for (const asset of reads) if (ask(windowLoader(asset, windowYear))) return;
   };
 
   loaded = {
