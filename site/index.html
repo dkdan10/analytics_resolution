@@ -449,8 +449,11 @@
       #scrub .tick.cut { top: 7px; bottom: 8px; background: rgba(232, 226, 214, 0.9); }
       #clock { margin: 0 16px 3px; font-size: 12px; color: rgba(232, 226, 214, 0.68); }
       /* The presenter's readout: exact t, the next boundary, and the fermata
-         while it acts. Tabular figures so the countdown does not shimmer. */
+         while it acts. Tabular figures so the countdown does not shimmer.
+         Two lines are held for it whether it needs them or not, so a long
+         stop name wraps into room already there and moves nothing under it. */
       #readout {
+        min-height: 3em;
         margin: 0 16px 3px;
         font-size: 12px;
         color: rgba(232, 226, 214, 0.72);
@@ -676,7 +679,11 @@
         white-space: nowrap;
       }
       .seg:hover { background: rgba(232, 226, 214, 0.05); color: var(--bone); }
-      .seg .share { color: rgba(232, 226, 214, 0.58); font-variant-numeric: tabular-nums; }
+      /* A name too long for its row gives way to an ellipsis, and never the
+         time beside it: the time is what a presenter reads the row for, and
+         the whole name is spoken in the row's label. */
+      .seg > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+      .seg .share { flex: none; color: rgba(232, 226, 214, 0.58); font-variant-numeric: tabular-nums; }
       .seg.current { background: rgba(232, 226, 214, 0.1); color: var(--bone); }
       .seg.current .share { color: rgba(232, 226, 214, 0.7); }
       /* A mark for the seasons where the record's own resolution changes. */
@@ -702,8 +709,16 @@
       }
       #census-panel h3 { border-top: 1px solid rgba(232, 226, 214, 0.16); padding-top: 8px; }
       #census-panel p { margin: 2px 0; color: rgba(232, 226, 214, 0.73); }
-      #census-panel .census-row { display: flex; justify-content: space-between; gap: 8px; }
-      #census-panel .census-row span:last-child { font-variant-numeric: tabular-nums; }
+      /* A count and its share are one figure and never part, and a name is
+         never broken to make room for them: a row too long for the column
+         sets the figure under its name, still at the column's right edge. */
+      #census-panel .census-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 8px; }
+      #census-panel .census-row span:last-child {
+        flex: none;
+        margin-left: auto;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
       .op.unavailable { opacity: 0.82; }
       body.display-room .op.unavailable { opacity: 1; }
       .op.unavailable .op-reads::after { content: " · unavailable outside the Window"; }
