@@ -373,7 +373,11 @@ function drawCount(f: Frame, progress: number): void {
   // court however narrow the window gets.
   const right = view.sx(COURT.x0) - view.s(STACK_GUTTER_PAD_TENTHS);
   const named = words.filter((x) => x.named);
-  const rows = named.map((c) => `${c.name.toLowerCase()}   ${c.n.toLocaleString()}`);
+  // A row is a name and its count, kept apart so the same row can be set on one
+  // line or on two.
+  const names = named.map((c) => c.name.toLowerCase());
+  const counts = named.map((c) => c.n.toLocaleString());
+  const rows = names.map((name, i) => `${name}   ${counts[i]!}`);
   ctx.save();
 
   // THE COLUMN FITS THE GUTTER IT ACTUALLY HAS, and the type size is derived
@@ -391,8 +395,12 @@ function drawCount(f: Frame, progress: number): void {
   // worse than omission. The audience therefore receives a legible filing
   // summary here while every category's magnitude remains visible in the
   // court's ticks. Near mode keeps the complete row-by-row tally wherever it
-  // fits at the slug floor, and below that floor takes the same summary: a
-  // column fitted down to a size nobody can read is not a tally either.
+  // fits at the slug floor. Where it does not, the gutter is usually still as
+  // wide as the names themselves, so each row is broken at its own gap, the
+  // count under its name, and the tail at its own separator: every name and
+  // every count stays, at a size that reads. Only a filing whose names alone
+  // are wider than the gutter at the floor takes the summary, because a column
+  // fitted down to a size nobody can read is not a tally either.
   //
   // Each column is measured as it is drawn, heading and tail included, so the
   // size is the one at which the lines actually set fit the gutter.
@@ -407,12 +415,18 @@ function drawCount(f: Frame, progress: number): void {
   const heading = room ? taxonomy : data.taxonomyColumns[taxonomy] ?? taxonomy;
   // The tail is a count, never a cloud — THE CENSUS's rule, kept.
   const rest = Object.keys(season.classification[taxonomy] ?? {}).length - named.length;
-  const tail = rest > 0 ? [`${rest} more · a tick and a count`] : [];
+  // The tail in the two halves its separator divides it into, which are also
+  // its two lines where the rows are broken.
+  const tailParts = rest > 0 ? [`${rest} more ·`, "a tick and a count"] : [];
+  const tail = tailParts.length ? [tailParts.join(" ")] : [];
   const summary = [`${named.length} NAMED`, ...(rest > 0 ? [`${rest} MORE`] : []), "TICK=COUNT"];
   const tally = !room && fit([heading, ...rows, ...tail]) >= SLUG_MIN_PX;
+  const brokenLines = [heading, ...names, ...counts, ...tailParts];
+  const broken = !room && !tally && fit(brokenLines) >= SLUG_MIN_PX;
   const shownRows = tally ? rows : summary;
-  const px = Math.max(room ? ROOM_TEXT_MIN_PX.aside : SLUG_MIN_PX,
-    fit([heading, ...shownRows, ...(tally ? tail : [])]));
+  const px = broken ? fit(brokenLines)
+    : Math.max(room ? ROOM_TEXT_MIN_PX.aside : SLUG_MIN_PX,
+      fit([heading, ...shownRows, ...(tally ? tail : [])]));
   if (px < 1) {
     ctx.restore();
     return;
@@ -428,13 +442,26 @@ function drawCount(f: Frame, progress: number): void {
   fillRow(heading, right, y);
   y += px * 2.2;
   ctx.fillStyle = `rgba(${BONE_RGB}, ${remains * STACK_GUTTER_ROW_ALPHA * progress})`;
-  for (const row of shownRows) {
-    fillRow(row, right, y);
-    y += px * 1.5;
+  if (broken) {
+    // A row on two lines at the column's own step, and the gap that sets the
+    // tail off from the rows also sets each row off from the next.
+    names.forEach((name, i) => {
+      fillRow(name, right, y);
+      y += px * 1.5;
+      fillRow(counts[i]!, right, y);
+      y += px * 1.5 + px * 0.6;
+    });
+  } else {
+    for (const row of shownRows) {
+      fillRow(row, right, y);
+      y += px * 1.5;
+    }
   }
-  if (tally) {
+  if (tally || broken) {
     ctx.fillStyle = `rgba(${BONE_RGB}, ${remains * STACK_GUTTER_SUB_ALPHA * progress})`;
-    for (const line of tail) fillRow(line, right, y + px * 0.6);
+    (broken ? tailParts : tail).forEach((line, i) => {
+      fillRow(line, right, y + px * 0.6 + i * px * 1.5);
+    });
   }
   ctx.restore();
 }
