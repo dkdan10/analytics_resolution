@@ -273,8 +273,8 @@ interface Term extends Box {
  *
  * Measured once per string at a fixed nominal size and scaled, never through the
  * live view: if any of this geometry needed `view.scale`, the memo below could
- * not be keyed on the year alone and the plate would speak different words on
- * different screens.
+ * not be keyed without the viewport and the plate would speak different words
+ * on different screens.
  */
 const NOMINAL_PX = 100;
 const widths = new Map<string, number>();
@@ -372,28 +372,41 @@ function overlaps(a: Box, b: Box, pad: number): boolean {
 }
 
 /**
- * The season's whole utterance list, memoised BY YEAR ALONE.
+ * The season's whole utterance list, memoised BY YEAR — and, for the window
+ * season, by whether the window file is resident.
  *
  * That key is the invariant, not a convenience: every quantity below derives
  * from the season, the fixed-seed sample and the schedule, and none of it from
  * the viewport. If this ever needed `view.scale` in its key, the layout would
  * have been done in pixels somewhere and the plate would say different words on
  * different screens.
+ *
+ * The window file is the one input that is not there from the first frame: it
+ * is optional, and a failed fetch can be retried on a live page. The window
+ * season's obstacles include the figures that file carries, so a layout made
+ * without it is a different layout, and under the year alone whichever one was
+ * made first would have stood for the life of the page. `layoutKey` names the
+ * two apart, so what is spoken follows what is resident now.
  */
-const utterances = new Map<number, Term[]>();
+const utterances = new Map<string, Term[]>();
+
+function layoutKey(data: Loaded, year: number): string {
+  return actOf(year) === 3 && data.window ? `${year}+window` : `${year}`;
+}
 
 function utterancesFor(
-  year: number,
+  key: string,
   season: Season,
   sample: Sample,
   seasons: Season[],
   writingSeconds: number,
   /** Boxes occupied for the whole season - the league's names in Acts III and
-   *  V, and the pin's caption in every season that refuses. Functions of the
-   *  year and the season alone, so the memo key stays the year alone. */
+   *  V, the window's figures while that file is resident, and the pin's
+   *  caption in every season that refuses. Functions of what `key` names and
+   *  nothing else. */
   fixed: Box[],
 ): Term[] {
-  const hit = utterances.get(year);
+  const hit = utterances.get(key);
   if (hit) return hit;
 
   const born = births(seasons);
@@ -451,7 +464,7 @@ function utterancesFor(
       // floor has room for.
     }
   }
-  utterances.set(year, out);
+  utterances.set(key, out);
   return out;
 }
 
@@ -562,8 +575,8 @@ function figureTops(lines: number, size: number, nameHeight: number, lineHeight:
  * a figure.
  *
  * At the unfloored court size, like every other box here: the figures are a
- * function of the window file alone, which keeps them inside the year-keyed
- * memo's contract. A line sits where `label` would set it; the box takes the
+ * function of the window file alone, and the memo's key says whether that file
+ * is resident, which keeps them inside its contract. A line sits where `label` would set it; the box takes the
  * same height convention as every other Box.
  */
 function figureBoxes(data: Loaded, names: string[], boxes: Box[]): Box[] {
@@ -596,8 +609,9 @@ function figureBoxes(data: Loaded, names: string[], boxes: Box[]): Box[] {
 
 /** The league's names hold the middle of the floor for Acts III and V, so in
  *  those acts they are obstacles the plate has to speak around — and in the
- *  window, so are the figures struck with them. Part of the memo's contract
- *  rather than a local convenience — see `ledgerUtterances`. */
+ *  window, so are the figures struck with them, once the file that carries
+ *  them is resident. Part of the memo's contract rather than a local
+ *  convenience — see `ledgerUtterances` and `layoutKey`. */
 function leagueObstacles(data: Loaded, year: number): Box[] {
   if (actOf(year) !== 3 && actOf(year) !== 5) return [];
   const names = publishedInstead(data);
@@ -677,10 +691,10 @@ function pinCaptionSet(f: Frame, lines: number, anchorY: number): { px: number; 
  * place, so that two hands cannot ask for it two different ways.
  *
  * THIS EXISTS BECAUSE OF A CACHE HAZARD, not for tidiness. `utterancesFor`
- * memoises BY YEAR ALONE, and that key is the invariant that keeps the plate
- * speaking the same words on every screen — but it is only sound while every
- * caller passes the same `writingSeconds` and the same `fixed` boxes for a given
- * year. THE STACK's NAME THE ACTION is the second caller this file has ever had.
+ * memoises by the year and the window file's residency, never the viewport, and
+ * that key is the invariant that keeps the plate speaking the same words on
+ * every screen — but it is only sound while every caller passes the same
+ * `writingSeconds` and the same `fixed` boxes for a given key. THE STACK's NAME THE ACTION is the second caller this file has ever had.
  * Had it computed its own obstacle set, the memo would have handed whichever
  * hand asked FIRST its own layout and the other hand a layout built for someone
  * else, silently, for the life of the page — and the purity probe could
@@ -708,15 +722,15 @@ export function ledgerUtterances(
       - windowSecondAtPhase(LEDGER_WINDOW_WRITING_SPAN.from)
     : seg.duration * ARRIVAL_TAIL;
   // The fixed obstacles: the league's boxes (a function of the act, so of the
-  // year) and the pin's caption (a function of the season). Both are properties
-  // of the YEAR and never of the hand or the viewport, so the year-only memo
-  // in `utterancesFor` stays sound with the pin rect enrolled — every caller
-  // receives the same obstacle set for a given year, by construction.
+  // year, and in the window of the window file) and the pin's caption (a
+  // function of the season). None is a property of the hand or the viewport, so
+  // the memo in `utterancesFor` stays sound with the pin rect enrolled — every
+  // caller receives the same obstacle set for a given key, by construction.
   const pinBox = pinCaptionBox(season);
   const fixed = pinBox
     ? [...leagueObstacles(data, year), pinBox]
     : leagueObstacles(data, year);
-  const terms = utterancesFor(year, season, sample, data.seasons, secs, fixed);
+  const terms = utterancesFor(layoutKey(data, year), season, sample, data.seasons, secs, fixed);
   const interval = secs / Math.max(1, terms.length);
   const remnant = isWindow ? ledgerWindowRemnant(f.st.phase) : null;
   const elapsed = isWindow
