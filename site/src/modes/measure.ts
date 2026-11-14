@@ -53,6 +53,7 @@ import {
   HERO_PATH_ALPHA,
   HERO_RING_ALPHA,
   NAMES_ONLY_ALPHA,
+  SLUG_MIN_PX,
 } from "../scalars";
 import { label } from "../textatlas";
 import { CUT_YEAR } from "../timeline";
@@ -275,7 +276,9 @@ function strikeFigure(
   ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha})`;
   ctx.fillText(text, view.sx(x), view.sy(y));
   if (sub) {
-    const sp = Math.max(room ? 13 : 7, px * 0.32);
+    // The name is the only thing saying what the figure counts, so it is never
+    // set smaller than the piece's other words.
+    const sp = Math.max(room ? 13 : SLUG_MIN_PX, px * 0.32);
     ctx.font = `${sp}px ${INSCRIPTION_FAMILY}`;
     ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha * FIGURE_SUB_ALPHA})`;
     ctx.letterSpacing = `${sp * 0.16}px`;
