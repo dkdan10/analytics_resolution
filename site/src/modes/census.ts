@@ -64,6 +64,7 @@ import {
   MACHINE_SAW_SCOPE_OFFSET_PX,
   ROTATE_MAX_RAD,
   ROTATE_STEP_RAD,
+  SLUG_STATEMENT_TENTHS,
   SIXFOLD_ALPHA,
   SIXFOLD_SECONDS,
   STRIKE_FLOOR_TENTHS,
@@ -105,6 +106,20 @@ export {
 const HEADER_AT = { x: 0, y: 402 };
 const FOOTER_AT = { x: 0, y: -32 };
 
+/** The footer's ground, which no word may stand on: the plate's whole width,
+ *  from its foot up to a whole em of the footer's registered size above its
+ *  first line's centre. Half of that is the line's own letters; the other
+ *  half is clear stone between them and a word in the near profile, and is
+ *  what still covers them where the room profile floors the footer's type
+ *  larger in pixels. In court tenths like the rest of the layout, so one
+ *  season files the same way on every screen. */
+const FOOTER_TOP = FOOTER_AT.y + SLUG_STATEMENT_TENTHS;
+
+/** Where the share figure is struck beneath its word, as a fraction of the
+ *  word's size. One number for the pen and the collision test, so the figure
+ *  tested is the figure drawn. */
+const FIGURE_DROP = 0.95;
+
 /** One category, ready to be struck. Court tenths throughout — nothing here
  *  depends on the viewport, so the plate files the same way on every screen. */
 export interface Filed {
@@ -117,9 +132,11 @@ export interface Filed {
   bearing: number;
   /** Cap height, in court tenths: STRIKE_MAX * sqrt(share), so AREA ∝ share. */
   size: number;
-  /** Half-extents used by the collision test: radial, and angular at `dist`. */
-  halfRadial: number;
-  halfAngle: number;
+  /** What the word's letters cover about the point it is struck at, and the
+   *  same for the share figure struck beneath it. The collision test's whole
+   *  input besides the place. */
+  glyphs: Glyphs;
+  figureGlyphs: Glyphs;
   /** How far the bearing had to move to find room. Zero for most. */
   moved: number;
   /** In the named set AND large enough to strike. Everything else is a tick. */
@@ -133,39 +150,67 @@ export interface Filed {
   zone: number;
 }
 
+/** What a struck line's letters cover, in court tenths, about the point it is
+ *  struck at: back and forward along the line it reads along, up (away from
+ *  the hoop, the way its letters stand) and down. */
+export interface Glyphs {
+  back: number;
+  fore: number;
+  up: number;
+  down: number;
+}
+
 /**
- * A string's width in COURT TENTHS at a given cap height.
+ * A string's struck letters in COURT TENTHS at a given size.
  *
  * Measured once per string at a fixed nominal size through a ruler of its own,
  * never through the live view. That is the invariant THE LEDGER keeps, and it
  * holds here for the same reason: if any of this geometry needed
  * `view.scale`, the layout would differ between screens and the plate would file
  * the same season two ways.
+ *
+ * The letters themselves and not a proportion of the size: the collision test
+ * is only as true as the rectangle it is given, and an allowance kept around a
+ * word, once the word is turned, collides at its corners where no letter is.
  */
 const NOMINAL_PX = 100;
-const widths = new Map<string, number>();
+const measured = new Map<string, Glyphs>();
 let ruler: CanvasRenderingContext2D | null = null;
 
-function widthTenths(text: string, sizeTenths: number): number {
-  let per = widths.get(text);
+function glyphsOf(text: string, sizeTenths: number): Glyphs {
+  let per = measured.get(text);
   if (per === undefined) {
     ruler ??= document.createElement("canvas").getContext("2d")!;
-    // The same face and the same letter-spacing `strike` uses, or the collision
-    // boxes would be measuring a different string from the one drawn.
+    // The same face, letter-spacing, alignment and baseline `strike` uses, or
+    // the collision boxes would be measuring a different string from the one
+    // drawn.
     ruler.font = `${NOMINAL_PX}px ${INSCRIPTION_FAMILY}`;
     ruler.letterSpacing = `${NOMINAL_PX * STRIKE_LETTER_SPACING}px`;
-    per = ruler.measureText(text).width / NOMINAL_PX;
+    ruler.textAlign = "center";
+    ruler.textBaseline = "middle";
+    const m = ruler.measureText(text);
+    per = {
+      back: m.actualBoundingBoxLeft / NOMINAL_PX,
+      fore: m.actualBoundingBoxRight / NOMINAL_PX,
+      up: m.actualBoundingBoxAscent / NOMINAL_PX,
+      down: m.actualBoundingBoxDescent / NOMINAL_PX,
+    };
     ruler.letterSpacing = "0px";
-    widths.set(text, per);
+    measured.set(text, per);
   }
-  return per * sizeTenths;
+  return {
+    back: per.back * sizeTenths,
+    fore: per.fore * sizeTenths,
+    up: per.up * sizeTenths,
+    down: per.down * sizeTenths,
+  };
 }
 
 /** Drop the string ruler. Registered in probe/shared.ts:cold() — an
  *  unregistered cache does not produce a false IMPURE, it produces a false
  *  PURE, because every history then shares the same stale map. */
 export function clearCensusCaches(): void {
-  widths.clear();
+  measured.clear();
 }
 
 /**
@@ -215,7 +260,7 @@ export function filing(
     const share = classified ? n / classified : 0;
     const size = STRIKE_MAX_TENTHS * Math.sqrt(share);
     const dist = p.dist_ft * 10;
-    const w = widthTenths(name.toUpperCase(), size);
+    const figure = size * CENSUS_SHARE_SCALE;
     out.push({
       name: name.toUpperCase(),
       n,
@@ -223,12 +268,11 @@ export function filing(
       dist,
       bearing: p.bearing_rad,
       size,
-      halfRadial: size * 0.85,
-      // Laid tangent to the hoop, so the word's extent IS an arc at its own
-      // radius. Guarded: close to the hoop a long word subtends more than the
-      // whole plate, and it then blocks every bearing at that radius, which is
-      // true and is what the collision test should conclude.
-      halfAngle: Math.min(Math.PI, w / 2 / Math.max(1, dist)),
+      // The word is struck STRAIGHT, tangent to the hoop at its centre, so what
+      // it covers is a rectangle and not an arc at its own radius: a long word
+      // close to the hoop reaches far outside any radius band of its own.
+      glyphs: glyphsOf(name.toUpperCase(), size),
+      figureGlyphs: glyphsOf(struckFigure(share), figure),
       moved: 0,
       // Filled in below, once the whole taxonomy is ranked.
       named: false,
@@ -256,13 +300,85 @@ export function filing(
   return out;
 }
 
-/** Two words laid tangent to the hoop overlap when they are close in RADIUS and
- *  close in BEARING. Exact for this geometry, and cheap. */
-function collides(a: Filed, b: Filed, pad: number): boolean {
-  if (Math.abs(a.dist - b.dist) >= a.halfRadial + b.halfRadial + pad * a.size) return false;
-  let d = Math.abs(a.bearing - b.bearing) % (2 * Math.PI);
-  if (d > Math.PI) d = 2 * Math.PI - d;
-  return d < a.halfAngle + b.halfAngle + pad * a.size / Math.max(1, a.dist);
+/** A rectangle something is struck in, in court tenths: its centre, the unit
+ *  direction its line of type reads along, its half-extents along that line
+ *  and across it, and the clear floor it keeps from other type. */
+interface Box {
+  cx: number;
+  cy: number;
+  tx: number;
+  ty: number;
+  halfAlong: number;
+  halfAcross: number;
+  pad: number;
+}
+
+/** The rectangle a line's letters cover when it is struck at (x, y), `size`
+ *  high, with its letters standing along the unit direction (ux, uy), so
+ *  reading along (uy, -ux). Every struck line keeps WORD_CLEAR_PAD of its own
+ *  size clear around it. */
+function boxAt(x: number, y: number, ux: number, uy: number, g: Glyphs, size: number): Box {
+  const along = (g.fore - g.back) / 2;
+  const across = (g.up - g.down) / 2;
+  return {
+    cx: x + along * uy + across * ux,
+    cy: y - along * ux + across * uy,
+    tx: uy,
+    ty: -ux,
+    halfAlong: (g.fore + g.back) / 2,
+    halfAcross: (g.up + g.down) / 2,
+    pad: WORD_CLEAR_PAD * size,
+  };
+}
+
+/**
+ * What a word covers on the floor at its current bearing: the word, and the
+ * share figure struck beneath it.
+ *
+ * Laid tangent to the hoop with its letters standing away from it, so "up" is
+ * the bearing's own direction and "beneath" is toward the hoop, where
+ * `strikeWords` puts the figure.
+ */
+function boxesOf(w: Filed): [Box, Box] {
+  const ux = Math.cos(w.bearing);
+  const uy = Math.sin(w.bearing);
+  const figure = w.dist - FIGURE_DROP * w.size;
+  return [
+    boxAt(w.dist * ux, w.dist * uy, ux, uy, w.glyphs, w.size),
+    boxAt(figure * ux, figure * uy, ux, uy, w.figureGlyphs, w.size * CENSUS_SHARE_SCALE),
+  ];
+}
+
+/** How far a box reaches from its centre along the unit direction (nx, ny). */
+function reach(k: Box, nx: number, ny: number): number {
+  return k.halfAlong * Math.abs(k.tx * nx + k.ty * ny)
+    + k.halfAcross * Math.abs(k.tx * ny - k.ty * nx);
+}
+
+/** A box being placed overlaps one already down, short of its own clear floor,
+ *  unless one of their four edge directions separates them. */
+function overlaps(a: Box, b: Box): boolean {
+  const dx = b.cx - a.cx;
+  const dy = b.cy - a.cy;
+  const apart = (nx: number, ny: number): boolean =>
+    Math.abs(dx * nx + dy * ny) >= reach(a, nx, ny) + reach(b, nx, ny) + a.pad;
+  return !(apart(a.tx, a.ty) || apart(-a.ty, a.tx) || apart(b.tx, b.ty) || apart(-b.ty, b.tx));
+}
+
+/** A box lies wholly on the plate, and clear of the footer's ground by its own
+ *  clear floor. The plate's edges are stone, not type, and keep none. */
+function onPlate(k: Box): boolean {
+  const ex = reach(k, 1, 0);
+  const ey = reach(k, 0, 1);
+  return k.cx - ex >= COURT.x0 && k.cx + ex <= COURT.x1
+    && k.cy - ey >= FOOTER_TOP + k.pad && k.cy + ey <= COURT.y1;
+}
+
+/** Two words collide when anything one strikes — the word or its figure —
+ *  lies on anything the other strikes. */
+function collides(a: [Box, Box], b: [Box, Box]): boolean {
+  for (const x of a) for (const y of b) if (overlaps(x, y)) return true;
+  return false;
 }
 
 /**
@@ -278,7 +394,7 @@ function collides(a: Filed, b: Filed, pad: number): boolean {
  * gives the same layout, and scrubbing backwards rebuilds it.
  */
 function layOut(words: Filed[]): void {
-  const placed: Filed[] = [];
+  const placed: [Box, Box][] = [];
   for (const w of words) {
     // A word nobody will strike must not take up room. The first build laid out
     // EVERY category and let the unnamed tail block the named head, so in a
@@ -287,23 +403,31 @@ function layOut(words: Filed[]): void {
     if (!w.named) continue;
     const home = w.bearing;
     let ok = false;
+    let boxes = boxesOf(w);
     for (let step = 0; step * ROTATE_STEP_RAD <= ROTATE_MAX_RAD && !ok; step++) {
       for (const sign of step === 0 ? [1] : [1, -1]) {
         w.moved = sign * step * ROTATE_STEP_RAD;
         w.bearing = home + w.moved;
+        boxes = boxesOf(w);
         // Off the plate is off the plate: a word swung past the sideline is not
-        // a solution, it is a different mistake.
-        const x = w.dist * Math.cos(w.bearing);
-        const y = w.dist * Math.sin(w.bearing);
-        if (x < COURT.x0 || x > COURT.x1 || y < COURT.y0 || y > COURT.y1) continue;
-        if (placed.some((p) => collides(w, p, WORD_CLEAR_PAD))) continue;
+        // a solution, it is a different mistake. Tested on everything the word
+        // strikes, not on its centre, and the footer's ground counts as off.
+        if (!boxes.every(onPlate)) continue;
+        if (placed.some((p) => collides(boxes, p))) continue;
         ok = true;
         break;
       }
     }
     w.homeless = !ok;
-    if (ok) placed.push(w);
-    else w.bearing = home;
+    if (ok) {
+      placed.push(boxes);
+    } else {
+      // Back to the record's own place, and nothing moved: `strikeTicks` puts
+      // the tick at `bearing - moved`, so a bearing tried and given up must
+      // not stay behind in `moved` and carry the tick off the place measured.
+      w.bearing = home;
+      w.moved = 0;
+    }
   }
 }
 
@@ -361,8 +485,8 @@ function strikeWords(f: Frame, words: Filed[], alpha: number, coloured: boolean)
     // word's own downward direction once it is turned by `rotation`, which on
     // the screen is (-sin, +cos): toward the hoop for every word on the floor.
     const sub = px * CENSUS_SHARE_SCALE;
-    strike(ctx, struckFigure(w.share), x - Math.sin(rotation) * px * 0.95,
-           y + Math.cos(rotation) * px * 0.95, sub, alpha * CENSUS_WORD_ALPHA * 0.8, rotation);
+    strike(ctx, struckFigure(w.share), x - Math.sin(rotation) * px * FIGURE_DROP,
+           y + Math.cos(rotation) * px * FIGURE_DROP, sub, alpha * CENSUS_WORD_ALPHA * 0.8, rotation);
   }
 }
 
