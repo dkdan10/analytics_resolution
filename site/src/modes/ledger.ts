@@ -477,6 +477,122 @@ export function clearLedgerCaches(): void {
   refShare = 0;
 }
 
+/** A term as one frame sets it, in court tenths: the type it puts down once
+ *  its sizes are floored, which the box it was laid out in does not know. */
+interface TermSet {
+  /** The word's size and its margin line's, in pixels. */
+  px: number;
+  mp: number;
+  /** The word's size as set, in court tenths. */
+  size: number;
+  /** The word's em box. */
+  word: Box;
+  /** The em box of a birth's margin line, where this frame puts it, or null
+   *  where it has nowhere to stand. */
+  margin: Box | null;
+  /** Whether that line stands over its word instead of under it. */
+  above: boolean;
+}
+
+/** The pin caption as one frame sets it, in court tenths. */
+interface CaptionSet {
+  /** With the leading every Box here carries: what the scatter keeps out of. */
+  box: Box;
+  /** The type alone, from its first line's top to its last line's foot: what
+   *  a word or a margin line set beside it would actually meet. */
+  type: Box;
+}
+
+/** Whether two settings of type meet: their em boxes, with `along` of clear
+ *  floor kept between them where they share a line. */
+function meets(a: Box, b: Box, along: number): boolean {
+  return Math.abs(a.wx + a.w / 2 - (b.wx + b.w / 2)) < (a.w + b.w) / 2 + along
+    && Math.abs(a.wy - b.wy) < (a.h + b.h) / 2;
+}
+
+/**
+ * How one frame sets a term against the pin caption of the term's own season,
+ * or null where that caption leaves the word no room.
+ *
+ * The layout keeps every word clear of the caption at court size, and it must:
+ * its key carries no viewport. But the caption's type has pixel floors, and on
+ * a floor it is wider than the box the layout knew and stands higher off the
+ * plate's edge, so a word laid out beside it ran into it, and a birth's margin
+ * line, which is in nobody's box, lay under its first line. Both are settled
+ * here, from the frame alone, and by the type that is actually set, so that a
+ * word which merely stands near the caption keeps its place. A word whose type
+ * would meet the caption's, or run on into it along one line inside the
+ * clearance the layout keeps, is not spoken: the layout already leaves an
+ * utterance out when the floor has no room for it. A margin line that would
+ * meet the caption stands over its word instead of under it, so the birth is
+ * still disclosed. Where no floor binds, the layout has already kept every
+ * word further off than this asks.
+ *
+ * Over its word the line is on new ground, and `beside` is who else speaks
+ * there during this word's hold. A line that would stand on one of their
+ * lines, inside the clear floor the scatter keeps beside a spoken word, would
+ * read as that word's own and date a phrase to a season it was not first
+ * filed in. There it is not set at all, which says less and nothing false.
+ */
+function termSet(
+  f: Frame,
+  t: Term,
+  caption: CaptionSet | null,
+  beside: Term[] = [],
+): TermSet | null {
+  const { view } = f;
+  const room = contextDisplay(f.ctx) === "room";
+  const px = termPx(f, t);
+  const size = px / view.scale;
+  const word: Box = { wx: t.wx, wy: t.wy, w: widthTenths(t.phrase, size), h: size };
+  if (caption && meets(word, caption.type, TERM_CLEAR_PAD * size)) return null;
+  const mp = Math.max(
+    SCATTER_MIN_PX * 0.8,
+    px * TERM_MARGIN_SCALE,
+    room ? ROOM_TEXT_MIN_PX.aside : 0,
+  );
+  if (!t.bornIn) return { px, mp, size, word, margin: null, above: false };
+  const marginSize = mp / view.scale;
+  // The line's centre from the word's, by the rule `drawTerms` sets it at.
+  const off = (marginTop(0, px * LABEL_LINE_HEIGHT) + mp * LABEL_LINE_HEIGHT / 2) / view.scale;
+  const line = (side: number): Box => ({
+    wx: t.wx,
+    wy: t.wy + side * off,
+    w: widthTenths(`FIRST FILED ${t.bornIn}`, marginSize),
+    h: marginSize,
+  });
+  const under = line(-1);
+  if (caption === null || !meets(under, caption.type, 0)) {
+    return { px, mp, size, word, margin: under, above: false };
+  }
+  const over = line(1);
+  const taken = beside.some((o) => readsWith(f, over, o));
+  return { px, mp, size, word, margin: taken ? null : over, above: true };
+}
+
+/** Whether a margin line would stand on another spoken word's line, inside the
+ *  clear floor the scatter keeps beside one, and so be read with it. */
+function readsWith(f: Frame, line: Box, o: Term): boolean {
+  const size = termPx(f, o) / f.view.scale;
+  return meets(line, { wx: o.wx, wy: o.wy, w: widthTenths(o.phrase, size), h: size },
+    size * 1.7);
+}
+
+/** The size a spoken word is set at in this frame, floors and all. */
+function termPx(f: Frame, t: Term): number {
+  return Math.max(
+    SCATTER_MIN_PX,
+    f.view.s(t.size),
+    contextDisplay(f.ctx) === "room" ? ROOM_TEXT_MIN_PX.aside : 0,
+  );
+}
+
+/** Where a birth's margin line starts under its word: screen y, from the
+ *  word's centre and its label's height. */
+function marginTop(centre: number, height: number): number {
+  return centre - height / 2 + height * 1.05;
+}
+
 /**
  * Speak the terms that are live at this instant.
  *
@@ -493,11 +609,13 @@ export function drawTerms(
   dim: number,
   /** How much of each term may still show, for a register that has to give
    *  way to another one drawn over the same floor. */
-  yieldTo?: (t: Term) => number,
+  yieldTo?: (t: Term, set: TermSet) => number,
+  /** The pin caption of the terms' own season as this frame sets it, where a
+   *  caption is drawn with them. */
+  caption: CaptionSet | null = null,
 ): void {
   const { ctx, view, dpr, remains } = f;
   if (dim <= 0.01) return;
-  const room = contextDisplay(ctx) === "room";
   const spoken = Math.min(terms.length - 1, Math.floor(elapsed / interval));
 
   ctx.save();
@@ -505,8 +623,15 @@ export function drawTerms(
     if (t.j > spoken) continue;
     const age = elapsed - t.j * interval;
     if (age < 0 || age >= TERM_HOLD_SECONDS) continue;
+    // Who else of this season speaks while this word is up: the same for
+    // every frame of its hold, so its margin line never changes sides.
+    const beside = t.bornIn
+      ? terms.filter((o) => o !== t && Math.abs(o.j - t.j) * interval < TERM_HOLD_SECONDS)
+      : [];
+    const set = termSet(f, t, caption, beside);
+    if (!set) continue;
     const fresh = 1 - age / TERM_HOLD_SECONDS;
-    const alpha = remains * dim * (yieldTo ? yieldTo(t) : 1)
+    const alpha = remains * dim * (yieldTo ? yieldTo(t, set) : 1)
       * (TERM_ALPHA_AGED + (TERM_ALPHA_FRESH - TERM_ALPHA_AGED) * fresh);
     if (alpha <= 0.01) continue;
 
@@ -518,30 +643,22 @@ export function drawTerms(
     ctx.lineTo(view.sx(t.wx < t.x ? t.wx + t.w : t.wx), view.sy(t.wy));
     ctx.stroke();
 
-    const px = Math.max(
-      SCATTER_MIN_PX,
-      view.s(t.size),
-      room ? ROOM_TEXT_MIN_PX.aside : 0,
-    );
     // Set exactly as the archive filed it, lower-case `shot` and all: the
     // record's own inconsistent casing is a fact about the record.
-    const lab = label(t.phrase, px, dpr);
+    const lab = label(t.phrase, set.px, dpr);
     ctx.globalAlpha = alpha;
     ctx.drawImage(lab.canvas, view.sx(t.wx), view.sy(t.wy) - lab.height / 2,
       lab.width, lab.height);
 
     // A birth discloses what it is, in the margin, rather than being asserted
     // by its size alone.
-    if (t.bornIn) {
-      const mp = Math.max(
-        SCATTER_MIN_PX * 0.8,
-        px * TERM_MARGIN_SCALE,
-        room ? ROOM_TEXT_MIN_PX.aside : 0,
-      );
-      const margin = label(`FIRST FILED ${t.bornIn}`, mp, dpr);
+    if (t.bornIn && set.margin) {
+      const margin = label(`FIRST FILED ${t.bornIn}`, set.mp, dpr);
       ctx.globalAlpha = alpha * TERM_MARGIN_ALPHA;
-      ctx.drawImage(margin.canvas, view.sx(t.wx),
-        view.sy(t.wy) - lab.height / 2 + lab.height * 1.05, margin.width, margin.height);
+      // Over the word it stands as far from the word's centre as under it.
+      const under = marginTop(view.sy(t.wy), lab.height);
+      const top = set.above ? 2 * view.sy(t.wy) - under - margin.height : under;
+      ctx.drawImage(margin.canvas, view.sx(t.wx), top, margin.width, margin.height);
     }
     ctx.globalAlpha = 1;
   }
@@ -642,9 +759,15 @@ const PIN_CAPTION_DROP = 30;
  *
  * `size` and `lift` describe the caption as one frame actually sets it — its
  * type floored, and stood up off the plate's edge — for the readers that work
- * at draw time. The memo never passes them.
+ * at draw time, and `leading` is a line's height as a multiple of its size.
+ * The memo never passes them.
  */
-function pinCaptionBox(season: Season, size = SLUG_STATEMENT_TENTHS, lift = 0): Box | null {
+function pinCaptionBox(
+  season: Season,
+  size = SLUG_STATEMENT_TENTHS,
+  lift = 0,
+  leading = 1.7,
+): Box | null {
   const sentinel = season.resolution.rim_sentinel;
   if (!sentinel || !sentinel.is_refusal) return null;
   const lines = [`${sentinel.n.toLocaleString()} SHOTS · NO PLACE GIVEN`];
@@ -659,7 +782,7 @@ function pinCaptionBox(season: Season, size = SLUG_STATEMENT_TENTHS, lift = 0): 
     wx: sentinel.coord[0] - w / 2,
     wy: sentinel.coord[1] - PIN_CAPTION_DROP + lift - drop / 2,
     w,
-    h: drop + size * 1.7,
+    h: drop + size * leading,
   };
 }
 
@@ -684,6 +807,20 @@ function pinCaptionSet(f: Frame, lines: number, anchorY: number): { px: number; 
   );
   const bottom = view.sy(anchorY) + (lines - 1) * px * 1.9 + px / 2;
   return { px, lift: Math.max(0, bottom - view.sy(COURT.y0)) };
+}
+
+/** The pin caption's footprint as this frame sets it: type floored and the
+ *  block stood up, for every reader that works at draw time. */
+function pinCaptionAsSet(f: Frame, season: Season): CaptionSet | null {
+  const sentinel = season.resolution.rim_sentinel;
+  if (!sentinel) return null;
+  const lines = Object.keys(season.resolution.refused_action_types).length ? 2 : 1;
+  const set = pinCaptionSet(f, lines, sentinel.coord[1] - PIN_CAPTION_DROP);
+  const size = set.px / f.view.scale;
+  const lift = set.lift / f.view.scale;
+  const box = pinCaptionBox(season, size, lift);
+  const type = pinCaptionBox(season, size, lift, 1);
+  return box && type ? { box, type } : null;
 }
 
 /**
@@ -797,21 +934,30 @@ export function drawLedgerHand(f: Frame): void {
   // know nothing of the arriving ones. They give way here, at draw time and
   // never in the year-keyed layout: a receding word goes the moment an arriving
   // word lands on it, and dims as an arriving heading over it comes up.
+  //
+  // The caption is the other thing they cannot know: each word is set against
+  // its own season's caption as this frame sets it, and a receding one gives
+  // way to the arriving season's as well.
   const here = ledgerUtterances(f, year);
+  const caption = sample && here ? pinCaptionAsSet(f, season) : null;
   const previousArrival = st.act === 3 ? windowEntryProgress(st.phase) : st.arrived;
   if (st.prev !== null && previousArrival < 1) {
     const out = ledgerUtterances(f, st.prev);
+    const before = data.byYear.get(st.prev);
     if (out) {
       drawTerms(f, out.terms, out.elapsed, out.interval, 1 - previousArrival,
-        giveWayTo(f, year, sample ? here : null));
+        giveWayTo(f, year, sample ? here : null, caption),
+        before ? pinCaptionAsSet(f, before) : null);
     }
   }
   let speaking: Box[] = [];
   if (sample && here) {
     const { terms, interval, elapsed } = here;
+    // A word the caption leaves no room for is not spoken, so it holds no
+    // floor against the scatter either.
     speaking = terms.filter((t) => {
       const age = elapsed - t.j * interval;
-      return age >= 0 && age < TERM_HOLD_SECONDS;
+      return age >= 0 && age < TERM_HOLD_SECONDS && termSet(f, t, caption) !== null;
     });
     // The league's names hold their ground against the grain too. They are the
     // whole of Act V's argument and a scatter label running through PASSING
@@ -820,13 +966,7 @@ export function drawLedgerHand(f: Frame): void {
     // derivation, so the two readers cannot disagree about where it stands.
     speaking = [...speaking, ...leagueObstacles(data, year)];
     // At draw time the box is the caption as this frame sets it.
-    const sentinel = season.resolution.rim_sentinel;
-    if (sentinel) {
-      const lines = Object.keys(season.resolution.refused_action_types).length ? 2 : 1;
-      const set = pinCaptionSet(f, lines, sentinel.coord[1] - PIN_CAPTION_DROP);
-      const pinBox = pinCaptionBox(season, set.px / f.view.scale, set.lift / f.view.scale);
-      if (pinBox) speaking = [...speaking, pinBox];
-    }
+    if (caption) speaking = [...speaking, caption.box];
 
     // The scatter goes down FIRST and yields wherever a term is speaking, so
     // the big register has the local emptiness that makes it read.
@@ -852,7 +992,7 @@ export function drawLedgerHand(f: Frame): void {
     const termVisible = rem === null
       ? 1
       : Math.max(0, Math.min(1, rem * Math.max(1, terms.length)));
-    drawTerms(f, terms, elapsed, interval, termVisible);
+    drawTerms(f, terms, elapsed, interval, termVisible, undefined, caption);
   }
 
   // Act III shows the same published names carrying real recomputed values;
@@ -874,16 +1014,27 @@ export function drawLedgerHand(f: Frame): void {
  * be the old season speaking again. An arriving heading covers as far as it
  * has come up, by the same law that draws it. The test is the one the layout
  * itself uses, at the receding word's own clearance.
+ *
+ * The arriving season's pin caption covers too, whole and from the season's
+ * first frame, so nothing under it leaves when its count first reads: a
+ * receding word it would meet as this frame sets both, or the margin line of a
+ * receding birth, goes with the turnover. So does a receding birth whose
+ * margin line, stood over its word, an arriving word has landed beside.
  */
 function giveWayTo(
   f: Frame,
   year: number,
   here: ReturnType<typeof ledgerUtterances>,
-): (t: Term) => number {
+  caption: CaptionSet | null,
+): (t: Term, set: TermSet) => number {
   const covers: { box: Box; presence: number }[] = [];
+  const landed: Term[] = [];
   if (here) {
     for (const t of here.terms) {
-      if (here.elapsed - t.j * here.interval >= 0) covers.push({ box: t, presence: 1 });
+      if (here.elapsed - t.j * here.interval >= 0) {
+        covers.push({ box: t, presence: 1 });
+        landed.push(t);
+      }
     }
   }
   if (actOf(year) === 3 || actOf(year) === 5) {
@@ -893,7 +1044,10 @@ function giveWayTo(
       if (presence[i]! > 0) covers.push({ box, presence: presence[i]! });
     });
   }
-  return (t) => {
+  return (t, set) => {
+    if (caption && (meets(set.word, caption.type, TERM_CLEAR_PAD * set.size)
+      || (set.margin && meets(set.margin, caption.type, 0)))) return 0;
+    if (set.above && set.margin && landed.some((o) => readsWith(f, set.margin!, o))) return 0;
     const pad = TERM_CLEAR_PAD * t.size;
     let left = 1;
     for (const c of covers) {
