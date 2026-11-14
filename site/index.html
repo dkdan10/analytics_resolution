@@ -678,7 +678,7 @@
       .seg {
         display: flex;
         justify-content: space-between;
-        gap: 8px;
+        gap: 6px;
         width: 100%;
         box-sizing: border-box;
         min-height: 28px;
@@ -694,7 +694,9 @@
       .seg:hover { background: rgba(232, 226, 214, 0.05); color: var(--bone); }
       /* A name too long for its row gives way to an ellipsis, and never the
          time beside it: the time is what a presenter reads the row for, and
-         the whole name is spoken in the row's label. */
+         the whole name is spoken in the row's label. The least a name keeps
+         from its time is what an operation's row keeps between its parts;
+         any more and a name that fits the column by a pixel is cut too. */
       .seg > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
       .seg .share { flex: none; color: rgba(232, 226, 214, 0.58); font-variant-numeric: tabular-nums; }
       .seg.current { background: rgba(232, 226, 214, 0.1); color: var(--bone); }
