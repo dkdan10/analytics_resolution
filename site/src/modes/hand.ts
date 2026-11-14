@@ -1260,10 +1260,13 @@ export function drawHandHand(f: Frame): void {
     // The whole point, said once, on the first season after the window closes.
     const days = factNum(data.facts, "window.days_inclusive");
     // `voice`: the enclosure, named once, on the first season after it closes.
+    // It leaves on the season's own crossfade into the next (`blend`), so it
+    // is gone by the boundary rather than cut at it.
     drawSlug(ctx, view, [
       "THE RECORD KEEPS ENDPOINTS",
       `WHAT HAPPENED BETWEEN THEM WAS PUBLIC FOR ${days} DAYS`,
-    ], { x: 0, y: 330 }, remains * Math.min(1, st.phase * 2) * 0.45, "voice");
+    ], { x: 0, y: 330 },
+    remains * Math.min(1, st.phase * 2) * (1 - st.blend) * 0.45, "voice");
   }
 
   ctx.restore();
