@@ -536,6 +536,8 @@ async function main(): Promise<void> {
     clock = exhibitClock(0);
     credit.hidden = false;
     showDoors("overview", schedule, q);
+    // An overview that is not the landing is a step away from it, through the
+    // player's door, and Escape takes the visitor back.
     if (LANDING !== "overview") returnOnEscape(q, displayProfile);
   } else if (playerRoute) {
     // The full work's own clock in a visitor's hands: it plays, pauses and
@@ -701,6 +703,8 @@ async function main(): Promise<void> {
     document.body.classList.add("exhibit");
     clock = exhibitClock(selection.offset);
     wakePointer();
+    // The full work asked for by name, as both entries' doors ask for it, is a
+    // step away from the landing too, and Escape takes the visitor back.
     if (q.get("experience") === "full") returnOnEscape(q, displayProfile);
   }
 
@@ -820,8 +824,9 @@ function wakePointer(): void {
 }
 
 /** On the full work, and on the overview when another entry is the landing,
- *  Escape returns to the bare address. Limited to those routes so a direct
- *  address (a cited frame) keeps behaving as it always did. */
+ *  Escape returns to the bare address, and so to `LANDING`: the player, which
+ *  binds no Escape of its own. Limited to those routes so a direct address (a
+ *  cited frame) keeps behaving as it always did. */
 function returnOnEscape(q: URLSearchParams, display: string): void {
   const home = new URL(location.href);
   home.search = "";

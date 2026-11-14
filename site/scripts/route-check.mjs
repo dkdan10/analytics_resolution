@@ -75,7 +75,7 @@ const NAVIGATOR = resolve(here, "../src/navigator.ts");
 const FACTS = resolve(here, "../../data/processed/facts.json");
 
 /** What the bare address must serve. Changed only together with LANDING. */
-const EXPECT_LANDING = "overview";
+const EXPECT_LANDING = "player";
 
 /** The landing's place in the table: a row that reads EXPECT_LANDING. */
 const L = Symbol("the landing");

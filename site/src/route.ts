@@ -16,7 +16,7 @@ export type Entry = "canonical" | Landing;
 /** What the bare address serves. The cast keeps the type wider than the
  *  value, so a comparison with the other landing stays legal while this one is
  *  in force. `route-check.mjs` pins it: changing it alone turns that check red. */
-export const LANDING = "overview" as Landing;
+export const LANDING = "player" as Landing;
 
 /**
  * Existing direct-frame and working addresses stay on the canonical work: the

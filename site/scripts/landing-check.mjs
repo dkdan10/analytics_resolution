@@ -68,7 +68,7 @@
  *     first animation frame asked for after the piece's own, with the worst
  *     frame in the second after and what the loading chip said;
  *   - `--film`: page captures a set time after the first frame shown, for the
- *     overview (at its own address, which the bare one serves today) and the
+ *     overview (at its own address; the bare one serves the player) and the
  *     player's three openings, filed by opening and size;
  *   - `--pairs`: one capture with reduced motion asked for and one without, at
  *     every layout size, named alike in both arms so `sheet.mjs` flips them;

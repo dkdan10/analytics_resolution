@@ -140,9 +140,10 @@ function firstSeasonStart() {
 
 const FIRST_SEASON_S = firstSeasonStart();
 
-/** The public addresses: the bare one, both named experiences, the lectern,
- *  the rail, one direct address of the kind a citation is, and the player.
- *  The player comes after the full work, whose canvas it is held to. */
+/** The public addresses: the bare one, which serves the player, the overview
+ *  and the full work by name, the lectern, the rail, one direct address of the
+ *  kind a citation is, and the player by name. The player is worked at its
+ *  own address, which comes after the full work, whose canvas it is held to. */
 const ADDRESSES = [
   "",
   "?experience=overview",

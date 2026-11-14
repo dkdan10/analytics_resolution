@@ -5,10 +5,15 @@ instant to look at, and in which rendering.
 
 ## Entry points
 
-- A bare `/` plays the guided overview: a short tour that visits each rendering in turn, with a
-  title and a `FULL WORK` link. It is the public landing page.
-- `?experience=full` plays the complete work without chrome. A moving pointer shows the cursor
-  briefly; Escape returns to the overview.
+- A bare `/` opens the player, the public landing page: the full work's own canvas, playing from
+  the prelude's card, with a small panel to pause it, scrub it, step through its stops and pick a
+  rendering, a door to the overview and a door to the full work. A visitor who asks for reduced
+  motion gets it paused. `?experience=player` opens the same, and `&t=`, `&stop=` or `&mode=`
+  beside it choose where it opens.
+- `?experience=overview` plays the guided overview: a short tour that visits each rendering in
+  turn, with a title and a `FULL WORK` link. Escape returns to the player.
+- `?experience=full` plays the complete work without chrome, one pass of the loop per rendering. A
+  moving pointer shows the cursor briefly; Escape returns to the player.
 - `?talk` opens the full work with the presenter rail, paused; add `&autoplay=1` to start it
   moving. `?nav` adds the rail to an autoplaying full view.
 - `?display=near|room` selects legibility for viewer distance. Talk mode defaults to `room`.
@@ -42,6 +47,19 @@ the URL token, so a configured frame such as `?talk&mode=stack&ops=lcij&stop=win
 reopens exactly.
 
 ## Keys
+
+In the player:
+
+| key | action |
+|---|---|
+| `space` | pause or resume (so does a click on the canvas) |
+| `←` `→` | back or forward by the scrub's step; with `shift`, by its coarse step |
+| `,` `.` | previous / next stop of the rendering on screen |
+| `h` | the same instant in the next rendering |
+| `home` | the start of the pass on screen |
+| `escape` | from `?experience=full` or `?experience=overview`, back to the player |
+
+With `?talk` or `?nav`:
 
 | key | action |
 |---|---|
