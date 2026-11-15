@@ -490,9 +490,16 @@ function onPlate(w: Filed, boxes: [Box, Box]): boolean {
 function footerLines(
   total: number, struck: number, tail: number, beyond: number, homeless: number,
 ): string[] {
-  const lines = [`${struck} OF ${total} STRUCK · ${tail} A TICK AND A COUNT`];
+  // A clause for a count of none says nothing, and the last line agrees with
+  // its own count.
+  const lines = [`${struck} OF ${total} STRUCK`
+    + (tail > 0 ? ` · ${tail} SHOWN AS A TICK AND A COUNT` : "")];
   if (beyond > 0) lines.push(`${beyond} PLACED BEYOND THIS FLOOR`);
-  if (homeless > 0) lines.push(`${homeless} WITH NO ROOM AT ITS OWN DISTANCE`);
+  if (homeless > 0) {
+    lines.push(homeless === 1
+      ? `${homeless} WITH NO ROOM AT ITS OWN DISTANCE`
+      : `${homeless} WITH NO ROOM AT THEIR OWN DISTANCES`);
+  }
   return lines;
 }
 
