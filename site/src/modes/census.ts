@@ -67,6 +67,7 @@ import {
   SLUG_STATEMENT_TENTHS,
   SIXFOLD_ALPHA,
   SIXFOLD_SECONDS,
+  SLUG_MIN_PX,
   STRIKE_FLOOR_TENTHS,
   STRIKE_MAX_TENTHS,
   WORD_CLEAR_PAD,
@@ -422,6 +423,8 @@ function boxAt(x: number, y: number, ux: number, uy: number, g: Glyphs, size: nu
  * figure up to the underside of the word's letters: nothing is drawn in it,
  * and it is still the word's, because a smaller word laid there stands
  * directly over the figure and the figure then reads as that word's share.
+ * The figure's rectangle is kept where a small screen does not strike the
+ * figure (`strikeWords`), so the layout stays a function of the season alone.
  */
 function boxesOf(w: Filed): [Box, Box] {
   const ux = Math.cos(w.bearing);
@@ -640,6 +643,11 @@ function strikeWords(f: Frame, words: Filed[], alpha: number, coloured: boolean)
     // word's own downward direction once it is turned by `rotation`, which on
     // the screen is (-sin, +cos): toward the hoop for every word on the floor.
     const sub = px * CENSUS_SHARE_SCALE;
+    // Under the slug floor the face stops resolving and the figure reads as a
+    // speck of dirt under its word, so it is not struck, and nothing is enlarged
+    // to reach the floor: the word's size still carries the share and the
+    // receipt lists every one exactly.
+    if (sub < SLUG_MIN_PX) continue;
     strike(ctx, struckFigure(w.share), x - Math.sin(rotation) * px * FIGURE_DROP,
            y + Math.cos(rotation) * px * FIGURE_DROP, sub, alpha * CENSUS_WORD_ALPHA * 0.8, rotation);
   }
