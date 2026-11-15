@@ -136,6 +136,11 @@ export interface Filed {
   bearing: number;
   /** Cap height, in court tenths: STRIKE_MAX * sqrt(share), so AREA ∝ share. */
   size: number;
+  /** The cap height the word comes to rest at once its filing has arrived,
+   *  from the same counts at an arrival of one. What `strikeWords` asks the
+   *  slug floor about, so a figure is struck in every frame of a filing or in
+   *  none. At rest it is `size` exactly. */
+  rest: number;
   /** What the word's letters cover about the point it is struck at, and the
    *  same for the share figure struck beneath it. The collision test's whole
    *  input besides the place. */
@@ -354,6 +359,10 @@ export function filing(
   let placedTotal = 0;
   for (const name of Object.keys(counts)) placedTotal += places[name]?.n_placed ?? 0;
   const classified = Math.round(placedTotal * a);
+  // The same count with the whole filing arrived, where every word comes to
+  // rest. Written as the arrival-one case of the line above, so a settled
+  // frame's `size` and `rest` are one number.
+  const settled = Math.round(placedTotal);
   const out: Filed[] = [];
   for (const name of Object.keys(counts)) {
     const p: Place | undefined = places[name];
@@ -364,6 +373,7 @@ export function filing(
     if (n < 1) continue;
     const share = classified ? n / classified : 0;
     const size = STRIKE_MAX_TENTHS * Math.sqrt(share);
+    const restShare = settled ? Math.round(p.n_placed) / settled : 0;
     const dist = p.dist_ft * 10;
     const figure = size * CENSUS_SHARE_SCALE;
     out.push({
@@ -373,6 +383,7 @@ export function filing(
       dist,
       bearing: p.bearing_rad,
       size,
+      rest: STRIKE_MAX_TENTHS * Math.sqrt(restShare),
       // The word is struck STRAIGHT, tangent to the hoop at its centre, so what
       // it covers is a rectangle and not an arc at its own radius: a long word
       // close to the hoop reaches far outside any radius band of its own.
@@ -447,8 +458,10 @@ function boxAt(x: number, y: number, ux: number, uy: number, g: Glyphs, size: nu
  * figure up to the underside of the word's letters: nothing is drawn in it,
  * and it is still the word's, because a smaller word laid there stands
  * directly over the figure and the figure then reads as that word's share.
- * The figure's rectangle is kept where a small screen does not strike the
- * figure (`strikeWords`), so the layout stays a function of the season alone.
+ * The figure's rectangle is kept where the figure is not struck, so the layout
+ * stays a function of the season alone: `strikeWords` leaves out a figure whose
+ * word comes to rest too small for the slug floor in the view, and that is true
+ * of some words on the laptop as well as on a small screen.
  */
 function boxesOf(w: Filed): [Box, Box] {
   const ux = Math.cos(w.bearing);
@@ -677,8 +690,16 @@ function strikeWords(f: Frame, words: Filed[], alpha: number, coloured: boolean)
     // Under the slug floor the face stops resolving and the figure reads as a
     // speck of dirt under its word, so it is not struck, and nothing is enlarged
     // to reach the floor: the word's size still carries the share and the
-    // receipt lists every one exactly.
-    if (sub < SLUG_MIN_PX) continue;
+    // receipt lists every one exactly. The floor is asked about the size the
+    // word comes to rest at in this filing, in this view, and not the size it
+    // has reached in this frame: while a season arrives its rounded counts make
+    // a word's size wobble, and a figure resting near the floor would go out
+    // and in with them. Struck, it is struck at the frame's own size. The
+    // sixfold flash is asked the same way, each word by the rest of its own
+    // taxonomy's filing: the flash withdraws before that filing would arrive,
+    // and its words hold that share's size, up to the rounding of the counts
+    // arrived so far.
+    if (view.s(w.rest) * CENSUS_SHARE_SCALE < SLUG_MIN_PX) continue;
     strike(ctx, struckFigure(w.share), x - Math.sin(rotation) * px * FIGURE_DROP,
            y + Math.cos(rotation) * px * FIGURE_DROP, sub, alpha * CENSUS_WORD_ALPHA * 0.8, rotation);
   }

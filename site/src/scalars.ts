@@ -1260,7 +1260,10 @@ export const SCALARS = {
     controls:
       "a floor in CSS pixels, the one place slug type is NOT in court units: " +
       "below it the mono face stops resolving at all and the statement is simply " +
-      "lost. It binds only on a small window.",
+      "lost. It binds on a small window, and it also decides which of THE " +
+      "CENSUS's share figures are struck, on the laptop as well: a figure is left " +
+      "out of a filing when its word, once the filing has arrived, would set it " +
+      "under this floor.",
   },
   SLUG_VOICE_ALPHA: {
     class: "authored",

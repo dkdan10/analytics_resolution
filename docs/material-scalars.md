@@ -265,7 +265,7 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
 - **SLUG_ASIDE_TENTHS** — **5.5** *(not material)*  
   an annotation subordinate to a mark beside it - the category name under a struck numeral, and the counter-reading's margin line. Unchanged from the one size the piece used everywhere, so these stay put while the sentences around them grow.
 - **SLUG_MIN_PX** — **9** *(not material)*  
-  a floor in CSS pixels, the one place slug type is NOT in court units: below it the mono face stops resolving at all and the statement is simply lost. It binds only on a small window.
+  a floor in CSS pixels, the one place slug type is NOT in court units: below it the mono face stops resolving at all and the statement is simply lost. It binds on a small window, and it also decides which of THE CENSUS's share figures are struck, on the laptop as well: a figure is left out of a filing when its word, once the filing has arrived, would set it under this floor.
 - **SLUG_VOICE_ALPHA** — **0.78** *(not material)*  
   how far the loudest rank is lifted out of the ground it sits on.
 - **SLUG_STATEMENT_ALPHA** — **0.62** *(not material)*  
