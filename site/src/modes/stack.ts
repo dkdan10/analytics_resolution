@@ -525,12 +525,16 @@ export function drawQuarrel(f: Frame, progress = f.st.phase): void {
 
   // The true scale, confessed beside the flood — THE MEASURE's idiom: the
   // drawn-against-entered fraction so the sample never implies it is
-  // everything, and the population's own count beside it. Every numeral is a
-  // count from the artifact or from this frame's arithmetic; none is typed.
+  // everything, and the population's own count beside it. Once every record
+  // has entered, the entered count IS the population, and the line says it
+  // once. Every numeral is a count from the artifact or from this frame's
+  // arithmetic; none is typed.
   const drawn = entered - from;
   drawSlug(ctx, view, [
-    `${drawn.toLocaleString()} DRAWN OF ${entered.toLocaleString()} ENTERED`
-    + ` · ${q.n.toLocaleString()} DETECTED`,
+    entered === q.n
+      ? `${drawn.toLocaleString()} OF ${q.n.toLocaleString()} DRAWN`
+      : `${drawn.toLocaleString()} DRAWN OF ${entered.toLocaleString()} ENTERED`
+        + ` · ${q.n.toLocaleString()} DETECTED`,
   ], { x: 0, y: 330 }, a, "aside");
 }
 
