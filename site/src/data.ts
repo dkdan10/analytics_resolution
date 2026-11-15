@@ -1024,11 +1024,31 @@ export interface Loaded {
    *  and gains it a frame or two later, rather than blocking the first paint on
    *  4 MB. */
   points(year: number): Points | null;
+  /** A season's points if they are already here, and null otherwise. For work
+   *  done ahead of need, which must not decide what is fetched or when: asking
+   *  never starts a fetch. */
+  residentPoints(year: number): Points | null;
+  /** Ask for a season's points ahead of the frame that draws them. It returns
+   *  nothing and waits for nothing, and a request it starts is not counted as
+   *  loading until a frame asks for the same points: nothing on screen is
+   *  missing them yet. For the same reason a failure before then is not
+   *  reported: the points are not asked for ahead again, and the frame that
+   *  draws them asks at need. */
+  prefetchPoints(year: number): void;
+  /** The same, for the window season's points and then for the files `reads`
+   *  names, in that order and one asset at a time: call it on every frame of
+   *  the season before, and each call asks for at most the next. The caller
+   *  names what the hand about to play the window reads there, so a file that
+   *  hand never reads is neither downloaded nor reported when it fails. */
+  prefetchWindow(reads: readonly WindowAsset[]): void;
   /** The window season's calendar for the same points: per-day count deltas,
    *  the re-clock's artifact. Null for every season that ships no calendar and
    *  while the fetch is in flight; the base falls back to the shared arrival
    *  envelope rather than blocking. */
   pointsByDay(year: number): DayPoints | null;
+  /** A season's calendar if it is already here, and null otherwise, for the
+   *  reason `residentPoints` gives: asking never starts a fetch. */
+  residentPointsByDay(year: number): DayPoints | null;
   corpus: Corpus | null;
   /** Act III's gestures; null if the bloom stage has not been run. */
   traces: TracesFile | null;
@@ -1065,13 +1085,16 @@ export interface Loaded {
   wash(): Wash | null;
   /** Every lazily-fetched asset whose latest attempt failed, with why. Failures
    *  do not retry from the animation loop; the visible RETRY action owns that
-   *  state change, so this remains finite and inspectable. */
+   *  state change, so this remains finite and inspectable. Only what a frame
+   *  asked for is here: a request made ahead of need that fails before any
+   *  frame asks for the asset is not. */
   assetErrors(): string[];
   /** Every lazily-fetched asset a frame has ASKED for that has not yet
    *  arrived (THE FEED readout): the rail says the piece is
    *  still filling rather than leaving a cold seek to read as a sparse
    *  record. Probing NEVER fetches — only assets some draw call already
-   *  requested appear — and the list empties on completion. */
+   *  requested appear — and the list empties on completion. A file asked for
+   *  ahead of need is left out until a frame asks for it too. */
   pendingAssets(): string[];
   /** Presentation-facing state for the assets behind the current rendering.
    *  `degraded` is deliberately distinct from `ready`: an optional stage may
@@ -1100,6 +1123,11 @@ export interface Loaded {
    *  KEY ORDER is the record's own and is what the window's beats run through. */
   taxonomyColumns: Record<string, string>;
 }
+
+/** A file the window season's frames read beyond the points every season
+ *  has. Which of them a hand reads is that hand's to say. The quarrel is not
+ *  one of them: no hand reads it but under an operation a presenter applies. */
+export type WindowAsset = "calendar" | "game" | "measures" | "strokes" | "wash" | "slate";
 
 export type AssetStatus = "loading" | "ready" | "degraded" | "failed";
 
@@ -1165,17 +1193,33 @@ async function getBinary(path: string): Promise<ArrayBuffer> {
  * explicit retry. */
 interface Lazy<T> {
   get(): T | null;
+  /** What has arrived, and nothing else: unlike `get`, it never begins a
+   *  request. */
+  peek(): T | null;
   load(): Promise<T | null>;
   retry(): Promise<T | null>;
   error(): string | null;
   /** True while a request is in flight. A probe, never a trigger. */
   pending(): boolean;
+  /** Begin a request ahead of need, unless the asset has arrived, has failed,
+   *  is already on its way, or failed once when asked for ahead. */
+  prefetch(): void;
+  /** True while the request in flight was begun by `prefetch` and nothing has
+   *  since asked for the asset itself. */
+  quiet(): boolean;
 }
 
 function lazy<T>(name: string, fetcher: () => Promise<T>): Lazy<T> {
   let value: T | null = null;
   let failure: string | null = null;
   let inFlight = false;
+  // Set only where `prefetch` starts a request, so one already wanted is
+  // never made quiet again.
+  let quiet = false;
+  // Set where a quiet request fails. Nothing on screen was missing the asset,
+  // so nothing is latched: only looking ahead for it stops, and the frame's
+  // own `get` begins a request at need.
+  let aheadFailed = false;
   let request: Promise<T | null> | null = null;
   const begin = (force: boolean): Promise<T | null> => {
     if (value) return Promise.resolve(value);
@@ -1190,25 +1234,41 @@ function lazy<T>(name: string, fetcher: () => Promise<T>): Lazy<T> {
         return v;
       })
       .catch((e: unknown) => {
+        if (quiet) {
+          aheadFailed = true;
+          return null;
+        }
         failure = e instanceof Error ? e.message : String(e);
         console.error(`FADEAWAY: ${name} will not be drawn - ${failure}`);
         return null;
       })
       .finally(() => {
         inFlight = false;
+        quiet = false;
         request = null;
       });
     return request;
   };
   return {
     get(): T | null {
+      quiet = false;
       if (!value && !failure && !inFlight) void begin(false);
       return value;
     },
-    load: () => begin(false),
+    peek: () => value,
+    load: () => {
+      quiet = false;
+      return begin(false);
+    },
     retry: () => begin(true),
     error: () => failure,
     pending: () => inFlight,
+    prefetch(): void {
+      if (value || failure || request || aheadFailed) return;
+      quiet = true;
+      void begin(false);
+    },
+    quiet: () => quiet,
   };
 }
 
@@ -1269,22 +1329,24 @@ export async function load(): Promise<Loaded> {
   let windowFile = (optionalValues.get("window") as WindowFile | undefined) ?? null;
 
   const pointLoaders = new Map<number, Lazy<Points>>();
-  const fetchPoints = (year: number): Points | null => {
+  const pointLoader = (year: number): Lazy<Points> => {
     let l = pointLoaders.get(year);
     if (!l) {
       l = lazy(`points/season_${year}.bin`,
         () => getBinary(`points/season_${year}.bin`).then(decodePoints));
       pointLoaders.set(year, l);
     }
-    return l.get();
+    return l;
   };
+  const fetchPoints = (year: number): Points | null => pointLoader(year).get();
+  const prefetchPoints = (year: number): void => pointLoader(year).prefetch();
 
   // Only the window season ships a calendar; every other year answers null
   // without fetching, so a caller probing the wrong season costs nothing. The
   // seasons row's own points_by_day block is the door - self-describing, no
   // year literal.
   const dayPointLoaders = new Map<number, Lazy<DayPoints>>();
-  const fetchPointsByDay = (year: number): DayPoints | null => {
+  const dayPointLoader = (year: number): Lazy<DayPoints> | null => {
     if (!seasons.find((s) => s.year === year)?.points_by_day) return null;
     let l = dayPointLoaders.get(year);
     if (!l) {
@@ -1292,8 +1354,10 @@ export async function load(): Promise<Loaded> {
         () => getBinary(`points_by_day/season_${year}.bin`).then(decodePointsByDay));
       dayPointLoaders.set(year, l);
     }
-    return l.get();
+    return l;
   };
+  const fetchPointsByDay = (year: number): DayPoints | null =>
+    dayPointLoader(year)?.get() ?? null;
 
   let paintFile = (optionalValues.get("paint") as PaintFile | undefined) ?? null;
 
@@ -1365,7 +1429,7 @@ export async function load(): Promise<Loaded> {
   ];
   const pending = (): string[] => [
     ...(preloadingWindow ? ["the window"] : []),
-    ...lazyEntries().filter(([, l]) => l.pending()).map(([name]) => name),
+    ...lazyEntries().filter(([, l]) => l.pending() && !l.quiet()).map(([name]) => name),
   ];
   const state = (): AssetState => {
     const p = pending();
@@ -1470,13 +1534,60 @@ export async function load(): Promise<Loaded> {
     return preloadRequest;
   };
 
+  // One asset at a time: each call asks for the first that has not arrived,
+  // and for nothing while that one is on its way. Asked for together they
+  // would outnumber the connections a browser keeps open to one host, and a
+  // request waiting for a connection is running down the fetch timeout: on a
+  // slow link, files nobody had begun to send were given up on and latched as
+  // failed (measured). The season's points lead: every hand but the paint's
+  // opens the window on them, and the paint's draws them only while its
+  // calipers are absent.
+  // Each loader is offered under the condition its own getter asks under, and
+  // only where the caller names it: whether a frame will read the file
+  // depends on the hand, which this module does not know. The chain stops at
+  // the first file that is not offered, has failed, or failed when asked for
+  // ahead, and asks for nothing past it: a hand may read a later file only
+  // once an earlier one is here, as the paint's wash, game and slate wait for
+  // its strokes, and a file the chain never reaches is asked for by the frame
+  // that reads it, at a cost of time only. The season before the window's is
+  // left to the frames now drawing it.
+  const windowLoader = (asset: WindowAsset, windowYear: number): Lazy<unknown> | null => {
+    switch (asset) {
+      case "calendar": return dayPointLoader(windowYear);
+      case "game": return gameFile ? gameLoader : null;
+      case "measures": return windowFile ? measureLoader : null;
+      case "strokes": return paintFile ? strokeLoader : null;
+      case "wash": return windowFile && windowFile.wash ? washLoader : null;
+      case "slate": return slateFile ? slateLoader : null;
+    }
+  };
+  const prefetchWindow = (reads: readonly WindowAsset[]): void => {
+    const windowYear = seasons.find((s) => s.points_by_day)?.year;
+    if (windowYear === undefined) return;
+    // True where the chain goes on past this file, which is only where it has
+    // arrived. `prefetch` asks for nothing where the file has failed, failed
+    // when asked for ahead, or is on its way.
+    const passed = (l: Lazy<unknown> | null): boolean => {
+      if (!l) return false;
+      if (l.peek()) return true;
+      l.prefetch();
+      return false;
+    };
+    if (!passed(pointLoader(windowYear))) return;
+    for (const asset of reads) if (!passed(windowLoader(asset, windowYear))) return;
+  };
+
   loaded = {
     seasons,
     facts,
     byYear: new Map(seasons.map((s) => [s.year, s])),
     samples,
     points: fetchPoints,
+    residentPoints: (year) => pointLoaders.get(year)?.peek() ?? null,
+    prefetchPoints,
+    prefetchWindow,
     pointsByDay: fetchPointsByDay,
+    residentPointsByDay: (year) => dayPointLoaders.get(year)?.peek() ?? null,
     corpus,
     traces,
     window: windowFile,

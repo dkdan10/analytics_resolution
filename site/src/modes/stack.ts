@@ -74,11 +74,13 @@
 
 import type { HeroShot } from "../data";
 import { contextDisplay, ROOM_TEXT_MIN_PX } from "../display";
-import { drawInscriptions, drawSlug } from "../inscription";
+import { strokeFrames, strokeReach } from "../game";
+import { drawInscriptions, drawSlug, slugSlots } from "../inscription";
 import { BONE_RGB, SLUG_FAMILY } from "../palette";
 import { COURT } from "../plate";
 import {
   QUARREL_ALPHA,
+  SLUG_MIN_PX,
   STACK_CALIPER_ALPHA,
   STACK_DISCLOSURE_INSET,
   STACK_FIELD_DIM,
@@ -199,8 +201,10 @@ export function drawStackHand(f: Frame): void {
   // 8b. JOIN THE INSTRUMENTS — the archive's two words about where, shot by
   //     shot. Table order is layer order, so the eighth operation draws after
   //     the seventh and before the disclosures, like every bit before it.
+  //     Its hairlines stop short of the disclosure lines, which rule 9 draws
+  //     later over the same ground.
   const join = progress("join");
-  if (join > 0 && inWindow(f)) drawQuarrel(f, join);
+  if (join > 0 && inWindow(f)) drawQuarrel(f, join, disclosureSlots(f, ops));
 
   // 9. Last, over everything.
   drawDisclosures(f, ops);
@@ -223,8 +227,11 @@ export function drawStackHand(f: Frame): void {
  * made from a machine that held every position of every body, and one gesture
  * says that at a scale a viewer can follow.
  *
- * `drawn` is the window's own phase, so the paths are laid rather than appearing:
- * the bodies move while the season does.
+ * `progress` is how far this operation's own response has run since its control
+ * was invoked, on the interface clock and not the score's, so it keeps running
+ * while the score is paused. It is taken as a share of each stroke's own
+ * measured time (`game.ts:strokeReach`), so the paths are laid rather than
+ * appearing and every body keeps its own pace against the others.
  *
  * Wrapped in save/restore because `paintStroke` is not: it sets `fillStyle`,
  * `strokeStyle`, `lineWidth`, `lineCap` and `lineJoin` and restores none of
@@ -255,7 +262,10 @@ function drawConnect(f: Frame, progress: number): void {
   // time, and a composite that quietly brightened it would be drawing more ink
   // than the record deposited. What yields is the field underneath.
   ctx.globalAlpha = remains;
-  for (let i = 0; i < n; i++) paintStroke(ctx, view, strokes, i, progress, r);
+  for (let i = 0; i < n; i++) {
+    paintStroke(ctx, view, strokes, i,
+      strokeReach(strokes, i, progress * strokeFrames(strokes, i)), r);
+  }
   ctx.restore();
 }
 
@@ -288,10 +298,13 @@ function drawMeasure(f: Frame, progress: number): void {
     const p = frames[frames.length - 1];
     if (!p) continue;
     caliper(ctx, view, p[0]!, p[1]!, p[2]!, p[3]!, a);
-    // The league's own name for the category this distance was cut into, at the
-    // caliper's midpoint. `aside`: it annotates the mark above it.
+    // The league's own name for the category this distance was cut into, over
+    // the caliper's midpoint and lifted from its HIGHER end rather than its
+    // middle: a caliper that stands up the court would otherwise run through
+    // its own name, and a short steep one would end on a letter. `aside`: it
+    // annotates the mark below it.
     drawSlug(ctx, view, [h.bucket_name.toUpperCase()],
-      { x: (p[0]! + p[2]!) / 2, y: (p[1]! + p[3]!) / 2 }, remains * progress, "aside",
+      { x: (p[0]! + p[2]!) / 2, y: Math.max(p[1]!, p[3]!) }, remains * progress, "aside",
       -view.s(STACK_GUTTER_TENTHS));
   }
 }
@@ -362,7 +375,11 @@ function drawCount(f: Frame, progress: number): void {
   // court however narrow the window gets.
   const right = view.sx(COURT.x0) - view.s(STACK_GUTTER_PAD_TENTHS);
   const named = words.filter((x) => x.named);
-  const rows = named.map((c) => `${c.name.toLowerCase()}   ${c.n.toLocaleString()}`);
+  // A row is a name and its count, kept apart so the same row can be set on one
+  // line or on two.
+  const names = named.map((c) => c.name.toLowerCase());
+  const counts = named.map((c) => c.n.toLocaleString());
+  const rows = names.map((name, i) => `${name}   ${counts[i]!}`);
   ctx.save();
 
   // THE COLUMN FITS THE GUTTER IT ACTUALLY HAS, and the type size is derived
@@ -373,20 +390,45 @@ function drawCount(f: Frame, progress: number): void {
   // the record's longest phrases, which are the whole of the second curve — ran
   // off the left edge and was clipped mid-word.
   //
-  // Near mode keeps the full fitted tally. In room mode the same narrow gutter
-  // cannot honestly carry the DESCRIPTION taxonomy's longest rows at a 13px
-  // floor. The floor was previously paired with `fillText(..., maxWidth)`,
-  // which retained nominal height by crushing glyphs to roughly one third of
-  // their natural width. At distance that is worse than omission. The audience
-  // therefore receives a legible filing summary here while every category's
-  // magnitude remains visible in the court's ticks; the near profile retains
-  // the complete row-by-row tally.
-  ctx.font = `${view.s(STACK_GUTTER_TENTHS)}px ${SLUG_FAMILY}`;
-  const widest = rows.reduce((m, r) => Math.max(m, ctx.measureText(r).width), 1);
+  // In room mode the same narrow gutter cannot honestly carry the DESCRIPTION
+  // taxonomy's longest rows at a 13px floor. The floor was previously paired
+  // with `fillText(..., maxWidth)`, which retained nominal height by crushing
+  // glyphs to roughly one third of their natural width. At distance that is
+  // worse than omission. The audience therefore receives a legible filing
+  // summary here while every category's magnitude remains visible in the
+  // court's ticks. Near mode keeps the complete row-by-row tally wherever it
+  // fits at the slug floor. Where it does not, the gutter is usually still as
+  // wide as the names themselves, so each row is broken at its own gap, the
+  // count under its name, and the tail at its own separator: every name and
+  // every count stays, at a size that reads. Only a filing whose names alone
+  // are wider than the gutter at the floor takes the summary, because a column
+  // fitted down to a size nobody can read is not a tally either.
+  //
+  // Each column is measured as it is drawn, heading and tail included, so the
+  // size is the one at which the lines actually set fit the gutter.
+  const base = view.s(STACK_GUTTER_TENTHS);
   const gutterWidth = Math.max(1, right - view.s(STACK_GUTTER_PAD_TENTHS));
   const room = contextDisplay(ctx) === "room";
-  const fitted = view.s(STACK_GUTTER_TENTHS) * Math.min(1, gutterWidth / widest);
-  const px = room ? Math.max(ROOM_TEXT_MIN_PX.aside, fitted) : fitted;
+  ctx.font = `${base}px ${SLUG_FAMILY}`;
+  const fit = (lines: string[]): number => base * Math.min(1, gutterWidth
+    / lines.reduce((m, r) => Math.max(m, ctx.measureText(r).width), 1));
+  // Which of the record's own columns this filing IS, in both profiles. The
+  // record supplies the name of its own field; this hand does not name it.
+  const heading = data.taxonomyColumns[taxonomy] ?? taxonomy;
+  // The tail is a count, never a cloud — THE CENSUS's rule, kept.
+  const rest = Object.keys(season.classification[taxonomy] ?? {}).length - named.length;
+  // The tail in the two halves its separator divides it into, which are also
+  // its two lines where the rows are broken.
+  const tailParts = rest > 0 ? [`${rest} more ·`, "a tick and a count"] : [];
+  const tail = tailParts.length ? [tailParts.join(" ")] : [];
+  const summary = [`${named.length} NAMED`, ...(rest > 0 ? [`${rest} MORE`] : []), "TICK=COUNT"];
+  const tally = !room && fit([heading, ...rows, ...tail]) >= SLUG_MIN_PX;
+  const brokenLines = [heading, ...names, ...counts, ...tailParts];
+  const broken = !room && !tally && fit(brokenLines) >= SLUG_MIN_PX;
+  const shownRows = tally ? rows : summary;
+  const px = broken ? fit(brokenLines)
+    : Math.max(room ? ROOM_TEXT_MIN_PX.aside : SLUG_MIN_PX,
+      fit([heading, ...shownRows, ...(tally ? tail : [])]));
   if (px < 1) {
     ctx.restore();
     return;
@@ -399,23 +441,29 @@ function drawCount(f: Frame, progress: number): void {
   };
   let y = view.sy(COURT.y1);
   ctx.fillStyle = `rgba(${BONE_RGB}, ${remains * STACK_GUTTER_SUB_ALPHA * progress})`;
-  // Which of the record's own columns this filing IS. The record supplies the
-  // name of its own field; this hand does not name it.
-  fillRow(room ? taxonomy : data.taxonomyColumns[taxonomy] ?? taxonomy, right, y);
+  fillRow(heading, right, y);
   y += px * 2.2;
   ctx.fillStyle = `rgba(${BONE_RGB}, ${remains * STACK_GUTTER_ROW_ALPHA * progress})`;
-  // The tail is a count, never a cloud — THE CENSUS's rule, kept.
-  const rest = Object.keys(season.classification[taxonomy] ?? {}).length - named.length;
-  const shownRows = room
-    ? [`${named.length} NAMED`, ...(rest > 0 ? [`${rest} MORE`] : []), "TICK=COUNT"]
-    : rows;
-  for (const row of shownRows) {
-    fillRow(row, right, y);
-    y += px * 1.5;
+  if (broken) {
+    // A row on two lines at the column's own step, and the gap that sets the
+    // tail off from the rows also sets each row off from the next.
+    names.forEach((name, i) => {
+      fillRow(name, right, y);
+      y += px * 1.5;
+      fillRow(counts[i]!, right, y);
+      y += px * 1.5 + px * 0.6;
+    });
+  } else {
+    for (const row of shownRows) {
+      fillRow(row, right, y);
+      y += px * 1.5;
+    }
   }
-  if (!room && rest > 0) {
+  if (tally || broken) {
     ctx.fillStyle = `rgba(${BONE_RGB}, ${remains * STACK_GUTTER_SUB_ALPHA * progress})`;
-    fillRow(`${rest} more · a tick and a count`, right, y + px * 0.6);
+    (broken ? tailParts : tail).forEach((line, i) => {
+      fillRow(line, right, y + px * 0.6 + i * px * 1.5);
+    });
   }
   ctx.restore();
 }
@@ -443,14 +491,29 @@ function drawCount(f: Frame, progress: number): void {
  * flood is at most QUARREL_BUDGET lineTo calls
  * from arrays data.ts already decoded, which is cheaper than any surface that
  * would need registering in probe/shared.ts:cold().
+ *
+ * THE HAIRLINES STOP SHORT OF THE TYPE THAT SCOPES THEM: the count line below,
+ * and any slot the caller passes in `clearOf` (THE STACK passes the box its
+ * disclosure lines stand in). A record that crosses one is interrupted there and drawn on either
+ * side, and one lying wholly under the type is left whole, so every record in
+ * the budget still draws and the count stays true. The slots are measured each
+ * frame from the slug the line is set in (`slugSlots`), so nothing is
+ * remembered and the gap cannot drift from the type. The pieces are cut on the
+ * segment rather than clipped on the canvas, so a record that meets no slot is
+ * drawn exactly as it was.
  */
 const QUARREL_BUDGET = 400;
+
+/** Where the count line stands, in court tenths. */
+const QUARREL_COUNT_AT = { x: 0, y: 330 };
+
+type Slot = { x: number; y: number; width: number; height: number };
 
 /** Exported for one caller besides this hand: THE PLATE's quarrel-candidate
  *  composite (`plate.ts`), which only the shots probe can request — the
  *  gallery question of where the quarrel lives is a composition decision
  *  judged from captures, and nothing in the gallery path reaches it. */
-export function drawQuarrel(f: Frame, progress = f.st.phase): void {
+export function drawQuarrel(f: Frame, progress = f.st.phase, clearOf: Slot[] = []): void {
   const { ctx, view, data, remains } = f;
   const w = data.window;
   const q = data.quarrel();
@@ -459,26 +522,101 @@ export function drawQuarrel(f: Frame, progress = f.st.phase): void {
   const from = Math.max(0, entered - QUARREL_BUDGET);
   const a = remains * QUARREL_ALPHA;
   if (a <= 0.01) return;
+  // The true scale, confessed beside the flood — THE MEASURE's idiom: the
+  // sample on the plate against the whole population it is drawn from, so it
+  // never implies it is everything. The line confesses that at every instant,
+  // in one wording from the flood's first frame to its last, so it does not
+  // change its words or its width in the frame the last record enters.
+  // Every numeral is a count from the artifact or from this frame's
+  // arithmetic; none is typed.
+  const drawn = entered - from;
+  const count = `${drawn.toLocaleString()} OF ${q.n.toLocaleString()} DRAWN`;
+  const slots = [...slugSlots(ctx, view, [count], QUARREL_COUNT_AT, "aside"), ...clearOf];
+  const court: Slot = { x: view.sx(COURT.x0), y: view.sy(COURT.y1),
+    width: view.s(COURT.x1 - COURT.x0), height: view.s(COURT.y1 - COURT.y0) };
   ctx.save();
+  // Held to the court's box. A record whose two claims lie a court apart
+  // still draws, but only as far as the plate: past it the segment ran off
+  // the canvas through the margin, where nothing else on the plate goes.
+  ctx.beginPath();
+  ctx.rect(court.x, court.y, court.width, court.height);
+  ctx.clip();
   ctx.strokeStyle = `rgba(${BONE_RGB}, ${a})`;
   ctx.lineWidth = 1;
+  // A share of a segment's length as a point on it. Its two ends are its two
+  // claims exactly, so a segment that meets no slot is set as it always was.
+  const along = (u: number, p0: number, p1: number): number =>
+    u === 0 ? p0 : u === 1 ? p1 : p0 + (p1 - p0) * u;
   ctx.beginPath();
   for (let i = from; i < entered; i++) {
-    ctx.moveTo(view.sx(q.fx[i]!), view.sy(q.fy[i]!));
-    ctx.lineTo(view.sx(q.bx[i]!), view.sy(q.by[i]!));
+    const x0 = view.sx(q.fx[i]!);
+    const y0 = view.sy(q.fy[i]!);
+    const x1 = view.sx(q.bx[i]!);
+    const y1 = view.sy(q.by[i]!);
+    for (const [u, v] of offTheType(x0, y0, x1, y1, slots, court)) {
+      ctx.moveTo(along(u, x0, x1), along(u, y0, y1));
+      ctx.lineTo(along(v, x0, x1), along(v, y0, y1));
+    }
   }
   ctx.stroke();
   ctx.restore();
 
-  // The true scale, confessed beside the flood — THE MEASURE's idiom: the
-  // drawn-against-entered fraction so the sample never implies it is
-  // everything, and the population's own count beside it. Every numeral is a
-  // count from the artifact or from this frame's arithmetic; none is typed.
-  const drawn = entered - from;
-  drawSlug(ctx, view, [
-    `${drawn.toLocaleString()} DRAWN OF ${entered.toLocaleString()} ENTERED`
-    + ` · ${q.n.toLocaleString()} DETECTED`,
-  ], { x: 0, y: 330 }, a, "aside");
+  drawSlug(ctx, view, [count], QUARREL_COUNT_AT, a, "aside");
+}
+
+/**
+ * The stretches of the segment from (x0, y0) to (x1, y1) that lie outside
+ * every slot, as [from, to] shares of its length, in order. Each slot takes out
+ * the stretch where the segment runs inside it, and the segment continues on
+ * either side.
+ *
+ * The cut interrupts a record and never erases one. A record whose whole
+ * stretch on the court lies under the type is left whole, over it: a short
+ * claim-to-claim distance filed right where a line is set would otherwise vanish
+ * from a flood whose count says it is drawn.
+ */
+function offTheType(x0: number, y0: number, x1: number, y1: number,
+  slots: Slot[], court: Slot): [number, number][] {
+  let parts: [number, number][] = [[0, 1]];
+  for (const s of slots) {
+    const [enter, leave] = stretchIn(x0, y0, x1, y1, s);
+    if (enter >= leave) continue;
+    parts = parts.flatMap(([u, v]) => {
+      const sides: [number, number][] = [[u, Math.min(v, enter)], [Math.max(u, leave), v]];
+      return sides.filter(([lo, hi]) => hi > lo);
+    });
+  }
+  const [onto, off] = stretchIn(x0, y0, x1, y1, court);
+  const shows = parts.some(([u, v]) => Math.min(v, off) > Math.max(u, onto));
+  return shows || onto >= off ? parts : [[0, 1]];
+}
+
+/**
+ * Where the line through (x0, y0) and (x1, y1) runs inside a box, as [enter,
+ * leave] shares of the segment's length; it misses the box where enter is not
+ * below leave. A box is convex, so the line is inside it over one stretch at
+ * most: from the last of its entries into the four edges' half-planes to the
+ * first of its exits.
+ */
+function stretchIn(x0: number, y0: number, x1: number, y1: number,
+  b: Slot): [number, number] {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  let enter = -Infinity;
+  let leave = Infinity;
+  for (const [p, q] of [[-dx, x0 - b.x], [dx, b.x + b.width - x0],
+    [-dy, y0 - b.y], [dy, b.y + b.height - y0]] as const) {
+    if (p === 0) {
+      // Parallel to this edge: inside its half-plane for the whole length,
+      // or outside it, and so never in the box.
+      if (q < 0) leave = -Infinity;
+    } else if (p < 0) {
+      enter = Math.max(enter, q / p);
+    } else {
+      leave = Math.min(leave, q / p);
+    }
+  }
+  return [enter, leave];
 }
 
 /**
@@ -494,7 +632,37 @@ export function drawQuarrel(f: Frame, progress = f.st.phase): void {
  * subject is what a rendering does not tell you.
  */
 function drawDisclosures(f: Frame, ops: StackOps): void {
-  const { ctx, view, remains } = f;
+  const lines = disclosureLines(f, ops);
+  if (!lines.length) return;
+  // Rank `aside` (drawSlug's rank argument): subordinate to the marks it describes.
+  drawSlug(f.ctx, f.view, lines, DISCLOSURE_AT, f.remains, "aside");
+}
+
+/** Where the disclosures stand: their first line, in court tenths. */
+const DISCLOSURE_AT = { x: 0, y: COURT.y1 - STACK_DISCLOSURE_INSET };
+
+/** Where the disclosures stand this frame, as one slot for the join's hairlines
+ *  to stop short of: the box round every line's slot, so it is the join's own
+ *  line's slot when that is the only one up. Every line, not only the join's:
+ *  the lines other renderings owe are set above it on the same ground, and a
+ *  hairline broken at one line and run through the others reads as a break for
+ *  that line alone. One box, not a slot per line: the lines are centred and of
+ *  different lengths, and a hairline cut line by line keeps a short piece of
+ *  itself in the notch beside a shorter line, a mark standing next to the type.
+ *  None when no disclosure is up. */
+function disclosureSlots(f: Frame, ops: StackOps): Slot[] {
+  const lines = disclosureLines(f, ops);
+  if (!lines.length) return [];
+  const slots = slugSlots(f.ctx, f.view, lines, DISCLOSURE_AT, "aside");
+  const x0 = Math.min(...slots.map((s) => s.x));
+  const x1 = Math.max(...slots.map((s) => s.x + s.width));
+  const y0 = slots[0]!.y;
+  const y1 = slots[slots.length - 1]!.y + slots[slots.length - 1]!.height;
+  return [{ x: x0, y: y0, width: x1 - x0, height: y1 - y0 }];
+}
+
+/** The disclosures this frame owes, in the order they are set. */
+function disclosureLines(f: Frame, ops: StackOps): string[] {
   const lines: string[] = [];
   // Rule 4: colour exposes a classification the league imposed, it never adds
   // one, and the plate says so wherever it is used. Same sentence THE FIELD
@@ -516,8 +684,5 @@ function drawDisclosures(f: Frame, ops: StackOps): void {
   // a re-run updates the wall text. The site never composes its own.
   const qScope = has(ops, "join") && inWindow(f) ? f.data.window?.quarrel_bin.scope : null;
   if (qScope) lines.push(qScope);
-  if (!lines.length) return;
-  // Rank `aside` (drawSlug's rank argument): subordinate to the marks it describes.
-  drawSlug(ctx, view, lines, { x: 0, y: COURT.y1 - STACK_DISCLOSURE_INSET },
-    remains, "aside");
+  return lines;
 }

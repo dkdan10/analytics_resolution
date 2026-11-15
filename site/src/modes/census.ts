@@ -47,9 +47,9 @@
  */
 
 import { factNum, type Place, type Season } from "../data";
-import { drawSlug, strike, STRIKE_LETTER_SPACING, struckFigure } from "../inscription";
+import { drawSlug, slugBox, strike, STRIKE_LETTER_SPACING, struckFigure } from "../inscription";
 import { BONE_RGB, INSCRIPTION_FAMILY, SLUG_FAMILY, ZONE_RGB } from "../palette";
-import { COURT } from "../plate";
+import { COURT, type View } from "../plate";
 import {
   CENSUS_FIELD_DIM,
   CENSUS_HEAD_ALPHA,
@@ -64,13 +64,15 @@ import {
   MACHINE_SAW_SCOPE_OFFSET_PX,
   ROTATE_MAX_RAD,
   ROTATE_STEP_RAD,
+  SLUG_STATEMENT_TENTHS,
   SIXFOLD_ALPHA,
   SIXFOLD_SECONDS,
+  SLUG_MIN_PX,
   STRIKE_FLOOR_TENTHS,
   STRIKE_MAX_TENTHS,
   WORD_CLEAR_PAD,
 } from "../scalars";
-import { ARRIVAL_TAIL } from "../timeline";
+import { ARRIVAL_TAIL, type Act } from "../timeline";
 import {
   CENSUS_FILING_COMPLETE,
   CENSUS_FILING_FADE,
@@ -84,7 +86,7 @@ import {
   windowSecondAtPhase,
 } from "../window-score";
 import { drawSeasonField } from "./fieldlayer";
-import { drawActCue } from "./shared";
+import { actCueLevel, drawActCue } from "./shared";
 import type { Frame } from "./types";
 
 /** Compatibility exports; the canonical Census score is centralized. */
@@ -105,6 +107,23 @@ export {
 const HEADER_AT = { x: 0, y: 402 };
 const FOOTER_AT = { x: 0, y: -32 };
 
+/** The boundaries the census names: it has no native boundary event — its
+ *  taxonomy turnover happens most seasons, not at the acts. */
+const CUED_ACTS: readonly Act[] = [2, 5];
+
+/** The top of the footer's ground, which no word may stand on: a whole em of
+ *  the footer's registered size above its first line's centre. Half of that
+ *  is the line's own letters; the other half is clear stone between them and
+ *  a word in the near profile, and is what still covers them where the room
+ *  profile floors the footer's type larger in pixels. In court tenths like the
+ *  rest of the layout, so one season files the same way on every screen. */
+const FOOTER_TOP = FOOTER_AT.y + SLUG_STATEMENT_TENTHS;
+
+/** Where the share figure is struck beneath its word, as a fraction of the
+ *  word's size. One number for the pen and the collision test, so the figure
+ *  tested is the figure drawn. */
+const FIGURE_DROP = 0.95;
+
 /** One category, ready to be struck. Court tenths throughout — nothing here
  *  depends on the viewport, so the plate files the same way on every screen. */
 export interface Filed {
@@ -117,9 +136,16 @@ export interface Filed {
   bearing: number;
   /** Cap height, in court tenths: STRIKE_MAX * sqrt(share), so AREA ∝ share. */
   size: number;
-  /** Half-extents used by the collision test: radial, and angular at `dist`. */
-  halfRadial: number;
-  halfAngle: number;
+  /** The cap height the word comes to rest at once its filing has arrived,
+   *  from the same counts at an arrival of one. What `strikeWords` asks the
+   *  slug floor about, so a figure is struck in every frame of a filing or in
+   *  none. At rest it is `size` exactly. */
+  rest: number;
+  /** What the word's letters cover about the point it is struck at, and the
+   *  same for the share figure struck beneath it. The collision test's whole
+   *  input besides the place. */
+  glyphs: Glyphs;
+  figureGlyphs: Glyphs;
   /** How far the bearing had to move to find room. Zero for most. */
   moved: number;
   /** In the named set AND large enough to strike. Everything else is a tick. */
@@ -133,39 +159,168 @@ export interface Filed {
   zone: number;
 }
 
+/** What a struck line's letters cover, in court tenths, about the point it is
+ *  struck at: back and forward along the line it reads along, up (away from
+ *  the hoop, the way its letters stand) and down. */
+export interface Glyphs {
+  back: number;
+  fore: number;
+  up: number;
+  down: number;
+}
+
 /**
- * A string's width in COURT TENTHS at a given cap height.
+ * A string's struck letters in COURT TENTHS at a given size.
  *
  * Measured once per string at a fixed nominal size through a ruler of its own,
  * never through the live view. That is the invariant THE LEDGER keeps, and it
  * holds here for the same reason: if any of this geometry needed
  * `view.scale`, the layout would differ between screens and the plate would file
  * the same season two ways.
+ *
+ * The letters themselves and not a proportion of the size: the collision test
+ * is only as true as the rectangle it is given, and an allowance kept around a
+ * word, once the word is turned, collides at its corners where no letter is.
  */
 const NOMINAL_PX = 100;
-const widths = new Map<string, number>();
+const measured = new Map<string, Glyphs>();
+const lettered = new Map<string, Glyphs[]>();
+const slugWidths = new Map<string, number>();
+let slugAdvance: number | undefined;
 let ruler: CanvasRenderingContext2D | null = null;
+let slugRuler: CanvasRenderingContext2D | null = null;
 
-function widthTenths(text: string, sizeTenths: number): number {
-  let per = widths.get(text);
-  if (per === undefined) {
-    ruler ??= document.createElement("canvas").getContext("2d")!;
-    // The same face and the same letter-spacing `strike` uses, or the collision
-    // boxes would be measuring a different string from the one drawn.
-    ruler.font = `${NOMINAL_PX}px ${INSCRIPTION_FAMILY}`;
-    ruler.letterSpacing = `${NOMINAL_PX * STRIKE_LETTER_SPACING}px`;
-    per = ruler.measureText(text).width / NOMINAL_PX;
-    ruler.letterSpacing = "0px";
-    widths.set(text, per);
-  }
-  return per * sizeTenths;
+/** The ruler, set the way `strike` sets its pen: the same face, letter-spacing
+ *  and baseline, or the collision boxes would be measuring a different string
+ *  from the one drawn. */
+function struckRuler(align: CanvasTextAlign): CanvasRenderingContext2D {
+  ruler ??= document.createElement("canvas").getContext("2d")!;
+  ruler.font = `${NOMINAL_PX}px ${INSCRIPTION_FAMILY}`;
+  ruler.letterSpacing = `${NOMINAL_PX * STRIKE_LETTER_SPACING}px`;
+  ruler.textAlign = align;
+  ruler.textBaseline = "middle";
+  return ruler;
 }
 
-/** Drop the string ruler. Registered in probe/shared.ts:cold() — an
+function scaled(g: Glyphs, k: number): Glyphs {
+  return { back: g.back * k, fore: g.fore * k, up: g.up * k, down: g.down * k };
+}
+
+function glyphsOf(text: string, sizeTenths: number): Glyphs {
+  let per = measured.get(text);
+  if (per === undefined) {
+    const m = struckRuler("center").measureText(text);
+    per = {
+      back: m.actualBoundingBoxLeft / NOMINAL_PX,
+      fore: m.actualBoundingBoxRight / NOMINAL_PX,
+      up: m.actualBoundingBoxAscent / NOMINAL_PX,
+      down: m.actualBoundingBoxDescent / NOMINAL_PX,
+    };
+    measured.set(text, per);
+  }
+  return scaled(per, sizeTenths);
+}
+
+/**
+ * The same string letter by letter: what each letter covers about the point
+ * the whole line is struck at.
+ *
+ * The line's own rectangle stands as high as its tallest glyph for its whole
+ * length, and in the record's names the tallest glyph is a parenthesis. Turned
+ * against a sideline, that rectangle's corner is past the line where the
+ * word's first letter is not. The plate's edge is asked about the letters.
+ */
+function lettersOf(text: string, sizeTenths: number): Glyphs[] {
+  let per = lettered.get(text);
+  if (per === undefined) {
+    const pen = struckRuler("left");
+    const whole = pen.measureText(text).width;
+    per = [];
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === " ") continue;
+      const g = pen.measureText(text[i]!);
+      // Where this letter's own origin falls from the line's centre: the
+      // advance up to and including it, less its own.
+      const from = pen.measureText(text.slice(0, i + 1)).width - g.width - whole / 2;
+      per.push({
+        back: (g.actualBoundingBoxLeft - from) / NOMINAL_PX,
+        fore: (g.actualBoundingBoxRight + from) / NOMINAL_PX,
+        up: g.actualBoundingBoxAscent / NOMINAL_PX,
+        down: g.actualBoundingBoxDescent / NOMINAL_PX,
+      });
+    }
+    lettered.set(text, per);
+  }
+  return per.map((g) => scaled(g, sizeTenths));
+}
+
+/** A view with nothing but a scale: one court tenth is `NOMINAL_PX` of the
+ *  footer's registered size, so no pixel floor binds on what is measured. */
+const RULER_SCALE = NOMINAL_PX / SLUG_STATEMENT_TENTHS;
+const RULER_VIEW: View = {
+  scale: RULER_SCALE,
+  width: 0,
+  height: 0,
+  sx: (x) => x * RULER_SCALE,
+  sy: (y) => -y * RULER_SCALE,
+  s: (len) => len * RULER_SCALE,
+};
+
+/**
+ * How wide `drawSlug` sets a statement line, in court tenths at its registered
+ * size.
+ *
+ * Taken through `drawSlug` itself, with the fill replaced by a measurement:
+ * the face and the letter-spacing are that function's own, and a copy of
+ * either kept here would go stale without a word.
+ */
+function slugWidthOf(line: string): number {
+  let w = slugWidths.get(line);
+  if (w === undefined) {
+    slugRuler ??= document.createElement("canvas").getContext("2d")!;
+    const pen = slugRuler;
+    let px = 0;
+    pen.fillText = (text: string): void => {
+      const m = pen.measureText(text);
+      px = m.actualBoundingBoxLeft + m.actualBoundingBoxRight;
+    };
+    drawSlug(pen, RULER_VIEW, [line], FOOTER_AT, 1);
+    w = px / RULER_SCALE;
+    slugWidths.set(line, w);
+  }
+  return w;
+}
+
+/**
+ * How far `drawSlug` sets one line under the last, as a multiple of its type
+ * size.
+ *
+ * Taken through `drawSlug` like the width above, and for the same reason: the
+ * advance is that function's own, and a copy of it kept here would go stale
+ * without a word.
+ */
+function slugAdvanceOf(): number {
+  if (slugAdvance === undefined) {
+    slugRuler ??= document.createElement("canvas").getContext("2d")!;
+    const pen = slugRuler;
+    const set: number[] = [];
+    pen.fillText = (_text: string, _x: number, y: number): void => {
+      set.push(y);
+    };
+    drawSlug(pen, RULER_VIEW, ["", ""], FOOTER_AT, 1);
+    slugAdvance = (set[1]! - set[0]!) / slugBox(pen, RULER_VIEW, "").height;
+  }
+  return slugAdvance;
+}
+
+/** Drop the rulers' maps. Registered in probe/shared.ts:cold() — an
  *  unregistered cache does not produce a false IMPURE, it produces a false
  *  PURE, because every history then shares the same stale map. */
 export function clearCensusCaches(): void {
-  widths.clear();
+  measured.clear();
+  lettered.clear();
+  slugWidths.clear();
+  slugAdvance = undefined;
 }
 
 /**
@@ -204,6 +359,10 @@ export function filing(
   let placedTotal = 0;
   for (const name of Object.keys(counts)) placedTotal += places[name]?.n_placed ?? 0;
   const classified = Math.round(placedTotal * a);
+  // The same count with the whole filing arrived, where every word comes to
+  // rest. Written as the arrival-one case of the line above, so a settled
+  // frame's `size` and `rest` are one number.
+  const settled = Math.round(placedTotal);
   const out: Filed[] = [];
   for (const name of Object.keys(counts)) {
     const p: Place | undefined = places[name];
@@ -214,8 +373,9 @@ export function filing(
     if (n < 1) continue;
     const share = classified ? n / classified : 0;
     const size = STRIKE_MAX_TENTHS * Math.sqrt(share);
+    const restShare = settled ? Math.round(p.n_placed) / settled : 0;
     const dist = p.dist_ft * 10;
-    const w = widthTenths(name.toUpperCase(), size);
+    const figure = size * CENSUS_SHARE_SCALE;
     out.push({
       name: name.toUpperCase(),
       n,
@@ -223,12 +383,12 @@ export function filing(
       dist,
       bearing: p.bearing_rad,
       size,
-      halfRadial: size * 0.85,
-      // Laid tangent to the hoop, so the word's extent IS an arc at its own
-      // radius. Guarded: close to the hoop a long word subtends more than the
-      // whole plate, and it then blocks every bearing at that radius, which is
-      // true and is what the collision test should conclude.
-      halfAngle: Math.min(Math.PI, w / 2 / Math.max(1, dist)),
+      rest: STRIKE_MAX_TENTHS * Math.sqrt(restShare),
+      // The word is struck STRAIGHT, tangent to the hoop at its centre, so what
+      // it covers is a rectangle and not an arc at its own radius: a long word
+      // close to the hoop reaches far outside any radius band of its own.
+      glyphs: glyphsOf(name.toUpperCase(), size),
+      figureGlyphs: glyphsOf(struckFigure(share), figure),
       moved: 0,
       // Filled in below, once the whole taxonomy is ranked.
       named: false,
@@ -256,13 +416,168 @@ export function filing(
   return out;
 }
 
-/** Two words laid tangent to the hoop overlap when they are close in RADIUS and
- *  close in BEARING. Exact for this geometry, and cheap. */
-function collides(a: Filed, b: Filed, pad: number): boolean {
-  if (Math.abs(a.dist - b.dist) >= a.halfRadial + b.halfRadial + pad * a.size) return false;
-  let d = Math.abs(a.bearing - b.bearing) % (2 * Math.PI);
-  if (d > Math.PI) d = 2 * Math.PI - d;
-  return d < a.halfAngle + b.halfAngle + pad * a.size / Math.max(1, a.dist);
+/** A rectangle something is struck in, in court tenths: its centre, the unit
+ *  direction its line of type reads along, its half-extents along that line
+ *  and across it, and the clear floor it keeps from other type. */
+interface Box {
+  cx: number;
+  cy: number;
+  tx: number;
+  ty: number;
+  halfAlong: number;
+  halfAcross: number;
+  pad: number;
+}
+
+/** The rectangle a line's letters cover when it is struck at (x, y), `size`
+ *  high, with its letters standing along the unit direction (ux, uy), so
+ *  reading along (uy, -ux). Every struck line keeps WORD_CLEAR_PAD of its own
+ *  size clear around it. */
+function boxAt(x: number, y: number, ux: number, uy: number, g: Glyphs, size: number): Box {
+  const along = (g.fore - g.back) / 2;
+  const across = (g.up - g.down) / 2;
+  return {
+    cx: x + along * uy + across * ux,
+    cy: y - along * ux + across * uy,
+    tx: uy,
+    ty: -ux,
+    halfAlong: (g.fore + g.back) / 2,
+    halfAcross: (g.up + g.down) / 2,
+    pad: WORD_CLEAR_PAD * size,
+  };
+}
+
+/**
+ * What a word covers on the floor at its current bearing: the word, and the
+ * share figure struck beneath it together with the strip of floor between the
+ * two.
+ *
+ * Laid tangent to the hoop with its letters standing away from it, so "up" is
+ * the bearing's own direction and "beneath" is toward the hoop, where
+ * `strikeWords` puts the figure. The strip is the figure's own width, from the
+ * figure up to the underside of the word's letters: nothing is drawn in it,
+ * and it is still the word's, because a smaller word laid there stands
+ * directly over the figure and the figure then reads as that word's share.
+ * The figure's rectangle is kept where the figure is not struck, so the layout
+ * stays a function of the season alone: `strikeWords` leaves out a figure whose
+ * word comes to rest too small for the slug floor in the view, and that is true
+ * of some words on the laptop as well as on a small screen.
+ */
+function boxesOf(w: Filed): [Box, Box] {
+  const ux = Math.cos(w.bearing);
+  const uy = Math.sin(w.bearing);
+  const figure = w.dist - FIGURE_DROP * w.size;
+  const under: Glyphs = {
+    ...w.figureGlyphs,
+    up: Math.max(w.figureGlyphs.up, FIGURE_DROP * w.size - w.glyphs.down),
+  };
+  return [
+    boxAt(w.dist * ux, w.dist * uy, ux, uy, w.glyphs, w.size),
+    boxAt(figure * ux, figure * uy, ux, uy, under, w.size * CENSUS_SHARE_SCALE),
+  ];
+}
+
+/** How far a box reaches from its centre along the unit direction (nx, ny). */
+function reach(k: Box, nx: number, ny: number): number {
+  return k.halfAlong * Math.abs(k.tx * nx + k.ty * ny)
+    + k.halfAcross * Math.abs(k.tx * ny - k.ty * nx);
+}
+
+/** A box being placed overlaps one already down, short of its own clear floor,
+ *  unless one of their four edge directions separates them. */
+function overlaps(a: Box, b: Box): boolean {
+  const dx = b.cx - a.cx;
+  const dy = b.cy - a.cy;
+  const apart = (nx: number, ny: number): boolean =>
+    Math.abs(dx * nx + dy * ny) >= reach(a, nx, ny) + reach(b, nx, ny) + a.pad;
+  return !(apart(a.tx, a.ty) || apart(-a.ty, a.tx) || apart(b.tx, b.ty) || apart(-b.ty, b.tx));
+}
+
+/** A box lies wholly on the plate. The plate's edges are stone, not type, and
+ *  keep no clear floor. */
+function inStone(k: Box): boolean {
+  const ex = reach(k, 1, 0);
+  const ey = reach(k, 0, 1);
+  return k.cx - ex >= COURT.x0 && k.cx + ex <= COURT.x1
+    && k.cy - ey >= COURT.y0 && k.cy + ey <= COURT.y1;
+}
+
+/**
+ * Everything a word strikes lies on the plate.
+ *
+ * Its two rectangles first. Where one of them crosses an edge the letters
+ * themselves are asked, each by its own rectangle: the word's is as tall as
+ * its tallest glyph along its whole length, and a corner of it can be past a
+ * sideline that no letter reaches.
+ */
+function onPlate(w: Filed, boxes: [Box, Box]): boolean {
+  if (boxes.every(inStone)) return true;
+  const ux = Math.cos(w.bearing);
+  const uy = Math.sin(w.bearing);
+  const figure = w.dist - FIGURE_DROP * w.size;
+  const sub = w.size * CENSUS_SHARE_SCALE;
+  return lettersOf(w.name, w.size)
+      .every((g) => inStone(boxAt(w.dist * ux, w.dist * uy, ux, uy, g, w.size)))
+    && lettersOf(struckFigure(w.share), sub)
+      .every((g) => inStone(boxAt(figure * ux, figure * uy, ux, uy, g, sub)));
+}
+
+/** The footer's lines, for the pen and for the layout that keeps words off
+ *  them. */
+function footerLines(
+  total: number, struck: number, tail: number, beyond: number, homeless: number,
+): string[] {
+  // A clause for a count of none says nothing, and the last line agrees with
+  // its own count.
+  const lines = [`${struck} OF ${total} STRUCK`
+    + (tail > 0 ? ` · ${tail} SHOWN AS A TICK AND A COUNT` : "")];
+  if (beyond > 0) lines.push(`${beyond} PLACED BEYOND THIS FLOOR`);
+  if (homeless > 0) {
+    lines.push(homeless === 1
+      ? `${homeless} WITH NO ROOM AT ITS OWN DISTANCE`
+      : `${homeless} WITH NO ROOM AT THEIR OWN DISTANCES`);
+  }
+  return lines;
+}
+
+/** How many categories the record has under a taxonomy this season. */
+function categoriesOf(season: Season, taxonomy: string): number {
+  return Object.keys(season.classification[taxonomy] ?? {}).length;
+}
+
+/**
+ * The footer's ground, which no word may stand on.
+ *
+ * From the plate's foot up to FOOTER_TOP, and as wide as the footer's own
+ * lines and no wider: a word in the corner, a long way from the footer's
+ * letters, is not on them and is not moved for them. The width is the widest
+ * line the footer can print for a taxonomy of this many categories — every
+ * count at the count of categories, which none can exceed — set at twice its
+ * registered size, the size whose letters reach FOOTER_TOP. So the ground
+ * keeps one proportion in both directions, and covers the footer the same way
+ * where the room profile floors its type larger in pixels.
+ */
+function footerGround(categories: number): Box {
+  const widest = Math.max(
+    ...footerLines(categories, categories, categories, categories, categories).map(slugWidthOf),
+  );
+  return {
+    cx: FOOTER_AT.x,
+    cy: (COURT.y0 + FOOTER_TOP) / 2,
+    tx: 1,
+    ty: 0,
+    // The whole registered width: half the line at twice the size.
+    halfAlong: widest,
+    halfAcross: (FOOTER_TOP - COURT.y0) / 2,
+    pad: 0,
+  };
+}
+
+/** Two words collide when anything one strikes — the word or its figure —
+ *  lies on anything the other strikes. */
+function collides(a: [Box, Box], b: [Box, Box]): boolean {
+  for (const x of a) for (const y of b) if (overlaps(x, y)) return true;
+  return false;
 }
 
 /**
@@ -277,8 +592,9 @@ function collides(a: Filed, b: Filed, pad: number): boolean {
  * Deterministic, order-fixed and stateless: the same season at the same arrival
  * gives the same layout, and scrubbing backwards rebuilds it.
  */
-function layOut(words: Filed[]): void {
-  const placed: Filed[] = [];
+function layOut(words: Filed[], categories: number): void {
+  const ground = footerGround(categories);
+  const placed: [Box, Box][] = [];
   for (const w of words) {
     // A word nobody will strike must not take up room. The first build laid out
     // EVERY category and let the unnamed tail block the named head, so in a
@@ -287,23 +603,33 @@ function layOut(words: Filed[]): void {
     if (!w.named) continue;
     const home = w.bearing;
     let ok = false;
+    let boxes = boxesOf(w);
     for (let step = 0; step * ROTATE_STEP_RAD <= ROTATE_MAX_RAD && !ok; step++) {
       for (const sign of step === 0 ? [1] : [1, -1]) {
         w.moved = sign * step * ROTATE_STEP_RAD;
         w.bearing = home + w.moved;
+        boxes = boxesOf(w);
         // Off the plate is off the plate: a word swung past the sideline is not
-        // a solution, it is a different mistake.
-        const x = w.dist * Math.cos(w.bearing);
-        const y = w.dist * Math.sin(w.bearing);
-        if (x < COURT.x0 || x > COURT.x1 || y < COURT.y0 || y > COURT.y1) continue;
-        if (placed.some((p) => collides(w, p, WORD_CLEAR_PAD))) continue;
+        // a solution, it is a different mistake. Tested on everything the word
+        // strikes, not on its centre. The footer's ground is type, so a box
+        // keeps its own clear floor from it as it does from a word.
+        if (!onPlate(w, boxes)) continue;
+        if (boxes.some((k) => overlaps(k, ground))) continue;
+        if (placed.some((p) => collides(boxes, p))) continue;
         ok = true;
         break;
       }
     }
     w.homeless = !ok;
-    if (ok) placed.push(w);
-    else w.bearing = home;
+    if (ok) {
+      placed.push(boxes);
+    } else {
+      // Back to the record's own place, and nothing moved: `strikeTicks` puts
+      // the tick at `bearing - moved`, so a bearing tried and given up must
+      // not stay behind in `moved` and carry the tick off the place measured.
+      w.bearing = home;
+      w.moved = 0;
+    }
   }
 }
 
@@ -357,10 +683,25 @@ function strikeWords(f: Frame, words: Filed[], alpha: number, coloured: boolean)
     const rgb = coloured && w.zone >= 0 ? ZONE_RGB[w.zone] : undefined;
     strike(ctx, w.name, x, y, px, alpha * CENSUS_WORD_ALPHA, rotation, rgb);
     // The share numeral rides beneath, subordinate: the word's own size already
-    // carries the share and this only says exactly how much.
+    // carries the share and this only says exactly how much. "Beneath" is the
+    // word's own downward direction once it is turned by `rotation`, which on
+    // the screen is (-sin, +cos): toward the hoop for every word on the floor.
     const sub = px * CENSUS_SHARE_SCALE;
-    strike(ctx, struckFigure(w.share), x + Math.sin(rotation) * px * 0.95,
-           y + Math.cos(rotation) * px * 0.95, sub, alpha * CENSUS_WORD_ALPHA * 0.8, rotation);
+    // Under the slug floor the face stops resolving and the figure reads as a
+    // speck of dirt under its word, so it is not struck, and nothing is enlarged
+    // to reach the floor: the word's size still carries the share and the
+    // receipt lists every one exactly. The floor is asked about the size the
+    // word comes to rest at in this filing, in this view, and not the size it
+    // has reached in this frame: while a season arrives its rounded counts make
+    // a word's size wobble, and a figure resting near the floor would go out
+    // and in with them. Struck, it is struck at the frame's own size. The
+    // sixfold flash is asked the same way, each word by the rest of its own
+    // taxonomy's filing: the flash withdraws before that filing would arrive,
+    // and its words hold that share's size, up to the rounding of the counts
+    // arrived so far.
+    if (view.s(w.rest) * CENSUS_SHARE_SCALE < SLUG_MIN_PX) continue;
+    strike(ctx, struckFigure(w.share), x - Math.sin(rotation) * px * FIGURE_DROP,
+           y + Math.cos(rotation) * px * FIGURE_DROP, sub, alpha * CENSUS_WORD_ALPHA * 0.8, rotation);
   }
 }
 
@@ -381,7 +722,7 @@ function strikeSixfold(
   for (const taxonomy of Object.keys(f.data.taxonomyColumns)) {
     const words = filing(season, taxonomy, arrived, zoneNames,
                          season.vocabulary.covering_90pct?.[taxonomy] ?? 1);
-    layOut(words);
+    layOut(words, categoriesOf(season, taxonomy));
     strikeTicks(f, words, k * SIXFOLD_ALPHA * f.remains);
     strikeWords(f, words, k * SIXFOLD_ALPHA * f.remains, false);
   }
@@ -413,11 +754,18 @@ function strikeHeader(
  * optional: without it a viewer is entitled to read the layout as a design.
  */
 function strikeDisclosure(f: Frame, opacity = 1): void {
-  const { ctx, view, remains } = f;
+  const { ctx, view, remains, display } = f;
+  // The act's title is struck just under this sentence while it crosses into
+  // the act. The room profile floors both larger, and there the title would
+  // read as a third line of it, so the sentence stands down on the title's own
+  // curve and returns as the title leaves.
+  const title = display === "room"
+    ? Math.max(0, ...CUED_ACTS.map((act) => actCueLevel(f, act)))
+    : 0;
   drawSlug(ctx, view, [
     "EACH NAME STRUCK AT THE MEAN DISTANCE AND BEARING",
     "OF THE SHOTS THE RECORD GAVE IT · BEARING MOVED FOR ROOM, DISTANCE NEVER",
-  ], HEADER_AT, remains * CENSUS_SUB_ALPHA * opacity, "aside", 62);
+  ], HEADER_AT, remains * CENSUS_SUB_ALPHA * opacity * (1 - title), "aside", 62);
 }
 
 /**
@@ -437,7 +785,7 @@ function strikeFooter(
   opacity = 1,
 ): void {
   const { ctx, view, remains } = f;
-  const total = Object.keys(season.classification[taxonomy] ?? {}).length;
+  const total = categoriesOf(season, taxonomy);
   const struck = words.filter((w) => w.named && !w.homeless).length;
   // Three DIFFERENT things, kept apart. The first build called them all "no
   // room", which put a category the record files beyond the halfcourt in the
@@ -447,10 +795,25 @@ function strikeFooter(
   const homeless = words.filter((w) => w.named && w.homeless).length;
   // STRUCK, not NAMED: a category can be named and still lose its place to a
   // collision, and this line has to add up to what is actually on the floor.
-  const lines = [`${struck} OF ${total} STRUCK · ${total - struck} A TICK AND A COUNT`];
-  if (beyond > 0) lines.push(`${beyond} PLACED BEYOND THIS FLOOR`);
-  if (homeless > 0) lines.push(`${homeless} WITH NO ROOM AT ITS OWN DISTANCE`);
-  drawSlug(ctx, view, lines, FOOTER_AT, remains * CENSUS_SUB_ALPHA * opacity);
+  const lines = footerLines(total, struck, total - struck, beyond, homeless);
+  const alpha = remains * CENSUS_SUB_ALPHA * opacity;
+  // The lines hang from a fixed first line by the type's own advance, and the
+  // footer's ground ends at the plate's foot. Where a pixel floor sets the type
+  // larger than its court size the advance grows with it, and the last line
+  // would hang through the court's baseline. There the lines close up, never
+  // nearer than set solid, so the last one still stands on the plate. The
+  // first line does not move: it is the one the layout keeps words clear of.
+  const px = slugBox(ctx, view, lines[0]!).height;
+  const onPlate = view.s(FOOTER_AT.y - COURT.y0) - px / 2;
+  const below = lines.length - 1;
+  if (below * px * slugAdvanceOf() <= onPlate) {
+    drawSlug(ctx, view, lines, FOOTER_AT, alpha);
+    return;
+  }
+  const step = Math.max(px, onPlate / below);
+  lines.forEach((line, i) => {
+    drawSlug(ctx, view, [line], FOOTER_AT, alpha, "statement", i * step);
+  });
 }
 
 /**
@@ -492,23 +855,30 @@ function drawReceipt(
   const k = Math.min(1, Math.max(0, ((localPhase - completeAt) / tail) * 3)) * opacity;
   if (k <= 0.01) return;
 
-  const px = Math.max(display === "room" ? 13 : 8.5, Math.min(11, view.width / 150));
+  const px = Math.max(display === "room" ? 13 : 8.5, Math.min(RECEIPT_TOP_PX, view.width / 150));
   const pad = Math.round(px * 1.6);
+  // The near receipt's own leading at the largest type it is set in, kept
+  // wherever the room profile floors the type above that size: at the bare
+  // LINE the room's rows were set solid and touched top to bottom. Near never
+  // exceeds that size, so its step is LINE exactly as before.
+  const step = Math.max(LINE, Math.round((px * LINE) / RECEIPT_TOP_PX));
   ctx.save();
   ctx.font = `${px}px ${SLUG_FAMILY}`;
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
 
   const total = Object.keys(season.classification[taxonomy] ?? {}).length;
-  let y = pad + LINE;
+  let y = pad + step;
   ctx.fillStyle = `rgba(${BONE_RGB}, ${CENSUS_SUB_ALPHA * remains * k})`;
-  ctx.fillText(taxonomy, pad, y);
-  y += LINE + 3;
+  // The league's own column, as the header over the plate prints it: one
+  // filing has one name on the screen.
+  ctx.fillText(f.data.taxonomyColumns[taxonomy] ?? taxonomy, pad, y);
+  y += step + 3;
   ctx.fillStyle = `rgba(${BONE_RGB}, ${CENSUS_ROW_ALPHA * remains * k})`;
   for (const w of words) {
     if (!w.named) continue;
     ctx.fillText(`${w.name.toLowerCase()}   ${struckFigure(w.share)}`, pad, y);
-    y += LINE;
+    y += step;
   }
   // The tail is a count, never a cloud — the same rule the footer obeys.
   const rest = total - words.filter((x) => x.named).length;
@@ -670,7 +1040,7 @@ export function drawCensusHand(f: Frame): void {
   } else {
     const words = filing(season, taxonomy, arrived, zoneNames,
                          season.vocabulary.covering_90pct?.[taxonomy] ?? 1);
-    layOut(words);
+    layOut(words, categoriesOf(season, taxonomy));
     strikeTicks(f, words, remains * filingOpacity);
     strikeWords(f, words, remains * filingOpacity, taxonomy === "ZONE");
     strikeHeader(f, season, taxonomy, arrived, filingOpacity);
@@ -695,12 +1065,11 @@ export function drawCensusHand(f: Frame): void {
   // The outgoing season is NOT drawn here, unlike every other hand. The tally
   // counts this season's arrived shots, so a field still carrying the previous
   // season's marks would contradict a census reading "3 SHOTS CLASSIFIED".
-  drawSeasonField(f, { dim: remains * CENSUS_FIELD_DIM, withPrevious: false });
+  drawSeasonField(f, {
+    dim: remains * CENSUS_FIELD_DIM, withPrevious: false, prewarm: true,
+  });
 
-  // The boundaries named: the census has no native boundary event —
-  // its taxonomy turnover happens most seasons, not at the acts.
-  drawActCue(f, 2);
-  drawActCue(f, 5);
+  for (const act of CUED_ACTS) drawActCue(f, act);
 }
 
 // --- the canvas tables, kept whole -------------------------------------------
@@ -770,6 +1139,8 @@ function census(season: Season, arrived: number): { groups: Group[]; classified:
 
 const LINE = 13;
 const GAP = 9;
+/** The largest type the receipt is set in on a near screen. */
+const RECEIPT_TOP_PX = 11;
 
 /** Flow a column of text, wrapping into the next column when it runs out of
  *  height — the tallies must never spill off the bottom of the frame. */

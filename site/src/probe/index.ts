@@ -1,13 +1,26 @@
 /** The probes, and the only door into them.
  *
- * Two diagnostics of the same renderer, not a second renderer:
+ * Diagnostics of the same renderer, not a second renderer:
  *
- *   ?probe=purity   Harness A - is a frame a pure function of one float?
- *   ?probe=perf     Harness B - what does one frame of each hand cost?
+ *   ?probe=purity       Harness A - is a frame a pure function of one float?
+ *   ?probe=perf         Harness B - what does one frame of each hand cost?
+ *   ?probe=continuity   Harness C - does a passage move well, frame after
+ *                       frame?
  *
- * Both draw through `renderTo` into their own offscreen surface and write a
- * machine-readable verdict into the DOM (`#probe-purity`, `#probe-perf`), the
- * console, and the matching window globals.
+ * Each draws through `renderTo` into its own offscreen surface and writes a
+ * machine-readable verdict into the DOM (`#probe-purity`, `#probe-perf`,
+ * `#probe-continuity`), the console, and the matching window globals.
+ *
+ *   ?probe=ranges   Not a measurement: the passages `rangesOf` derives from
+ *                   the score, published the same way (`#probe-ranges`), so a
+ *                   range can be read before it is asked for by name.
+ *
+ * `&view=fresh` is read here, once, before any target exists: it gives each
+ * target a View of its own in place of the shared one, which is a
+ * demonstration arm and never the gallery's condition. It reaches the purity,
+ * perf and continuity probes, whose targets come from `shared.ts`; the shots
+ * probe builds its own View for each picture and is the same under either
+ * value.
  *
  * THOSE GLOBALS ARE HYPHENATED: `shared.ts:emit` keys them by the same string
  * it gives the DOM node, so they are `window["probe-purity"]` and
@@ -26,9 +39,10 @@
  * that can appear in a gallery is not a diagnostic, it is a fault.
  */
 
+import { continuityProbe, emitContinuity } from "./continuity";
 import { emitPerf, perfProbe } from "./perf";
 import { emitPurity, purityProbe } from "./purity";
-import type { Env } from "./shared";
+import { emit, forceResidency, rangesOf, viewsFromQuery, type Env } from "./shared";
 
 function done(ok: boolean): void {
   (window as unknown as Record<string, unknown>).__probeDone = ok;
@@ -36,6 +50,7 @@ function done(ok: boolean): void {
 
 export async function runProbe(kind: string, q: URLSearchParams, env: Env): Promise<void> {
   try {
+    viewsFromQuery(q);
     if (kind === "purity") {
       emitPurity(await purityProbe(env, q));
       done(true);
@@ -43,6 +58,11 @@ export async function runProbe(kind: string, q: URLSearchParams, env: Env): Prom
     }
     if (kind === "perf") {
       emitPerf(await perfProbe(env, q));
+      done(true);
+      return;
+    }
+    if (kind === "continuity") {
+      emitContinuity(await continuityProbe(env, q));
       done(true);
       return;
     }
@@ -54,14 +74,37 @@ export async function runProbe(kind: string, q: URLSearchParams, env: Env): Prom
       done(true);
       return;
     }
+    if (kind === "ranges") {
+      // Resident first, as for a measurement: the game ranges are read from
+      // the game's own summary, and a listing taken without it would be the
+      // short list a measuring probe never sees.
+      const residency = await forceResidency(env.data, (s) => console.log(s));
+      emit("probe-ranges", {
+        probe: "ranges",
+        // What a probe adds to a range's bounds to reach the pass it draws.
+        passOffset: env.schedule.duration,
+        residency,
+        ranges: rangesOf(env.schedule, env.data),
+      });
+      done(true);
+      return;
+    }
     fail({
       probe: kind,
       error: "unknown probe",
-      known: ["purity", "perf", "shots"],
+      known: ["purity", "perf", "continuity", "shots", "ranges"],
       usage: [
         "?probe=purity[&mode=<id>][&beat=<id>][&playback=<s>][&exact=1]",
-        "?probe=perf[&mode=<id>][&t=<seconds>][&frames=<n>]",
+        "?probe=purity&t=<seconds,...>[&mode=<id>]",
+        "?probe=purity&range=<id,...>[&samples=<n>][&mode=<id>]",
+        "?probe=perf[&mode=<id>][&t=<seconds>][&frames=<n>]"
+          + "[&surface=probe|laptop|overview][&pace=<ms>|raf]",
+        "?probe=continuity[&range=<id,...>][&mode=<id>][&fps=<n>]"
+          + "[&surface=probe|laptop|overview][&crop=court][&pairs=marks]"
+          + "[&control=<id,...>][&display=near|room][&exact=1]",
         "?probe=shots  (driven by scripts/shots.mjs; installs window.__shot)",
+        "?probe=ranges  (lists the ranges; measures nothing)",
+        "purity, perf or continuity: [&view=fresh]  (a View per target; demonstrations only)",
       ],
     });
   } catch (e) {

@@ -81,15 +81,15 @@ interface Row {
   label: string;
 }
 
-function fmt(seconds: number): string {
+export function fmt(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
 /** Arrow keys on the scrub, and Shift for the coarse step. Presenter comfort,
  *  not material: nothing here reaches a mark. */
-const SCRUB_STEP_S = 2;
-const SCRUB_COARSE_S = 15;
+export const SCRUB_STEP_S = 2;
+export const SCRUB_COARSE_S = 15;
 
 /** The keys, said in the rail. A shortcut nobody is told about is not one. */
 const KEY_HINTS = [
@@ -97,6 +97,30 @@ const KEY_HINTS = [
   "0 START · 1-5 ACTS · 6-9 WINDOW BEATS",
   "W WINDOW · X CUT · , . STOPS · ←→ SCRUB",
 ];
+
+/** What separates one key from the next in a line of them. */
+const KEY_SEPARATOR = " · ";
+
+/**
+ * A line of keys, each with its word, for a column that may be too narrow to
+ * hold it. Each key and its word is one span the stylesheet keeps whole, and
+ * the separator rides at the head of the span it introduces. The stylesheet
+ * hangs the line one separator's width out of its column and clips it there,
+ * so a separator that would lead a line is not drawn: where the line breaks,
+ * the break is the separator, and no line ends on a dot or begins with one.
+ * The text reads exactly as the line joined by the separator does.
+ */
+export function keyLine(keys: readonly string[]): HTMLElement {
+  const line = document.createElement("p");
+  line.className = "key-line";
+  keys.forEach((words, i) => {
+    const span = document.createElement("span");
+    span.textContent = i === 0 ? words : `${KEY_SEPARATOR.trimStart()}${words}`;
+    if (i > 0) line.append(" ");
+    line.append(span);
+  });
+  return line;
+}
 
 /**
  * What an operation's own artifact says the thing it reads IS.
@@ -853,9 +877,7 @@ export class Navigator {
       );
     }
     for (const line of lines) {
-      const p = document.createElement("p");
-      p.textContent = line;
-      this.keysEl.append(p);
+      this.keysEl.append(keyLine(line.split(KEY_SEPARATOR)));
     }
   }
 

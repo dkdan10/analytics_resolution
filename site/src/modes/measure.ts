@@ -35,10 +35,11 @@ import {
   type Measures,
   type WindowFile,
 } from "../data";
-import { contextDisplay, ROOM_TEXT_MIN_PX } from "../display";
-import { drawSlug } from "../inscription";
+import { contextDisplay, ROOM_TEXT_MIN_PX, setContextDisplay } from "../display";
+import { drawSlug, slugBox } from "../inscription";
+import { CUT_BEAT_SECONDS } from "../render";
 import { BONE_RGB, INSCRIPTION_FAMILY } from "../palette";
-import type { View } from "../plate";
+import { FREE_THROW_R, type View } from "../plate";
 import {
   CALIPER_SERIF,
   CALIPER_SERIF_CLOSE,
@@ -52,8 +53,11 @@ import {
   HERO_PATH_ALPHA,
   HERO_RING_ALPHA,
   NAMES_ONLY_ALPHA,
+  SLUG_MIN_PX,
 } from "../scalars";
 import { label } from "../textatlas";
+import { CUT_YEAR } from "../timeline";
+import { FREE_THROW_Y, LANE_HALF_W, THREE_R } from "../zone";
 import {
   MEASURE_CLOSE_TERMINAL_FROM,
   MEASURE_CLOSE_TERMINAL_TO,
@@ -78,6 +82,11 @@ export { MEASURE_WINDOW_TERMINAL_SPAN };
  *  the season numerals garland, so Act III leaves two rings around the same
  *  void — the seasons outside, the categories within. */
 const FIGURE_R = 110;
+
+/** Where the close states the recovered set, in court tenths: on the
+ *  centreline over the arc, read against a field the close has all but
+ *  emptied. */
+const SCOPE_CLOSE_Y = 250;
 
 /**
  * How many calipers are ever drawn at once.
@@ -262,6 +271,8 @@ function strikeFigure(
   y: number,
   alpha: number,
   size = 22,
+  /** For a figure on the inner annulus, whose name is set beside the lane. */
+  offLane = false,
 ): void {
   if (alpha <= 0.01) return;
   const room = contextDisplay(ctx) === "room";
@@ -273,11 +284,28 @@ function strikeFigure(
   ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha})`;
   ctx.fillText(text, view.sx(x), view.sy(y));
   if (sub) {
-    const sp = Math.max(room ? 13 : 7, px * 0.32);
+    // The name is the only thing saying what the figure counts, so it is never
+    // set smaller than the piece's other words.
+    const sp = Math.max(room ? 13 : SLUG_MIN_PX, px * 0.32);
     ctx.font = `${sp}px ${INSCRIPTION_FAMILY}`;
     ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha * FIGURE_SUB_ALPHA})`;
     ctx.letterSpacing = `${sp * 0.16}px`;
-    ctx.fillText(sub, view.sx(x), view.sy(y) + px * 0.82);
+    let nameX = view.sx(x);
+    // That floor is in pixels and the annulus is in court units, so on a
+    // laptop's window the two outer names, centred, run exactly as far as the
+    // lane's lines and end on them. A name that would come within its own em
+    // of a lane line is moved along its row, away from the line, until it
+    // stands an em clear: a few pixels, and still under its figure. The room
+    // profile's names are set larger still, and the same rule would carry them
+    // out from under their figures, so there they stay centred.
+    if (offLane && !room) {
+      const reach = ctx.measureText(sub).width / 2 + sp;
+      for (const line of [-LANE_HALF_W, LANE_HALF_W]) {
+        const from = nameX - view.sx(line);
+        if (Math.abs(from) < reach) nameX += (from < 0 ? -1 : 1) * (reach - Math.abs(from));
+      }
+    }
+    ctx.fillText(sub, nameX, view.sy(y) + px * 0.82);
     ctx.letterSpacing = "0px";
   }
   ctx.restore();
@@ -296,17 +324,25 @@ function drawAbsent(f: Frame): void {
   const { ctx, view, st, remains } = f;
   // Nothing is being measured here, so the field keeps most of its strength -
   // the absence is the subject and the marks are what is absent from.
-  drawSeasonField(f, { dim: remains * 0.8, reveal: true });
+  drawSeasonField(f, { dim: remains * 0.8, reveal: true, prewarm: true });
+  // In over the first third of the season, out over the last.
   const held = Math.min(1, st.phase * 3) * Math.min(1, (1 - st.phase) * 3);
+  // It stands in the band the cut's statement takes, so either side of the cut
+  // its ramp runs from the edge of the cut's beat instead of the boundary, at
+  // the same pace: it is gone while the statement is up rather than set into it.
+  const cutAt = f.schedule.byYear.get(CUT_YEAR)?.start;
+  const season = f.schedule.byYear.get(st.year!)?.duration;
+  const clear = cutAt === undefined || !season ? 1
+    : Math.min(1, Math.max(0, (Math.abs(st.t - cutAt) - CUT_BEAT_SECONDS) * 3 / season));
   drawSlug(ctx, view, ["THE RECORD DOES NOT SAY WHO WAS NEAR"], { x: 0, y: 300 },
-    remains * held * 0.55);
+    remains * Math.min(held, clear) * 0.55);
 }
 
 /** Act II: the names arrive; the values cannot be made by anyone outside. */
 function drawNamesOnly(f: Frame, w: WindowFile | null): void {
   const { ctx, view, st, remains } = f;
   const room = contextDisplay(ctx) === "room";
-  drawSeasonField(f, { dim: remains * 0.55, reveal: true });
+  drawSeasonField(f, { dim: remains * 0.55, reveal: true, prewarm: true });
 
   const names = w ? w.contest.buckets.map((b) => b.name) : [];
   const shown = Math.ceil(st.phase * names.length * 1.5);
@@ -340,14 +376,14 @@ function drawOrphaned(f: Frame, w: WindowFile | null): void {
   // the thing to be seen in them is four figures standing over four measures
   // with nothing inside them; at full strength the late-era rim blazes and the
   // empty calipers cannot be found at all.
-  drawSeasonField(f, { dim: remains * 0.4, reveal: true });
+  drawSeasonField(f, { dim: remains * 0.4, reveal: true, prewarm: true });
   if (!w) return;
 
   const buckets = w.contest.buckets;
   buckets.forEach((b, i) => {
     const slot = figureSlot(i, buckets.length);
     strikeFigure(ctx, view, struck(100 * b.share), b.name.toUpperCase(),
-      slot.x, slot.y, remains * 0.72, 18);
+      slot.x, slot.y, remains * 0.72, 18, true);
     // Two serifs and nothing between them, under each figure. This is the
     // piece's argument as a mark rather than as a sentence, and it holds for
     // every act after the window - most of the loop - so it is drawn at the
@@ -356,22 +392,127 @@ function drawOrphaned(f: Frame, w: WindowFile | null): void {
     emptyCaliper(ctx, view, slot.x - 22, y, slot.x + 22, y, remains * 0.6);
   });
 
-  // The figures above are shares of the RECOVERED set, and they hold here for
-  // the rest of the loop with no evidence under them at all - so the one place
-  // a viewer sees them longest is the place the selection must be stated.
-  if (w.bias.scope) {
-    drawSlug(ctx, view, [w.bias.scope], { x: 0, y: 250 }, remains * 0.4);
-  }
-
   // Said once, on the first season after the window closes - which is read off
   // the corpus's own last date, not written here.
   const closedIn = w.corpus.date_last ? Number(w.corpus.date_last.slice(0, 4)) : null;
+
+  // The figures above are shares of the RECOVERED set, and they hold here for
+  // the rest of the loop with no evidence under them at all - so the one place
+  // a viewer sees them longest is the place the selection must be stated.
+  //
+  // Not where the close states it, when there is a better place. There the
+  // window's field is nearly gone; here the late seasons' three-point band is
+  // lit, and the close's line sits on it. The court leaves one stretch of the
+  // centreline clear, between the top of the free-throw circle and the crown
+  // of the arc, which the drained mid-range keeps dark.
+  //
+  // In the near profile the line stands there whole, midway between the two,
+  // when it is short enough to stand wholly under the arc. The room profile's
+  // type is set larger than its court size, and on a laptop's window the
+  // whole line is wider than the arc there: the arc's own line would run
+  // through its first and last words. So in that profile it is broken at its
+  // separator, the selection over its share, and the two lines stand in that
+  // stretch together (`scopeUnderArc`). A line that fits nowhere under the
+  // arc, in either profile, stays on the close's line, above the crown, where
+  // nothing engraved crosses it.
+  //
+  // On the season after the window the line changes place without travelling:
+  // the crown of the arc lies between the two places, and a line carried from
+  // one to the other would be struck through by it on the way. It leaves the
+  // close's line over the first half of the time that season's own sentences
+  // take to come up and comes up in its own place over the second, so it is
+  // never on the floor twice and is whole when they are.
+  if (w.bias.scope) {
+    const clearY = (FREE_THROW_Y + FREE_THROW_R + THREE_R) / 2;
+    const scope = w.bias.scope;
+    const box = slugBox(ctx, view, scope);
+    const perTenth = view.s(1);
+    const underArc = Math.hypot(box.width / 2 / perTenth, clearY + box.height / 2 / perTenth)
+      < THREE_R;
+    const stand = (lines: string[], y: number, share: number): void =>
+      drawSlug(ctx, view, lines, { x: 0, y }, remains * 0.4 * share);
+    const arrived = closedIn !== null && st.year === closedIn ? Math.min(1, st.phase * 2) : 1;
+    const leaving = Math.max(0, 1 - arrived * 2);
+    const coming = Math.max(0, arrived * 2 - 1);
+    const broken = contextDisplay(ctx) === "room" ? scopeUnderArc(ctx, view, scope) : null;
+    if (broken) {
+      stand([scope], SCOPE_CLOSE_Y, leaving);
+      stand(broken.lines, broken.y, coming);
+    } else if (underArc) {
+      stand([scope], SCOPE_CLOSE_Y, leaving);
+      stand([scope], clearY, coming);
+    } else {
+      stand([scope], SCOPE_CLOSE_Y, 1);
+    }
+  }
   if (closedIn !== null && st.year === closedIn) {
     drawSlug(ctx, view, [
       `THE LEAGUE STILL PUBLISHES THESE ${spell(buckets.length)} CATEGORIES`,
       "THESE ARE THE LAST FIGURES ANYONE OUTSIDE COULD COMPUTE",
     ], { x: 0, y: 320 }, remains * Math.min(1, st.phase * 2) * 0.5);
   }
+}
+
+/** The pen `scopeUnderArc` sets the broken line on. It is never shown and it
+ *  keeps nothing a frame reads: every measurement is taken fresh. */
+let scopeRuler: CanvasRenderingContext2D | null = null;
+
+/**
+ * The recovered-set line broken at its separator, and the anchor at which the
+ * two lines stand under the arc and over the free-throw circle, or null when
+ * the line has no separator to break at or the two do not fit there.
+ *
+ * The lines are measured by setting them through `drawSlug` on a pen of their
+ * own, at this view and in this profile, so their size, face and leading are
+ * that function's own: a copy of any of them kept here would go stale without
+ * a word. Each line's box is its ink as it is set. A line stands under the arc
+ * when its two top corners are inside the arc's circle, and over the
+ * free-throw circle when its foot is above that circle's top, which every
+ * line centred on the court's axis spans. Those bounds leave the anchor a
+ * range, and the block stands at its middle, so it is as far from the arc as
+ * from the circle.
+ */
+function scopeUnderArc(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  scope: string,
+): { lines: string[]; y: number } | null {
+  const lines = scope.split(" · ");
+  if (lines.length !== 2) return null;
+  scopeRuler ??= document.createElement("canvas").getContext("2d")!;
+  const pen = scopeRuler;
+  setContextDisplay(pen, contextDisplay(ctx));
+  const set: { y: number; up: number; down: number; reach: number }[] = [];
+  pen.fillText = (text: string, _x: number, y: number): void => {
+    const m = pen.measureText(text);
+    set.push({
+      y,
+      up: m.actualBoundingBoxAscent,
+      down: m.actualBoundingBoxDescent,
+      reach: Math.max(m.actualBoundingBoxLeft, m.actualBoundingBoxRight),
+    });
+  };
+  // Set with its anchor on the hoop's line, so each line's place below is its
+  // offset from wherever the block is stood.
+  drawSlug(pen, view, lines, { x: 0, y: 0 }, 1);
+  if (set.length !== lines.length) return null;
+
+  const hoop = view.sy(0);
+  const arc = view.s(THREE_R);
+  const circleTop = view.sy(FREE_THROW_Y + FREE_THROW_R);
+  // In court tenths above the hoop's line: the highest the anchor may stand
+  // with every line under the arc, and the lowest with every line over the
+  // free-throw circle.
+  let highest = Infinity;
+  let lowest = -Infinity;
+  for (const l of set) {
+    if (l.reach >= arc) return null;
+    highest = Math.min(highest, (l.y - l.up - hoop + Math.sqrt(arc * arc - l.reach * l.reach))
+      / view.scale);
+    lowest = Math.max(lowest, (l.y + l.down - circleTop) / view.scale);
+  }
+  if (!(lowest < highest)) return null;
+  return { lines, y: (lowest + highest) / 2 };
 }
 
 // --- Act III, four beats -----------------------------------------------------
@@ -553,7 +694,7 @@ function beatSeason(f: Frame, w: WindowFile, k: number, m: Measures | null): voi
     w.contest.buckets.forEach((b, i) => {
       const slot = figureSlot(i, w.contest.buckets.length);
       strikeFigure(ctx, view, struck(100 * b.share), b.name.toUpperCase(),
-        slot.x, slot.y, a * settle * 0.75, 20);
+        slot.x, slot.y, a * settle * 0.75, 20, true);
     });
   }
 }
@@ -572,12 +713,15 @@ function beatSeason(f: Frame, w: WindowFile, k: number, m: Measures | null): voi
  *
  * This slug used to read `date_last` above "THE PUBLIC FEED CLOSES", which
  * converted a corpus terminus into a proven shutdown date. It is not one. The
- * last archive anyone holds is dated `window.json:corpus.date_last`; the
- * earliest artifact showing the endpoint already dead is a GitHub issue dated
+ * last game in the public tracking files is dated `window.json:corpus.date_last`;
+ * the earliest artifact showing the feed already dead is a GitHub issue dated
  * `facts.json:external.endpoint_known_dead_by`. The day it actually closed is
  * between the two and nobody outside recorded it.
  *
- * So the piece shows both dates and explains neither. The gap is the content.
+ * So the piece shows both dates, each saying only what it is a date of, and
+ * names no day of closing. The gap is the content. "The public tracking data"
+ * is the same noun THE PLATE's closing line uses, because both mean the public
+ * release and not the shot record, which runs on for seasons after it.
  */
 function beatClose(f: Frame, w: WindowFile, k: number, m: Measures | null): void {
   const { ctx, view, remains } = f;
@@ -603,11 +747,11 @@ function beatClose(f: Frame, w: WindowFile, k: number, m: Measures | null): void
   w.contest.buckets.forEach((b, i) => {
     const slot = figureSlot(i, w.contest.buckets.length);
     strikeFigure(ctx, view, struck(100 * b.share), b.name.toUpperCase(),
-      slot.x, slot.y, a * 0.7, 20);
+      slot.x, slot.y, a * 0.7, 20, true);
   });
   // What survives the close is a proportion of the recovered subset, and it
   // survives for the rest of the loop. It says so.
-  if (w.bias.scope) drawSlug(ctx, view, [w.bias.scope], { x: 0, y: 250 }, a * 0.4);
+  if (w.bias.scope) drawSlug(ctx, view, [w.bias.scope], { x: 0, y: SCOPE_CLOSE_Y }, a * 0.4);
 
   const closing = Math.max(0, Math.min(1,
     (k - MEASURE_CLOSE_TERMINAL_FROM)
@@ -615,8 +759,8 @@ function beatClose(f: Frame, w: WindowFile, k: number, m: Measures | null): void
   if (closing > 0 && w.corpus.date_last) {
     const deadBy = factExternal<string>(f.data.facts, "endpoint_known_dead_by");
     drawSlug(ctx, view, [
-      `${w.corpus.date_last} · THE LAST GAME THE RECORD HOLDS`,
-      `${deadBy} · THE ENDPOINT WAS ALREADY DEAD`,
+      `${w.corpus.date_last} · THE LAST GAME IN THE PUBLIC TRACKING DATA`,
+      `${deadBy} · THE PUBLIC FEED WAS ALREADY DEAD`,
     ], { x: 0, y: 330 }, a * closing * 0.55);
   }
 }
@@ -630,7 +774,7 @@ export function drawMeasureHand(f: Frame): void {
   if (st.act === 3 && w) {
     // The field recedes almost entirely: for the whole of the window's dilated
     // segment the caliper is the subject and the dots are only where it lands.
-    drawSeasonField(f, { dim: remains * 0.3, reveal: true });
+    drawSeasonField(f, { dim: remains * 0.3, reveal: true, prewarm: true });
     const m = data.measures();
     const p = st.phase;
     if (p < BEAT.one[1]) beatOne(f, w, win(p, BEAT.one));

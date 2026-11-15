@@ -154,8 +154,32 @@ function tone(share: number, strength: number): number {
  * the next, the last exactly 1 — stated explicitly rather than through
  * Math.pow so the endpoint's byte-identity rests on nothing but the branch.
  */
-function exposureStrength(state: number): number {
+export function exposureStrength(state: number): number {
   return state >= DEVELOP_STATES ? 1 : Math.pow(DEVELOP_STEP, state - DEVELOP_STATES);
+}
+
+/**
+ * The ladder position that passes `share` of a faint mark's finished light.
+ *
+ * A position crossfades two adjacent states with linear weights, and a mark
+ * far below the tone curve's shoulder is lit in proportion to its state's
+ * strength, so the light such a mark shows at a position is the same
+ * interpolation of the two strengths. This is that interpolation read
+ * backwards. The ladder's states are a fixed ratio apart, so a position that
+ * moves evenly takes most of the off-rim light in its first step; a share that
+ * moves evenly, placed through this, takes it evenly. Exact at both ends: no
+ * light is position zero and all of it is the ladder's top, where the
+ * finished state draws alone.
+ */
+export function developPositionFor(share: number): number {
+  const e = Math.min(1, Math.max(0, share));
+  let lower = 0;
+  for (let state = 1; state <= DEVELOP_STATES; state++) {
+    const upper = exposureStrength(state);
+    if (e <= upper) return state - 1 + (e - lower) / (upper - lower);
+    lower = upper;
+  }
+  return DEVELOP_STATES;
 }
 
 export interface Layer {
@@ -172,8 +196,9 @@ export interface Layer {
  * `split` means the uneven era's one honest mixture: at a restricted-area
  * coordinate, the cell's EXISTING tone is divided by its n_hires:n_rest
  * populations. The tone curve is never applied twice. Outside the restricted
- * area every profile resolves to sharp, because no coarser measurement was
- * established there.
+ * area every profile resolves to sharp. The record does use coarser lines
+ * there in most seasons (pipeline/checks/capture_grid.py prints them); the
+ * field does not follow that spacing, by the author's ruling.
  */
 export interface GrainProfile {
   readonly mode: "sharp" | "coarse" | "split";
@@ -211,7 +236,9 @@ export function grainProfileFor(regime: GrainRegime): GrainProfile {
  * a soft falloff just wide enough that neighbours meet — wide enough that
  * occupied coordinates merge, because only a fraction of the lattice is
  * occupied in a season and a tight splat renders the record's grid rather
- * than its density.
+ * than its density. The splat is sized against the tenth alone: where the
+ * record uses lines coarser than a tenth, the pattern of those lines still
+ * shows in the field, and that pattern is the record's, not the renderer's.
  *
  * A wider splat lands on more pixels and would simply make the plate
  * brighter. Dividing by the splat's own overlap - the integral of the falloff
@@ -486,17 +513,19 @@ function splatGrainedCell(
 
 /**
  * Scratch for the bakes — reused, not reallocated, and that is a measured GC
- * repair, not an optimisation taste: each bake used to allocate a ~44 MB
- * float accumulator and a ~15 MB ImageData and drop both, and the major GC
- * collecting them landed as a frame several times the budget in the middle
- * of a season (measured at census@after-the-cut, with the pause
- * moving between runs — the classic signature). Both buffers are fully
- * overwritten
+ * repair, not an optimisation taste: a bake that allocates its own float
+ * accumulator and its own ImageData, each the size of the whole backing, and
+ * drops both leaves a major GC to collect them, and that landed as a frame
+ * several times the budget in the middle of a season (measured at
+ * census@after-the-cut, with the pause moving between runs — the classic
+ * signature). Both buffers are fully overwritten
  * before every read — the accumulator by `fill(0)` and the fold, the image by
  * the quantize loop writing every pixel — so no byte survives from one bake
  * to the next and the output stays a pure function of the bake's inputs.
- * `clearLayers` drops them; holding them is the memory side of the trade the
- * layer cache already accepts.
+ * `clearLayers` leaves the pair in place on purpose: neither buffer is read
+ * before it has been overwritten whole, so emptying the caches has nothing to
+ * gain from dropping them, and holding them is the memory side of the trade
+ * the layer cache already accepts.
  */
 let scratchAcc: Float32Array | null = null;
 let scratchImg: ImageData | null = null;
@@ -507,23 +536,31 @@ function accOf(len: number): Float32Array {
   return scratchAcc;
 }
 
-/** Quantize a float accumulation once, onto a fresh canvas — the single point
- *  where the field becomes 8-bit. Every surface this produces is written in
- *  one `putImageData` burst and never drawn on again (the prefix.ts
- *  discipline; the bytes are a pure function of `acc`). */
-function quantize(acc: Float32Array, w: number, h: number): HTMLCanvasElement {
-  const img = scratchImg && scratchImg.width === w && scratchImg.height === h
-    ? scratchImg
-    : (scratchImg = new ImageData(w, h));
-  const data = img.data;
-  const px = w * h;
-  for (let p = 0, o = 0, q = 0; p < px; p++, o += 4, q += 3) {
+/** Convert a band of rows of a float accumulation into an image's bytes: the
+ *  one place a baked layer's sums become bytes, whether the layer is
+ *  converted whole or a band at a time. Each pixel is assigned once, from its
+ *  finished sum, so the bands of one image may be written in any number of
+ *  calls and come to the same bytes. */
+function quantizeRows(
+  acc: Float32Array,
+  data: Uint8ClampedArray,
+  w: number,
+  from: number,
+  to: number,
+): void {
+  const end = to * w;
+  for (let p = from * w, o = p * 4, q = p * 3; p < end; p++, o += 4, q += 3) {
     data[o] = acc[q] as number;
     data[o + 1] = acc[q + 1] as number;
     data[o + 2] = acc[q + 2] as number;
     data[o + 3] = 255;
   }
+}
 
+/** A fully written image on a fresh canvas. Every surface this produces is
+ *  written in one `putImageData` burst and never drawn on again (the prefix.ts
+ *  discipline; the bytes are a pure function of the image's). */
+function canvasOf(img: ImageData, w: number, h: number): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
@@ -531,7 +568,40 @@ function quantize(acc: Float32Array, w: number, h: number): HTMLCanvasElement {
   return canvas;
 }
 
+/** Quantize a float accumulation once, whole, onto a fresh canvas. */
+function quantize(acc: Float32Array, w: number, h: number): HTMLCanvasElement {
+  const img = scratchImg && scratchImg.width === w && scratchImg.height === h
+    ? scratchImg
+    : (scratchImg = new ImageData(w, h));
+  quantizeRows(acc, img.data, w, 0, h);
+  return canvasOf(img, w, h);
+}
+
 const layers = new Map<string, Layer>();
+
+/**
+ * Whole pieces of work this file has paid inside single frames since its
+ * caches were last emptied, counted so a probe can name the frame that paid.
+ * `syncBakes` is a layer or the residence baked on a miss, `syncSorts` a
+ * season's emphasis order or the window calendar's fold order built,
+ * `revealSteps` an advance of the arrival's folded prefix. `inlineFinishes`
+ * is the rest of a layer or the residence the job was building, finished
+ * inside a frame that needed it; `prewarmedLayers` one the job finished ahead
+ * of any frame that needed it; `prewarmDropped` a job abandoned unfinished.
+ * Every layer that enters the layer cache, and every residence that enters
+ * its slot, is counted once, under `syncBakes`, `inlineFinishes` or
+ * `prewarmedLayers`. A slice of the job is not counted: a probe lists every
+ * frame that moves a counter, and that would list every frame the job runs
+ * through. No draw reads them, and `clearLayers` returns them to zero.
+ */
+export const fieldWork = {
+  syncBakes: 0,
+  syncSorts: 0,
+  revealSteps: 0,
+  inlineFinishes: 0,
+  prewarmedLayers: 0,
+  prewarmDropped: 0,
+};
 
 function layerKey(
   year: number,
@@ -548,6 +618,229 @@ function layerKey(
   // vary. It adds no cache entries. `strength` is the exposure state and DOES
   // add entries: each state is a different image of the same season.
   return `${year}|${coloured ? "zone" : "bone"}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}|${pin ? pin.join(",") : "none"}|s${strength}${grainSuffix(grain)}`;
+}
+
+/**
+ * Fold a run of a season's cells into a float accumulator. One body, so a
+ * layer built a range of cells at a time adds the same numbers in the same
+ * order as one built whole, and the two cannot differ in a byte.
+ */
+function foldLayerCells(
+  acc: Float32Array,
+  w: number,
+  h: number,
+  view: View,
+  dpr: number,
+  pts: Points,
+  from: number,
+  to: number,
+  pin: [number, number] | null,
+  strength: number,
+  coloured: boolean,
+  splats: GrainSplats,
+  grain: GrainProfile,
+): void {
+  const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
+  const zoneRGB = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
+
+  const [pinX, pinY] = pin ?? [NaN, NaN];
+  for (let i = from; i < to; i++) {
+    const cx = pts.x[i]!;
+    const cy = pts.y[i]!;
+    if (cx === pinX && cy === pinY) continue;
+    const count = pts.hires[i]! + pts.rest[i]!;
+    if (count === 0) continue;
+
+    const ink = tone(count / pts.total, strength);
+    const rgb = coloured ? (zoneRGB[pts.zone[i]!] ?? bone) : bone;
+    splatGrainedCell(
+      acc, w, h, view, dpr, splats, cx, cy, ink,
+      coarseShare(grain, cx, cy, pts.hires[i]!, pts.rest[i]!), rgb,
+    );
+  }
+}
+
+// The live set, derived rather than guessed: at most the current and the
+// previous season are drawn, each at up to DEVELOP_STATES exposure states as
+// the ladder sweeps through them, in at most two palettes (bone for THE PLATE
+// and the text hands, zone for THE FIELD), and the cap is that product. Sized
+// to hold all of it, so neither the ladder revisiting a state nor the
+// rotation switching palettes evicts a layer that is still in play; the cost
+// is memory, and it is the deliberate side of the trade.
+// There are two ways in: a bake on a miss, and a layer built ahead of the
+// frame that draws it (`advancePrewarm`), which enters in the palette its
+// caller named and in no other. Either way the oldest entry is the one
+// dropped, never the one just entered, and a dropped layer that is asked for
+// again is baked on the miss, which costs time and no pixel.
+function storeLayer(key: string, layer: Layer): void {
+  layers.set(key, layer);
+  if (layers.size > 2 * 2 * DEVELOP_STATES) {
+    const oldest = layers.keys().next().value;
+    if (oldest !== undefined && oldest !== key) layers.delete(oldest);
+  }
+}
+
+/** Rows zeroed, or converted, in one slice of a layer built ahead. It decides
+ *  when work is done and cannot change a pixel: any cut of an image's rows
+ *  into bands comes to the same bytes. */
+const PREWARM_ROWS_PER_SLICE = 256;
+/** Cells folded in one slice. It decides when work is done and cannot change
+ *  a pixel: the cells are folded in the same order however they are cut. */
+const PREWARM_CELLS_PER_SLICE = 2048;
+/** Residence cells folded in one slice. A residence cell lands on far more
+ *  pixels than a season's cell, so a slice holds far fewer of them: as many
+ *  as cost no more than a slice of a season's cells. It decides when work is
+ *  done and cannot change a pixel: the cells are folded in the same order
+ *  however they are cut. */
+const PREWARM_RESIDENCE_CELLS_PER_SLICE = 24;
+/** Slices one call may run. It decides when work is done and cannot change a
+ *  pixel: it bounds what a call costs, never what a layer holds. */
+const PREWARM_SLICES_MAX = 3;
+/** Calls in a row that may leave the job unnamed before it is dropped. It has
+ *  to be at least the number of calls other lists can make between two calls
+ *  of the list that names the job, or they would drop each other's work in
+ *  turn. It decides when work is done and cannot change a pixel: a dropped
+ *  job is built again from its first row. */
+const PREWARM_UNNAMED_CALLS = 2;
+
+type JobStage = "fill" | "fold" | "quantize" | "upload";
+
+/**
+ * A layer, or the residence, in the building: the one job `advancePrewarm`
+ * runs a slice at a time, so that what a coming frame will ask for can be
+ * paid for across the frames before it.
+ *
+ * Its progress outlives a frame. What it builds is a function of its key
+ * alone, and nothing drawn reads its progress: a draw meets the job only as a
+ * layer that is in the cache or is not, or a residence that is in its slot
+ * or is not, and `bakeLayer` and `bakeResidence` return the same bytes
+ * either way.
+ *
+ * They are the same bytes because the bodies are the same: a zeroed
+ * accumulator, `foldLayerCells` or `foldResidenceCells` over consecutive runs
+ * of the cells in their one order, `quantizeRows` over consecutive bands,
+ * `canvasOf` once. What the job derives for itself (the backing size, the
+ * splats) it derives by the expressions the whole bake uses. Between slices,
+ * three things hold:
+ *   - the fold never starts before the fill has covered every row of this
+ *     job;
+ *   - the upload never starts before the convert has written every pixel of
+ *     this job;
+ *   - a job that is dropped leaves nothing behind but an empty slot, and the
+ *     next one starts at the fill, at its first row.
+ *
+ * The job has an accumulator and an image of its own. It lives across frames,
+ * and in between the bakes' scratch accumulator is zeroed by every bake,
+ * delta and trail, and their scratch image is rewritten by every bake.
+ * `clearLayers` empties the slot and leaves this pair in place, for
+ * the scratch pair's own reason: neither buffer is read before it has been
+ * overwritten whole (the accumulator by the fill, the image by the convert),
+ * so emptying the caches has nothing to gain from dropping them, and holding
+ * them is memory on the side of the trade the layer cache already accepts.
+ */
+interface JobProgress {
+  key: string;
+  view: View;
+  dpr: number;
+  w: number;
+  h: number;
+  stage: JobStage;
+  /** The next row to zero (fill) or to convert (quantize). */
+  row: number;
+  /** The next cell to fold. */
+  cell: number;
+  /** Slices done, for what a caller is owed. */
+  units: number;
+  /** Calls in a row whose list did not name this job. */
+  unnamed: number;
+}
+
+/** A season's layer, with everything its fold reads, captured when the job
+ *  starts. */
+interface LayerJob extends JobProgress {
+  kind: "layer";
+  pts: Points;
+  coloured: boolean;
+  pin: [number, number] | null;
+  strength: number;
+  grain: GrainProfile;
+  splats: GrainSplats;
+}
+
+/** The residence, with its cells in the one order every fold takes them in. */
+interface ResidenceJob extends JobProgress {
+  kind: "residence";
+  occ: Occupancy;
+  cells: readonly ResidenceCell[];
+}
+
+type BakeJob = LayerJob | ResidenceJob;
+
+let bakeJob: BakeJob | null = null;
+let jobAcc: Float32Array | null = null;
+let jobImg: ImageData | null = null;
+
+/** How many slices a layer or the residence is built in: a function of its
+ *  height, its cell count and how many cells a slice folds, so what is owed
+ *  can be reckoned before a job exists. One with no cells still spends one
+ *  fold slice. */
+function unitsOf(n: number, h: number, cellsPerSlice: number): number {
+  return 2 * Math.ceil(h / PREWARM_ROWS_PER_SLICE)
+    + Math.max(1, Math.ceil(n / cellsPerSlice)) + 1;
+}
+
+/** Run one slice of the job, and return what it built when that slice was
+ *  the upload. Each cursor moves in one place, clamped to its end there,
+ *  because the last slice of a stage is rarely a whole one. It moves no work
+ *  counter: who finished a layer is the caller's to say. */
+function stepJob(job: BakeJob): Layer | null {
+  const acc = jobAcc!;
+  const img = jobImg!;
+  job.units++;
+  if (job.stage === "fill") {
+    const to = Math.min(job.h, job.row + PREWARM_ROWS_PER_SLICE);
+    acc.fill(0, job.row * job.w * 3, to * job.w * 3);
+    job.row = to;
+    if (job.row >= job.h) {
+      job.stage = "fold";
+      job.cell = 0;
+    }
+    return null;
+  }
+  if (job.stage === "fold") {
+    const n = job.kind === "layer" ? job.pts.n : job.cells.length;
+    const to = Math.min(n, job.cell + (job.kind === "layer"
+      ? PREWARM_CELLS_PER_SLICE : PREWARM_RESIDENCE_CELLS_PER_SLICE));
+    if (job.kind === "layer") {
+      foldLayerCells(
+        acc, job.w, job.h, job.view, job.dpr, job.pts, job.cell, to,
+        job.pin, job.strength, job.coloured, job.splats, job.grain,
+      );
+    } else {
+      foldResidenceCells(acc, job.w, job.h, job.view, job.dpr, job.occ, job.cells, job.cell, to);
+    }
+    job.cell = to;
+    if (job.cell >= n) {
+      job.stage = "quantize";
+      job.row = 0;
+    }
+    return null;
+  }
+  if (job.stage === "quantize") {
+    const to = Math.min(job.h, job.row + PREWARM_ROWS_PER_SLICE);
+    quantizeRows(acc, img.data, job.w, job.row, to);
+    job.row = to;
+    if (job.row >= job.h) job.stage = "upload";
+    return null;
+  }
+  // The whole image at once, never a part of it: a canvas is written in one
+  // burst or it is not this file's kind of surface. A season's layer enters
+  // the layer cache; the residence enters its own slot, which is not in it.
+  const layer: Layer = { canvas: canvasOf(img, job.w, job.h), key: job.key };
+  if (job.kind === "layer") storeLayer(job.key, layer);
+  else residence = layer;
+  bakeJob = null;
+  return layer;
 }
 
 /**
@@ -578,6 +871,19 @@ export function bakeLayer(
   const key = layerKey(year, coloured, view, dpr, pin, strength, grain);
   const hit = layers.get(key);
   if (hit) return hit;
+  // A job already building this layer is finished here, by the slices it had
+  // left: the layer it would have stored, at no more than a whole bake's
+  // cost. A miss on any other key bakes whole on the scratch pair below and
+  // leaves the job as it was.
+  if (bakeJob && bakeJob.key === key) {
+    fieldWork.inlineFinishes++;
+    const job = bakeJob;
+    for (;;) {
+      const done = stepJob(job);
+      if (done) return done;
+    }
+  }
+  fieldWork.syncBakes++;
 
   const w = Math.max(1, Math.round(view.width * dpr));
   const h = Math.max(1, Math.round(view.height * dpr));
@@ -587,42 +893,181 @@ export function bakeLayer(
   // ImageData directly rounds almost every shot in the record away to nothing -
   // which is exactly the failure this whole approach exists to avoid.
   const acc = accOf(w * h * 3);
-
-  const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
-  const zoneRGB = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
   const splats = grainSplatsOf(view, dpr, grain);
-
-  const [pinX, pinY] = pin ?? [NaN, NaN];
-  for (let i = 0; i < pts.n; i++) {
-    const cx = pts.x[i]!;
-    const cy = pts.y[i]!;
-    if (cx === pinX && cy === pinY) continue;
-    const count = pts.hires[i]! + pts.rest[i]!;
-    if (count === 0) continue;
-
-    const ink = tone(count / pts.total, strength);
-    const rgb = coloured ? (zoneRGB[pts.zone[i]!] ?? bone) : bone;
-    splatGrainedCell(
-      acc, w, h, view, dpr, splats, cx, cy, ink,
-      coarseShare(grain, cx, cy, pts.hires[i]!, pts.rest[i]!), rgb,
-    );
-  }
+  foldLayerCells(acc, w, h, view, dpr, pts, 0, pts.n, pin, strength, coloured, splats, grain);
 
   const layer: Layer = { canvas: quantize(acc, w, h), key };
-  layers.set(key, layer);
-  // The live set, derived rather than guessed: at most the current and the
-  // previous season are drawn (2), each at up to DEVELOP_STATES exposure
-  // states as the ladder sweeps through them, in at most two palettes (bone
-  // for THE PLATE and the text hands, zone for THE FIELD) — so a full
-  // rotation's working set is 2 seasons x DEVELOP_STATES states x 2 palettes.
-  // Sized to hold all of it so neither the ladder revisiting a state nor the
-  // rotation switching palettes evicts a layer that is still in play; the
-  // cost is memory, and it is the deliberate side of the trade.
-  if (layers.size > 2 * 2 * DEVELOP_STATES) {
-    const oldest = layers.keys().next().value;
-    if (oldest !== undefined && oldest !== key) layers.delete(oldest);
-  }
+  storeLayer(key, layer);
   return layer;
+}
+
+/** Something a coming frame will ask for, named so it can be built before
+ *  that frame: a season's layer at one state of its ladder, a season's
+ *  emphasis order, the residence, or the window calendar's fold order. Each
+ *  carries the arguments the frame will pass for it. */
+export type PrewarmRequest =
+  | {
+      what: "layer";
+      year: number;
+      pts: Points;
+      coloured: boolean;
+      view: View;
+      dpr: number;
+      pin: [number, number] | null;
+      /** A ladder state, from the lowest up to DEVELOP_STATES. */
+      state: number;
+      grain: GrainProfile;
+    }
+  | { what: "order"; pts: Points; pin: [number, number] | null }
+  | { what: "residence"; occ: Occupancy; view: View; dpr: number }
+  | {
+      what: "dayPlan";
+      dayPts: DayPoints;
+      pin: [number, number] | null;
+      seedDay: number;
+      windowLast: number;
+    };
+
+/**
+ * Pay toward what a coming frame will ask for.
+ *
+ * `requests` is what will be asked for, in the order it will first be read,
+ * and `owedShare` is how much of all of it should be done by now, which a
+ * caller derives from its clock alone. What has been done is history, and
+ * history decides only whether an entry already exists: `bakeLayer`,
+ * `bakeResidence`, `revealOrder` and `dayFoldPlan` return the same thing
+ * whatever was or was not built here, and that is all a frame can see of
+ * this. It takes no context and cannot draw.
+ *
+ * A layer request names a ladder state, never a strength. Its key is formed
+ * through `exposureStrength`, as `drawDeveloping` forms the one it bakes, so
+ * the float in the key is the same float.
+ *
+ * What is owed and what is done are reckoned from the list on every pass,
+ * never carried: a running total is where a slip would hide.
+ *
+ * A call's cost is bounded. It runs at most PREWARM_SLICES_MAX slices; or
+ * fewer and then one upload, which ends the call; or one sort, an emphasis
+ * order or the calendar's fold order, and nothing else. The two pieces that
+ * cannot be cut never share a call.
+ *
+ * There is one job, and it belongs to whichever list names it. A call whose
+ * list does not name it leaves it alone and does nothing, so two callers in
+ * one frame take the slot turn about; only a job that more than
+ * PREWARM_UNNAMED_CALLS calls running have left unnamed is dropped. Custody
+ * is settled before the share is read, so a call whose list does not name
+ * the job counts against it even when that call is owed nothing; only a call
+ * with an empty list does not count.
+ */
+export function advancePrewarm(
+  requests: readonly PrewarmRequest[],
+  owedShare: number,
+): void {
+  if (!requests.length) return;
+
+  type Baked = Extract<PrewarmRequest, { what: "layer" | "residence" }>;
+  const keyOf = (r: Baked): string => r.what === "layer"
+    ? layerKey(r.year, r.coloured, r.view, r.dpr, r.pin, exposureStrength(r.state), r.grain)
+    : residenceKey(r.view, r.dpr);
+  const reckon = () => {
+    let total = 0;
+    let done = 0;
+    let named = false;
+    let next: PrewarmRequest | null = null;
+    for (const r of requests) {
+      if (r.what === "order") {
+        total += 1;
+        const have = revealOrders.get(r.pts);
+        if (have && have.pinKey === (r.pin ? r.pin.join(",") : "none")) done += 1;
+        else next ??= r;
+        continue;
+      }
+      if (r.what === "dayPlan") {
+        total += 1;
+        const have = dayFoldPlans.get(r.dayPts);
+        if (have && have.pinKey === (r.pin ? r.pin.join(",") : "none")
+          && have.seedDay === r.seedDay && have.windowLast === r.windowLast) done += 1;
+        else next ??= r;
+        continue;
+      }
+      const key = keyOf(r);
+      const h = Math.max(1, Math.round(r.view.height * r.dpr));
+      const units = r.what === "layer"
+        ? unitsOf(r.pts.n, h, PREWARM_CELLS_PER_SLICE)
+        : unitsOf(residenceCellsOf(r.occ).length, h, PREWARM_RESIDENCE_CELLS_PER_SLICE);
+      total += units;
+      if (r.what === "layer" ? layers.has(key) : residence?.key === key) done += units;
+      else if (bakeJob && bakeJob.key === key) {
+        done += bakeJob.units;
+        named = true;
+      } else next ??= r;
+    }
+    return { total, done, named, next };
+  };
+
+  let now = reckon();
+  // Whose the job is, settled once, before any work.
+  if (bakeJob) {
+    if (now.named) bakeJob.unnamed = 0;
+    else if (++bakeJob.unnamed > PREWARM_UNNAMED_CALLS) {
+      bakeJob = null;
+      fieldWork.prewarmDropped++;
+    } else return;
+  }
+
+  const share = Math.min(1, Math.max(0, owedShare));
+  let spent = 0;
+  while (now.done < share * now.total && spent < PREWARM_SLICES_MAX) {
+    if (bakeJob) {
+      spent++;
+      if (stepJob(bakeJob)) {
+        fieldWork.prewarmedLayers++;
+        return;
+      }
+      now = reckon();
+      continue;
+    }
+    const next = now.next;
+    if (!next) return;
+    if (next.what === "order") {
+      if (spent === 0) revealOrder(next.pts, next.pin);
+      return;
+    }
+    if (next.what === "dayPlan") {
+      if (spent === 0) dayFoldPlan(next.dayPts, next.pin, next.seedDay, next.windowLast);
+      return;
+    }
+    const { view, dpr } = next;
+    const w = Math.max(1, Math.round(view.width * dpr));
+    const h = Math.max(1, Math.round(view.height * dpr));
+    if (!jobAcc || jobAcc.length !== w * h * 3) jobAcc = new Float32Array(w * h * 3);
+    if (!jobImg || jobImg.width !== w || jobImg.height !== h) jobImg = new ImageData(w, h);
+    const progress: JobProgress = {
+      key: keyOf(next),
+      view,
+      dpr,
+      w,
+      h,
+      stage: "fill",
+      row: 0,
+      cell: 0,
+      units: 0,
+      unnamed: 0,
+    };
+    bakeJob = next.what === "layer"
+      ? {
+          ...progress,
+          kind: "layer",
+          pts: next.pts,
+          coloured: next.coloured,
+          pin: next.pin,
+          strength: exposureStrength(next.state),
+          grain: next.grain,
+          splats: grainSplatsOf(view, dpr, next.grain),
+        }
+      : { ...progress, kind: "residence", occ: next.occ, cells: residenceCellsOf(next.occ) };
+    now = reckon();
+  }
 }
 
 /**
@@ -637,9 +1082,15 @@ export function bakeLayer(
  * drawLayer's cutoff) and the top state draws alone at `dim` — byte-identical
  * to the single finished-layer blit this path replaced.
  *
- * The states are baked lazily through `bake`, so a frame only pays for the one
- * or two states it actually composites. A pure function of its arguments:
- * nothing here reads a clock or remembers a frame.
+ * The states are asked for through `bake` and baked on a miss, so a frame that
+ * lands on empty caches pays only for the states it composites. In forward
+ * play a hand that builds ahead has had a season's states made during the
+ * stretch before that season, the prelude's close or the last season's tail,
+ * where its points were already here in that stretch, and the hand-over
+ * finds them in the cache. Everywhere else the miss pays, as on a landing,
+ * or on the hand-over of a season whose points came after that stretch. A
+ * pure function of its arguments: nothing here reads a clock or remembers a
+ * frame.
  */
 export function drawDeveloping(
   ctx: CanvasRenderingContext2D,
@@ -661,6 +1112,10 @@ export function drawDeveloping(
   // from a hand's first frame to the first frame their alpha cleared the
   // blit's own floor, which moved the cost from a season's opening — where
   // cold work belongs — to its middle.
+  // Where the season will recede under the next, a hand that builds ahead
+  // has that lower state made during the tail, for the hand-over that draws
+  // it; this skip still keeps a frame that lands here from baking it for
+  // nothing.
   if (upper > 1 && frac < 1) {
     drawLayer(ctx, bake(exposureStrength(upper - 1)), view, (1 - frac) * dim);
   }
@@ -704,12 +1159,15 @@ interface RevealOrder {
   order: Int32Array;
 }
 
-const revealOrders = new WeakMap<Points, RevealOrder>();
+// Replaced by `clearLayers`, so the frame after an emptying pays the sort the
+// way a fresh page's does.
+let revealOrders = new WeakMap<Points, RevealOrder>();
 
 function revealOrder(pts: Points, pin: [number, number] | null): Int32Array {
   const pinKey = pin ? pin.join(",") : "none";
   const have = revealOrders.get(pts);
   if (have && have.pinKey === pinKey) return have.order;
+  fieldWork.syncSorts++;
 
   const [pinX, pinY] = pin ?? [NaN, NaN];
   const idx: number[] = [];
@@ -747,7 +1205,7 @@ function revealOrder(pts: Points, pin: [number, number] | null): Int32Array {
  *  of the prefix (the idempotent mirror in `splatCell`, same clamp `quantize`
  *  makes). So the canvas's content after any history of advances equals its
  *  content after one cold rebuild to the same prefix — the invariant the
- *  purity probe's four histories test directly at the mid-arrival beats. */
+ *  purity probe's histories test directly at the mid-arrival beats. */
 interface Reveal {
   key: string;
   cells: number;
@@ -797,6 +1255,14 @@ function revealLayer(
   }
 
   if (r.cells < prefix || r.layer === null) {
+    // Counted here and nowhere else: each time the folded prefix moves — a
+    // step crossed in forward play, a rebuild after a backward seek or an
+    // eviction, or a first frame that lands mid-arrival on empty caches — and
+    // its whole image is uploaded again. The rising batch
+    // refolds on the same crossings, and once more at the arrival's opening
+    // before any prefix exists, so counting it as well would count a crossing
+    // twice and report a step where none was crossed.
+    fieldWork.revealSteps++;
     const order = revealOrder(pts, pin);
     const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
     const zoneRGB = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
@@ -964,13 +1430,16 @@ export function drawReveal(
   const r = Math.min(1, Math.max(0, arrived));
   if (r <= 0 || dim <= 0.002) return;
   // The finished layer is both this ladder's top step and the tail the
-  // arrival hands over to. It is baked at the arrival's OPENING frame — the
-  // boundary, where the season's cold work (the order, the accumulator)
-  // already lives — so its one cold cost sits in the frame a viewer and a
-  // probe can attribute rather than surprising the middle of the season
-  // (measured: left lazy, it landed a full-plate bake at the
-  // reveal's top step, mid-window). Warm frames pay a cache hit; no pixel
-  // depends on when this ran.
+  // arrival hands over to. It is asked for at the arrival's OPENING frame —
+  // the boundary, where a landing's cold work (the order, the accumulator)
+  // already lives — so a frame that lands there pays its one cold cost where
+  // a viewer and a probe can attribute it, rather than surprising the middle
+  // of the season (measured: left lazy, it landed a full-plate bake at the
+  // reveal's top step, mid-window). In forward play that frame finds the
+  // layer and the order made, where the stretch before it was played for a
+  // hand that builds ahead and this season's points were already here in
+  // that stretch; where they were not, it pays for both as a landing does.
+  // Warm frames pay a cache hit; no pixel depends on when this ran.
   const top = bakeLayer(year, pts, coloured, view, dpr, pin, 1, grain);
   const u = r * REVEAL_STEPS;
   const step = Math.floor(u);
@@ -1039,6 +1508,10 @@ export interface WindowFoldClock {
 interface DayFoldPlan {
   pinKey: string;
   seedDay: number;
+  /** The window's last day the plan was cut at. The order is split there and
+   *  the calendars below are sized by it, so it is part of the key, with the
+   *  pin and the seed day: a plan cut at another day is never met again. */
+  windowLast: number;
   /** Record indices in fold order; pin cells excluded (the plate refuses
    *  them, exactly as `bakeLayer` and `revealOrder` do). */
   order: Int32Array;
@@ -1060,7 +1533,8 @@ interface DayFoldPlan {
   pinTotal: number;
 }
 
-const dayFoldPlans = new WeakMap<DayPoints, DayFoldPlan>();
+// Replaced by `clearLayers`, like the emphasis orders.
+let dayFoldPlans = new WeakMap<DayPoints, DayFoldPlan>();
 
 function dayFoldPlan(
   dayPts: DayPoints,
@@ -1070,7 +1544,9 @@ function dayFoldPlan(
 ): DayFoldPlan {
   const pinKey = pin ? pin.join(",") : "none";
   const have = dayFoldPlans.get(dayPts);
-  if (have && have.pinKey === pinKey && have.seedDay === seedDay) return have;
+  if (have && have.pinKey === pinKey && have.seedDay === seedDay
+    && have.windowLast === windowLast) return have;
+  fieldWork.syncSorts++;
 
   const [pinX, pinY] = pin ?? [NaN, NaN];
   const seed: number[] = [];
@@ -1117,7 +1593,7 @@ function dayFoldPlan(
   }
 
   const built: DayFoldPlan = {
-    pinKey, seedDay, order, cumBefore,
+    pinKey, seedDay, windowLast, order, cumBefore,
     seedCount: seed.length, bCum, bDayCount,
     windowEnd: seed.length + winDays.length,
     pinSeedN, pinBCum, pinBDay, pinTotal,
@@ -1541,11 +2017,15 @@ function wetTrailLayer(
 
 /**
  * Draw the window season's base on its own calendar. The finished layer is
- * baked at the window's OPENING frame (the reveal's own staging idiom), so the
- * close-flood is a blit swap whose cold cost sat at an attributable boundary;
- * from the flood on, the frame drawn is `bakeLayer`'s canvas — byte-identical
- * to what every later consumer (the exit handover, the develop-out of the next
- * pass) reads.
+ * asked for at the window's OPENING frame (the reveal's own staging idiom),
+ * so the close-flood is a blit swap, and a frame that lands in the window
+ * pays the layer's cold cost at an attributable boundary. In forward play
+ * the opening frame finds it made, where the tail before it ran in a hand
+ * that builds ahead and the window season's points were already here in
+ * that tail; where they were not, it pays as a landing does. From the flood
+ * on, the frame drawn is `bakeLayer`'s
+ * canvas — byte-identical to what every later consumer (the exit handover,
+ * the develop-out of the next pass) reads.
  */
 export function drawWindowReveal(
   ctx: CanvasRenderingContext2D,
@@ -1603,6 +2083,23 @@ export function clearLayers(): void {
   wetLives.clear();
   wetTrails.clear();
   residence = null;
+  // Both orders, and the residence's cells, are pure functions of the
+  // arguments they were built from, so dropping them moves no pixel; what it
+  // changes is that the frame after an emptying pays what a fresh page's
+  // first frame pays.
+  revealOrders = new WeakMap();
+  dayFoldPlans = new WeakMap();
+  residenceCells = new WeakMap();
+  // A job in flight is dropped with the caches it was building for. Its
+  // accumulator and image stay: the next job overwrites both whole before it
+  // reads either.
+  bakeJob = null;
+  fieldWork.syncBakes = 0;
+  fieldWork.syncSorts = 0;
+  fieldWork.revealSteps = 0;
+  fieldWork.inlineFinishes = 0;
+  fieldWork.prewarmedLayers = 0;
+  fieldWork.prewarmDropped = 0;
 }
 
 /**
@@ -1622,6 +2119,10 @@ export function clearLayers(): void {
  * `SPLAT_SPACING_K` as the shot lattice — the J2 null is a function of K
  * alone, so it suppresses this lattice's beat exactly as it does the record's.
  * Nothing here reads `t`; the beat envelope lives at the draw call.
+ *
+ * Like a layer, it can be built a slice at a time ahead of the frame that
+ * draws it (`advancePrewarm`), and a frame meets that only as a slot that
+ * holds it or does not.
  */
 
 /** Court tenths per occupancy cell: pipeline/window.py grids ball frames on
@@ -1630,9 +2131,7 @@ export function clearLayers(): void {
 const CELL_TENTHS = 10;
 
 /** The residence's cell-splat radius in device pixels — the occupancy grain,
- *  the scale at which the window already says "the game lived here". The
- *  entry yield's wake derives its stroke widths from this, so
- *  the mask has no radius of its own to author. */
+ *  the scale at which the window already says "the game lived here". */
 export function residenceSplatRadius(view: View, dpr: number): number {
   const spacing = view.s(CELL_TENTHS) * dpr;
   return Math.max(SPLAT_MIN_PX, spacing * SPLAT_SPACING_K);
@@ -1645,13 +2144,46 @@ export interface Occupancy {
   frames_total: number;
 }
 
-export function bakeResidence(occ: Occupancy, view: View, dpr: number): Layer {
-  const key = `residence|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}`;
-  if (residence && residence.key === key) return residence;
+function residenceKey(view: View, dpr: number): string {
+  return `residence|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}`;
+}
 
-  const w = Math.max(1, Math.round(view.width * dpr));
-  const h = Math.max(1, Math.round(view.height * dpr));
-  const acc = new Float32Array(w * h * 3);
+/** One cell of the occupancy grid: its key in the artifact and its frames. */
+type ResidenceCell = readonly [string, number];
+
+// The grid's cells in the one order every fold of the residence takes them
+// in, whole or a slice at a time, held per artifact so that reckoning what a
+// residence is owed does not list the grid again on every call. Replaced by
+// `clearLayers`, like the orders.
+let residenceCells = new WeakMap<Occupancy, readonly ResidenceCell[]>();
+
+function residenceCellsOf(occ: Occupancy): readonly ResidenceCell[] {
+  let cells = residenceCells.get(occ);
+  if (!cells) {
+    cells = Object.entries(occ.grid);
+    residenceCells.set(occ, cells);
+  }
+  return cells;
+}
+
+/**
+ * Fold a run of the residence's cells into a float accumulator. One body, so
+ * a residence built a run of cells at a time adds the same numbers in the
+ * same order as one built whole, and the two cannot differ in a byte. Its
+ * geometry is derived here on every run, from the view and the pixel ratio
+ * alone.
+ */
+function foldResidenceCells(
+  acc: Float32Array,
+  w: number,
+  h: number,
+  view: View,
+  dpr: number,
+  occ: Occupancy,
+  cells: readonly ResidenceCell[],
+  from: number,
+  to: number,
+): void {
   const bone = BONE_RGB.split(",").map((s) => Number(s.trim()));
 
   const spacing = view.s(CELL_TENTHS) * dpr;
@@ -1663,7 +2195,8 @@ export function bakeResidence(occ: Occupancy, view: View, dpr: number): Layer {
     (Math.PI * radius * radius * FALLOFF_DISC_INTEGRAL) / (spacing * spacing),
   );
 
-  for (const [cell, frames] of Object.entries(occ.grid)) {
+  for (let i = from; i < to; i++) {
+    const [cell, frames] = cells[i]!;
     const comma = cell.indexOf(",");
     const cx = Number(cell.slice(0, comma)) * CELL_TENTHS + CELL_TENTHS / 2;
     const cy = Number(cell.slice(comma + 1)) * CELL_TENTHS + CELL_TENTHS / 2;
@@ -1693,23 +2226,34 @@ export function bakeResidence(occ: Occupancy, view: View, dpr: number): Layer {
       }
     }
   }
+}
+
+export function bakeResidence(occ: Occupancy, view: View, dpr: number): Layer {
+  const key = residenceKey(view, dpr);
+  if (residence && residence.key === key) return residence;
+  // A job already building the residence is finished here, by the slices it
+  // had left, as `bakeLayer` finishes one of its own. Otherwise the residence
+  // is baked whole, on an accumulator and an image of its own, and the job
+  // is left as it was.
+  if (bakeJob && bakeJob.key === key) {
+    fieldWork.inlineFinishes++;
+    const job = bakeJob;
+    for (;;) {
+      const done = stepJob(job);
+      if (done) return done;
+    }
+  }
+  fieldWork.syncBakes++;
+
+  const w = Math.max(1, Math.round(view.width * dpr));
+  const h = Math.max(1, Math.round(view.height * dpr));
+  const acc = new Float32Array(w * h * 3);
+  const cells = residenceCellsOf(occ);
+  foldResidenceCells(acc, w, h, view, dpr, occ, cells, 0, cells.length);
 
   const img = new ImageData(w, h);
-  const data = img.data;
-  const px = w * h;
-  for (let p = 0, o = 0, q = 0; p < px; p++, o += 4, q += 3) {
-    data[o] = acc[q] as number;
-    data[o + 1] = acc[q + 1] as number;
-    data[o + 2] = acc[q + 2] as number;
-    data[o + 3] = 255;
-  }
-
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  canvas.getContext("2d")!.putImageData(img, 0, 0);
-
-  residence = { canvas, key };
+  quantizeRows(acc, img.data, w, 0, h);
+  residence = { canvas: canvasOf(img, w, h), key };
   return residence;
 }
 

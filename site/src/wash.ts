@@ -102,6 +102,17 @@ const PREP_CELLS_PER_FRAME = 256;
 
 const lanes = new Map<string, Lane>();
 
+/**
+ * Whole conversions paid inside single frames since the lanes were last
+ * emptied, counted so a probe can name the frame that paid. `syncConverts` is
+ * the fold's own: its seeded ground, a catch-up, and an arriving day that no
+ * preparation had ready. A fixed grid's lane has no prepared path and always
+ * converts whole on a miss, so it is counted apart, in `syncGridConverts`,
+ * and the fold's count stays readable by itself. No draw reads either, and
+ * `clearWashes` returns both to zero.
+ */
+export const washWork = { syncConverts: 0, syncGridConverts: 0 };
+
 interface WashGeometry {
   w: number;
   h: number;
@@ -131,6 +142,8 @@ function idOf(o: object): number {
 export function clearWashes(): void {
   lanes.clear();
   geometries = new WeakMap();
+  washWork.syncConverts = 0;
+  washWork.syncGridConverts = 0;
 }
 
 /** One day's cells out of the decoded rasters, as fold-ready floats. */
@@ -462,6 +475,7 @@ export function drawWashCells(
   const key = `cells|${id}|${Math.round(view.width)}x${Math.round(view.height)}|${dpr}`;
   let lane = lanes.get(key);
   if (!lane) {
+    washWork.syncGridConverts++;
     const field = convert(cells, total, meta, view, dpr);
     lane = {
       key,
@@ -514,6 +528,7 @@ export function drawWashFold(
   if (lane && lane.applied > wantApplied) lane = undefined; // backward: rebuild
   if (!lane) {
     const acc = dayCells(wash, meta, seedDay) ?? new Float64Array(per);
+    washWork.syncConverts++;
     const field = convert(acc, total, meta, view, dpr);
     lane = {
       key,
@@ -575,6 +590,7 @@ export function drawWashFold(
       addDay(lane.acc, wash, meta, day);
       lane.applied++;
     }
+    washWork.syncConverts++;
     const field = convert(lane.acc, total, meta, view, dpr);
     lane.front = toCanvas(field, view, dpr);
     lane.frontPx = field.px;
@@ -597,6 +613,7 @@ export function drawWashFold(
   if (lane.deltaFor !== lo) {
     const next = new Float64Array(lane.acc);
     addDay(next, wash, meta, lo);
+    washWork.syncConverts++;
     const nextField = convert(next, total, meta, view, dpr);
     const delta = differenceField(nextField, lane.frontPx, view, dpr);
     lane.delta = toCanvas(delta, view, dpr);

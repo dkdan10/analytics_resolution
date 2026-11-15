@@ -1,6 +1,5 @@
 /** Helpers every hand may need. */
 
-import type { Corpus } from "../data";
 import { drawSlug } from "../inscription";
 import { SEASON_CLOCK_K } from "../scalars";
 import { ACT_TITLES, type Act } from "../timeline";
@@ -32,12 +31,25 @@ export function seasonClock(u: number): number {
  * which quietly defeats the opening beat's "one possession" ramp.)
  */
 export function arrivedThrough(cum: Int32Array, dayFrac: number): number {
+  return Math.round(arrivedExact(cum, dayFrac));
+}
+
+/**
+ * The same arrival before it is rounded to a whole mark: how many have
+ * arrived, and how far into the next one the day has come.
+ *
+ * A count of marks is whole, and a reader that asks which marks are present
+ * wants `arrivedThrough`. A reader that draws the newest mark as it lands
+ * wants the part as well, because rounded, the edge of the arrival stands
+ * still between two marks and then moves a whole one at once.
+ */
+export function arrivedExact(cum: Int32Array, dayFrac: number): number {
   const span = cum.length - 1;
   const d = Math.max(0, Math.min(span + 1, dayFrac));
   const lo = Math.floor(d);
   const a = lo > 0 ? cum[Math.min(span, lo - 1)]! : 0;
   const b = cum[Math.min(span, lo)]!;
-  return Math.round(a + (b - a) * (d - lo));
+  return a + (b - a) * (d - lo);
 }
 
 /**
@@ -91,28 +103,21 @@ function cueStep(x: number): number {
   return c * c * (3 - 2 * c);
 }
 
-export function drawActCue(f: Frame, act: Act, at = CUE_AT): void {
+/** How far an act's cue is up at this frame, from 0 to 1: the envelope
+ *  `drawActCue` strikes the title with, so a hand that has to make room under
+ *  the title reads the same curve rather than a copy of it. */
+export function actCueLevel(f: Frame, act: Act): number {
   const seg = f.schedule.segments.find((s) => s.act === act);
-  if (!seg) return;
+  if (!seg) return 0;
   const u = f.st.t - seg.start;
-  if (u <= 0 || u >= ACT_CUE_SECONDS) return;
-  const a = cueStep(u / CUE_EDGE)
+  if (u <= 0 || u >= ACT_CUE_SECONDS) return 0;
+  return cueStep(u / CUE_EDGE)
     * (1 - cueStep((u - (ACT_CUE_SECONDS - CUE_EDGE)) / CUE_EDGE));
-  drawSlug(f.ctx, f.view, [ACT_TITLES[seg.act].toUpperCase()], at,
-    f.remains * a * 0.45, "voice");
 }
 
-/** The empty archive dated the day the window closed.
- *
- *  Selected by parsing the MM.DD.YYYY prefix against the corpus's own last date,
- *  never by sorting the filenames: those strings are month-first, so
- *  lexicographic order is not chronological and a shell from December would
- *  sort after one from January. */
-export function terminalShell(corpus: Corpus): string | null {
-  const iso = corpus.date_range[1];
-  for (const name of corpus.empty_32B_shells) {
-    const m = /^(\d{2})\.(\d{2})\.(\d{4})\./.exec(name);
-    if (m && `${m[3]}-${m[1]}-${m[2]}` === iso) return name;
-  }
-  return null;
+export function drawActCue(f: Frame, act: Act, at = CUE_AT): void {
+  const a = actCueLevel(f, act);
+  if (a <= 0) return;
+  drawSlug(f.ctx, f.view, [ACT_TITLES[act].toUpperCase()], at,
+    f.remains * a * 0.45, "voice");
 }

@@ -9,8 +9,8 @@ artwork and the data pipeline behind it: a Python pipeline over the shot logs an
 one public season of player tracking, a TypeScript renderer on Canvas 2D, and a CI gate that
 checks every published figure.
 
-**Live:** <https://dkdan10.github.io/analytics_resolution/> (a short guided overview, with the
-full work one click away; made for a laptop screen) · **Paper:** [CONTESTED: How Data Is
+**Live:** <https://dkdan10.github.io/analytics_resolution/> (an interactive player, with a guided
+overview and the full work one click away; made for a laptop screen) · **Paper:** [CONTESTED: How Data Is
 Defined, Gathered, and Owned](https://dkdan10.github.io/papers/CONTESTED_Daniel_Keinan.pdf)
 
 <p align="center">

@@ -7,18 +7,23 @@
  * receding as the current one develops) cannot drift apart between hands.
  */
 
-import type { Season } from "../data";
+import type { Loaded, Season } from "../data";
 import {
-  bakeLayer, bakeResidence, developed, drawDeveloping, drawLayer, drawReveal,
-  drawWindowReveal, grainProfileFor, windowPinArrived, type WindowFoldClock,
+  advancePrewarm, bakeLayer, bakeResidence, developed, developPositionFor, drawDeveloping,
+  drawLayer,
+  drawReveal, drawWindowReveal, grainProfileFor, windowPinArrived,
+  type GrainProfile, type Points, type PrewarmRequest, type WindowFoldClock,
 } from "../field";
 import { drawPin } from "../marks";
+import type { View } from "../plate";
 import { DEVELOP_STATES, RESIDENCE_ALPHA } from "../scalars";
+import { ACT0_SECONDS, ARRIVAL_TAIL, CUT_YEAR, SEASON_SECONDS, type State } from "../timeline";
 import {
   PLATE_WITHDRAW_SPAN,
   WINDOW_BEATS,
+  WINDOW_ENTRY_SPAN,
   progressInWindowSpan,
-  windowEntryProgress,
+  type PhaseSpan,
 } from "../window-score";
 import { seasonClock } from "./shared";
 import type { Frame } from "./types";
@@ -28,6 +33,9 @@ export interface FieldOpts {
   coloured?: boolean;
   /** Overall dim, before development. */
   dim: number;
+  /** The outgoing season's dim, where it leaves at a different depth from the
+   *  one the arriving season comes in at. The arriving season's, unless said. */
+  previousDim?: number;
   /** THE CENSUS draws no outgoing season: a field still holding the previous
    *  season's shots would contradict a tally counting only this one. */
   withPrevious?: boolean;
@@ -36,19 +44,6 @@ export interface FieldOpts {
    *  ground their registers, and a glow under their type would be one more
    *  thing to read around rather than the ground disagreeing with the marks. */
   residence?: boolean;
-  /** THE ENTRY YIELD MASK, at the window's entry — PLATE only: the hand
-   *  where the collision between the receding season and the arriving
-   *  strokes was measured, and the only reveal hand drawing the strokes.
-   *  When present, the PREVIOUS season's layer composites through a
-   *  per-frame scratch: its exposure states drawn in, then this callback
-   *  erases along every body/ball vertex the clock
-   *  has reached (`destination-out`; the caller sets its own widths and
-   *  strengths), then ONE `lighter` blit — so the old field locally dries in
-   *  the strokes' wake while untouched marks persist whole and the no-clear
-   *  recession stands. Pure in t: the wake is the disc-union along a
-   *  monotone stroke prefix, recomputed from scratch every frame; nothing
-   *  survives between frames. */
-  yieldMask?: (ctx: CanvasRenderingContext2D) => void;
   /** THE PER-MARK ARRIVAL (stage B of the two-stage arrival; stage A is the
    *  development, below): the arriving season's cells
    *  surface individually in the record's own emphasis order — descending
@@ -70,6 +65,28 @@ export interface FieldOpts {
    *  re-clock; see windowBaseClock); the two no-reveal hands keep the shared
    *  envelope, documented above. */
   reveal?: boolean;
+  /** BUILD AHEAD: in the closing stretch of a season, pay for what the
+   *  coming hand-over will ask for (its layers, its emphasis order, and
+   *  before the window the residence and the calendar's fold order), a little
+   *  a frame, so the boundary holds no whole bake where the arriving season's
+   *  points were already here in that stretch. Where they were not, only what
+   *  can be made without them is built, and the hand-over pays for the rest
+   *  whole. It decides when work is done and never what is drawn: a
+   *  frame meets what was built only as an entry already in a cache, and the
+   *  entry is the one a miss would have made. Off unless a hand asks. THE
+   *  STACK does not ask: it draws two
+   *  palettes a frame under a talk-only instrument, and what it keeps live
+   *  already fills the layer cache. */
+  prewarm?: boolean;
+  /** The Window span over which the preceding season withdraws. The shared
+   *  entry span unless a hand names its own: a hand with nothing of its own
+   *  in the first beat lets the withdrawal fill it. */
+  entry?: PhaseSpan;
+  /** Whether that withdrawal takes the season's light evenly across its span
+   *  rather than stepping evenly down the exposure ladder, which spends most
+   *  of the off-rim light, and with it the colours, in the span's first
+   *  third. For a hand whose first beat holds nothing but the withdrawal. */
+  entryEven?: boolean;
 }
 
 /**
@@ -91,11 +108,12 @@ function residenceEnvelope(phase: number): number {
   const washFrom = PLATE_WITHDRAW_SPAN.from;
   // DELAYED to the game phase, for a measured reason: at the window entry's
   // one-frame test the residence was part of a ground outweighing the
-  // tracked figure by orders of magnitude. "One" opens on bare stone plus
-  // the possession alone; the dwelling rises with the game/night expansion
-  // — game start to night's end, derived from the shared beat table, no new
-  // scalar — and is complete
-  // before the season floods over it, as before.
+  // tracked figure by orders of magnitude. "One" carries no dwelling: the
+  // season before recedes, and where the possession is drawn it then stands
+  // alone. The dwelling rises
+  // with the game/night expansion — game start to night's end, derived from
+  // the shared beat table, no new scalar — and is complete before the season
+  // floods over it.
   if (phase < night.from) return 0;
   if (phase < night.to) return developed((phase - night.from) / (night.to - night.from));
   if (phase < washFrom) return 1;
@@ -125,24 +143,189 @@ function windowBaseClock(phase: number, season: Season): WindowFoldClock | null 
   return { rise, dayFrac: seasonClock(seasonU) * meta.window_days, flood: false };
 }
 
-/** Scratch for the entry yield's per-frame composite — reused, not
- *  reallocated (the field's own accOf discipline). Never a cache: it is
- *  cleared and fully redrawn inside the one frame that uses it, so no byte
- *  survives to the next and purity needs nothing registered. */
-let yieldScratch: HTMLCanvasElement | null = null;
+/** The share of a season's settled tail by which everything built ahead is
+ *  owed; the rest of the tail is slack for a slow clock. It decides when work
+ *  is done and cannot change a pixel. */
+const PREWARM_DEADLINE = 0.75;
 
-function yieldScratchOf(w: number, h: number): HTMLCanvasElement {
-  if (!yieldScratch || yieldScratch.width !== w || yieldScratch.height !== h) {
-    yieldScratch = document.createElement("canvas");
-    yieldScratch.width = w;
-    yieldScratch.height = h;
+/**
+ * Ask for what the coming hand-over will read, and pay toward it.
+ *
+ * It pays only inside the last stretch before the hand-over, as long as an
+ * ordinary season's settled tail. That stretch is measured in seconds, which
+ * the caller gives as `left`, never as a phase: the window season is many
+ * times longer, and a phase test would open the work that much earlier
+ * there. What is owed rises with the clock alone; what has been built is
+ * history, and history decides only whether a layer is already made when a
+ * frame asks for it.
+ *
+ * The list names what the next season's opening frames ask `bakeLayer`,
+ * `bakeResidence` and the two orders for, by the arguments they will pass,
+ * in the order of the frames that first read them. It is not the order
+ * within a frame: the opening frame draws the receding season before the
+ * arriving one, and the list names the arriving layer first. Before the
+ * window season the residence leads, where the hand lays it, as the first
+ * thing that season's opening frame draws, and the calendar's fold order
+ * follows it on the reveal's hands. `receding` is the season that will be
+ * going out under the next one, with its own grain and points, or null where
+ * the next season's opening frames draw none. `residence` is whether the
+ * hand lays the residence.
+ *
+ * The arriving season's points, and the window season's calendar, are taken
+ * only if they are already here. Building ahead must not start a fetch: what
+ * is fetched, and when, is decided by the loop that plays the frames, never
+ * by work no frame has asked for. Where that loop plays the seasons in order
+ * it asks for the next season's files on every frame, so they have had this
+ * season's arrival to land in before this stretch opens, and all of it is
+ * built here. Where one is not here, as when a page lands inside the
+ * stretch, a file is slow or has failed, or the route does not play in
+ * order, what needs it is not built, and is made whole when a frame of the
+ * hand-over first reads it. What does not need it is still built: the
+ * receding season's lower states on the reveal's hands, and before the
+ * window the residence where the hand lays it. The hand that develops in
+ * builds nothing without the arriving points.
+ *
+ * It takes no context. Nothing here can draw.
+ */
+function payAhead(
+  view: View,
+  dpr: number,
+  data: Loaded,
+  next: number,
+  coloured: boolean,
+  reveal: boolean,
+  residence: boolean,
+  left: number,
+  receding: { season: Season; grain: GrainProfile; pts: Points } | null,
+): void {
+  const lead = (1 - ARRIVAL_TAIL) * SEASON_SECONDS;
+  if (left >= lead) return;
+  const owed = Math.min(1, (lead - left) / (lead * PREWARM_DEADLINE));
+
+  const nextSeason = data.byYear.get(next);
+  const nextPts = data.residentPoints(next);
+  const arriving = nextSeason && nextPts ? { season: nextSeason, pts: nextPts } : null;
+  const layerOf = (s: Season, p: Points, g: GrainProfile, state: number): PrewarmRequest => ({
+    what: "layer", year: s.year, pts: p, coloured, view, dpr, pin: pinCoordOf(s), state, grain: g,
+  });
+  const arrivingAt = (a: { season: Season; pts: Points }, state: number): PrewarmRequest =>
+    layerOf(a.season, a.pts, grainProfileFor(a.season.resolution.regime), state);
+
+  const requests: PrewarmRequest[] = [];
+  // Formed from the expressions `drawSeasonField` passes on the window
+  // season's frames, so each is the entry those frames ask for.
+  if (nextSeason?.points_by_day) {
+    if (residence && data.window) {
+      requests.push({ what: "residence", occ: data.window.occupancy, view, dpr });
+    }
+    const dayPts = reveal ? data.residentPointsByDay(next) : null;
+    if (dayPts) {
+      requests.push({
+        what: "dayPlan",
+        dayPts,
+        pin: pinCoordOf(nextSeason),
+        seedDay: data.slateFile?.day ?? -1,
+        windowLast: nextSeason.points_by_day?.window_last_day ?? 0,
+      });
+    }
   }
-  return yieldScratch;
+  if (reveal) {
+    if (arriving) requests.push(arrivingAt(arriving, DEVELOP_STATES));
+    if (receding) {
+      requests.push(layerOf(receding.season, receding.pts, receding.grain, DEVELOP_STATES - 1));
+    }
+    // The window season arrives on its calendar and reads no emphasis order.
+    // Elsewhere the order is one sort that cannot be cut. Asking for it here
+    // moves it whole out of the boundary frame and makes it no shorter: it
+    // can still run past a frame by itself (measured), in a passage where
+    // nothing is arriving.
+    if (arriving && !arriving.season.points_by_day) {
+      requests.push({ what: "order", pts: arriving.pts, pin: pinCoordOf(arriving.season) });
+    }
+    if (receding) {
+      for (let state = DEVELOP_STATES - 2; state >= 1; state--) {
+        requests.push(layerOf(receding.season, receding.pts, receding.grain, state));
+      }
+    }
+  } else if (arriving) {
+    // A hand whose season develops in as one image climbs the arriving
+    // season's whole ladder. The one such hand that builds ahead draws no
+    // outgoing season, so none is asked for; a hand that develops in and also
+    // recedes would add the receding season's lower states here.
+    for (let state = 1; state <= DEVELOP_STATES; state++) {
+      requests.push(arrivingAt(arriving, state));
+    }
+  }
+  if (requests.length) advancePrewarm(requests, owed);
+}
+
+/**
+ * Build ahead of the next season, on a season's own frames.
+ *
+ * This season is the one that will be receding then, so its requests are
+ * formed from this frame's own season, grain and points. Whether the hand
+ * lays the residence is this frame's own option, passed on.
+ */
+function prewarmNext(
+  f: Frame,
+  coloured: boolean,
+  dim: number,
+  withPrevious: boolean,
+  reveal: boolean,
+  residence: boolean,
+  season: Season,
+  grain: GrainProfile,
+  pts: Points | null,
+): void {
+  const { view, dpr, st, data } = f;
+  // A field that is not drawn asks for nothing. The draw's own floor is
+  // tested at the boundary against a strength this frame cannot know, so this
+  // is a guess on the side of working: a wrong one costs time, never a pixel.
+  if (st.next === null || dim <= 0) return;
+  const seg = f.schedule.byYear.get(season.year);
+  if (!seg) return;
+  // This season recedes under the next only where the next draws a previous
+  // one, and the cut draws none.
+  const receding = withPrevious && st.next !== CUT_YEAR && pts !== null
+    ? { season, grain, pts }
+    : null;
+  payAhead(
+    view, dpr, data, st.next, coloured, reveal, residence, (1 - st.phase) * seg.duration, receding,
+  );
+}
+
+/**
+ * Build ahead of the first season, on the prelude's frames.
+ *
+ * The prelude draws no hand, so nothing in it reaches a field, and the first
+ * season's opening frames would otherwise make their layer and their order
+ * whole, on the hand-over every loop of the piece opens with. No season is
+ * receding there, so only the arriving one's requests are formed. The caller
+ * names the field the hand about to play will lay, since no hand is drawing
+ * to pass it; the first season is not the window's, so no residence is
+ * asked for. Outside the prelude it does nothing.
+ */
+export function prewarmOpening(
+  view: View,
+  dpr: number,
+  st: State,
+  data: Loaded,
+  coloured: boolean,
+  reveal: boolean,
+): void {
+  if (st.act !== 0 || st.next === null) return;
+  payAhead(
+    view, dpr, data, st.next, coloured, reveal, false, (1 - st.preludePhase) * ACT0_SECONDS, null,
+  );
 }
 
 export function drawSeasonField(f: Frame, opts: FieldOpts): void {
   const { ctx, view, dpr, st, data } = f;
-  const { coloured = false, dim, withPrevious = true, residence = false, reveal = false } = opts;
+  const {
+    coloured = false, dim, withPrevious = true, residence = false, reveal = false,
+    prewarm = false, entry = WINDOW_ENTRY_SPAN, entryEven = false,
+  } = opts;
+  const previousDim = opts.previousDim ?? dim;
   const year = st.year!;
 
   // The residence goes down FIRST: it is the ground the endings sit over, and
@@ -168,7 +351,7 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
   // ARRIVAL_TAIL the position sits at the ladder's top, where the drawn frame
   // is byte-identical to the finished layer the old path blitted.
   const ladder = developed(st.arrived) * DEVELOP_STATES;
-  const previousArrival = st.act === 3 ? windowEntryProgress(st.phase) : st.arrived;
+  const previousArrival = st.act === 3 ? progressInWindowSpan(st.phase, entry) : st.arrived;
 
   if (withPrevious && st.prev !== null) {
     const prevSeason = data.byYear.get(st.prev);
@@ -177,42 +360,19 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
       const prevGrain = grainProfileFor(prevSeason.resolution.regime);
       // The pin is not part of the ladder: it occludes rather than adds, so it
       // keeps the linear fade the receding field used to share with it.
-      const fading = (1 - previousArrival) * dim;
+      const fading = (1 - previousArrival) * previousDim;
       const bakePrev = (strength: number) =>
         bakeLayer(
           st.prev!, prevPts, coloured, view, dpr, pinCoordOf(prevSeason), strength, prevGrain,
         );
-      if (opts.yieldMask && previousArrival < 1) {
-        // THE ENTRY YIELD: the receding layer draws into the scratch, the
-        // wake erases locally, one blit carries the result. `lighter` over
-        // transparent black premultiplies each develop state by its own
-        // alpha, so the blit adds exactly what the direct path would have —
-        // minus what the wake took down.
-        const w = Math.max(1, Math.round(view.width * dpr));
-        const h = Math.max(1, Math.round(view.height * dpr));
-        const scratch = yieldScratchOf(w, h);
-        const sctx = scratch.getContext("2d")!;
-        sctx.setTransform(1, 0, 0, 1, 0, 0);
-        sctx.clearRect(0, 0, w, h);
-        sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        drawDeveloping(
-          sctx, view, DEVELOP_STATES - developed(previousArrival) * DEVELOP_STATES,
-          dim, bakePrev,
-        );
-        sctx.save();
-        sctx.globalCompositeOperation = "destination-out";
-        opts.yieldMask(sctx);
-        sctx.restore();
-        ctx.save();
-        ctx.globalCompositeOperation = "lighter";
-        ctx.drawImage(scratch, 0, 0, view.width, view.height);
-        ctx.restore();
-      } else {
-        drawDeveloping(
-          ctx, view, DEVELOP_STATES - developed(previousArrival) * DEVELOP_STATES,
-          dim, bakePrev,
-        );
-      }
+      const sunk = developed(previousArrival);
+      drawDeveloping(
+        ctx, view,
+        st.act === 3 && entryEven
+          ? developPositionFor(1 - sunk)
+          : DEVELOP_STATES - sunk * DEVELOP_STATES,
+        previousDim, bakePrev,
+      );
       drawPin(ctx, view, pinFractionOf(prevSeason), pinCoordOf(prevSeason), {
         dpr, opacity: fading,
       });
@@ -259,6 +419,9 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
       ? windowPinArrived(dayPts, pinCoordOf(season), clock, seedDay, windowLast)
       : st.arrived,
   });
+
+  // Last, and after every draw of this frame: paying ahead takes no context.
+  if (prewarm) prewarmNext(f, coloured, dim, withPrevious, reveal, residence, season, grain, pts);
 }
 
 /**

@@ -18,9 +18,12 @@
  *
  * THE SHARED CLAIM. The four regimes in `resolution`
  * are measured ONLY over restricted-area shots — whether the record would say
- * *where at the rim* a layup happened. Away from the rim its precision is a
- * constant tenth of a foot in every season and every building, which is why
- * coordinate precision is rejected as a resolution driver. So the grain claims
+ * *where at the rim* a layup happened. Away from the rim every coordinate is
+ * filed to a tenth of a foot in every season and every building, which is why
+ * coordinate precision is rejected as a resolution driver. The lines the
+ * record uses there are coarser than a tenth in most seasons
+ * (pipeline/checks/capture_grid.py prints them), and the marks do not follow
+ * that spacing: an author's ruling, not a measurement. So the grain claims
  * only what is measured:
  *
  *   at the rim    the era's regime decides how a shot is drawn, because that is
@@ -28,7 +31,7 @@
  *                 decides, so shots from arenas that recorded rim coordinates
  *                 are placed and the rest are in the pin.
  *   off the rim   every mark, every era, is drawn at the same fineness, because
- *                 the record placed them all to the same tenth of a foot.
+ *                 the record filed them all to the same tenth of a foot.
  *
  * The era ladder is carried by the thing that genuinely changed: how much of
  * the plate the record refused to place (`resolution.origin_snapped_share`).
@@ -95,7 +98,7 @@ function hand(radius: number, softness: number): Hand {
   return { radius, softness, alpha: 1 };
 }
 
-/** Placed to the tenth of a foot: a tight mark. */
+/** Filed to the tenth of a foot: a tight mark. */
 const SHARP: Hand = hand(SHARP_R, SHARP_SOFTNESS);
 /** A shot the record of this era placed only loosely: the same ink, spread wide. */
 const COARSE: Hand = hand(COARSE_R, COARSE_SOFTNESS);
@@ -175,7 +178,7 @@ export function stamp(hand: Hand, pxPerTenth: number, dpr: number, rgb = BONE_RG
  * Which hand drew a given dot.
  *
  * The regime is measured over restricted-area shots only, so it decides only
- * those. Everywhere else the record placed the shot to a tenth of a foot in
+ * those. Everywhere else the record filed the shot to a tenth of a foot in
  * every season and every building, and the mark says so.
  */
 function handFor(season: Season, hires: boolean, x: number, y: number): Hand {

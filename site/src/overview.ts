@@ -19,7 +19,7 @@ export const OVERVIEW_CHAPTERS = [
   { stop: "field.season", mode: "field", title: "THE FIELD · THE SEASON" },
   { stop: "ledger.crest", mode: "ledger", title: "THE LEDGER · THE CREST" },
   { stop: "census.machine-saw-build", mode: "census", title: "THE CENSUS · MACHINE SAW" },
-  { stop: "measure.one", mode: "measure", title: "THE MEASURE · ONE" },
+  { stop: "measure.one", mode: "measure", title: "THE MEASURE · ONE SHOT" },
   { stop: "hand.night", mode: "hand", title: "THE HAND · THE NIGHT" },
 ] as const satisfies readonly { stop: string; mode: ModeId; title: string }[];
 

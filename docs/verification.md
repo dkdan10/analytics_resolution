@@ -15,7 +15,10 @@
    never accumulated, and the purity probe compares the same instant reached by different seek
    paths.
 6. **Data rights.** Bulk NBA data is never committed; derived data is.
-7. **Every stroke stays one traceable record.** No particle systems, no synthesised motion.
+7. **Every stroke stays one traceable record.** No particle systems, no synthesised motion. A
+   stroke's tip may travel the stored chord between two recorded vertices in that segment's
+   recorded duration: every position drawn lies on the record's own polyline, and no time is
+   invented.
 
 ## The gate
 
@@ -34,8 +37,9 @@ documents and must be caught by the named check that owns it; a catch by an unre
 failure of the suite, and a mutation nothing catches is reported as STILL GREEN.
 
 The league's seven-region map of the floor exists in Python and in TypeScript, and both are held
-to one committed fixture (`npm run gate`). Each binary format declares its byte layout once, and
-the Python writer and the TypeScript decoder are checked against it in both directions.
+to one committed fixture (`npm run gate`). The same command holds the address table: which entry
+each query string opens. Each binary format declares its byte layout once, and the Python writer
+and the TypeScript decoder are checked against it in both directions.
 `site/scripts/check-numbers.mjs` scans the mark-drawing source files for material numbers
 written inline instead of declared in the scalar register, and `npm run disclose` regenerates
 the disclosure, which the build checks.
@@ -48,6 +52,7 @@ python3 pipeline/checks/mutations.py --list  # every seeded defect and the check
 python3 pipeline/checks/break_gates.py       # the same catalogue through real subprocesses (needs raw dumps)
 python3 pipeline/checks/fixtures.py          # the window stage's offset, touch and shooter rules on synthetic inputs (run in CI)
 python3 pipeline/checks/check_heroes.py      # the four hero calipers in window.json, checked as geometry (run in CI)
+python3 pipeline/checks/capture_grid.py      # the lines the record files shots on, per season and axis: printed, not gated
 cd site && npm test && npm run build         # the source checks, then the gated seven-step build
 ```
 
@@ -79,14 +84,22 @@ published number was produced with.
 
 ## Probing the piece
 
-Three diagnostics sit behind `?probe=`: `purity`, `perf` and `shots`. None is reachable from the
-exhibit path and none is wired into the build. They drive an installed Google Chrome through
-Playwright against `npm run dev`; verdicts land in the gitignored `docs/probe/`.
+Four diagnostics sit behind `?probe=`: `purity`, `perf`, `continuity` and `shots`. None is
+reachable from the exhibit path and none is wired into the build. They drive an installed Google
+Chrome through Playwright against `npm run dev`; verdicts land in the gitignored `docs/probe/`.
 
 ```bash
-cd site && npm run probe:purity           # the same instant reached four ways, compared by hash
+cd site && npm run probe:purity           # the same instant reached five ways, compared by hash
+cd site && npm run probe:purity -- --t 23.9,24.0167,24.5,27.4,35.0167 --mode plate,field,ledger,measure,census  # the instants that reach the prelude's building ahead: run when that path changes
+cd site && npm run probe:purity -- --against <name> --expect-unchanged plate,field,ledger,measure,census,hand,stack  # a change meant to move no pixel: fails on a hash that differs from the named run's
 cd site && npm run probe:perf -- --assert-presentation
+cd site && npm run probe:perf -- --mode plate --t <seconds> --frames <n> --warmup 0 --pace 13 --surface laptop --assert-built-ahead  # a paced walk across a season change: fails if a layer was baked whole or an order sorted on a frame of it
+cd site && npm run probe:continuity       # consecutive frames of the moving passages, compared
+cd site && npm run check:continuity       # that probe's measures, each shown failing
 cd site && npm run shots -- --list hands  # exact frames, for looking at
+cd site && npm run playback -- --out <name> --t <seconds> --seconds <n>  # the full work's own playback: frame intervals, requests, loading state
+cd site && npm run smoke                  # every public address loaded at the laptop's size and a phone's: fails on a page error, a fault screen or an empty canvas
+cd site && npm run check:landing          # the player at ?experience=player: what it draws with, where its controls sit, what a pick and a seek cost; --film, --pairs, --sweep and --delay <ms> add captures and timings under docs/shots/landing/
 ```
 
 Read a purity verdict on the **RENDERER** arm against the run's own measured noise floor:
@@ -96,8 +109,10 @@ become one.
 
 ## Deploying, and what is public
 
-`cd site && npm run deploy:pages` runs the gated build and publishes `dist/` to `gh-pages`. CI
-verifies and never publishes. The site serves exactly one list: the `public` column of
+`cd site && npm run deploy:pages` publishes `dist/` to `gh-pages`, and refuses unless the checkout
+is a clean `master` that the remote also holds, a bare gate run is green, and the rebuilt `dist/`
+is file for file the build that `node scripts/deploy-guard.mjs seal` recorded. CI verifies and
+never publishes. The site serves exactly one list: the `public` column of
 `REQUIRED_ARTIFACTS` in `pipeline/qa.py`, written to `pipeline/deploy_allowlist.json`, copied by
 `sync-data.mjs` and graded on the real `dist/` by `check-public-data.mjs`. The repository carries
 all of `data/processed/`, served or not, so the pipeline stays reproducible; no raw data is

@@ -98,16 +98,22 @@
  * measurement rather than an easing curve.
  */
 
-import { factNum, type PaintFile, type Slate, type Strokes, type WindowFile } from "../data";
 import {
-  drawGameEvents,
+  factNum, type Measures, type PaintFile, type Slate, type Strokes, type WindowFile,
+} from "../data";
+import {
+  drawGameEventsWet,
   GAME_PREFIX_STEPS,
-  GAME_WET_S,
   gameClock,
   gameTotalFrames,
+  gameWetness,
   possessionFrames,
+  strokeFrames,
+  strokeReach,
   strokeSpans,
-  timeFrac,
+  STROKE_START,
+  WHOLE_STROKE,
+  type Reach,
 } from "../game";
 import { drawSlug } from "../inscription";
 import { BONE_RGB, ZONE_RGB } from "../palette";
@@ -141,10 +147,13 @@ import {
   SPLOTCH_MAX_R,
   SPLOTCH_MIN_R,
   SPLOTCH_VISIBLE,
+  WET_STROKES,
 } from "../scalars";
 import { secondsFor, WINDOW_YEAR } from "../timeline";
 import { pinCoordOf } from "./fieldlayer";
-import { arrivedThrough, cumulativeByDay, drawActCue, seasonClock } from "./shared";
+import {
+  arrivedExact, arrivedThrough, cumulativeByDay, drawActCue, seasonClock,
+} from "./shared";
 import type { Frame } from "./types";
 import {
   HAND_INVENTORY_FULL_CLOSE_LOCAL,
@@ -152,7 +161,10 @@ import {
   HAND_NIGHT_GROUND_ALPHA,
   HAND_WINDOW_PHASES,
   WINDOW_CREST_PHASE,
+  WINDOW_ONE_LEAD_SPAN,
   handWindowPhases,
+  windowOneClipSeconds,
+  windowOneLeadProgress,
 } from "../window-score";
 
 const ZONE = ZONE_RGB.map((s) => s.split(",").map((v) => Number(v.trim())));
@@ -193,10 +205,6 @@ const DROP_STEP = 2048;
 /** The same, for strokes. Smaller, because the tail is also the wet edge — the
  *  gesture still being laid — and it is redrawn at a partial length. */
 const STROKE_STEP = 128;
-/** How much of a stroke's own length the wet edge has drawn when it is this far
- *  behind the arrival point. A gesture arrives over a few strokes' worth of
- *  time rather than appearing whole. */
-const WET_STROKES = 6;
 
 export interface Regimes {
   v10: number;
@@ -291,7 +299,8 @@ export const HAND_PHASES = HAND_WINDOW_PHASES;
  *  holds. The rail lists the same five through HAND_PHASES, so a presenter
  *  stepping to "THE NIGHT" lands where this hand agrees the night begins. */
 interface Window5 {
-  /** 0..1 through the opening phase, where ONE possession plays at true rate. */
+  /** 0..1 from the one possession's first frame to the end of the opening
+   *  phase: nothing through the preceding season's lead. */
   one: number;
   /** 0..1 through the game phase — the found game's own eased clock. */
   game: number;
@@ -305,7 +314,8 @@ interface Window5 {
   kept: number;
   /** 0..1 as the paint is taken back off the plate over the close. */
   wash: number;
-  /** 0..1 through the inventory's entrance, then held through the close. */
+  /** Comes up through the inventory's entrance, then goes back to nothing
+   *  with the paint it counts, as the close's wash takes both off. */
   inventory: number;
 }
 
@@ -318,8 +328,23 @@ function windowAt(
   const [beatOne, beatGame, beatNight, beatSeason, beatClose] = phases;
   const seasonU = Math.max(0, Math.min(1,
     (p - beatSeason.from) / (beatSeason.to - beatSeason.from)));
+  // The inventory counts the strokes, so it leaves with them: from the
+  // instant it is fully present its level is read from the share the paint
+  // keeps of what stood on the plate at that instant, and the close's wash
+  // takes the two off together. The share is eased by the easing the wash
+  // itself uses, so the line starts down without a corner and does not
+  // linger as type too faint to read while the last of the paint goes. It
+  // has gone before the close ends, and the sentence after the window finds
+  // its line empty.
+  const closeLocal = (p - beatClose.from) / (beatClose.to - beatClose.from);
+  const wash = smooth(closeLocal);
+  const paintWhenFull = 1 - smooth(HAND_INVENTORY_FULL_CLOSE_LOCAL);
   return {
-    one: Math.min(1, p / beatOne.to),
+    // The scope line rides this, and it names the recovered set of 2015-16:
+    // it comes up with the possession, never over the receding sheet of the
+    // season before.
+    one: Math.max(0, Math.min(1,
+      (p - WINDOW_ONE_LEAD_SPAN.to) / (beatOne.to - WINDOW_ONE_LEAD_SPAN.to))),
     game: Math.max(0, Math.min(1,
       (p - beatGame.from) / (beatGame.to - beatGame.from))),
     night: Math.max(0, Math.min(1,
@@ -330,11 +355,9 @@ function windowAt(
     // complete, and the four dead days stay dead at speed.
     dayFrac: seasonClock(seasonU) * (span + 1),
     kept: smooth((p - WINDOW_CREST_PHASE) / (beatClose.from - WINDOW_CREST_PHASE)),
-    wash: smooth((p - beatClose.from) / (beatClose.to - beatClose.from)),
-    inventory: smooth(
-      (p - beatClose.from)
-      / ((beatClose.to - beatClose.from) * HAND_INVENTORY_FULL_CLOSE_LOCAL),
-    ),
+    wash,
+    inventory: smooth(closeLocal / HAND_INVENTORY_FULL_CLOSE_LOCAL)
+      * smooth(Math.min(1, (1 - wash) / paintWhenFull)),
   };
 }
 
@@ -348,12 +371,22 @@ function smooth(x: number): number {
 /**
  * One stroke, one body, five measured seconds.
  *
- * `drawn` is how much of it has been laid so far, which is what makes the
- * gesture read as a gesture rather than as a shape that appears. `fromDrawn`
- * starts the walk mid-stroke — THE GAME's nested possession is a
- * TIME-clip of a longer record, and a clip that drew a stroke's whole
- * pre-history would show minutes the clip does not claim. Default 0 draws
- * exactly what every existing caller drew.
+ * `head` is how far it has been laid so far, as a reach on the stroke's own
+ * clock (`game.ts:strokeReach`), which is what makes the gesture read as a
+ * gesture rather than as a shape that appears. `tail` starts the walk
+ * mid-stroke — THE GAME's nested possession is a TIME-clip of a longer
+ * record, and a clip that drew a stroke's whole pre-history would show
+ * minutes the clip does not claim.
+ *
+ * An end between two vertices cuts its segment on the stored chord and
+ * changes nothing else about it. Speed, and so the filament's width and
+ * opacity, is still the whole segment's measured mean; the hue is still the
+ * league's region at the vertex the segment lands on, never at the tip, which
+ * is a place the record did not file. A bead is whole or absent, at the place
+ * it has in the finished segment, and a pool's blot goes down only once its
+ * segment is complete at both ends — a body's standing still is not known
+ * until it has finished standing. So a stroke drawn whole issues exactly the
+ * calls a finished stroke always has, and the baked layers cannot tell.
  */
 
 /** The fields a stroke drawer reads. The paint, the slate and the game each
@@ -365,24 +398,31 @@ export function paintStroke(
   view: View,
   s: StrokeGeometry,
   i: number,
-  drawn: number,
+  head: Reach,
   r: Regimes,
-  fromDrawn = 0,
+  tail: Reach = STROKE_START,
   ink = 1,
 ): void {
   const first = s.first[i]!;
   const n = s.count[i]!;
-  if (n < 2) return;
-  const upto = Math.max(2, Math.ceil(n * Math.min(1, Math.max(0, drawn))));
+  const to = Math.min(n - 1, Math.max(0, head));
+  const from = Math.min(to, Math.max(0, tail));
+  if (!(to > from)) return;
   const ball = s.kind[i] === 1;
-  const fromK = Math.max(1, 1 + Math.floor(n * Math.min(1, Math.max(0, fromDrawn))));
+  // Segment k ends on vertex k and begins on the vertex before it. Only the
+  // first and the last one walked can be cut, and `lo`..`hi` is the part of
+  // the segment kept.
+  const kLo = Math.floor(from) + 1;
+  const kHi = Math.ceil(to);
 
-  for (let k = fromK; k < upto; k++) {
+  for (let k = kLo; k <= kHi; k++) {
     const a = first + k - 1;
     const b = first + k;
     const dt = s.dt[b]!;
     const arcT = s.arc[b]!;
     if (dt === 0) continue;
+    const lo = k === kLo ? from - (k - 1) : 0;
+    const hi = k === kHi ? to - (k - 1) : 1;
 
     // The true measured mean speed over this span. `arc` was summed at the full
     // 25 Hz before simplification, so this is unaffected by how few control
@@ -414,6 +454,7 @@ export function paintStroke(
       const beads = Math.max(1, Math.min(BEAD_CAP, Math.round(arcT / wl)));
       for (let d = 0; d < beads; d++) {
         const t = (d + 0.5) / beads;
+        if (t < lo || t > hi) continue;
         ctx.beginPath();
         ctx.fillStyle = `${col}${alpha})`;
         ctx.arc(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, view.s(rad), 0, Math.PI * 2);
@@ -427,11 +468,16 @@ export function paintStroke(
     ctx.lineWidth = view.s(rad * 2);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x1, y1);
+    // A whole end is the stored vertex itself, taken by branch: the chord's
+    // formula at its far end is not that vertex in floating point, and the
+    // finished stroke's pixels are the stored ones.
+    if (lo > 0) ctx.moveTo(x0 + (x1 - x0) * lo, y0 + (y1 - y0) * lo);
+    else ctx.moveTo(x0, y0);
+    if (hi === 1) ctx.lineTo(x1, y1);
+    else ctx.lineTo(x0 + (x1 - x0) * hi, y0 + (y1 - y0) * hi);
     ctx.stroke();
 
-    if (v < r.v10) {
+    if (v < r.v10 && lo === 0 && hi === 1) {
       // POOL. The filament is capped, and the ink the cap refuses goes down as
       // a blot: a body standing still for three seconds leaves a real mark.
       const excess = (r.v10 / Math.max(v, POOL_V_FLOOR) - 1) * POOL_EXCESS_K;
@@ -586,8 +632,9 @@ function drawCompletedPaintStroke(
 
 /**
  * THE SLATE, drawn. Progress is a pure function of the beat's own seconds:
- * each path begins at its span-local start offset and advances vertex by
- * vertex as its measured dt elapses, so one second of beat is one second of
+ * each path begins at its span-local start offset and its head travels each
+ * stored segment in that segment's own measured dt (`game.ts:strokeReach`,
+ * the walk every stroke shares), so one second of beat is one second of
  * night and nothing is eased or compressed. The marks are the paint's own —
  * `paintStroke` with the same measured regimes — because the slate is the
  * same instrument reading the same kind of motion; only the population is
@@ -602,18 +649,11 @@ function drawSlate(ctx: CanvasRenderingContext2D, view: View, sl: Slate,
   for (let i = 0; i < sl.n; i++) {
     const rel = elapsedFrames - sl.start[i]!;
     if (rel <= 0) continue;
-    const first = sl.first[i]!;
-    const n = sl.count[i]!;
-    let k = 1;
-    let cumDt = 0;
-    while (k < n && cumDt + sl.dt[first + k]! <= rel) {
-      cumDt += sl.dt[first + k]!;
-      k++;
-    }
-    if (k >= n) {
+    const head = strokeReach(sl, i, rel);
+    if (head >= sl.count[i]! - 1) {
       drawCompletedPaintStroke(ctx, view, sl, i, r);
     } else {
-      paintStroke(ctx, view, sl, i, k / n, r);
+      paintStroke(ctx, view, sl, i, head, r);
     }
   }
   ctx.restore();
@@ -735,6 +775,73 @@ function bakeSeasonDrops(
   }
 }
 
+/**
+ * The outgoing season's completed sheet, at the weight its recession has
+ * reached. One draw for both boundaries that recede a season — the ordinary
+ * hand-over and the window's entry — so the two cannot drift apart: the same
+ * prefix key and the same bake the season had while it was current, its
+ * whole count of steps, alpha applied at the blit.
+ */
+function drawPreviousSheet(
+  f: Frame,
+  prev: number,
+  geom: string,
+  dw: number,
+  dh: number,
+  alpha: number,
+): void {
+  const { ctx, view, dpr, data } = f;
+  const prevSeason = data.byYear.get(prev);
+  const prevPts = data.points(prev);
+  if (!prevSeason || !prevPts) return;
+  const prevPin = pinCoordOf(prevSeason);
+  const sheet = prefixSurface(
+    `hand.season|${prev}|${assetId(prevPts)}|${prevPin ? prevPin.join(",") : "none"}|${geom}`,
+    Math.ceil(prevPts.n / DROP_STEP), dw, dh, dpr, DROP_STEP,
+    (c, a, b) => bakeSeasonDrops(c, view, prevPts, prevPin, a, b),
+  );
+  if (sheet) blit(ctx, sheet, view, alpha);
+}
+
+/**
+ * The window's own drops, the recovered set, as far as `dayFrac` of the
+ * calendar has brought them: the cached surface at its last whole step and
+ * the live tail past it, both at `alpha`. Paced by the day the shot was
+ * actually recorded on, so the flood runs as the corpus did rather than as a
+ * fixed rate over an index — and since the crescendo, through the register's
+ * one authored easing of that calendar. One draw for the window and for the
+ * season after it, which recedes exactly the layer the close ended on.
+ * Returns the surface, which the crest composites again above the paint.
+ */
+function drawWindowDrops(
+  f: Frame,
+  m: Measures,
+  w: WindowFile,
+  geom: string,
+  dw: number,
+  dh: number,
+  span: number,
+  dayFrac: number,
+  alpha: number,
+): HTMLCanvasElement | null {
+  const { ctx, view, dpr } = f;
+  const cum = cumulativeByDay(m, m.day, m.n, (d) => d, span);
+  const upto = arrivedThrough(cum, dayFrac);
+  const surface = prefixSurface(
+    `hand.window|${assetId(m)}|${geom}`,
+    Math.floor(upto / DROP_STEP), dw, dh, dpr, DROP_STEP,
+    (c, a, b) => bakeWindowDrops(c, view, m, w, a, b),
+  );
+  if (surface) blit(ctx, surface, view, alpha);
+  // The live tail: everything past the last whole step, bounded by the step
+  // and never by the resident record count.
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  bakeWindowDrops(ctx, view, m, w, Math.floor(upto / DROP_STEP) * DROP_STEP, upto);
+  ctx.restore();
+  return surface;
+}
+
 // --- the hand ----------------------------------------------------------------
 
 export function drawHandHand(f: Frame): void {
@@ -764,6 +871,8 @@ export function drawHandHand(f: Frame): void {
   ctx.clip();
 
   const inWindow = year === WINDOW_YEAR && data.window !== null;
+  // The season after the window, while the window's own drops recede under it.
+  const leaving = st.prev === WINDOW_YEAR && data.window !== null;
   const handScore = handWindowPhases(data.slateFile?.span.seconds ?? HAND_NIGHT_SECONDS);
   const [, beatGame, beatNight, beatSeason] = handScore;
   const w = data.window;
@@ -774,23 +883,14 @@ export function drawHandHand(f: Frame): void {
   // --- the drops the record kept --------------------------------------------
   let dropSurface: HTMLCanvasElement | null = null;
   if (inWindow && m && m.n && w) {
-    // Paced by the day the shot was actually recorded on, so the flood runs as
-    // the corpus did rather than as a fixed rate over an index — and since the
-    // crescendo, through the register's one authored easing of that calendar.
-    const cum = cumulativeByDay(m, m.day, m.n, (d) => d, span);
-    const upto = arrivedThrough(cum, win!.dayFrac);
-    dropSurface = prefixSurface(
-      `hand.window|${assetId(m)}|${geom}`,
-      Math.floor(upto / DROP_STEP), dw, dh, dpr, DROP_STEP,
-      (c, a, b) => bakeWindowDrops(c, view, m, w, a, b),
-    );
-    if (dropSurface) blit(ctx, dropSurface, view, remains);
-    // The live tail: everything past the last whole step, bounded by the step
-    // and never by the resident record count.
-    ctx.save();
-    ctx.globalAlpha = remains;
-    bakeWindowDrops(ctx, view, m, w, Math.floor(upto / DROP_STEP) * DROP_STEP, upto);
-    ctx.restore();
+    // The bare court before the one possession is kept, and it is reached the
+    // way every other boundary reaches its new season: the preceding season's
+    // sheet recedes, inside ONE, and is gone when the possession begins.
+    const leadU = windowOneLeadProgress(st.phase);
+    if (st.prev !== null && leadU < 1) {
+      drawPreviousSheet(f, st.prev, geom, dw, dh, remains * (1 - smooth(leadU)));
+    }
+    dropSurface = drawWindowDrops(f, m, w, geom, dw, dh, span, win!.dayFrac, remains);
 
     // (THE NIGHT's calipers-as-drops over-pass lives BELOW the game surface
     // draw in this function: the record's endpoints must read over the motion
@@ -806,21 +906,34 @@ export function drawHandHand(f: Frame): void {
     // for), only the outgoing is a fade, matching the pin's own linear
     // recession. The sheet reuses the exact prefix key the season had while it
     // was current, so crossing a boundary extends that surface by at most one
-    // step and scrubbing backwards rebuilds by src/prefix.ts's recursion. Scoped to
-    // the season branch: the boundary INTO the window is Act III's staged
-    // opening (bare plate, then one possession laid slowly), a deliberate
-    // exception recorded here rather than an omission.
+    // step and scrubbing backwards rebuilds by src/prefix.ts's recursion. The
+    // boundary INTO the window draws the same sheet through the same helper,
+    // on the window's own lead (above): Act III still opens on the bare plate
+    // before its one possession, and reaches it by this recession.
+    //
+    // The boundary OUT of the window recedes what the window last showed
+    // rather than a sheet it never drew: its own drops, the recovered set, at
+    // the calendar's end, the live tail past their last step and the crest's
+    // re-composite over them, each on this season's arrival. At the boundary
+    // that is the close's final picture, so the season after it arrives over
+    // the same plate the close left. It reads the calipers the way the
+    // window's own frames read them, and draws nothing in their place while
+    // they are on their way: the whole season's sheet is not this layer.
     if (st.prev !== null && st.arrived < 1) {
-      const prevSeason = data.byYear.get(st.prev);
-      const prevPts = data.points(st.prev);
-      if (prevSeason && prevPts) {
-        const prevPin = pinCoordOf(prevSeason);
-        const sheet = prefixSurface(
-          `hand.season|${st.prev}|${assetId(prevPts)}|${prevPin ? prevPin.join(",") : "none"}|${geom}`,
-          Math.ceil(prevPts.n / DROP_STEP), dw, dh, dpr, DROP_STEP,
-          (c, a, b) => bakeSeasonDrops(c, view, prevPts, prevPin, a, b),
-        );
-        if (sheet) blit(ctx, sheet, view, remains * (1 - st.arrived));
+      const receding = remains * (1 - st.arrived);
+      if (leaving) {
+        const mx = data.measures();
+        if (mx && mx.n && w) {
+          const lastDay = mx.day[mx.n - 1]!;
+          const closed = windowAt(1, lastDay, handScore);
+          const recedingDrops = drawWindowDrops(
+            f, mx, w, geom, dw, dh, lastDay, closed.dayFrac, receding);
+          if (recedingDrops && closed.kept > 0) {
+            blit(ctx, recedingDrops, view, receding * closed.kept * KEPT_OVER_PAINT);
+          }
+        }
+      } else {
+        drawPreviousSheet(f, st.prev, geom, dw, dh, receding);
       }
     }
     const pts = data.points(year);
@@ -899,16 +1012,17 @@ export function drawHandHand(f: Frame): void {
       const total = gameTotalFrames(gf);
       const pos = possessionFrames(gf);
       const gameFrame = win.game > 0 ? gameClock(win.game) * total : 0;
-      // THE DRYING CLOCK CONTINUES past the game's end,
-      // at TRUE RATE — the night's own convention — so the buzzer's strokes
-      // and beads settle to the dried register within GAME_WET_S of
-      // presentation time instead of standing "just painted" all window.
-      // Drawing thresholds keep `gameFrame`; only drying reads this.
-      const dryFrame = gameFrame
-        + Math.max(0, st.phase - beatGame.to) * secondsFor(WINDOW_YEAR) * gf.hz;
+      // DRYING IS COUNTED ON THE SCREEN, not on the feed: seconds since the
+      // eased clock passed a share of the game phase, from the raw phase
+      // because the beat's own progress stops at its end and a stroke laid
+      // at the buzzer still has to dry. A stroke reaches GAME_DRIED over
+      // GAME_WET_SECONDS whatever rate the feed is running at. Drawing
+      // thresholds keep `gameFrame`; only drying reads this.
+      const ageOf = (u: number): number =>
+        (st.phase - (beatGame.from + u * (beatGame.to - beatGame.from)))
+        * secondsFor(WINDOW_YEAR);
       const gEnv = remains * (1 - win.wash);
       const sp = strokeSpans(gm, gf);
-      const wetFrames = GAME_WET_S * gf.hz;
       const stepFrames = Math.ceil(total / GAME_PREFIX_STEPS);
       const gSteps = Math.floor(gameFrame / stepFrames);
       const bakedGame = prefixSurface(
@@ -928,63 +1042,93 @@ export function drawHandHand(f: Frame): void {
 
       if (gameFrame > 0) {
         // The live edge: every stroke not both fully baked and fully dried,
-        // at its own wetness — full ink at the edge, drying behind it.
+        // at its own wetness — full ink at the edge, drying behind it. A
+        // stroke already in the baked surface is there at the dried register,
+        // so it takes only what is still wet over that. The two come close to
+        // the ink it would have had drawn once and do not equal it: nearest
+        // for a stroke on its own, less so where strokes cross, because the
+        // surface saturates a crossing that live strokes add up.
         const bakedBefore = gSteps * stepFrames;
         ctx.save();
         for (let i = 0; i < gm.n; i++) {
           const at0 = sp.start[i]!;
           if (at0 >= gameFrame) continue;
           const end = at0 + sp.dur[i]!;
-          const age = dryFrame - end;
-          if (end < bakedBefore && age >= wetFrames) continue;
-          const wetness = Math.max(0, 1 - Math.max(0, age) / wetFrames);
-          ctx.globalAlpha = gEnv * (GAME_DRIED + (1 - GAME_DRIED) * wetness);
-          const drawn = timeFrac(gm, i, gameFrame - at0);
-          if (drawn >= 1) {
+          const wetness = gameWetness(ageOf(sp.endU[i]!));
+          const baked = end < bakedBefore;
+          if (baked && !(wetness > 0)) continue;
+          ctx.globalAlpha = baked
+            ? gEnv * (1 - GAME_DRIED) * wetness
+            : gEnv * (GAME_DRIED + (1 - GAME_DRIED) * wetness);
+          const head = strokeReach(gm, i, gameFrame - at0);
+          if (head >= gm.count[i]! - 1) {
             drawCompletedPaintStroke(ctx, view, gm, i, r);
           } else {
-            paintStroke(ctx, view, gm, i, drawn, r);
+            paintStroke(ctx, view, gm, i, head, r);
           }
         }
         ctx.restore();
       }
 
       // ONE — the nested possession: the game artifact time-clipped to the
-      // declared span, every body and the ball at TRUE RATE from the
-      // window's open, the paint's physics. Once the game phase's clock
-      // reaches these frames the walk above draws the same records and each
-      // clip stroke leaves this layer — replaced by itself, record for
-      // record, no double-deposit and no recede.
-      const oneFrames = st.phase * secondsFor(WINDOW_YEAR) * gf.hz;
+      // declared span, every body and the ball at TRUE RATE from the end of
+      // the preceding season's lead, the paint's physics, on the clip clock
+      // THE PLATE reads too. It holds until the game phase's
+      // clock has walked the whole possession, and gives way to the walk
+      // above a vertex at a time: while a stroke's live head is inside the
+      // possession the clip draws only what lies ahead of it — replaced by
+      // itself, record for record, no double-deposit and no recede.
+      const oneFrames = windowOneClipSeconds(st.phase) * gf.hz;
       const clipUpto = Math.min(pos.f1, pos.f0 + oneFrames);
       // ONE_INK: the beat-local envelope (declared in src/scalars.ts). Full
       // through the ONE beat, fading out across the game phase as the eased
-      // walk re-lays the same records at the conserved flow — no pop at the
-      // handover, and no boosted segment survives past the beat it argues.
+      // walk re-lays the same records at the conserved flow, and no boosted
+      // segment survives past the beat it argues.
       const oneInk = 1 + (ONE_INK - 1) * (1 - win.game);
       ctx.save();
       ctx.globalAlpha = gEnv;
-      for (let i = 0; i < gm.n; i++) {
+      for (let i = 0; gameFrame < clipUpto && i < gm.n; i++) {
         const at0 = sp.start[i]!;
-        if (at0 < gameFrame || at0 >= clipUpto) continue;
+        if (at0 >= clipUpto) continue;
         const end = at0 + sp.dur[i]!;
         if (end <= pos.f0) continue;
         // A TIME-clip on both sides: a stroke that began before the
-        // possession draws only from the possession's own first frame.
-        const drawn = timeFrac(gm, i, clipUpto - at0);
-        if (drawn > 0) {
-          paintStroke(ctx, view, gm, i, drawn, r,
-            timeFrac(gm, i, pos.f0 - at0), oneInk);
+        // possession draws only from the possession's own first frame, and
+        // one the clip has not entered has both ends at one place and draws
+        // nothing — as does one the walk has carried past the clip's head.
+        const from = strokeReach(gm, i, pos.f0 - at0);
+        const walked = at0 < gameFrame ? strokeReach(gm, i, gameFrame - at0) : STROKE_START;
+        paintStroke(ctx, view, gm, i, strokeReach(gm, i, clipUpto - at0), r,
+          walked > from ? walked : from, oneInk);
+      }
+      // The possession keeps ONE_INK's lift through the hand-over and into
+      // its drying. The walk re-lays these records at the conserved flow,
+      // which alone would drop the lift in the frame the walk arrives; so the
+      // part of the possession the walk has re-laid takes the difference as
+      // one more deposit, at the stroke's own wetness, and the lift dries
+      // away with the stroke instead of ahead of it.
+      if (oneInk > 1 && gameFrame > pos.f0) {
+        const relaid = Math.min(gameFrame, clipUpto);
+        for (let i = 0; i < gm.n; i++) {
+          const at0 = sp.start[i]!;
+          if (at0 >= relaid) continue;
+          if (at0 + sp.dur[i]! <= pos.f0) continue;
+          const wetness = gameWetness(ageOf(sp.endU[i]!));
+          if (!(wetness > 0)) continue;
+          ctx.globalAlpha = gEnv * wetness;
+          paintStroke(ctx, view, gm, i, strokeReach(gm, i, relaid - at0), r,
+            strokeReach(gm, i, pos.f0 - at0), oneInk - 1);
         }
       }
       ctx.restore();
 
       // The measured annotations: pass beads and shot anchors riding the WET
-      // EDGE — each dries away with the motion it marked (the filed record's
-      // drops are what persists on this hand; THE PLATE keeps every mark).
-      // The possession's own annotations hold until the walk re-lays them.
-      drawGameEvents(ctx, view, gf, gameFrame, gEnv,
-        { from: pos.f0, to: clipUpto }, dryFrame - wetFrames);
+      // EDGE — each lands whole and dries away with the motion it marked, on
+      // the strokes' own drying time (the filed record's drops are what
+      // persists on this hand; THE PLATE keeps every mark). The possession's
+      // own annotations hold until the walk re-lays them.
+      drawGameEventsWet(ctx, view, gf, gameFrame, gEnv,
+        { from: pos.f0, to: clipUpto }, (u) => gameWetness(ageOf(u)));
     }
 
     const offsets = paint.day_offsets;
@@ -995,14 +1139,19 @@ export function drawHandHand(f: Frame): void {
     // paint's own first canvas does not double it. The day-exclusive
     // arrival opens the season beat empty, so nothing is resident until the
     // calendar takes over.
-    const laid = arrivedThrough(cum, (win.dayFrac / (span + 1)) * (last + 1));
+    // Exact, not rounded to a whole stroke: the newest stroke's head is drawn
+    // from the part, and rounded it would wait and then move a stroke at once.
+    const laidTo = arrivedExact(cum, (win.dayFrac / (span + 1)) * (last + 1));
 
-    const steps = Math.floor(laid / STROKE_STEP);
+    // The bake holds only strokes that have finished being drawn. A stroke is
+    // still partial until WET_STROKES more have arrived behind it, and a bake
+    // that took it earlier showed it whole a moment before it was.
+    const steps = Math.floor(Math.max(0, laidTo - WET_STROKES + 1) / STROKE_STEP);
     const baked = prefixSurface(
       `hand.paint|${assetId(s)}|${geom}`,
       steps, dw, dh, dpr, STROKE_STEP,
       (c, a, b) => {
-        for (let i = a; i < Math.min(b, s.n); i++) paintStroke(c, view, s, i, 1, r);
+        for (let i = a; i < Math.min(b, s.n); i++) paintStroke(c, view, s, i, WHOLE_STROKE, r);
       },
     );
     // The close takes the paint back off the plate rather than fading it out.
@@ -1010,10 +1159,20 @@ export function drawHandHand(f: Frame): void {
     if (baked) blit(ctx, baked, view, wet);
     ctx.save();
     ctx.globalAlpha = wet;
-    for (let i = steps * STROKE_STEP; i < laid; i++) {
-      const drawn = Math.min(1, (laid - i) / WET_STROKES);
-      if (drawn >= 1) drawCompletedPaintStroke(ctx, view, s, i, r);
-      else paintStroke(ctx, view, s, i, drawn, r);
+    // Arrival stops when the calendar does, and the last few strokes would be
+    // left part-drawn for the whole close: heads standing between two vertices
+    // under a line that says every vertex is a recorded position. So once the
+    // season beat has ended they finish at true rate, a second of the close
+    // for a second of the stroke. Nothing until then, so the edge does not
+    // jump when it starts.
+    const finishing = Math.max(0, st.phase - beatSeason.to) * secondsFor(WINDOW_YEAR)
+      / paint.stroke_seconds;
+    for (let i = steps * STROKE_STEP; i < Math.min(s.n, laidTo); i++) {
+      // How much of its own recorded time this stroke has been given: all of
+      // it by the time WET_STROKES more have arrived.
+      const given = Math.min(1, (laidTo - i) / WET_STROKES + finishing);
+      if (given >= 1) drawCompletedPaintStroke(ctx, view, s, i, r);
+      else paintStroke(ctx, view, s, i, strokeReach(s, i, given * strokeFrames(s, i)), r);
     }
     ctx.restore();
 
@@ -1089,20 +1248,25 @@ export function drawHandHand(f: Frame): void {
   // which persist through the close — so its alpha does not carry
   // (1 - wash), and it stands beside the drops at the close's end when they
   // most resemble a picture of the season. Anchored at the top of the plate,
-  // outside the orange mass that made it illegible at the crest.
-  if (inWindow && w?.bias.scope && win) {
+  // outside the orange mass that made it illegible at the crest. After the
+  // window it recedes with those drops, on the next season's arrival.
+  const scopeShare = win ? win.one : leaving ? 1 - st.arrived : 0;
+  if (w?.bias.scope && scopeShare > 0) {
     drawSlug(ctx, view, [w.bias.scope], { x: 0, y: 370 },
-      remains * win.one * 0.42);
+      remains * scopeShare * 0.42);
   }
 
   if (!inWindow && st.year === WINDOW_YEAR + 1) {
     // The whole point, said once, on the first season after the window closes.
     const days = factNum(data.facts, "window.days_inclusive");
     // `voice`: the enclosure, named once, on the first season after it closes.
+    // It leaves on the season's own crossfade into the next (`blend`), so it
+    // is gone by the boundary rather than cut at it.
     drawSlug(ctx, view, [
       "THE RECORD KEEPS ENDPOINTS",
       `WHAT HAPPENED BETWEEN THEM WAS PUBLIC FOR ${days} DAYS`,
-    ], { x: 0, y: 330 }, remains * Math.min(1, st.phase * 2) * 0.45, "voice");
+    ], { x: 0, y: 330 },
+    remains * Math.min(1, st.phase * 2) * (1 - st.blend) * 0.45, "voice");
   }
 
   ctx.restore();

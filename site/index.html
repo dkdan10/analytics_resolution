@@ -52,13 +52,16 @@
         border: 0;
       }
 
-      /* The overview's one line of credit: author, a way to the source, and the
-         data's provenance. Bottom-left; the FULL WORK link owns bottom-right. */
+      /* One line of credit: author, a way to the source, and the data's
+         provenance. Bottom-left; the doors own bottom-right. It sits low in
+         the band under the court's baseline, which a laptop window leaves
+         barely two lines tall: any higher and the baseline runs through its
+         capitals. */
       #credit {
         position: fixed;
         z-index: 12;
         left: 20px;
-        bottom: 20px;
+        bottom: 6px;
         max-width: calc(100vw - 260px);
         font: 12px/1.45 var(--mono);
         letter-spacing: 0.12em;
@@ -75,6 +78,7 @@
       #credit a:hover, #credit a:focus-visible { color: var(--bone); }
       #credit[hidden] { display: none; }
       body.overview #asset-state { bottom: 52px; }
+      body.player #asset-state { bottom: 52px; }
 
       .noscript {
         position: fixed;
@@ -162,6 +166,25 @@
       }
       #full-entry:hover, #full-entry:focus-visible { background: rgba(232, 226, 214, 0.12); }
       #full-entry[hidden] { display: none; }
+      /* The player's second door, to the overview: the full work's door,
+         one row above it. */
+      #overview-entry {
+        position: fixed;
+        z-index: 13;
+        right: 22px;
+        bottom: 56px;
+        min-height: 28px;
+        display: inline-flex;
+        align-items: center;
+        padding: 0 10px;
+        border: 1px solid rgba(232, 226, 214, 0.48);
+        color: rgba(232, 226, 214, 0.9);
+        background: rgba(11, 10, 9, 0.72);
+        font: 13px/1 var(--mono);
+        letter-spacing: 0.1em;
+        text-decoration: none;
+      }
+      #overview-entry:hover, #overview-entry:focus-visible { background: rgba(232, 226, 214, 0.12); }
       #asset-state {
         position: fixed;
         z-index: 20;
@@ -180,6 +203,167 @@
       body:not(.exhibit) #asset-state { left: calc(var(--rail) + 18px); }
       body.degraded { cursor: auto; }
       body.overview { cursor: auto; }
+      body.player { cursor: auto; }
+
+      /* The player: the full work's canvas with a small panel over it. Every
+         rule here names the player's own elements or body.player, so no
+         other route is restyled. The panel's ground is the plate's, written
+         as three channels from palette.ts, never typed here. */
+      #player {
+        position: fixed;
+        z-index: 12;
+        right: 20px;
+        top: 52px;
+        width: 180px;
+        box-sizing: border-box;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0 4px;
+        padding: 8px;
+        background: rgba(var(--player-ground), 0.72);
+        font: 12px/1.5 var(--mono);
+        color: rgba(232, 226, 214, 0.76);
+      }
+      #player[hidden], #overview-entry[hidden] { display: none; }
+      /* One column each for the three transport buttons; every other part
+         takes the panel's width. */
+      #player > * { grid-column: 1 / -1; }
+      #player > button {
+        grid-column: auto;
+        min-height: 28px;
+        padding: 5px 0;
+        background: transparent;
+        border: 1px solid rgba(232, 226, 214, 0.12);
+        border-radius: 2px;
+        color: rgba(232, 226, 214, 0.82);
+        font-family: var(--mono);
+        font-size: 12px;
+        cursor: pointer;
+      }
+      #player > button:hover { border-color: rgba(232, 226, 214, 0.35); color: var(--bone); }
+      #player > button:active { background: rgba(232, 226, 214, 0.07); }
+      /* The renderings' names, one row each; the one on screen is lit as the
+         rail lights its current row. */
+      #player-modes { display: grid; margin: 0 0 6px; }
+      #player-modes [role="radio"] {
+        min-height: 24px;
+        padding: 2px 6px;
+        background: transparent;
+        border: 0;
+        text-align: left;
+        font: inherit;
+        letter-spacing: 0.1em;
+        color: rgba(232, 226, 214, 0.72);
+        cursor: pointer;
+      }
+      #player-modes [role="radio"]:hover { background: rgba(232, 226, 214, 0.05); color: var(--bone); }
+      #player-modes [aria-checked="true"] { background: rgba(232, 226, 214, 0.1); color: var(--bone); }
+      /* Act, season and the window's stop, set under the clock: a title that
+         wraps or empties then moves nothing a visitor is pressing. */
+      #player-title {
+        order: 1;
+        margin-top: 4px;
+        letter-spacing: 0.08em;
+        color: rgba(232, 226, 214, 0.86);
+      }
+      #player-title > div { min-height: 1.5em; }
+      /* The heading reads as the rail's act rows do, the key line as the
+         rail's keys. */
+      #player-heading { letter-spacing: 0.14em; color: rgba(232, 226, 214, 0.58); }
+      #player-keys {
+        order: 2;
+        margin-top: 6px;
+        letter-spacing: 0.06em;
+        color: rgba(232, 226, 214, 0.66);
+        overflow: hidden;
+      }
+      /* The rail's scrub: padding widens the grab area without thickening
+         the bar. */
+      #player-scrub {
+        position: relative;
+        height: 3px;
+        min-height: 28px;
+        box-sizing: border-box;
+        padding: 12px 0 13px;
+        background: rgba(232, 226, 214, 0.1);
+        background-clip: content-box;
+        cursor: pointer;
+        touch-action: none;
+      }
+      #player-scrub .fill {
+        position: absolute;
+        inset: 12px auto 13px 0;
+        background: rgba(232, 226, 214, 0.45);
+      }
+      #player-clock { color: rgba(232, 226, 214, 0.68); }
+
+      /* A finger, not a mouse: every control on the player is as tall as a
+         fingertip needs, and the second door stands clear of the first at
+         that height. */
+      @media (pointer: coarse) {
+        #player > button,
+        #player-modes [role="radio"],
+        body.player #overview-entry,
+        body.player #full-entry { min-height: 44px; }
+        #player-scrub { min-height: 44px; padding: 20px 0 21px; }
+        #player-scrub .fill { inset: 20px auto 21px 0; }
+        body.player #overview-entry { bottom: 72px; }
+      }
+
+      /* Docked: on a phone the panel runs along the bottom edge at full
+         width, the names wrapped in rows over one row of transport, scrub
+         and clock, with no title and no key line. A phone is a narrow
+         portrait window, where the panel as a laptop shows it would cover
+         half the court, or a short window under a finger, a phone on its
+         side, which that panel would run off. The doors, the credit and the
+         loading chip stand on top of it, at the panel's measured height: the
+         chip over the doors, because the credit wraps to as many lines as a
+         narrow window makes it and leaves no row on its own side free. */
+      @media (orientation: portrait) and (max-width: 600px), (pointer: coarse) and (max-height: 500px) {
+        body.player #player {
+          top: auto;
+          right: 0;
+          bottom: 0;
+          left: 0;
+          width: auto;
+          grid-template-columns: repeat(3, minmax(44px, auto)) 1fr auto;
+          align-items: center;
+          gap: 0 8px;
+        }
+        body.player #player-modes { display: flex; flex-wrap: wrap; }
+        body.player #player-title,
+        body.player #player-keys { display: none; }
+        body.player #player-scrub,
+        body.player #player-clock { grid-column: auto; }
+        body.player #credit,
+        body.player #full-entry { bottom: calc(var(--player-height, 0px) + 12px); }
+        body.player #overview-entry { bottom: calc(var(--player-height, 0px) + 48px); }
+        body.player #asset-state { left: auto; right: 22px; bottom: calc(var(--player-height, 0px) + 84px); }
+      }
+      @media (orientation: portrait) and (max-width: 600px) and (pointer: coarse), (pointer: coarse) and (max-height: 500px) {
+        body.player #overview-entry { bottom: calc(var(--player-height, 0px) + 64px); }
+        body.player #asset-state { bottom: calc(var(--player-height, 0px) + 116px); }
+      }
+
+      /* The player sets nothing in motion of its own: a visitor who asks
+         for less motion gets no transition on any of its parts. */
+      @media (prefers-reduced-motion: reduce) {
+        #player,
+        #player *,
+        body.player #overview-entry,
+        body.player #full-entry,
+        body.player #credit a { transition: none; }
+      }
+      /* The rail's bone focus ring, over the panel, both doors and the
+         credit's link. Only on the player: the overview's door keeps its own. */
+      body.player #player :focus-visible,
+      body.player #overview-entry:focus-visible,
+      body.player #full-entry:focus-visible,
+      body.player #credit a:focus-visible {
+        outline: 1px solid rgba(232, 226, 214, 0.65);
+        outline-offset: 1px;
+      }
+      body.player #player :focus:not(:focus-visible) { outline: none; }
 
       /* The transport never scrolls: only the segment list does. A rail that
          scrolls its own controls away leaves the presenter without a mouse
@@ -265,8 +449,11 @@
       #scrub .tick.cut { top: 7px; bottom: 8px; background: rgba(232, 226, 214, 0.9); }
       #clock { margin: 0 16px 3px; font-size: 12px; color: rgba(232, 226, 214, 0.68); }
       /* The presenter's readout: exact t, the next boundary, and the fermata
-         while it acts. Tabular figures so the countdown does not shimmer. */
+         while it acts. Tabular figures so the countdown does not shimmer.
+         Two lines are held for it whether it needs them or not, so a long
+         stop name wraps into room already there and moves nothing under it. */
       #readout {
+        min-height: 3em;
         margin: 0 16px 3px;
         font-size: 12px;
         color: rgba(232, 226, 214, 0.72);
@@ -348,8 +535,22 @@
         line-height: 1.7;
         letter-spacing: 0.06em;
         color: rgba(232, 226, 214, 0.66);
+        overflow: hidden;
       }
       #keys p { margin: 0; }
+      /* A line of keys, in the rail and in the player. Each key and its word
+         stay together, and every pair after the first opens with its
+         separator. The line hangs out of its column to the left by the width
+         of one separator, a dot and a space at the keys' tracking, and the
+         column clips it: a pair that starts a line leaves its separator out
+         of sight, so the break itself separates and no line starts or ends
+         on a dot. The first pair has no separator and is set back in. */
+      #keys .key-line, #player-keys .key-line {
+        --separator: calc(2ch + 2 * 0.06em);
+        margin: 0 0 0 calc(-1 * var(--separator));
+      }
+      .key-line > span { white-space: nowrap; }
+      .key-line > span:first-child { margin-left: var(--separator); }
 
       /* THE STACK's operation panel. Present only while THE STACK is the hand
          drawing, and never in exhibit — the rail itself does not exist there.
@@ -461,7 +662,10 @@
       }
       #nav :focus:not(:focus-visible) { outline: none; }
 
-      .act {
+      /* The list's act headings. Scoped to the list: the scrub's act ticks
+         carry the same class, and a heading's margin and rule would hang
+         them under the bar and off its end. */
+      #nav-list .act {
         margin: 14px 16px 4px;
         font-size: 12px;
         letter-spacing: 0.14em;
@@ -474,7 +678,7 @@
       .seg {
         display: flex;
         justify-content: space-between;
-        gap: 8px;
+        gap: 6px;
         width: 100%;
         box-sizing: border-box;
         min-height: 28px;
@@ -488,7 +692,13 @@
         white-space: nowrap;
       }
       .seg:hover { background: rgba(232, 226, 214, 0.05); color: var(--bone); }
-      .seg .share { color: rgba(232, 226, 214, 0.58); font-variant-numeric: tabular-nums; }
+      /* A name too long for its row gives way to an ellipsis, and never the
+         time beside it: the time is what a presenter reads the row for, and
+         the whole name is spoken in the row's label. The least a name keeps
+         from its time is what an operation's row keeps between its parts;
+         any more and a name that fits the column by a pixel is cut too. */
+      .seg > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+      .seg .share { flex: none; color: rgba(232, 226, 214, 0.58); font-variant-numeric: tabular-nums; }
       .seg.current { background: rgba(232, 226, 214, 0.1); color: var(--bone); }
       .seg.current .share { color: rgba(232, 226, 214, 0.7); }
       /* A mark for the seasons where the record's own resolution changes. */
@@ -514,11 +724,40 @@
       }
       #census-panel h3 { border-top: 1px solid rgba(232, 226, 214, 0.16); padding-top: 8px; }
       #census-panel p { margin: 2px 0; color: rgba(232, 226, 214, 0.73); }
-      #census-panel .census-row { display: flex; justify-content: space-between; gap: 8px; }
-      #census-panel .census-row span:last-child { font-variant-numeric: tabular-nums; }
+      /* A count and its share are one figure and never part, and a name is
+         never broken to make room for them: a row too long for the column
+         sets the figure under its name, still at the column's right edge. */
+      #census-panel .census-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 8px; }
+      #census-panel .census-row span:last-child {
+        flex: none;
+        margin-left: auto;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
       .op.unavailable { opacity: 0.82; }
       body.display-room .op.unavailable { opacity: 1; }
-      .op.unavailable .op-reads::after { content: " · unavailable outside the Window"; }
+      /* An operation the season cannot take says so in its sources' place,
+         set as they are and on their line, and its sources are not shown: on
+         their line the note fell past the ellipsis and was never seen, and
+         under them it made a third line that pushed the rail's last control
+         off a short window. Every row is two lines, the same height, whether
+         or not its season can take it. Its square dims in both profiles,
+         where the row's own dimming is undone in the room. */
+      .op.unavailable .op-reads { display: none; }
+      .op.unavailable::after {
+        content: "unavailable outside the Window";
+        display: block;
+        margin-top: 1px;
+        font-size: 12px;
+        line-height: 1.25;
+        letter-spacing: 0.02em;
+        padding-left: 15px;
+        color: rgba(232, 226, 214, 0.67);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .op.unavailable .op-glyph { color: rgba(232, 226, 214, 0.28); }
 
       /* Stack/Census replace the long score. Compact only the nonessential
          head rows so all eight Stack operations and ALL remain visible at the
@@ -573,6 +812,18 @@
     <noscript><p class="noscript">FADEAWAY draws itself with JavaScript, which is turned off here.<br /><a href="https://github.com/dkdan10/analytics_resolution">About the work</a></p></noscript>
     <div id="context-label" hidden></div>
     <div id="overview-title" hidden></div>
+    <section id="player" hidden>
+      <div id="player-heading"></div>
+      <div id="player-modes" role="radiogroup"></div>
+      <div id="player-title"></div>
+      <button id="player-prev" type="button"></button>
+      <button id="player-play" type="button"></button>
+      <button id="player-next" type="button"></button>
+      <div id="player-scrub" role="slider" tabindex="0"><div class="fill"></div></div>
+      <div id="player-clock"></div>
+      <div id="player-keys"></div>
+    </section>
+    <a id="overview-entry" hidden></a>
     <a id="full-entry" href="?experience=full" hidden>FULL WORK</a>
     <footer id="credit" hidden>DANIEL KEINAN · <a href="https://github.com/dkdan10/analytics_resolution">ABOUT</a> · DATA: NBA.COM/STATS · SPORTVU</footer>
     <button id="asset-state" type="button" hidden>DEGRADED · RETRY</button>

@@ -34,6 +34,7 @@ import {
   SCATTER_ALPHA,
   SCATTER_MIN_PX,
   SCATTER_TENTHS,
+  SLUG_MIN_PX,
   SLUG_STATEMENT_TENTHS,
   TERM_ALPHA_AGED,
   TERM_ALPHA_FRESH,
@@ -48,14 +49,14 @@ import {
   TERM_TIE_ALPHA,
 } from "../scalars";
 import { actOf, ARRIVAL_TAIL } from "../timeline";
-import { label } from "../textatlas";
+import { label, LABEL_LINE_HEIGHT } from "../textatlas";
 import {
   LEDGER_WINDOW_STOPS,
   LEDGER_WINDOW_WITHDRAW_PHASE,
   LEDGER_WINDOW_WRITING_SPAN,
   progressInWindowSpan,
   WINDOW_BEATS,
-  windowEntryProgress,
+  WINDOW_ONE_WITHDRAW_SPAN,
   windowSecondAtPhase,
 } from "../window-score";
 import { drawSeasonField } from "./fieldlayer";
@@ -121,15 +122,20 @@ function windowValues(w: WindowFile | null): Map<string, string[]> {
     // close — the two honesty-load-bearing strings destroying each other. The
     // share leads; the scope stands beneath it.
     const share = `${(100 * widest.share).toFixed(1)}% ${widest.name.toUpperCase()}`;
+    // The scope opens its own line, so it carries no separator in front.
     out.set("CLOSEST DEFENDER",
-      w.bias.scope ? [share, `· ${w.bias.scope}`] : [share]);
+      w.bias.scope ? [share, w.bias.scope] : [share]);
   }
+  // Every count is grouped the same way, so a per-game figure in the
+  // thousands reads like the miles two names away.
+  const per = inv.per_game;
   out.set("SPEED & DISTANCE", [`${inv.miles_run.toLocaleString()} MI`]);
-  if (inv.per_game.drives !== null) out.set("DRIVES", [`${inv.per_game.drives}/GAME`]);
-  if (inv.per_game.touches !== null) out.set("TOUCHES", [`${inv.per_game.touches}/GAME`]);
-  if (inv.per_game.passes !== null) out.set("PASSING", [`${inv.per_game.passes}/GAME`]);
+  if (per.drives !== null) out.set("DRIVES", [`${per.drives.toLocaleString()}/GAME`]);
+  if (per.touches !== null) out.set("TOUCHES", [`${per.touches.toLocaleString()}/GAME`]);
+  if (per.passes !== null) out.set("PASSING", [`${per.passes.toLocaleString()}/GAME`]);
   if (inv.mean_seconds_per_touch !== null) {
-    out.set("POSSESSIONS", [`${inv.mean_seconds_per_touch}S/TOUCH`]);
+    // Spaced from its figure, or the S reads as one more digit.
+    out.set("POSSESSIONS", [`${inv.mean_seconds_per_touch} S/TOUCH`]);
   }
   return out;
 }
@@ -168,20 +174,44 @@ export function ledgerWindowRemnant(phase: number): number | null {
 
 function leagueBoxes(names: string[]): Box[] {
   const perArc = Math.ceil(names.length / 2);
+  const h = LEAGUE_NAME_TENTHS * 1.7;
+  // The clearance a spoken term keeps around itself, which the names keep from
+  // the sidelines and from each other.
+  const pad = TERM_CLEAR_PAD * LEAGUE_NAME_TENTHS;
+  const place = (text: string, r: number, a: number): Box => {
+    const w = widthTenths(text, LEAGUE_NAME_TENTHS);
+    // Centred on the arc, so the box's left edge is half a width back — but
+    // never off the floor: an arc's end slot sits near a sideline, and a long
+    // name centred there began outside the court.
+    const centred = r * Math.cos(a) - w / 2;
+    return {
+      wx: Math.max(COURT.x0 + pad, Math.min(COURT.x1 - pad - w, centred)),
+      wy: r * Math.sin(a),
+      w,
+      h,
+    };
+  };
+  const inner: Box[] = [];
   return names.map((text, i) => {
     const arc = i < perArc ? 0 : 1;
     const k = arc === 0 ? i : i - perArc;
     const count = arc === 0 ? perArc : names.length - perArc;
     const a = Math.PI - ((k + 0.5) / count) * Math.PI;
-    const r = arc === 0 ? LEAGUE_ARC_INNER : LEAGUE_ARC_OUTER;
-    const w = widthTenths(text, LEAGUE_NAME_TENTHS);
-    return {
-      // Centred on the arc, so the box's left edge is half a width back.
-      wx: r * Math.cos(a) - w / 2,
-      wy: r * Math.sin(a),
-      w,
-      h: LEAGUE_NAME_TENTHS * 1.7,
-    };
+    if (arc === 0) {
+      const box = place(text, LEAGUE_ARC_INNER, a);
+      inner.push(box);
+      return box;
+    }
+    // The two arcs' end slots fall low and close, where an outer name stood on
+    // the inner one beneath it and the pair read as one two-line label. An
+    // outer name that would meet an inner one rises along its own arc until it
+    // clears it, and no further.
+    const box = place(text, LEAGUE_ARC_OUTER, a);
+    const under = inner.filter((b) => overlaps(box, b, pad));
+    if (!under.length) return box;
+    const clear = Math.max(...under.map((b) => b.wy + (b.h + h) / 2 + pad));
+    const lifted = Math.asin(Math.min(1, clear / LEAGUE_ARC_OUTER));
+    return place(text, LEAGUE_ARC_OUTER, Math.cos(a) < 0 ? Math.PI - lifted : lifted);
   });
 }
 
@@ -243,8 +273,8 @@ interface Term extends Box {
  *
  * Measured once per string at a fixed nominal size and scaled, never through the
  * live view: if any of this geometry needed `view.scale`, the memo below could
- * not be keyed on the year alone and the plate would speak different words on
- * different screens.
+ * not be keyed without the viewport and the plate would speak different words
+ * on different screens.
  */
 const NOMINAL_PX = 100;
 const widths = new Map<string, number>();
@@ -342,28 +372,50 @@ function overlaps(a: Box, b: Box, pad: number): boolean {
 }
 
 /**
- * The season's whole utterance list, memoised BY YEAR ALONE.
+ * The season's whole utterance list, memoised BY YEAR — and, for the window
+ * season, by whether the window file is resident.
  *
  * That key is the invariant, not a convenience: every quantity below derives
  * from the season, the fixed-seed sample and the schedule, and none of it from
  * the viewport. If this ever needed `view.scale` in its key, the layout would
  * have been done in pixels somewhere and the plate would say different words on
  * different screens.
+ *
+ * The window file is the one input that is not there from the first frame: it
+ * is optional, and a failed fetch can be retried on a live page. The window
+ * season's obstacles include the figures that file carries, so a layout made
+ * without it is a different layout, and under the year alone whichever one was
+ * made first would have stood for the life of the page. `layoutKey` names the
+ * two apart, so what is spoken follows what is resident now.
+ *
+ * The seconds the terms are spaced over decide which earlier terms a later one
+ * must clear, so they are part of the layout and come from the year too: the
+ * season's own writing span, whichever frame asks. The window season is asked
+ * for by two kinds of frame that keep different clocks (see
+ * `ledgerUtterances`), and a layout spaced by the asking frame's clock would be
+ * whichever of them asked first.
  */
-const utterances = new Map<number, Term[]>();
+const utterances = new Map<string, Term[]>();
+
+function layoutKey(data: Loaded, year: number): string {
+  return actOf(year) === 3 && data.window ? `${year}+window` : `${year}`;
+}
 
 function utterancesFor(
-  year: number,
+  key: string,
   season: Season,
   sample: Sample,
   seasons: Season[],
+  /** The season's own writing span, in seconds: a function of the year, not
+   *  of the frame that asks. */
   writingSeconds: number,
   /** Boxes occupied for the whole season - the league's names in Acts III and
-   *  V, and the pin's caption in every season that refuses. Functions of the
-   *  year and the season alone, so the memo key stays the year alone. */
+   *  V, the window's figures while that file is resident, and the pin's
+   *  caption in every season that refuses. Functions of what `key` names and
+   *  nothing else. */
   fixed: Box[],
 ): Term[] {
-  const hit = utterances.get(year);
+  const hit = utterances.get(key);
   if (hit) return hit;
 
   const born = births(seasons);
@@ -421,7 +473,7 @@ function utterancesFor(
       // floor has room for.
     }
   }
-  utterances.set(year, out);
+  utterances.set(key, out);
   return out;
 }
 
@@ -434,6 +486,122 @@ export function clearLedgerCaches(): void {
   refShare = 0;
 }
 
+/** A term as one frame sets it, in court tenths: the type it puts down once
+ *  its sizes are floored, which the box it was laid out in does not know. */
+interface TermSet {
+  /** The word's size and its margin line's, in pixels. */
+  px: number;
+  mp: number;
+  /** The word's size as set, in court tenths. */
+  size: number;
+  /** The word's em box. */
+  word: Box;
+  /** The em box of a birth's margin line, where this frame puts it, or null
+   *  where it has nowhere to stand. */
+  margin: Box | null;
+  /** Whether that line stands over its word instead of under it. */
+  above: boolean;
+}
+
+/** The pin caption as one frame sets it, in court tenths. */
+interface CaptionSet {
+  /** With the leading every Box here carries: what the scatter keeps out of. */
+  box: Box;
+  /** The type alone, from its first line's top to its last line's foot: what
+   *  a word or a margin line set beside it would actually meet. */
+  type: Box;
+}
+
+/** Whether two settings of type meet: their em boxes, with `along` of clear
+ *  floor kept between them where they share a line. */
+function meets(a: Box, b: Box, along: number): boolean {
+  return Math.abs(a.wx + a.w / 2 - (b.wx + b.w / 2)) < (a.w + b.w) / 2 + along
+    && Math.abs(a.wy - b.wy) < (a.h + b.h) / 2;
+}
+
+/**
+ * How one frame sets a term against the pin caption of the term's own season,
+ * or null where that caption leaves the word no room.
+ *
+ * The layout keeps every word clear of the caption at court size, and it must:
+ * its key carries no viewport. But the caption's type has pixel floors, and on
+ * a floor it is wider than the box the layout knew and stands higher off the
+ * plate's edge, so a word laid out beside it ran into it, and a birth's margin
+ * line, which is in nobody's box, lay under its first line. Both are settled
+ * here, from the frame alone, and by the type that is actually set, so that a
+ * word which merely stands near the caption keeps its place. A word whose type
+ * would meet the caption's, or run on into it along one line inside the
+ * clearance the layout keeps, is not spoken: the layout already leaves an
+ * utterance out when the floor has no room for it. A margin line that would
+ * meet the caption stands over its word instead of under it, so the birth is
+ * still disclosed. Where no floor binds, the layout has already kept every
+ * word further off than this asks.
+ *
+ * Over its word the line is on new ground, and `beside` is who else speaks
+ * there during this word's hold. A line that would stand on one of their
+ * lines, inside the clear floor the scatter keeps beside a spoken word, would
+ * read as that word's own and date a phrase to a season it was not first
+ * filed in. There it is not set at all, which says less and nothing false.
+ */
+function termSet(
+  f: Frame,
+  t: Term,
+  caption: CaptionSet | null,
+  beside: Term[] = [],
+): TermSet | null {
+  const { view } = f;
+  const room = contextDisplay(f.ctx) === "room";
+  const px = termPx(f, t);
+  const size = px / view.scale;
+  const word: Box = { wx: t.wx, wy: t.wy, w: widthTenths(t.phrase, size), h: size };
+  if (caption && meets(word, caption.type, TERM_CLEAR_PAD * size)) return null;
+  const mp = Math.max(
+    SCATTER_MIN_PX * 0.8,
+    px * TERM_MARGIN_SCALE,
+    room ? ROOM_TEXT_MIN_PX.aside : 0,
+  );
+  if (!t.bornIn) return { px, mp, size, word, margin: null, above: false };
+  const marginSize = mp / view.scale;
+  // The line's centre from the word's, by the rule `drawTerms` sets it at.
+  const off = (marginTop(0, px * LABEL_LINE_HEIGHT) + mp * LABEL_LINE_HEIGHT / 2) / view.scale;
+  const line = (side: number): Box => ({
+    wx: t.wx,
+    wy: t.wy + side * off,
+    w: widthTenths(`FIRST FILED ${t.bornIn}`, marginSize),
+    h: marginSize,
+  });
+  const under = line(-1);
+  if (caption === null || !meets(under, caption.type, 0)) {
+    return { px, mp, size, word, margin: under, above: false };
+  }
+  const over = line(1);
+  const taken = beside.some((o) => readsWith(f, over, o));
+  return { px, mp, size, word, margin: taken ? null : over, above: true };
+}
+
+/** Whether a margin line would stand on another spoken word's line, inside the
+ *  clear floor the scatter keeps beside one, and so be read with it. */
+function readsWith(f: Frame, line: Box, o: Term): boolean {
+  const size = termPx(f, o) / f.view.scale;
+  return meets(line, { wx: o.wx, wy: o.wy, w: widthTenths(o.phrase, size), h: size },
+    size * 1.7);
+}
+
+/** The size a spoken word is set at in this frame, floors and all. */
+function termPx(f: Frame, t: Term): number {
+  return Math.max(
+    SCATTER_MIN_PX,
+    f.view.s(t.size),
+    contextDisplay(f.ctx) === "room" ? ROOM_TEXT_MIN_PX.aside : 0,
+  );
+}
+
+/** Where a birth's margin line starts under its word: screen y, from the
+ *  word's centre and its label's height. */
+function marginTop(centre: number, height: number): number {
+  return centre - height / 2 + height * 1.05;
+}
+
 /**
  * Speak the terms that are live at this instant.
  *
@@ -442,10 +610,21 @@ export function clearLedgerCaches(): void {
  * outgoing season's last words recede as the new season's first arrive instead
  * of vanishing at the boundary.
  */
-export function drawTerms(f: Frame, terms: Term[], elapsed: number, interval: number, dim: number): void {
+export function drawTerms(
+  f: Frame,
+  terms: Term[],
+  elapsed: number,
+  interval: number,
+  dim: number,
+  /** How much of each term may still show, for a register that has to give
+   *  way to another one drawn over the same floor. */
+  yieldTo?: (t: Term, set: TermSet) => number,
+  /** The pin caption of the terms' own season as this frame sets it, where a
+   *  caption is drawn with them. */
+  caption: CaptionSet | null = null,
+): void {
   const { ctx, view, dpr, remains } = f;
   if (dim <= 0.01) return;
-  const room = contextDisplay(ctx) === "room";
   const spoken = Math.min(terms.length - 1, Math.floor(elapsed / interval));
 
   ctx.save();
@@ -453,8 +632,15 @@ export function drawTerms(f: Frame, terms: Term[], elapsed: number, interval: nu
     if (t.j > spoken) continue;
     const age = elapsed - t.j * interval;
     if (age < 0 || age >= TERM_HOLD_SECONDS) continue;
+    // Who else of this season speaks while this word is up: the same for
+    // every frame of its hold, so its margin line never changes sides.
+    const beside = t.bornIn
+      ? terms.filter((o) => o !== t && Math.abs(o.j - t.j) * interval < TERM_HOLD_SECONDS)
+      : [];
+    const set = termSet(f, t, caption, beside);
+    if (!set) continue;
     const fresh = 1 - age / TERM_HOLD_SECONDS;
-    const alpha = remains * dim
+    const alpha = remains * dim * (yieldTo ? yieldTo(t, set) : 1)
       * (TERM_ALPHA_AGED + (TERM_ALPHA_FRESH - TERM_ALPHA_AGED) * fresh);
     if (alpha <= 0.01) continue;
 
@@ -466,43 +652,97 @@ export function drawTerms(f: Frame, terms: Term[], elapsed: number, interval: nu
     ctx.lineTo(view.sx(t.wx < t.x ? t.wx + t.w : t.wx), view.sy(t.wy));
     ctx.stroke();
 
-    const px = Math.max(
-      SCATTER_MIN_PX,
-      view.s(t.size),
-      room ? ROOM_TEXT_MIN_PX.aside : 0,
-    );
     // Set exactly as the archive filed it, lower-case `shot` and all: the
     // record's own inconsistent casing is a fact about the record.
-    const lab = label(t.phrase, px, dpr);
+    const lab = label(t.phrase, set.px, dpr);
     ctx.globalAlpha = alpha;
     ctx.drawImage(lab.canvas, view.sx(t.wx), view.sy(t.wy) - lab.height / 2,
       lab.width, lab.height);
 
     // A birth discloses what it is, in the margin, rather than being asserted
     // by its size alone.
-    if (t.bornIn) {
-      const mp = Math.max(
-        SCATTER_MIN_PX * 0.8,
-        px * TERM_MARGIN_SCALE,
-        room ? ROOM_TEXT_MIN_PX.aside : 0,
-      );
-      const margin = label(`FIRST FILED ${t.bornIn}`, mp, dpr);
+    if (t.bornIn && set.margin) {
+      const margin = label(`FIRST FILED ${t.bornIn}`, set.mp, dpr);
       ctx.globalAlpha = alpha * TERM_MARGIN_ALPHA;
-      ctx.drawImage(margin.canvas, view.sx(t.wx),
-        view.sy(t.wy) - lab.height / 2 + lab.height * 1.05, margin.width, margin.height);
+      // Over the word it stands as far from the word's centre as under it.
+      const under = marginTop(view.sy(t.wy), lab.height);
+      const top = set.above ? 2 * view.sy(t.wy) - under - margin.height : under;
+      ctx.drawImage(margin.canvas, view.sx(t.wx), top, margin.width, margin.height);
     }
     ctx.globalAlpha = 1;
   }
   ctx.restore();
 }
 
+/**
+ * Where each line of a name's figure block starts, down-screen from the name's
+ * centre, in whatever unit `size` is given in. `nameHeight` and `lineHeight`
+ * are the heights of the name's label and of one figure line's label.
+ *
+ * One geometry, two readers: `drawPublishedInstead` strikes the figures from it
+ * in pixels, and `figureBoxes` hands the same lines, in court tenths, to the
+ * registers that must not speak through them.
+ */
+function figureTops(lines: number, size: number, nameHeight: number, lineHeight: number): number[] {
+  // The recovered-set scope is the only multi-line value. Both display
+  // profiles place that block above its heading: below it sits the inner
+  // arc, and the earlier layout ran this evidence through DRIVES at the
+  // completed crest.
+  const first = lines > 1
+    ? -nameHeight * 0.75 - lines * size * 1.35
+    : nameHeight * 0.75;
+  return Array.from({ length: lines }, (_, k) => first + k * lineHeight);
+}
+
+/**
+ * The window's figures, line by line, as boxes in COURT TENTHS — the lines the
+ * names carry beneath (or, for the scoped share, above) them. The names alone
+ * were the obstacles, so a spoken phrase could still be struck straight through
+ * a figure.
+ *
+ * At the unfloored court size, like every other box here: the figures are a
+ * function of the window file alone, and the memo's key says whether that file
+ * is resident, which keeps them inside its contract. A line sits where `label` would set it; the box takes the
+ * same height convention as every other Box.
+ */
+function figureBoxes(data: Loaded, names: string[], boxes: Box[]): Box[] {
+  const values = windowValues(data.window);
+  const size = LEAGUE_NAME_TENTHS;
+  const valueSize = size * LEAGUE_VALUE_SCALE;
+  const out: Box[] = [];
+  names.forEach((name, i) => {
+    const v = values.get(name);
+    const box = boxes[i];
+    if (!v || !box) return;
+    const tops = figureTops(v.length, size, size * LABEL_LINE_HEIGHT,
+      valueSize * LABEL_LINE_HEIGHT);
+    const spans = v.map((line) => widthTenths(line, valueSize));
+    const block = v.length > 1 ? Math.max(...spans) : 0;
+    const cx = box.wx + box.w / 2;
+    v.forEach((_, k) => {
+      out.push({
+        // A scoped block shares one left edge; a single figure is centred.
+        wx: cx - (block > 0 ? block : spans[k]!) / 2,
+        // Screen-down offsets, so court y goes the other way.
+        wy: box.wy - (tops[k]! + valueSize * LABEL_LINE_HEIGHT / 2),
+        w: spans[k]!,
+        h: valueSize * 1.7,
+      });
+    });
+  });
+  return out;
+}
+
 /** The league's names hold the middle of the floor for Acts III and V, so in
- *  those acts they are obstacles the plate has to speak around. Part of the
- *  memo's contract rather than a local convenience — see `ledgerUtterances`. */
+ *  those acts they are obstacles the plate has to speak around — and in the
+ *  window, so are the figures struck with them, once the file that carries
+ *  them is resident. Part of the memo's contract rather than a local
+ *  convenience — see `ledgerUtterances` and `layoutKey`. */
 function leagueObstacles(data: Loaded, year: number): Box[] {
-  return actOf(year) === 3 || actOf(year) === 5
-    ? leagueBoxes(publishedInstead(data))
-    : [];
+  if (actOf(year) !== 3 && actOf(year) !== 5) return [];
+  const names = publishedInstead(data);
+  const boxes = leagueBoxes(names);
+  return actOf(year) === 3 ? [...boxes, ...figureBoxes(data, names, boxes)] : boxes;
 }
 
 /** The caption sits three feet below the pile it names, in court tenths.
@@ -525,11 +765,20 @@ const PIN_CAPTION_DROP = 30;
  * the viewport or the hand, which is what lets the box join the year-keyed
  * memo — see `ledgerUtterances`. Width adds `drawSlug`'s own per-character
  * letter-spacing fraction, which `widthTenths`'s ruler does not apply.
+ *
+ * `size` and `lift` describe the caption as one frame actually sets it — its
+ * type floored, and stood up off the plate's edge — for the readers that work
+ * at draw time, and `leading` is a line's height as a multiple of its size.
+ * The memo never passes them.
  */
-function pinCaptionBox(season: Season): Box | null {
+function pinCaptionBox(
+  season: Season,
+  size = SLUG_STATEMENT_TENTHS,
+  lift = 0,
+  leading = 1.7,
+): Box | null {
   const sentinel = season.resolution.rim_sentinel;
   if (!sentinel || !sentinel.is_refusal) return null;
-  const size = SLUG_STATEMENT_TENTHS;
   const lines = [`${sentinel.n.toLocaleString()} SHOTS · NO PLACE GIVEN`];
   const refused = Object.keys(season.resolution.refused_action_types)[0];
   if (refused) lines.push(refused.toUpperCase());
@@ -540,10 +789,47 @@ function pinCaptionBox(season: Season): Box | null {
   const drop = (lines.length - 1) * 1.9 * size;
   return {
     wx: sentinel.coord[0] - w / 2,
-    wy: sentinel.coord[1] - PIN_CAPTION_DROP - drop / 2,
+    wy: sentinel.coord[1] - PIN_CAPTION_DROP + lift - drop / 2,
     w,
-    h: drop + size * 1.7,
+    h: drop + size * leading,
   };
+}
+
+/**
+ * How the pin caption is set in this frame: `drawSlug`'s own size for the
+ * statement rank, floors and all, and how many pixels the block stands up so
+ * its last line stays on the plate.
+ *
+ * The caption hangs a fixed drop under its pile in court units, but its type
+ * has pixel floors and its lines advance by the floored size, so where a floor
+ * binds the second line hung through the baseline. It still hangs from the
+ * same place wherever it fits; where it would not, it stands on the edge of
+ * the box the record is clipped to instead, its lines stacked up from there.
+ */
+function pinCaptionSet(f: Frame, lines: number, anchorY: number): { px: number; lift: number } {
+  const { ctx, view } = f;
+  const room = contextDisplay(ctx) === "room";
+  const px = Math.max(
+    SLUG_MIN_PX,
+    view.s(SLUG_STATEMENT_TENTHS),
+    room ? ROOM_TEXT_MIN_PX.statement : 0,
+  );
+  const bottom = view.sy(anchorY) + (lines - 1) * px * 1.9 + px / 2;
+  return { px, lift: Math.max(0, bottom - view.sy(COURT.y0)) };
+}
+
+/** The pin caption's footprint as this frame sets it: type floored and the
+ *  block stood up, for every reader that works at draw time. */
+function pinCaptionAsSet(f: Frame, season: Season): CaptionSet | null {
+  const sentinel = season.resolution.rim_sentinel;
+  if (!sentinel) return null;
+  const lines = Object.keys(season.resolution.refused_action_types).length ? 2 : 1;
+  const set = pinCaptionSet(f, lines, sentinel.coord[1] - PIN_CAPTION_DROP);
+  const size = set.px / f.view.scale;
+  const lift = set.lift / f.view.scale;
+  const box = pinCaptionBox(season, size, lift);
+  const type = pinCaptionBox(season, size, lift, 1);
+  return box && type ? { box, type } : null;
 }
 
 /**
@@ -551,14 +837,25 @@ function pinCaptionBox(season: Season): Box | null {
  * place, so that two hands cannot ask for it two different ways.
  *
  * THIS EXISTS BECAUSE OF A CACHE HAZARD, not for tidiness. `utterancesFor`
- * memoises BY YEAR ALONE, and that key is the invariant that keeps the plate
- * speaking the same words on every screen — but it is only sound while every
- * caller passes the same `writingSeconds` and the same `fixed` boxes for a given
- * year. THE STACK's NAME THE ACTION is the second caller this file has ever had.
- * Had it computed its own obstacle set, the memo would have handed whichever
- * hand asked FIRST its own layout and the other hand a layout built for someone
- * else, silently, for the life of the page — and the purity probe could
- * not have caught it, because both hands would be consistent with themselves.
+ * memoises by the year and the window file's residency, never the viewport, and
+ * that key is the invariant that keeps the plate speaking the same words on
+ * every screen — but it is only sound while everything the layout is built from
+ * is a function of what the key names. So both of its inputs are derived here,
+ * from the year and never from the asking frame or hand: the `fixed` boxes, and
+ * the seconds the terms are spaced over. THE STACK's NAME THE ACTION is the
+ * second caller this file has ever had. Had it computed its own obstacle set,
+ * the memo would have handed whichever hand asked FIRST its own layout and the
+ * other hand a layout built for someone else, silently, for the life of the
+ * page — and the purity probe could not have caught it, because it empties the
+ * memo before every capture.
+ *
+ * The same holds between two frames of one hand. The window season is asked
+ * for from inside the window, where its register is written over the window's
+ * own writing span, and again as the receding season under the one after,
+ * where the clock is an ordinary season's tail. Those are two lengths under one
+ * key, so the layout is spaced over the window's span whichever frame asks,
+ * and only the clock returned beside it (`interval`, `elapsed`) follows the
+ * frame.
  *
  * So there is one derivation and both hands call it. That the two hands then
  * speak the same words in the same places is not a side effect to apologise for:
@@ -575,22 +872,27 @@ export function ledgerUtterances(
   const seg = schedule.byYear.get(year);
   if (!season || !sample || !seg) return null;
   // A season spends `ARRIVAL_TAIL` of itself being written; the utterances are
-  // spread over exactly that, so a term lands with the marks it describes.
+  // spread over exactly that, so a term lands with the marks it describes. The
+  // window season is written over the window's own span instead.
+  const tailSecs = seg.duration * ARRIVAL_TAIL;
+  const windowSecs = windowSecondAtPhase(LEDGER_WINDOW_WRITING_SPAN.to)
+    - windowSecondAtPhase(LEDGER_WINDOW_WRITING_SPAN.from);
+  // What the layout is spaced over: the year's writing span, whoever asks.
+  const layoutSecs = actOf(year) === 3 ? windowSecs : tailSecs;
+  // What this frame's clock counts: the same, except for the window season
+  // receding under the season after it, which is read on an ordinary tail.
   const isWindow = f.st.act === 3 && f.st.year === year;
-  const secs = isWindow
-    ? windowSecondAtPhase(LEDGER_WINDOW_WRITING_SPAN.to)
-      - windowSecondAtPhase(LEDGER_WINDOW_WRITING_SPAN.from)
-    : seg.duration * ARRIVAL_TAIL;
+  const secs = isWindow ? windowSecs : tailSecs;
   // The fixed obstacles: the league's boxes (a function of the act, so of the
-  // year) and the pin's caption (a function of the season). Both are properties
-  // of the YEAR and never of the hand or the viewport, so the year-only memo
-  // in `utterancesFor` stays sound with the pin rect enrolled — every caller
-  // receives the same obstacle set for a given year, by construction.
+  // year, and in the window of the window file) and the pin's caption (a
+  // function of the season). None is a property of the hand or the viewport, so
+  // the memo in `utterancesFor` stays sound with the pin rect enrolled — every
+  // caller receives the same obstacle set for a given key, by construction.
   const pinBox = pinCaptionBox(season);
   const fixed = pinBox
     ? [...leagueObstacles(data, year), pinBox]
     : leagueObstacles(data, year);
-  const terms = utterancesFor(year, season, sample, data.seasons, secs, fixed);
+  const terms = utterancesFor(layoutKey(data, year), season, sample, data.seasons, layoutSecs, fixed);
   const interval = secs / Math.max(1, terms.length);
   const remnant = isWindow ? ledgerWindowRemnant(f.st.phase) : null;
   const elapsed = isWindow
@@ -637,7 +939,10 @@ export function drawLedgerHand(f: Frame): void {
 
   // The marks recede: here the description is the subject, and the dot is what
   // the description is about.
-  drawSeasonField(f, { dim: remains * 0.42, reveal: true });
+  drawSeasonField(f, {
+    dim: remains * 0.42, reveal: true, prewarm: true, entry: WINDOW_ONE_WITHDRAW_SPAN,
+    entryEven: true,
+  });
 
   // The labels still address the fixed-seed sample, and must. At full density a
   // label would live a fraction of a frame - the arrival window advances far
@@ -652,18 +957,37 @@ export function drawLedgerHand(f: Frame): void {
   // The outgoing season's last words, still receding. `ledgerUtterances`
   // returns its `elapsed` at the END of the writing for a season that is not
   // the current one, which is what the explicit `secs` here used to say.
-  const previousArrival = st.act === 3 ? windowEntryProgress(st.phase) : st.arrived;
+  //
+  // Each season is laid out against its own words only, so the receding words
+  // know nothing of the arriving ones. They give way here, at draw time and
+  // never in the year-keyed layout: a receding word goes the moment an arriving
+  // word lands on it, and dims as an arriving heading over it comes up.
+  //
+  // The caption is the other thing they cannot know: each word is set against
+  // its own season's caption as this frame sets it, and a receding one gives
+  // way to the arriving season's as well.
+  const here = ledgerUtterances(f, year);
+  const caption = sample && here ? pinCaptionAsSet(f, season) : null;
+  const previousArrival = st.act === 3
+    ? progressInWindowSpan(st.phase, WINDOW_ONE_WITHDRAW_SPAN)
+    : st.arrived;
   if (st.prev !== null && previousArrival < 1) {
     const out = ledgerUtterances(f, st.prev);
-    if (out) drawTerms(f, out.terms, out.elapsed, out.interval, 1 - previousArrival);
+    const before = data.byYear.get(st.prev);
+    if (out) {
+      drawTerms(f, out.terms, out.elapsed, out.interval, 1 - previousArrival,
+        giveWayTo(f, year, sample ? here : null, caption),
+        before ? pinCaptionAsSet(f, before) : null);
+    }
   }
   let speaking: Box[] = [];
-  const here = ledgerUtterances(f, year);
   if (sample && here) {
     const { terms, interval, elapsed } = here;
+    // A word the caption leaves no room for is not spoken, so it holds no
+    // floor against the scatter either.
     speaking = terms.filter((t) => {
       const age = elapsed - t.j * interval;
-      return age >= 0 && age < TERM_HOLD_SECONDS;
+      return age >= 0 && age < TERM_HOLD_SECONDS && termSet(f, t, caption) !== null;
     });
     // The league's names hold their ground against the grain too. They are the
     // whole of Act V's argument and a scatter label running through PASSING
@@ -671,6 +995,10 @@ export function drawLedgerHand(f: Frame): void {
     // the same way — the same box the spoken register avoids, from the same
     // derivation, so the two readers cannot disagree about where it stands.
     speaking = [...speaking, ...leagueObstacles(data, year)];
+    // Its floor is the court-size box, as theirs are. Where a pixel floor sets
+    // it larger than that, the labels are tested against it as set, below:
+    // growing the floor itself with the type emptied the rim, where the
+    // caption stands and most of what the season describes is filed.
     const pinBox = pinCaptionBox(season);
     if (pinBox) speaking = [...speaking, pinBox];
 
@@ -687,7 +1015,7 @@ export function drawLedgerHand(f: Frame): void {
     const rem = closeRemnant(f);
     const writing = st.act === 3 ? ledgerWindowWritingProgress(st.phase) : st.arrived;
     const edge = rem === null ? writing : rem;
-    drawLabels(f, sample, season, speaking, edge);
+    drawLabels(f, sample, season, speaking, caption ? [caption.box] : [], edge);
     // The pile, named once. Labels stacked on a single point would be a
     // rendering bug; one line saying how many shots the record declined to
     // place is the fact itself.
@@ -698,7 +1026,7 @@ export function drawLedgerHand(f: Frame): void {
     const termVisible = rem === null
       ? 1
       : Math.max(0, Math.min(1, rem * Math.max(1, terms.length)));
-    drawTerms(f, terms, elapsed, interval, termVisible);
+    drawTerms(f, terms, elapsed, interval, termVisible, undefined, caption);
   }
 
   // Act III shows the same published names carrying real recomputed values;
@@ -711,11 +1039,68 @@ export function drawLedgerHand(f: Frame): void {
   drawActCue(f, 2);
 }
 
+/**
+ * What share of a receding word may still show under what the arriving season
+ * has put down by this instant.
+ *
+ * Every word the arriving season has spoken so far covers, not only the ones
+ * still up: a receding word that returned when the word over it expired would
+ * be the old season speaking again. An arriving heading covers as far as it
+ * has come up, by the same law that draws it. The test is the one the layout
+ * itself uses, at the receding word's own clearance.
+ *
+ * The arriving season's pin caption covers too, whole and from the season's
+ * first frame, so nothing under it leaves when its count first reads: a
+ * receding word it would meet as this frame sets both, or the margin line of a
+ * receding birth, goes with the turnover. So does a receding birth whose
+ * margin line, stood over its word, an arriving word has landed beside.
+ */
+function giveWayTo(
+  f: Frame,
+  year: number,
+  here: ReturnType<typeof ledgerUtterances>,
+  caption: CaptionSet | null,
+): (t: Term, set: TermSet) => number {
+  const covers: { box: Box; presence: number }[] = [];
+  const landed: Term[] = [];
+  if (here) {
+    for (const t of here.terms) {
+      if (here.elapsed - t.j * here.interval >= 0) {
+        covers.push({ box: t, presence: 1 });
+        landed.push(t);
+      }
+    }
+  }
+  if (actOf(year) === 3 || actOf(year) === 5) {
+    const boxes = leagueBoxes(publishedInstead(f.data));
+    const presence = headingPresence(f, actOf(year) === 3, boxes.length);
+    boxes.forEach((box, i) => {
+      if (presence[i]! > 0) covers.push({ box, presence: presence[i]! });
+    });
+  }
+  return (t, set) => {
+    if (caption && (meets(set.word, caption.type, TERM_CLEAR_PAD * set.size)
+      || (set.margin && meets(set.margin, caption.type, 0)))) return 0;
+    if (set.above && set.margin && landed.some((o) => readsWith(f, set.margin!, o))) return 0;
+    const pad = TERM_CLEAR_PAD * t.size;
+    let left = 1;
+    for (const c of covers) {
+      if (overlaps(t, c.box, pad)) left = Math.min(left, 1 - c.presence);
+    }
+    return left;
+  };
+}
+
 function drawLabels(
   f: Frame,
   sample: Sample,
   season: Season,
+  /** What the scatter keeps clear floor around, at court size: the words
+   *  being spoken, the league's names and figures, the pin caption. */
   live: Box[],
+  /** What stands larger in this frame than its court-size box says — the pin
+   *  caption on a floor — which a label must still not be struck through. */
+  set: Box[],
   /** How far through the sample the writing edge stands — `st.arrived` while
    *  the season writes, the close's remnant while it un-writes. */
   arrived: number,
@@ -746,21 +1131,40 @@ function drawLabels(
     if (alpha <= 0.02) continue;
 
     // A scatter label inside a spoken term's box is what turns a large word
-    // back into noise. Local emptiness is most of why the big register reads.
+    // back into noise. Local emptiness is most of why the big register reads,
+    // so a mark that stands inside a box, or within the box's height of it,
+    // goes unlabelled. That floor is the box at court size, whatever the
+    // type's pixel floors do.
     const x = sample.x[i]!;
     const y = sample.y[i]!;
     if (live.some((b) => x >= b.wx - b.h && x <= b.wx + b.w + b.h
       && Math.abs(y - b.wy) <= b.h)) continue;
 
+    // A mark can stand clear of a box and its label still run into it, and a
+    // mark near the right sideline has a label that runs off the plate. So
+    // the label is set from just past its mark to the right, or to the left
+    // when the right is taken — the rule the spoken register sets its own
+    // words by — and it goes unset only when neither side is free. Skipping
+    // on the right alone emptied the right wing and thinned the densest acts
+    // far past what the boxes cover, and how much is described is this
+    // hand's measurement. The span is tested against the box itself, with no
+    // margin: the emptiness is kept around the marks, and all this asks is
+    // that no label be struck through a word, a name or a figure.
     const lab = label(text, px, dpr);
+    const lead = px * 0.6;
+    const reach = (lead + lab.width) / view.scale;
+    // The label's height by the convention every Box here has.
+    const tall = px * 1.7 / view.scale;
+    const struck = (b: Box, x0: number, x1: number): boolean => x1 > b.wx && x0 < b.wx + b.w
+      && Math.abs(y - b.wy) < (b.h + tall) / 2;
+    const free = (x0: number, x1: number): boolean => x0 >= COURT.x0 && x1 <= COURT.x1
+      && !live.some((b) => struck(b, x0, x1)) && !set.some((b) => struck(b, x0, x1));
+    const right = free(x + lead / view.scale, x + reach);
+    if (!right && !free(x - reach, x - lead / view.scale)) continue;
+
     ctx.globalAlpha = alpha;
-    ctx.drawImage(
-      lab.canvas,
-      view.sx(x) + px * 0.6,
-      view.sy(y) - lab.height / 2,
-      lab.width,
-      lab.height,
-    );
+    ctx.drawImage(lab.canvas, right ? view.sx(x) + lead : view.sx(x) - lead - lab.width,
+      view.sy(y) - lab.height / 2, lab.width, lab.height);
   }
   ctx.restore();
 }
@@ -796,8 +1200,10 @@ function drawPinLabel(f: Frame, season: Season, arrived: number): void {
   // three feet below the origin would sit under nothing in six seasons. The
   // drop is shared with `pinCaptionBox`, whose rect is what keeps the spoken
   // register and the scatter out of these two lines.
-  drawSlug(ctx, view, lines,
-    { x: sentinel.coord[0], y: sentinel.coord[1] - PIN_CAPTION_DROP }, remains * 0.85);
+  const anchorY = sentinel.coord[1] - PIN_CAPTION_DROP;
+  const { lift } = pinCaptionSet(f, lines.length, anchorY);
+  drawSlug(ctx, view, lines, { x: sentinel.coord[0], y: anchorY }, remains * 0.85,
+    "statement", -lift);
 }
 
 /** A heading enters at the start of its lane and finishes by the next one. */
@@ -805,6 +1211,47 @@ function windowHeadingArrival(writing: number, count: number, index: number): nu
   const lane = writing * count - index;
   return lane <= 0 ? 0 : Math.min(1,
     LEAGUE_ARRIVAL_K + (1 - LEAGUE_ARRIVAL_K) * lane);
+}
+
+/**
+ * How far each published name stands up at this instant, in `names` order:
+ * its arrival times its departure. One law, read by the names' own draw and by
+ * the receding season's words that give way to them.
+ */
+function headingPresence(f: Frame, inWindow: boolean, count: number): number[] {
+  const { st } = f;
+  // THE LEDGER WITHDRAWS: in the close each heading and recomputed figure
+  // departs on the reverse of the accumulation law that brought it —
+  // strict reverse arrival order, eased over exactly one name's spacing, so
+  // the last figure written is the first to leave and every heading stands
+  // absent at wash 1. Act V later rebuilds the surviving bare headings from
+  // this same function. Per-NAME, never per-line: a scope tag departing separately
+  // from its share would leave, for a moment, a recovered-set share standing
+  // without the scope that keeps it honest. Each departure is statable on the
+  // fold's own calendar — value i completes leaving when the reverse clock
+  // reads (i / names) of the window's days.
+  const rem = closeRemnant(f);
+  // They accumulate across the act and settle into the mid-range, which by this
+  // point in the piece is very nearly empty: the derived measures occupy exactly
+  // the space the geometry vacated.
+  const writing = inWindow ? ledgerWindowWritingProgress(st.phase) : st.phase * LEAGUE_ACCUM_K;
+  const shown = inWindow ? count : Math.min(count, Math.ceil(writing * count));
+  // The coda lifts the completed ring over every hand, and the ring runs
+  // between these two arcs. The names leave first, together, inside the share
+  // of the coda's clock that the close gives a single name to leave in, so the
+  // ring comes up over a ledger that has already emptied rather than through it.
+  const coda = Math.max(0, 1 - st.coda * count);
+  const out: number[] = [];
+  for (let i = 0; i < count; i++) {
+    const arriving = i >= shown ? 0 : inWindow
+      ? windowHeadingArrival(writing, count, i)
+      : Math.min(1, (shown - i) * LEAGUE_ARRIVAL_K);
+    const departing = inWindow && rem !== null
+      ? Math.max(0, Math.min(1, rem * count - i))
+      : 1;
+    out.push(arriving * departing * coda);
+  }
+  return out;
 }
 
 /**
@@ -834,43 +1281,24 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
   );
   const values = inWindow ? windowValues(data.window) : new Map<string, string[]>();
   const names = publishedInstead(data);
-  // THE LEDGER WITHDRAWS: in the close each heading and recomputed figure
-  // departs on the reverse of the accumulation law that brought it —
-  // strict reverse arrival order, eased over exactly one name's spacing, so
-  // the last figure written is the first to leave and every heading stands
-  // absent at wash 1. Act V later rebuilds the surviving bare headings from
-  // this same function. Per-NAME, never per-line: a scope tag departing separately
-  // from its share would leave, for a moment, a recovered-set share standing
-  // without the scope that keeps it honest. Each departure is statable on the
-  // fold's own calendar — value i completes leaving when the reverse clock
-  // reads (i / names) of the window's days.
   const rem = closeRemnant(f);
-
-  // They accumulate across the act and settle into the mid-range, which by this
-  // point in the piece is very nearly empty: the derived measures occupy exactly
-  // the space the geometry vacated. Two arcs, because one cannot hold all the
-  // phrases without them running off the floor.
   const writing = inWindow ? ledgerWindowWritingProgress(st.phase) : st.phase * LEAGUE_ACCUM_K;
-  const shown = inWindow ? names.length : Math.min(names.length, Math.ceil(writing * names.length));
-  // Both arcs sit inside the mid-range band, which by Act V is very nearly
+  const presence = headingPresence(f, inWindow, names.length);
+
+  // Two arcs, because one cannot hold all the phrases without them running off
+  // the floor. Both sit inside the mid-range band, which by Act V is very nearly
   // empty - `mid_share` says how nearly. The names occupy that emptiness, and
   // the spoken register reads these SAME boxes so it does not speak through them.
   const boxes = leagueBoxes(names);
   ctx.save();
-  for (let i = 0; i < shown; i++) {
+  for (let i = 0; i < names.length; i++) {
+    const visible = presence[i]!;
+    if (visible <= 0.01) continue;
     const text = names[i]!;
     const lab = label(text, px, dpr);
     const box = boxes[i]!;
     const x = view.sx(box.wx + box.w / 2);
     const y = view.sy(box.wy);
-    const arriving = inWindow
-      ? windowHeadingArrival(writing, names.length, i)
-      : Math.min(1, (shown - i) * LEAGUE_ARRIVAL_K);
-    const departing = inWindow && rem !== null
-      ? Math.max(0, Math.min(1, rem * names.length - i))
-      : 1;
-    const visible = arriving * departing;
-    if (visible <= 0.01) continue;
     ctx.globalAlpha = remains * LEAGUE_NAME_ALPHA * visible;
     ctx.drawImage(lab.canvas, x - lab.width / 2, y - lab.height / 2, lab.width, lab.height);
 
@@ -881,13 +1309,6 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
     if (v) {
       if (visible > 0.01) {
         ctx.globalAlpha = remains * LEAGUE_VALUE_ALPHA * visible;
-        // The recovered-set scope is the only multi-line value. Both display
-        // profiles place that block above its heading: below it sits the inner
-        // arc, and the earlier layout ran this evidence through DRIVES at the
-        // completed crest.
-        let vy = v.length > 1
-          ? y - lab.height * 0.75 - v.length * px * 1.35
-          : y + lab.height * 0.75;
         const valueLabels = v.map((line) => label(
           line,
           Math.max(
@@ -899,14 +1320,14 @@ function drawPublishedInstead(f: Frame, inWindow: boolean): void {
         const blockWidth = valueLabels.length > 1
           ? Math.max(...valueLabels.map((valueLabel) => valueLabel.width))
           : 0;
-        for (const vl of valueLabels) {
+        const tops = figureTops(v.length, px, lab.height, valueLabels[0]!.height);
+        valueLabels.forEach((vl, k) => {
           // A scoped value is one evidence block, not two unrelated captions.
           // Both lines share a left edge so the shorter share reads at once
           // with its longer scope statement.
           const vx = blockWidth > 0 ? x - blockWidth / 2 : x - vl.width / 2;
-          ctx.drawImage(vl.canvas, vx, vy, vl.width, vl.height);
-          vy += vl.height;
-        }
+          ctx.drawImage(vl.canvas, vx, y + tops[k]!, vl.width, vl.height);
+        });
       }
     }
   }

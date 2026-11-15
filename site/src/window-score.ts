@@ -11,6 +11,8 @@
  * score fail loudly.
  */
 
+import { HAND_NIGHT_GROUND_ALPHA } from "./scalars";
+
 export const WINDOW_DURATION_SECONDS = 150;
 
 /** A normalized interval in any authored score. */
@@ -87,7 +89,9 @@ export const WINDOW_SHARED_STOPS = WINDOW_BEATS.map((beat) => ({
 
 /** The preceding season leaves during the Window's dedicated entry span. This
  * is intentionally separate from ordinary-season ARRIVAL_TAIL: Act III may
- * dilate its evidence without leaving the prior season beneath it. */
+ * dilate its evidence without leaving the prior season beneath it. Every
+ * rendering withdraws on it except the two that name a span of their own
+ * (`WINDOW_ONE_WITHDRAW_SPAN`), and none of the shared beats moves with it. */
 export const WINDOW_ENTRY_SECONDS = 10;
 export const WINDOW_ENTRY_SPAN = {
   id: "entry",
@@ -96,8 +100,42 @@ export const WINDOW_ENTRY_SPAN = {
   to: phaseAtWindowSecond(WINDOW_ENTRY_SECONDS),
 } as const satisfies PhaseSpan;
 
-export function windowEntryProgress(phase: number): number {
-  return progressInWindowSpan(phase, WINDOW_ENTRY_SPAN);
+/** THE FIELD and THE LEDGER draw nothing of the one possession, so in them
+ * the preceding season's withdrawal is all the first beat holds. There it
+ * takes the whole beat and ends as the night begins, where the shared entry
+ * span would leave the court standing bare until then. An interior anchor of
+ * those two renderings: the beat's own bounds, and no boundary moves. */
+export const WINDOW_ONE_WITHDRAW_SPAN = {
+  id: "one-withdraw",
+  title: "the preceding season withdraws across the beat",
+  from: WINDOW_BEATS[0].from,
+  to: WINDOW_BEATS[0].to,
+} as const satisfies PhaseSpan;
+
+/** The preceding season's lead over the one possession. The season begins
+ * its withdrawal alone, and the possession starts this many Window seconds
+ * later, so its first stroke is laid over a field that has already sunk
+ * rather than into one at full strength. A score second like its
+ * neighbours: it moves when the possession starts and changes nothing about
+ * how any mark is drawn. */
+export const WINDOW_ONE_LEAD_SECONDS = 4;
+export const WINDOW_ONE_LEAD_SPAN = {
+  id: "lead",
+  title: "the preceding season recedes before the possession",
+  from: 0,
+  to: phaseAtWindowSecond(WINDOW_ONE_LEAD_SECONDS),
+} as const satisfies PhaseSpan;
+
+export function windowOneLeadProgress(phase: number): number {
+  return progressInWindowSpan(phase, WINDOW_ONE_LEAD_SPAN);
+}
+
+/** Screen seconds the one possession has been drawing at `phase`: none
+ * through the lead, then one for one, so the clip still runs at true rate.
+ * THE PLATE and THE HAND both read the clip's clock here and nowhere else,
+ * so the two show the same recorded frame of it at the same instant. */
+export function windowOneClipSeconds(phase: number): number {
+  return Math.max(0, phase * WINDOW_DURATION_SECONDS - WINDOW_ONE_LEAD_SECONDS);
 }
 
 const BEAT_SEASON = WINDOW_BEATS[2];
@@ -120,10 +158,14 @@ export const HAND_ONE_END_PHASE = phaseAtWindowSecond(HAND_ONE_SECONDS);
 /** The night is true-rate and must end at the shared season boundary. */
 export const HAND_NIGHT_FROM_PHASE =
   BEAT_SEASON.from - phaseAtWindowSecond(HAND_NIGHT_SECONDS);
-/** CLOSE-local point by which the Hand's closing inventory is fully present. */
+/** CLOSE-local point by which the Hand's closing inventory is fully present.
+ *  It has no exit anchor of its own: it counts the strokes, and from here it
+ *  leaves on the wash that takes them off, which ends with the close. */
 export const HAND_INVENTORY_FULL_CLOSE_LOCAL = 0.65;
-/** Completed NIGHT ground retained beneath the arriving season paint. */
-export const HAND_NIGHT_GROUND_ALPHA = 0.35;
+/** Completed NIGHT ground retained beneath the arriving season paint.
+ *  Declared in the register; named here because it is the score that says
+ *  when it applies. */
+export { HAND_NIGHT_GROUND_ALPHA };
 
 export function handWindowPhases(nightSeconds: number = HAND_NIGHT_SECONDS) {
   const nightFrom = BEAT_SEASON.from
@@ -150,7 +192,12 @@ export const HAND_WINDOW_STOPS = HAND_WINDOW_PHASES.map((span) => ({
 
 // --- THE PLATE: evidence in a legible order --------------------------------
 
-export const PLATE_POSSESSION_SECONDS = 5;
+/** How long the possession takes to draw on the plate, to the second. */
+export const PLATE_POSSESSION_DRAW_SECONDS = 5;
+/** The possession's span ends once it is drawn: the preceding season's lead,
+ *  then the draw. The span itself still opens with the Window, so the rail's
+ *  "one possession" stop stays at its first instant. */
+export const PLATE_POSSESSION_SECONDS = WINDOW_ONE_LEAD_SECONDS + PLATE_POSSESSION_DRAW_SECONDS;
 export const PLATE_HOLD_END_SECONDS = 10;
 export const PLATE_POSSESSION_END_PHASE = phaseAtWindowSecond(PLATE_POSSESSION_SECONDS);
 export const PLATE_GAME_FROM_PHASE = phaseAtWindowSecond(PLATE_HOLD_END_SECONDS);
@@ -247,15 +294,29 @@ export const PLATE_WINDOW_STOPS = [
   { id: "crest", title: "the filed record returns", at: WINDOW_CREST_PHASE },
   { id: "close", title: "the close", at: BEAT_CLOSE.from },
   { id: "last-gesture", title: "the last gesture", at: PLATE_GESTURE_LAST_PHASE },
-  { id: "shell", title: "the record's last file", at: PLATE_SHELL_FROM_PHASE },
+  { id: "shell", title: "the last public day", at: PLATE_SHELL_FROM_PHASE },
   { id: "receipt", title: "the receipt, held", at: PLATE_SHELL_FULL_PHASE },
 ] as const satisfies readonly WindowStop[];
 
 // --- THE FIELD: attribution, then the shared crescendo ---------------------
 
 export const FIELD_ATTRIBUTION_ENTER_SECONDS = 1;
-export const FIELD_ATTRIBUTION_EXIT_SECONDS = 13;
-export const FIELD_ATTRIBUTION_END_SECONDS = 15;
+/** How long the attribution takes to leave. */
+export const FIELD_ATTRIBUTION_EXIT_RAMP_SECONDS = 2;
+/** The attribution names the colours of the season it stands over, so it
+ * leaves with those colours rather than with the beat. In this rendering the
+ * season's light withdraws evenly across the whole first beat, and its
+ * colours go under near the beat's end: measured, they are still plainly
+ * there one possession lead before the night begins and nearly all gone one
+ * exit ramp later, so the line holds until then and fades over the seconds
+ * in which the last colour goes. The lead is borrowed as a length that lands
+ * where the colours measure, not as a meaning: no possession is drawn here.
+ * What stands for the rest of the beat, the sinking rim and its pin, is left
+ * without words. */
+export const FIELD_ATTRIBUTION_EXIT_SECONDS =
+  windowSecondAtPhase(WINDOW_ONE_WITHDRAW_SPAN.to) - WINDOW_ONE_LEAD_SECONDS;
+export const FIELD_ATTRIBUTION_END_SECONDS =
+  FIELD_ATTRIBUTION_EXIT_SECONDS + FIELD_ATTRIBUTION_EXIT_RAMP_SECONDS;
 
 export const FIELD_WINDOW_ATTRIBUTION_SPAN = {
   id: "attribution",
@@ -478,6 +539,7 @@ export const WINDOW_SCORE = {
     crestPhase: WINDOW_CREST_PHASE,
     crestLocal: WINDOW_SEASON_CREST,
     entry: WINDOW_ENTRY_SPAN,
+    oneLead: WINDOW_ONE_LEAD_SPAN,
   },
   hand: {
     spans: HAND_WINDOW_PHASES,

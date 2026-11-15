@@ -116,7 +116,12 @@ export const SCALARS = {
       "ink is CONSERVED, not identical: replaying the bake over the shipped " +
       "season_2015.bin, total deposited light varies under one per cent across K " +
       "in [1.0, 3.0], because FALLOFF_DISC_INTEGRAL normalises the splat's own " +
-      "overlap. So this is smoothness, to within that. Still `authored`: WHERE " +
+      "overlap. So this is smoothness, to within that. A third limit: the null " +
+      "is for the tenth-of-a-foot lattice only. Off the rim the record uses lines " +
+      "coarser than a tenth in most seasons (pipeline/checks/capture_grid.py " +
+      "prints them), and the pattern of those lines still shows in the field. " +
+      "The radius stays a multiple of the tenth and not of that measured spacing " +
+      "by the author's ruling. Still `authored`: WHERE " +
       "the zeros are follows from the falloff and the lattice, but WHICH one to " +
       "sit on is a judgement.",
   },
@@ -243,34 +248,6 @@ export const SCALARS = {
       "residence may never outshine the record it contextualises: raise it " +
       "and the dwelling starts to compete with the endings for the plate; " +
       "lower it and the window's ground goes back to bare stone.",
-  },
-
-  // --- the entry yield — the old season under arriving bodies --------------
-  //
-  // THE OLD SEASON YIELDS TO THE BODY (decided 2026-08-10, against a measured
-  // entry collision). At the window's entry the previous season's completed
-  // field outweighed the arriving possession by orders of magnitude at the
-  // one-frame test. The repair keeps the no-clear recession — the transition
-  // must stay a recession, never a cut — and adds a LOCAL drying: the prior
-  // layer composites through a per-frame mask that erases part of it along
-  // every body/ball vertex the clock has reached — an accumulating patina in
-  // the strokes' own wake, never a tracking spotlight. Untouched old marks
-  // persist whole; the wake dries the ground toward wash-tone rather than
-  // clearing it. The wake's radius is DERIVED from the residence's
-  // cell-splat radius — the occupancy grain, the scale at which the window
-  // already says "the game lived here" — so only the strength is authored.
-  OLD_YIELD_STRENGTH: {
-    class: "authored",
-    value: 0.65,
-    material: true,
-    controls:
-      "how much of the previous season's light the arriving bodies' wake " +
-      "takes down, per pass of the two-width penumbra (the core compounds " +
-      "both passes; below 1 the old marks always survive to a wash tone). " +
-      "At 0 the entry collision returns — the possession drawn into an " +
-      "undimmed prior field; at 1 the wake CLEARS the old season along the " +
-      "paths, which the entry rule forbids: the transition must stay a " +
-      "recession, never a cut.",
   },
 
   // --- the wet day — the window fold's visible front -----------------------
@@ -493,7 +470,7 @@ export const SCALARS = {
     value: 1.7,
     material: true,
     controls:
-      "radius, in court tenths, of a mark the record placed to the tenth of a " +
+      "radius, in court tenths, of a mark the record filed to the tenth of a " +
       "foot. Court units and not pixels: the era's grain must not change with the " +
       "window it is shown on.",
   },
@@ -570,7 +547,9 @@ export const SCALARS = {
       "within ~20/255 of the plate's black (measured: the beat's argument " +
       "was not on screen). This KNOWINGLY bends the one-conserved-DRIP rule for " +
       "exactly one beat, and says so here; the capped segment ceiling still " +
-      "applies above it.",
+      "applies above it. Where the walk has re-laid a possession stroke the " +
+      "lift stays on it while it is wet and dries away with it over " +
+      "GAME_WET_SECONDS, so the re-laying does not drop it in one frame.",
   },
   BEAD_CAP: {
     class: "authored",
@@ -1281,7 +1260,10 @@ export const SCALARS = {
     controls:
       "a floor in CSS pixels, the one place slug type is NOT in court units: " +
       "below it the mono face stops resolving at all and the statement is simply " +
-      "lost. It binds only on a small window.",
+      "lost. It binds on a small window, and it also decides which of THE " +
+      "CENSUS's share figures are struck, on the laptop as well: a figure is left " +
+      "out of a filing when its word, once the filing has arrived, would set it " +
+      "under this floor.",
   },
   SLUG_VOICE_ALPHA: {
     class: "authored",
@@ -1502,7 +1484,10 @@ export const SCALARS = {
       "curve one scale down. The feed underneath is measured; only the easing " +
       "is authored. Material because it decides which strokes exist on a " +
       "mid-phase frame. It shares the season clock's gentler acceleration so " +
-      "the game develops instead of stalling and then arriving as a rush.",
+      "the game develops instead of stalling and then arriving as a rush. " +
+      "Its inverse also dates every game stroke's drying: the instant the " +
+      "eased clock passes a stroke's last recorded frame is where " +
+      "GAME_WET_SECONDS starts counting.",
   },
   GAME_DRIED: {
     class: "authored",
@@ -1516,6 +1501,65 @@ export const SCALARS = {
       "was 0.45, and the first frames falsified it: a whole game's strokes " +
       "at that ink saturate into a solid zone-coloured poster that buries " +
       "the filed record beneath — the value here is the measured correction.",
+  },
+  GAME_WET_SECONDS: {
+    class: "authored",
+    value: 0.4,
+    material: true,
+    controls:
+      "how long a finished game stroke takes to dry from full ink to " +
+      "GAME_DRIED, in seconds on the screen. One value for the hand and the " +
+      "plate, and the same time for everything that dries with a stroke: the " +
+      "pass beads and shot anchors on both, each from the instant the clock " +
+      "reached it, and on THE HAND the lift ONE_INK gave the possession. " +
+      "The fall is a straight line, and the age it is measured on runs " +
+      "from the instant the eased game clock passed the stroke's last " +
+      "recorded frame, found through that clock's own inverse - so a stroke " +
+      "dries over the same time on screen whether the clock is crawling or " +
+      "racing through the feed. Longer and more of the game is bright at " +
+      "once, toward the saturated poster GAME_DRIED exists to prevent, and a " +
+      "stoppage in the feed reads as a held glow; shorter and a stroke that " +
+      "is laid inside one display frame is a flash, and the wet edge cannot " +
+      "be followed.",
+  },
+  WET_STROKES: {
+    class: "authored",
+    value: 6,
+    material: true,
+    controls:
+      "how many further strokes arrive while a season stroke in THE HAND is " +
+      "drawn from end to end: its head travels the stroke's own recorded time " +
+      "over that interval. At one each stroke is whole almost as it appears; " +
+      "larger values leave more strokes part-drawn at the season's edge.",
+  },
+  PLATE_WINDOW_FIELD_DIM: {
+    class: "authored",
+    value: 0.55,
+    material: true,
+    controls:
+      "how much of the season's filed field the plate takes down while the " +
+      "window's game is drawn over it. At nothing the tracked strokes are " +
+      "laid on a field at full brightness and the two records cannot be told " +
+      "apart; at one the field is gone and the game floats on bare stone.",
+  },
+  FIELD_INSCRIPTION_ALPHA: {
+    class: "authored",
+    value: 0.8,
+    material: true,
+    controls:
+      "the opacity of the struck numerals in THE FIELD. At one they sit as " +
+      "bright as on the plate and compete with the field this hand is for; " +
+      "lower and the numbers recede until the measure they state is lost.",
+  },
+  HAND_NIGHT_GROUND_ALPHA: {
+    class: "authored",
+    value: 0.35,
+    material: true,
+    controls:
+      "how much of the finished night's slate THE HAND keeps as ground " +
+      "beneath the arriving season paint. At one the night stays at full " +
+      "strength and the season is painted into it; at nothing the night " +
+      "vanishes the moment the season begins.",
   },
   PASS_MARK_R: {
     class: "authored",
@@ -1563,7 +1607,6 @@ export const RESIDENCE_TONE_K: number = SCALARS.RESIDENCE_TONE_K.value;
 export const RESIDENCE_ALPHA: number = SCALARS.RESIDENCE_ALPHA.value;
 export const WINDOW_WET_GAIN: number = SCALARS.WINDOW_WET_GAIN.value;
 export const WINDOW_WET_DAYS: number = SCALARS.WINDOW_WET_DAYS.value;
-export const OLD_YIELD_STRENGTH: number = SCALARS.OLD_YIELD_STRENGTH.value;
 export const ONE_INK: number = SCALARS.ONE_INK.value;
 
 export const RIM_FT: number = SCALARS.RIM_FT.value;
@@ -1700,5 +1743,10 @@ export const WASH_TONE_K: number = SCALARS.WASH_TONE_K.value;
 export const WASH_ALPHA: number = SCALARS.WASH_ALPHA.value;
 export const GAME_CLOCK_K: number = SCALARS.GAME_CLOCK_K.value;
 export const GAME_DRIED: number = SCALARS.GAME_DRIED.value;
+export const GAME_WET_SECONDS: number = SCALARS.GAME_WET_SECONDS.value;
+export const WET_STROKES: number = SCALARS.WET_STROKES.value;
+export const PLATE_WINDOW_FIELD_DIM: number = SCALARS.PLATE_WINDOW_FIELD_DIM.value;
+export const FIELD_INSCRIPTION_ALPHA: number = SCALARS.FIELD_INSCRIPTION_ALPHA.value;
+export const HAND_NIGHT_GROUND_ALPHA: number = SCALARS.HAND_NIGHT_GROUND_ALPHA.value;
 export const PASS_MARK_R: number = SCALARS.PASS_MARK_R.value;
 export const PASS_MARK_ALPHA: number = SCALARS.PASS_MARK_ALPHA.value;

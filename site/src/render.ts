@@ -14,11 +14,14 @@
 import { factExternal, type Loaded } from "./data";
 import { setContextDisplay, type DisplayProfile } from "./display";
 import { drawSettledInscriptions, drawSlug, type Inscription } from "./inscription";
-import { drawHand, modeAt, type ModeId } from "./modes";
+import { drawHand, modeAt, openingFieldOf, windowReadsOf, type ModeId } from "./modes";
+import { prewarmOpening } from "./modes/fieldlayer";
 import { completedStackState, NO_OPS, type StackRenderState } from "./modes/operations";
 import { GROUND } from "./palette";
 import { drawPlate, shortenedThreeR, type View } from "./plate";
-import { CUT_YEAR, stateAt, type Schedule } from "./timeline";
+import { SLUG_VOICE_TENTHS } from "./scalars";
+import { CODA_SECONDS, CUT_YEAR, stateAt, type Schedule } from "./timeline";
+import { THREE_R } from "./zone";
 
 /** Where a frame is drawn. `main()` keeps one and `resize()` updates it in
  *  place; the probes make their own at a fixed size and DPR. */
@@ -41,7 +44,7 @@ function ramp(p: number, a: number, b: number, c: number, d: number): number {
 }
 
 /** How much of the prelude the court takes to arrive. */
-const PRELUDE_ENGRAVING = 0.62;
+export const PRELUDE_ENGRAVING = 0.62;
 
 /**
  * The one cut this piece is allowed, given the beat that says what it IS.
@@ -64,7 +67,7 @@ const PRELUDE_ENGRAVING = 0.62;
  * Drawn here rather than in a hand, because it is a property of the RECORD and
  * every hand is looking at the same record.
  */
-const CUT_BEAT_SECONDS = 3.2;
+export const CUT_BEAT_SECONDS = 3.2;
 
 function regimeText(regime: string): string {
   return regime.replace(/_/g, " ").toUpperCase();
@@ -91,12 +94,54 @@ function drawCutBeat(
   // outgoing season's numeral holds and migrates through STRIKE_AT's band for
   // the beat's first three seconds, and the piece's one cut must not have its
   // cause statement overprinted by a migrating numeral. The band above the
-  // arc is unoccupied in both bounding seasons at every point of the beat,
-  // and the migration path (strike line down to the ring) can never reach it.
-  drawSlug(ctx, view, [
-    `${before.season}   ${pct(before)}% OF RIM SHOTS UNPLACED   ${regimeText(before.resolution.regime)}`,
-    `${after.season}   ${pct(after)}%   ${regimeText(after.resolution.regime)}`,
-  ], { x: 0, y: 295 }, smoothstep(k));
+  // arc is unoccupied in both bounding seasons at every point of the beat
+  // (THE MEASURE's own sentence there has stood down before the beat begins),
+  // and the migration path, round the hoop inside the strike line, can never
+  // reach it.
+  //
+  // The two lines are one table: season, share, regime, each in its own column.
+  // The face is monospaced, so padding every field to the wider of its two
+  // entries (the share to the right, so the points line up) makes the two
+  // strings the same length with each field starting at the same character,
+  // and two lines centred on one point then stand in columns.
+  const seasons = [before, after];
+  const seasonW = Math.max(...seasons.map((s) => s.season.length));
+  const pctW = Math.max(...seasons.map((s) => pct(s).length));
+  const regimeW = Math.max(...seasons.map((s) => regimeText(s.resolution.regime).length));
+  drawSlug(ctx, view, seasons.map((s) => `${s.season.padEnd(seasonW)}   `
+    + `${pct(s).padStart(pctW)}% OF RIM SHOTS UNPLACED   `
+    + `${regimeText(s.resolution.regime).padEnd(regimeW)}`), { x: 0, y: 295 }, smoothstep(k));
+}
+
+/**
+ * Ask for the season after this one, on this one's frames.
+ *
+ * For the loop of a route that plays the seasons in order, called once that
+ * loop has drawn its frame, so the frame's own files are asked for first; and
+ * nothing is asked ahead while any file a frame asked for is still on its
+ * way, since a request made ahead would share the link with what the frame
+ * is waiting for. The next season is first drawn when this one ends, so its
+ * record is here when the work done ahead of the hand-over looks for it. The
+ * window season reads more files than its points, and which of them depends
+ * on the hand that will play it, so the hand playing now names them.
+ *
+ * `renderTo` does not call it. A caller that draws instants out of order may
+ * never draw the season after the one it is on, and asking there would
+ * download a file no frame reads.
+ */
+export function askAhead(
+  t: number,
+  data: Loaded,
+  schedule: Schedule,
+  modeOverride: ModeId | null,
+): void {
+  if (data.pendingAssets().length > 0) return;
+  const st = stateAt(t, schedule);
+  if (st.next === null) return;
+  data.prefetchPoints(st.next);
+  if (data.byYear.get(st.next)?.points_by_day) {
+    data.prefetchWindow(windowReadsOf(modeAt(t, schedule, modeOverride)));
+  }
 }
 
 export function renderTo(
@@ -162,11 +207,18 @@ export function renderTo(
     const founded = factExternal<number>(data.facts, "league_founded");
     // `voice`, both of them: the piece opens on this, alone, over bare stone,
     // with nothing else competing. Splitting the timing changes no rank — both
-    // lines share the voice rank (ranks: inscription.ts, `SlugRank`).
+    // lines share the voice rank (ranks: inscription.ts, `SlugRank`). The span
+    // stands a line of its own type above the arc's crown, wholly clear of the
+    // engraving, rather than with its tops on it.
     drawSlug(ctx, view, [`${founded} — ${firstCharted ?? ""}`],
-      { x: 0, y: 232 }, ramp(p, 0.14, 0.30, 0.80, 0.97), "voice");
+      { x: 0, y: THREE_R + SLUG_VOICE_TENTHS }, ramp(p, 0.14, 0.30, 0.80, 0.97), "voice");
     drawSlug(ctx, view, ["NO SHOT WAS GIVEN A PLACE"],
       { x: 0, y: 176 }, ramp(p, 0.44, 0.62, 0.84, 0.99), "voice");
+    // No hand draws here, so none is building ahead of the first season: the
+    // prelude does it for the hand about to play. After every draw of this
+    // frame, and it takes no context.
+    const opening = openingFieldOf(modeAt(t, schedule, modeOverride));
+    if (opening) prewarmOpening(view, dpr, st, data, opening.coloured, opening.reveal);
     return;
   }
 
@@ -207,10 +259,15 @@ export function renderTo(
 
   // The coda lets the completed evidence sit above the withdrawing hand. Hold
   // the ring through most of the seven seconds, then take the final fade to the
-  // same bare ground the prelude opens on.
+  // same bare ground the prelude opens on. It comes up over the share of the
+  // coda's own clock that one of its seconds is, rather than whole on the
+  // coda's first frame: over a hand that does not draw the ring, the whole
+  // ring appearing at once is a second cut, and over one that does, the
+  // overprint strengthens a ring already there instead of stepping it.
   if (st.coda > 0) {
     const ring = st.coda <= 0.65 ? 1 : Math.max(0, (1 - st.coda) / 0.35);
-    drawSettledInscriptions(ctx, view, inscriptions, st.t, ring);
+    const lift = smoothstep(st.coda * CODA_SECONDS);
+    drawSettledInscriptions(ctx, view, inscriptions, st.t, ring * lift);
   }
 
   // Last, and over whichever hand is drawing: the cut is the record's event,

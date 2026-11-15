@@ -74,8 +74,10 @@ const HOLD = 0.8;
 const STRIKE_DELAY = ARRIVAL_TAIL * SEASON_SECONDS;
 
 const FACE_SIZE = 34;
-/** Small enough that a numeral per season fits the annulus without touching. */
-const RESIDENT_SCALE = 0.3;
+/** Small enough that a numeral per season fits the annulus without touching,
+ *  and large enough that the settled ring reads on a laptop at normal viewing
+ *  distance, where the piece is judged. */
+const RESIDENT_SCALE = 0.34;
 
 export interface Inscription {
   year: number;
@@ -100,6 +102,8 @@ export interface Inscription {
   slot: { x: number; y: number };
   /** Where on the ring, in radians - the numeral lies tangent to it. */
   angle: number;
+  /** The angle between two neighbouring slots, in radians. */
+  slotStep: number;
 }
 
 /** The NBA's own category, named as theirs. Disclosed in wall text. */
@@ -165,6 +169,7 @@ export function buildInscriptions(seasons: Season[], schedule: Schedule): Inscri
       migrate: migrationEnd - delay - STRIKE_IN - hold,
       slot: { x: RING_R * Math.cos(a), y: RING_R * Math.sin(a) },
       angle: a,
+      slotStep: Math.PI / n,
     };
   });
 }
@@ -194,10 +199,25 @@ function placementAt(ins: Inscription, t: number): Placement | null {
   if (u < STRIKE_IN + ins.hold) {
     return { x: STRIKE_AT.x, y: STRIKE_AT.y, scale: 1, alpha: 1, settled: 0 };
   }
+  // AROUND THE HOOP, NOT ACROSS IT. A straight line from the strike point to a
+  // slot on the right cuts back through the ring where earlier seasons already
+  // stand, and the travelling figure lies on them. Bearing and radius move
+  // separately instead: the figure goes round at the strike point's own radius,
+  // outside the ring, and comes down onto its slot only over the last slot's
+  // width of the journey (all of it, when the journey is shorter than that),
+  // the radius arriving last, so it reaches its place from outside and lies on
+  // nothing on the way. The bearing turns with the same eased progress the
+  // rotation does, so the figure stays tangent to the ring as it goes.
   const p = easeInOut((u - STRIKE_IN - ins.hold) / ins.migrate);
+  const fromBearing = Math.atan2(STRIKE_AT.y, STRIKE_AT.x);
+  const fromR = Math.hypot(STRIKE_AT.x, STRIKE_AT.y);
+  const bearing = fromBearing + (ins.angle - fromBearing) * p;
+  const journey = Math.max(1, Math.abs(ins.angle - fromBearing) / ins.slotStep);
+  const left = Math.min(1, (1 - p) * journey);
+  const r = RING_R + (fromR - RING_R) * (1 - (1 - left) * (1 - left));
   return {
-    x: STRIKE_AT.x + (ins.slot.x - STRIKE_AT.x) * p,
-    y: STRIKE_AT.y + (ins.slot.y - STRIKE_AT.y) * p,
+    x: r * Math.cos(bearing),
+    y: r * Math.sin(bearing),
     scale: 1 + (RESIDENT_SCALE - 1) * p,
     alpha: 1 - 0.55 * p,
     settled: p,
@@ -276,6 +296,72 @@ const SLUG_RANK: Record<SlugRank, { tenths: number; alpha: number }> = {
   aside: { tenths: SLUG_ASIDE_TENTHS, alpha: SLUG_ASIDE_ALPHA },
 };
 
+/** A slug's type size at this view, in pixels: its rank's court size, never
+ *  under the piece's floor nor, in the room profile, the room's. */
+function slugPx(ctx: CanvasRenderingContext2D, view: View, rank: SlugRank): number {
+  const room = contextDisplay(ctx) === "room";
+  return Math.max(SLUG_MIN_PX, view.s(SLUG_RANK[rank].tenths), room ? ROOM_TEXT_MIN_PX[rank] : 0);
+}
+
+/** A slug's face, set on the context: one place, so a line is measured in
+ *  exactly the type it is drawn in. */
+function setSlugFace(ctx: CanvasRenderingContext2D, px: number): void {
+  ctx.font = `${px}px ${SLUG_FAMILY}`;
+  ctx.letterSpacing = `${px * 0.14}px`;
+}
+
+/** The step from one line of a slug to the next, in ems: its leading. Named
+ *  so that `slugSlots` stands the lines where `drawSlug` sets them. */
+const SLUG_LEADING = 1.9;
+
+/**
+ * The box one line of a slug takes at this view, in pixels, for a caller that
+ * has to know whether a line fits a place before standing it there. Measured
+ * on the destination in the slug's own face, every time it is asked.
+ */
+export function slugBox(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  line: string,
+  rank: SlugRank = "statement",
+): { width: number; height: number } {
+  const px = slugPx(ctx, view, rank);
+  ctx.save();
+  setSlugFace(ctx, px);
+  const width = ctx.measureText(line).width;
+  ctx.restore();
+  return { width, height: px };
+}
+
+/**
+ * The slot each line of a slug stands in, as `drawSlug` sets the lines at `at`
+ * (no offset, turn or upward setting), in pixels: one leading tall, centred on
+ * the line, and as wide as the line's measured advance with the same clearance
+ * at its two ends as the leading leaves above and below its em. For a caller
+ * that keeps a mark off the type. Measured on the destination in the slug's
+ * own face every time it is asked, so a slot cannot drift from its line.
+ */
+export function slugSlots(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  lines: string[],
+  at: { x: number; y: number },
+  rank: SlugRank = "statement",
+): { x: number; y: number; width: number; height: number }[] {
+  const px = slugPx(ctx, view, rank);
+  const step = px * SLUG_LEADING;
+  const clearance = (step - px) / 2;
+  ctx.save();
+  setSlugFace(ctx, px);
+  const slots = lines.map((line, i) => {
+    const across = ctx.measureText(line).width + clearance * 2;
+    return { x: view.sx(at.x) - across / 2, y: view.sy(at.y) + i * step - step / 2,
+             width: across, height: step };
+  });
+  ctx.restore();
+  return slots;
+}
+
 export function drawSlug(
   ctx: CanvasRenderingContext2D,
   view: View,
@@ -284,25 +370,92 @@ export function drawSlug(
   alpha: number,
   rank: SlugRank = "statement",
   offsetPx = 0,
+  /** Turns the lines about `at`, offset and all, for words that ride with a
+   *  numeral as it turns into the ring. */
+  rotation = 0,
+  /** Set the block up from `at`: its last line there, the rest above it. For
+   *  a block whose clearance lies below it, which then holds at any type size
+   *  and line count. */
+  upward = false,
 ): void {
   if (alpha <= 0.01) return;
   const r = SLUG_RANK[rank];
   const room = contextDisplay(ctx) === "room";
-  const px = Math.max(SLUG_MIN_PX, view.s(r.tenths), room ? ROOM_TEXT_MIN_PX[rank] : 0);
+  const px = slugPx(ctx, view, rank);
   const ink = room
     ? Math.max(r.alpha, rank === "voice" ? 0.94 : rank === "statement" ? 0.84 : 0.76)
     : r.alpha;
   ctx.save();
-  ctx.font = `${px}px ${SLUG_FAMILY}`;
+  setSlugFace(ctx, px);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.letterSpacing = `${px * 0.14}px`;
   ctx.fillStyle = `rgba(${BONE_RGB}, ${alpha * ink})`;
+  let x = view.sx(at.x);
+  let y = view.sy(at.y);
+  if (rotation !== 0) {
+    ctx.translate(x, y);
+    ctx.rotate(rotation);
+    x = 0;
+    y = 0;
+  }
+  if (upward) offsetPx -= (lines.length - 1) * px * SLUG_LEADING;
   lines.forEach((line, i) => {
-    ctx.fillText(line, view.sx(at.x), view.sy(at.y) + offsetPx + i * px * 1.9);
+    ctx.fillText(line, x, y + offsetPx + i * px * SLUG_LEADING);
   });
   ctx.letterSpacing = "0px";
   ctx.restore();
+}
+
+/** The room profile's size for a numeral on the ring, unless its slot cannot
+ *  hold one that large (`ringFloorPx`). */
+const ROOM_RING_MIN_PX = 14;
+
+/**
+ * The room profile's floor for a numeral on the ring; near has none.
+ *
+ * The ring is laid out in court tenths and the room's floor is in pixels, so
+ * on a window short enough the floor alone would strike every figure wider than
+ * its slot and the whole ring would read as one unbroken string of digits. The
+ * floor is therefore capped by what a slot holds: the arc between two slots at
+ * this view, set as the widest figure on the ring followed by a word space of
+ * the face it is struck in — the ring read as a line of figures with word
+ * spaces between them. Measured on the destination, at the floor's own size and
+ * with `strike`'s letter-spacing, so the ruler and the pen agree; nothing is
+ * kept between frames.
+ */
+function ringFloorPx(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  inscriptions: Inscription[],
+): number {
+  if (contextDisplay(ctx) !== "room" || inscriptions.length === 0) return 0;
+  const slotPitch = view.s(RING_R) * Math.PI / inscriptions.length;
+  ctx.save();
+  ctx.font = `${ROOM_RING_MIN_PX}px ${INSCRIPTION_FAMILY}`;
+  ctx.letterSpacing = `${Math.max(1, ROOM_RING_MIN_PX * STRIKE_LETTER_SPACING)}px`;
+  let widest = 0;
+  for (const ins of inscriptions) {
+    widest = Math.max(widest, ctx.measureText(`${ins.text} `).width);
+  }
+  ctx.letterSpacing = "0px";
+  ctx.restore();
+  return Math.min(ROOM_RING_MIN_PX, ROOM_RING_MIN_PX * slotPitch / widest);
+}
+
+/**
+ * A numeral's size, wherever it is on its way.
+ *
+ * Central size carries the measurement: 39·9 is struck large and 9·7 small, so
+ * the figure shrinks with the thing it counts. The ring is uniform, because
+ * there the numerals are a garland and have to stay legible. The room's floor
+ * comes in with the migration rather than on the frame the numeral lands, so a
+ * figure that has shrunk on its way out does not jump to the floor as it
+ * settles.
+ */
+function numeralPx(ins: Inscription, p: Placement, view: View, floor: number): number {
+  const byWeight = 0.55 + 1.05 * Math.min(1, ins.weight / 0.4);
+  const sized = FACE_SIZE * (byWeight + (1 - byWeight) * p.settled);
+  return Math.max(sized * p.scale * (view.scale / 2), floor * p.settled);
 }
 
 /**
@@ -316,20 +469,13 @@ export function drawInscriptions(
   inscriptions: Inscription[],
   t: number,
 ): void {
+  const floor = ringFloorPx(ctx, view, inscriptions);
   ctx.save();
   for (const ins of inscriptions) {
     const p = placementAt(ins, t);
     if (!p) continue;
 
-    // Central size carries the measurement: 39·9 is struck large and 9·7 small,
-    // so the figure shrinks with the thing it counts. The ring is uniform,
-    // because there the numerals are a garland and have to stay legible.
-    const byWeight = 0.55 + 1.05 * Math.min(1, ins.weight / 0.4);
-    const sized = FACE_SIZE * (byWeight + (1 - byWeight) * p.settled);
-    const px = Math.max(
-      sized * p.scale * (view.scale / 2),
-      contextDisplay(ctx) === "room" && p.settled >= 0.999 ? 14 : 0,
-    );
+    const px = numeralPx(ins, p, view, floor);
     // Struck upright in the middle, turning into the ring as it settles.
     const rotation = (Math.PI / 2 - ins.angle) * p.settled;
     strike(ctx, ins.text, view.sx(p.x), view.sy(p.y), px, p.alpha, rotation);
@@ -339,27 +485,33 @@ export function drawInscriptions(
     const naming = (1 - p.settled) * p.alpha;
     if (naming > 0.01) {
       // `aside`: this names the numeral above it and must stay subordinate to
-      // it. Numerically what every slug in the piece used to be.
-      drawSlug(ctx, view, [ins.label], { x: p.x, y: p.y }, naming * 0.9, "aside", -px * 0.85);
+      // it. Numerically what every slug in the piece used to be. It turns with
+      // the figure, so on the way round it stays on the figure's outer side and
+      // is never laid across the ring the figure is travelling outside.
+      drawSlug(ctx, view, [ins.label], { x: p.x, y: p.y }, naming * 0.9, "aside", -px * 0.85,
+        rotation);
     }
 
     // The counter-reading rides just below, and only for as long as the two
     // disagree: it fades out as the pair migrates, leaving the taxonomy's
-    // number on the ring because that is the category the league kept.
+    // number on the ring because that is the category the league kept. Below
+    // in the figure's own frame, so the group turns as one with the name.
     if (ins.counter) {
       const fade = 1 - p.settled;
       if (fade > 0.01) {
+        const below = px * 1.15;
         strike(
           ctx,
           ins.counter,
-          view.sx(p.x),
-          view.sy(p.y) + px * 1.15,
+          view.sx(p.x) - below * Math.sin(rotation),
+          view.sy(p.y) + below * Math.cos(rotation),
           px * 0.86,
           p.alpha * fade * 0.8,
+          rotation,
         );
         if (ins.counterLabel) {
           drawSlug(ctx, view, [ins.counterLabel], { x: p.x, y: p.y },
-            p.alpha * fade * 0.75, "aside", px * 1.75);
+            p.alpha * fade * 0.75, "aside", px * 1.75, rotation);
         }
       }
     }
@@ -378,16 +530,12 @@ export function drawSettledInscriptions(
   alpha: number,
 ): void {
   if (alpha <= 0.01) return;
+  const floor = ringFloorPx(ctx, view, inscriptions);
   ctx.save();
   for (const ins of inscriptions) {
     const p = placementAt(ins, t);
     if (!p || p.settled < 0.999) continue;
-    const byWeight = 0.55 + 1.05 * Math.min(1, ins.weight / 0.4);
-    const sized = FACE_SIZE * (byWeight + (1 - byWeight) * p.settled);
-    const px = Math.max(
-      sized * p.scale * (view.scale / 2),
-      contextDisplay(ctx) === "room" ? 14 : 0,
-    );
+    const px = numeralPx(ins, p, view, floor);
     const rotation = (Math.PI / 2 - ins.angle) * p.settled;
     // A stronger overprint than the engraved under-layer; still cut through
     // `strike`, so face/shadow material remains one system.

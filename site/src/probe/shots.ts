@@ -18,14 +18,15 @@
  */
 
 import { buildInscriptions } from "../inscription";
-import type { DisplayProfile } from "../display";
+import { boundedDpr, type DisplayProfile } from "../display";
 import { isModeId, type ModeId } from "../modes";
 import { completedStackState, parseOps } from "../modes/operations";
 import { GROUND } from "../palette";
 import { makeView } from "../plate";
 import { renderTo } from "../render";
 import { semanticStopById, semanticTime } from "../semantic";
-import { cold, forceResidency } from "./shared";
+import { ARRIVAL_TAIL, WINDOW_YEAR } from "../timeline";
+import { cold, diffPixels, forceResidency } from "./shared";
 import type { Env } from "./shared";
 
 export interface ShotRequest {
@@ -33,9 +34,22 @@ export interface ShotRequest {
   t?: number;
   /** Human-readable score address. A valid stop takes precedence over t. */
   stop?: string;
+  /** A season, addressed at rest: the middle of the hold between the end of
+   *  its arrival and the next season's first frame. The frame a comparison of
+   *  two finished seasons wants, without a typed second that drifts when the
+   *  score does. Takes precedence over t. */
+  settled?: number;
   width: number;
   height: number;
-  dpr: number;
+  /** A ratio, or `"bounded"` for the one the full work would draw this
+   *  viewport at on a display of `deviceDpr`. A plain ratio above the budget
+   *  is a frame the piece never shows anybody. */
+  dpr: number | "bounded";
+  /** The display's own ratio, read only when `dpr` is `"bounded"`. */
+  deviceDpr?: number;
+  /** Pin the software rasteriser, so two runs of one build are the same
+   *  bytes. For comparing files; it is not how the piece looks on a screen. */
+  exact?: boolean;
   talk?: boolean;
   display?: DisplayProfile;
   /** THE STACK's operation token, exactly as `?ops=` carries it — `lci` for
@@ -66,27 +80,52 @@ export async function shotsProbe(env: Env): Promise<void> {
   await forceResidency(env.data, () => {});
   const inscriptions = buildInscriptions(env.data.seasons, env.schedule);
 
+  const settledAt = (year: number): number => {
+    const seg = env.schedule.byYear.get(year);
+    if (!seg) throw new Error(`settled: no season ${year} in the score`);
+    // The window season is not an arrival and a rest; it is the acts.
+    if (year === WINDOW_YEAR) throw new Error(`settled: season ${year} is the window; name a stop`);
+    return seg.start + seg.duration * (ARRIVAL_TAIL + 1) / 2;
+  };
+
   const resolve = (r: ShotRequest): { time: number; mode: ModeId | null } => {
     const stop = semanticStopById(r.stop ?? null);
+    // A name that is not in the score used to fall through to whatever else
+    // the request carried, and the picture was filed under the name anyway.
+    if (r.stop && !stop) throw new Error(`no such stop: ${r.stop}`);
+    if (!stop && !isModeId(r.mode)) throw new Error(`no such hand: ${r.mode}`);
     const at = stop
       ? semanticTime(stop, env.schedule, env.data.slateFile?.span.seconds)
-      : null;
+      : r.settled !== undefined ? settledAt(r.settled) : null;
+    // An instant that is not a number used to draw second zero and call it
+    // the frame asked for, so a mistyped list was a set of bare plates filed
+    // under the right names.
+    if (at === null && !Number.isFinite(r.t)) {
+      throw new Error(`not an instant: ${String(r.t)} (give t, a stop or a settled season)`);
+    }
     return {
-      time: at ?? (Number.isFinite(r.t) ? Math.max(0, r.t!) : 0),
+      time: at ?? Math.max(0, r.t!),
       mode: stop?.mode ?? (isModeId(r.mode) ? r.mode : null),
     };
   };
 
+  const ratioOf = (r: ShotRequest): number =>
+    r.dpr === "bounded" ? boundedDpr(r.width, r.height, r.deviceDpr ?? 1) : r.dpr;
+
   const draw = (r: ShotRequest, readback: boolean): CanvasRenderingContext2D => {
+    const dpr = ratioOf(r);
     const el = document.createElement("canvas");
-    el.width = Math.round(r.width * r.dpr);
-    el.height = Math.round(r.height * r.dpr);
+    // Floored, as the gallery floors its own backing: at a bounded ratio the
+    // product is not a whole number, and a frame one pixel wider than the
+    // piece's is a different resampling of every cached layer.
+    el.width = Math.max(1, Math.floor(r.width * dpr));
+    el.height = Math.max(1, Math.floor(r.height * dpr));
     const ctx = el.getContext("2d", { alpha: false, willReadFrequently: readback })!;
-    ctx.setTransform(r.dpr, 0, 0, r.dpr, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     cold();
     const resolved = resolve(r);
     renderTo(
-      { ctx, view: makeView(r.width, r.height), dpr: r.dpr },
+      { ctx, view: makeView(r.width, r.height), dpr },
       resolved.time, env.data, env.schedule, inscriptions, resolved.mode,
       r.talk ?? false, false, completedStackState(parseOps(r.ops ?? null)),
       r.candidate ?? null, r.display ?? (r.talk ? "room" : "near"),
@@ -95,7 +134,54 @@ export async function shotsProbe(env: Env): Promise<void> {
   };
 
   (window as unknown as Record<string, unknown>).__shot = async (r: ShotRequest) =>
-    draw(r, false).canvas.toDataURL("image/png");
+    draw(r, r.exact ?? false).canvas.toDataURL("image/png");
+
+  /** What the driver was actually given: the instant an address resolved to
+   *  and the ratio and backing a surface came out at, so a file name's claim
+   *  can be read against the frame behind it. */
+  (window as unknown as Record<string, unknown>).__shotFacts = (r: ShotRequest) => {
+    const dpr = ratioOf(r);
+    return {
+      t: resolve(r).time,
+      dpr,
+      backing: {
+        width: Math.max(1, Math.floor(r.width * dpr)),
+        height: Math.max(1, Math.floor(r.height * dpr)),
+      },
+    };
+  };
+
+  /**
+   * Two finished pictures, compared in the terms every verdict uses.
+   *
+   * For a person deciding where to look, not for a gate: it says how many
+   * channels differ between two files and by how much at most, and nothing
+   * about whether that matters. Decoded with no colour conversion, so what is
+   * compared is the bytes the two captures wrote.
+   */
+  (window as unknown as Record<string, unknown>).__diffPng = async (a: string, b: string) => {
+    const pixels = async (url: string) => {
+      const bitmap = await createImageBitmap(await (await fetch(url)).blob(), {
+        colorSpaceConversion: "none",
+        premultiplyAlpha: "none",
+      });
+      const el = document.createElement("canvas");
+      el.width = bitmap.width;
+      el.height = bitmap.height;
+      const ctx = el.getContext("2d", { alpha: false, willReadFrequently: true })!;
+      ctx.drawImage(bitmap, 0, 0);
+      bitmap.close();
+      return { width: el.width, height: el.height,
+               data: ctx.getImageData(0, 0, el.width, el.height).data };
+    };
+    const [pa, pb] = [await pixels(a), await pixels(b)];
+    if (pa.width !== pb.width || pa.height !== pb.height) {
+      return { comparable: false, a: [pa.width, pa.height], b: [pb.width, pb.height] };
+    }
+    const d = diffPixels(pa.data, pb.data, pa.width);
+    return { comparable: true, channels: d.channels, share: d.share,
+             maxDelta: d.maxDelta, firstPixel: d.firstPixel };
+  };
 
   /**
    * WHAT A FRAME WEIGHS, which is the only honest way to look for a passage
@@ -111,7 +197,9 @@ export async function shotsProbe(env: Env): Promise<void> {
    * the top of the prelude is composed absence, not a fault.
    */
   (window as unknown as Record<string, unknown>).__frameStats = async (r: ShotRequest) => {
-    const ctx = draw(r, true);
+    // Read back from the rasteriser the picture itself is taken on, so the
+    // figures written beside a PNG are figures about that PNG.
+    const ctx = draw(r, r.exact ?? true);
     const { width, height } = ctx.canvas;
     const d = ctx.getImageData(0, 0, width, height).data;
     let lit = 0;

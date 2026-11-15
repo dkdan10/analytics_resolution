@@ -4,9 +4,9 @@
 
 Grain is a measurement, not a mood. Every material property of a mark in FADEAWAY — its radius, stroke width, opacity, colour, bead count, pooling, falloff or tone — derives from a measured property of the record. Where one genuinely cannot be measured, it is named here, in one place, with what it controls.
 
-**148 scalars**, 107 of them material: 2 measured, 3 geometry, 143 authored.
+**152 scalars**, 111 of them material: 2 measured, 3 geometry, 147 authored.
 
-A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts`, `prefix.ts`, `inscription.ts`, `modes/ledger.ts`, `modes/census.ts`, `palette.ts`, `modes/stack.ts`, `modes/operations.ts`, `modes/fieldlayer.ts`, `modes/shared.ts`, `game.ts`, `wash.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
+A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/hand.ts`, `modes/measure.ts`, `prefix.ts`, `inscription.ts`, `modes/ledger.ts`, `modes/census.ts`, `palette.ts`, `modes/stack.ts`, `modes/operations.ts`, `modes/fieldlayer.ts`, `modes/shared.ts`, `game.ts`, `wash.ts`, `modes/plate.ts`, `modes/field.ts`, `render.ts`, `modes/index.ts`, `plate.ts`, `textatlas.ts`, `main.ts`, `overview.ts` — may not write a material number inline; `npm run check:numbers` fails the build if one appears.
 
 ## measured
 
@@ -39,7 +39,7 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
 - **SPLAT_MIN_PX** — **1.5**  
   the smallest splat radius in device pixels, so a coordinate still deposits something at small window sizes.
 - **SPLAT_SPACING_K** — **1.8494**  
-  splat radius as a multiple of the lattice spacing — how far neighbouring coordinates bleed together. THE OLD DISCLOSURE MISDESCRIBED ITS OWN FAILURE: it said the artefact appears 'below about 1', and the failure is not smallness. The falloff is a peak-1 paraboloid on a disc of radius K*spacing, so its response at the lattice's own fundamental is PROPORTIONAL TO J2(2*pi*K), whose argument is K and nothing else — the spacing cancels because the radius is a multiple of it. That response has ZEROS at 0.8174, 1.3396, 1.8494 and 2.3548 (j2,n / 2*pi) and SIDELOBES BETWEEN THEM. The old 1.45 sat on a sidelobe, which is why earlier probe sweeps reported the record's own grid beating through the field at every window size and none could say why. This is the third zero: the lowest that also INCREASES neighbour bleed, which is the other half of what this scalar is for. Two limits, stated because an earlier version of this line overclaimed both. The K-only result is a CONTINUOUS one and the kernel is pixel-sampled, so at low device ratios — where the radius is only two or three device pixels — the null is shallower than the algebra promises. And ink is CONSERVED, not identical: replaying the bake over the shipped season_2015.bin, total deposited light varies under one per cent across K in [1.0, 3.0], because FALLOFF_DISC_INTEGRAL normalises the splat's own overlap. So this is smoothness, to within that. Still `authored`: WHERE the zeros are follows from the falloff and the lattice, but WHICH one to sit on is a judgement.
+  splat radius as a multiple of the lattice spacing — how far neighbouring coordinates bleed together. THE OLD DISCLOSURE MISDESCRIBED ITS OWN FAILURE: it said the artefact appears 'below about 1', and the failure is not smallness. The falloff is a peak-1 paraboloid on a disc of radius K*spacing, so its response at the lattice's own fundamental is PROPORTIONAL TO J2(2*pi*K), whose argument is K and nothing else — the spacing cancels because the radius is a multiple of it. That response has ZEROS at 0.8174, 1.3396, 1.8494 and 2.3548 (j2,n / 2*pi) and SIDELOBES BETWEEN THEM. The old 1.45 sat on a sidelobe, which is why earlier probe sweeps reported the record's own grid beating through the field at every window size and none could say why. This is the third zero: the lowest that also INCREASES neighbour bleed, which is the other half of what this scalar is for. Two limits, stated because an earlier version of this line overclaimed both. The K-only result is a CONTINUOUS one and the kernel is pixel-sampled, so at low device ratios — where the radius is only two or three device pixels — the null is shallower than the algebra promises. And ink is CONSERVED, not identical: replaying the bake over the shipped season_2015.bin, total deposited light varies under one per cent across K in [1.0, 3.0], because FALLOFF_DISC_INTEGRAL normalises the splat's own overlap. So this is smoothness, to within that. A third limit: the null is for the tenth-of-a-foot lattice only. Off the rim the record uses lines coarser than a tenth in most seasons (pipeline/checks/capture_grid.py prints them), and the pattern of those lines still shows in the field. The radius stays a multiple of the tenth and not of that measured spacing by the author's ruling. Still `authored`: WHERE the zeros are follows from the falloff and the lattice, but WHICH one to sit on is a judgement.
 - **DEVELOP_STATES** — **4**  
   how many exposure states the development passes through on its way to the measured image. The endpoints are fixed — black, and the tone curve TONE_K and TONE_CEILING define — so this only sets how finely the path between them is sampled: fewer states and the crossfade between under-exposures gets coarser; more and the development approaches a continuous deepening, at one full-plate bake per state per season.
 - **DEVELOP_STEP** — **4**  
@@ -52,8 +52,6 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
   how fast a cell's share of the ball's measured time saturates toward full glow. Lower and only the densest corridors of the ball's traffic survive the tone curve while the mid-floor sinks to nothing; higher and the whole window ground flattens toward one undifferentiated sheet, which is atmosphere — rule 3's exact failure for this layer.
 - **RESIDENCE_ALPHA** — **0.35**  
   how much of the stone's light is the ball's time, under the shots' endings — the whole-layer weight the beat envelope multiplies. The residence may never outshine the record it contextualises: raise it and the dwelling starts to compete with the endings for the plate; lower it and the window's ground goes back to bare stone.
-- **OLD_YIELD_STRENGTH** — **0.65**  
-  how much of the previous season's light the arriving bodies' wake takes down, per pass of the two-width penumbra (the core compounds both passes; below 1 the old marks always survive to a wash tone). At 0 the entry collision returns — the possession drawn into an undimmed prior field; at 1 the wake CLEARS the old season along the paths, which the entry rule forbids: the transition must stay a recession, never a cut.
 - **WINDOW_WET_GAIN** — **3**  
   how far above its folded tone a record lands while its day is wet — the excess is this multiple of the record's own fold increment, drying back to exactly that increment. At 0 the front vanishes and the season beat returns to its sub-liminal fold; low and the front sinks under the finished game web; high and the live day outshines the accumulated season it is filing into. Probe-chosen: the smallest value whose front sustains the ledger-interior visibility class at a median-sized day.
 - **WINDOW_WET_DAYS** — **1**  
@@ -105,7 +103,7 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
 - **STAMP_MAX_GAIN** — **0.95**  
   opacity ceiling on a normalised stamp, so a very small sprite cannot be asked for more light than an 8-bit channel can carry.
 - **SHARP_R** — **1.7**  
-  radius, in court tenths, of a mark the record placed to the tenth of a foot. Court units and not pixels: the era's grain must not change with the window it is shown on.
+  radius, in court tenths, of a mark the record filed to the tenth of a foot. Court units and not pixels: the era's grain must not change with the window it is shown on.
 - **SHARP_SOFTNESS** — **0.3**  
   edge diffusion of that mark — how definitely the record placed this KIND of shot.
 - **COARSE_R** — **3.3**  
@@ -121,7 +119,7 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
 - **FILAMENT_ALPHA_K** — **0.5**  
   how much of DRIP reaches opacity rather than width when ink is split between the two.
 - **ONE_INK** — **3**  
-  ink multiplier on THE HAND's possession clip through the ONE beat, fading out across the game phase as the walk re-lays the same records. DRIP is tuned for thousands of strokes and a LONE possession at that flow sits within ~20/255 of the plate's black (measured: the beat's argument was not on screen). This KNOWINGLY bends the one-conserved-DRIP rule for exactly one beat, and says so here; the capped segment ceiling still applies above it.
+  ink multiplier on THE HAND's possession clip through the ONE beat, fading out across the game phase as the walk re-lays the same records. DRIP is tuned for thousands of strokes and a LONE possession at that flow sits within ~20/255 of the plate's black (measured: the beat's argument was not on screen). This KNOWINGLY bends the one-conserved-DRIP rule for exactly one beat, and says so here; the capped segment ceiling still applies above it. Where the walk has re-laid a possession stroke the lift stays on it while it is wet and dries away with it over GAME_WET_SECONDS, so the re-laying does not drop it in one frame.
 - **BEAD_CAP** — **24**  
   the most beads one broken segment may lay. A bound on work, not on physics: past it the beads are closer than a pixel anyway.
 - **POOL_EXCESS_K** — **0.5**  
@@ -267,7 +265,7 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
 - **SLUG_ASIDE_TENTHS** — **5.5** *(not material)*  
   an annotation subordinate to a mark beside it - the category name under a struck numeral, and the counter-reading's margin line. Unchanged from the one size the piece used everywhere, so these stay put while the sentences around them grow.
 - **SLUG_MIN_PX** — **9** *(not material)*  
-  a floor in CSS pixels, the one place slug type is NOT in court units: below it the mono face stops resolving at all and the statement is simply lost. It binds only on a small window.
+  a floor in CSS pixels, the one place slug type is NOT in court units: below it the mono face stops resolving at all and the statement is simply lost. It binds on a small window, and it also decides which of THE CENSUS's share figures are struck, on the laptop as well: a figure is left out of a filing when its word, once the filing has arrived, would set it under this floor.
 - **SLUG_VOICE_ALPHA** — **0.78** *(not material)*  
   how far the loudest rank is lifted out of the ground it sits on.
 - **SLUG_STATEMENT_ALPHA** — **0.62** *(not material)*  
@@ -311,9 +309,19 @@ A renderer in the mark layers — `field.ts`, `bloom.ts`, `marks.ts`, `modes/han
 - **WASH_ALPHA** — **0.3**  
   the dried ground's ceiling: how strongly the wash sits under the wet strokes at full arrival. Higher and the ground competes with the followable line; lower and thirty nights of bodies read as a stain.
 - **GAME_CLOCK_K** — **2.6**  
-  the easing of the game phase's clock over the found game's own frames: frame(u) = (e^(k·u) − 1)/(e^k − 1) of the whole game, SEASON_CLOCK_K's curve one scale down. The feed underneath is measured; only the easing is authored. Material because it decides which strokes exist on a mid-phase frame. It shares the season clock's gentler acceleration so the game develops instead of stalling and then arriving as a rush.
+  the easing of the game phase's clock over the found game's own frames: frame(u) = (e^(k·u) − 1)/(e^k − 1) of the whole game, SEASON_CLOCK_K's curve one scale down. The feed underneath is measured; only the easing is authored. Material because it decides which strokes exist on a mid-phase frame. It shares the season clock's gentler acceleration so the game develops instead of stalling and then arriving as a rush. Its inverse also dates every game stroke's drying: the instant the eased clock passes a stroke's last recorded frame is where GAME_WET_SECONDS starts counting.
 - **GAME_DRIED** — **0.12**  
   how far a game stroke dims once the wet edge has passed it — the drying, distinct from the wash beneath. 1 leaves the whole game as bright as its newest gesture and the eye loses the edge; too low and the game exists only at its leading seconds. The first value tried was 0.45, and the first frames falsified it: a whole game's strokes at that ink saturate into a solid zone-coloured poster that buries the filed record beneath — the value here is the measured correction.
+- **GAME_WET_SECONDS** — **0.4**  
+  how long a finished game stroke takes to dry from full ink to GAME_DRIED, in seconds on the screen. One value for the hand and the plate, and the same time for everything that dries with a stroke: the pass beads and shot anchors on both, each from the instant the clock reached it, and on THE HAND the lift ONE_INK gave the possession. The fall is a straight line, and the age it is measured on runs from the instant the eased game clock passed the stroke's last recorded frame, found through that clock's own inverse - so a stroke dries over the same time on screen whether the clock is crawling or racing through the feed. Longer and more of the game is bright at once, toward the saturated poster GAME_DRIED exists to prevent, and a stoppage in the feed reads as a held glow; shorter and a stroke that is laid inside one display frame is a flash, and the wet edge cannot be followed.
+- **WET_STROKES** — **6**  
+  how many further strokes arrive while a season stroke in THE HAND is drawn from end to end: its head travels the stroke's own recorded time over that interval. At one each stroke is whole almost as it appears; larger values leave more strokes part-drawn at the season's edge.
+- **PLATE_WINDOW_FIELD_DIM** — **0.55**  
+  how much of the season's filed field the plate takes down while the window's game is drawn over it. At nothing the tracked strokes are laid on a field at full brightness and the two records cannot be told apart; at one the field is gone and the game floats on bare stone.
+- **FIELD_INSCRIPTION_ALPHA** — **0.8**  
+  the opacity of the struck numerals in THE FIELD. At one they sit as bright as on the plate and compete with the field this hand is for; lower and the numbers recede until the measure they state is lost.
+- **HAND_NIGHT_GROUND_ALPHA** — **0.35**  
+  how much of the finished night's slate THE HAND keeps as ground beneath the arriving season paint. At one the night stays at full strength and the season is painted into it; at nothing the night vanishes the moment the season begins.
 - **PASS_MARK_R** — **2.5**  
   a pass bead's radius in court tenths at view scale: the measured instant the ball reached its receiver, punctuated without being narrated. Larger and ~580 beads become the drawing; smaller and the annotation is invisible.
 - **PASS_MARK_ALPHA** — **0.5**  

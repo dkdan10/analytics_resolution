@@ -13,10 +13,12 @@
  */
 
 import { drawInscriptions, drawSlug } from "../inscription";
+import { FIELD_INSCRIPTION_ALPHA } from "../scalars";
 import { SEASON_SECONDS, secondsFor } from "../timeline";
 import {
   FIELD_WINDOW_ATTRIBUTION_SPAN,
   FIELD_WINDOW_ATTRIBUTION_STOPS,
+  WINDOW_ONE_WITHDRAW_SPAN,
   progressInWindowSpan,
 } from "../window-score";
 import type { Frame } from "./types";
@@ -46,7 +48,7 @@ export function drawFieldHand(f: Frame): void {
   const { ctx, view, st, inscriptions, remains } = f;
 
   ctx.save();
-  ctx.globalAlpha = remains * 0.8;
+  ctx.globalAlpha = remains * FIELD_INSCRIPTION_ALPHA;
   drawInscriptions(ctx, view, inscriptions, st.t);
   ctx.restore();
 
@@ -56,7 +58,10 @@ export function drawFieldHand(f: Frame): void {
   // belongs to no zone and colouring it would invent a category it never had.
   // In the window the residence rises beneath the colours — bone, because the
   // ball belongs to no zone either.
-  drawSeasonField(f, { coloured: true, dim: remains, residence: true, reveal: true });
+  drawSeasonField(f, {
+    coloured: true, dim: remains, residence: true, reveal: true, prewarm: true,
+    entry: WINDOW_ONE_WITHDRAW_SPAN, entryEven: true,
+  });
 
   // Whose categories these are, named on the plate rather than only on a wall.
   // Clocked in SECONDS, not phase: the
