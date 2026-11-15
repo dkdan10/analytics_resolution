@@ -1,0 +1,78 @@
+{
+  "generated_by": "pipeline/sportvu_probe.py",
+  "probed_at": "2026-10-11T20:01:29+00:00",
+  "provenance": {
+    "shots_source": "stats.nba.com shotchartdetail, bulk archive github.com/shufinskiy/nba_data",
+    "sportvu_source": "NBA/STATS SportVU public 2015-16 release, github.com/linouk23/NBA-Player-Movements + mirrors (github.com/sealneaward/nba-movement-data, HF dcayton/nba_tracking_data_15_16)",
+    "license_note": "derived data only; bulk dumps are never committed (see README.md, Data & license)"
+  },
+  "corpus_listing": {
+    "archive_count": 636,
+    "total_bytes": 3793503906,
+    "empty_32B_shells": [
+      "01.14.2016.CHI.at.PHI.7z",
+      "01.14.2016.CLE.at.SAS.7z",
+      "01.14.2016.DET.at.MEM.7z",
+      "01.23.2016.UTA.at.WAS.7z"
+    ],
+    "empty_shell_bytes": 32,
+    "misnamed_archives": [
+      "2016.NBA.Raw.SportVU.Game.Logs12.05.2015.BOS.at.SAS.7z",
+      "2016.NBA.Raw.SportVU.Game.Logs12.05.2015.CHA.at.CHI.7z",
+      "2016.NBA.Raw.SportVU.Game.Logs12.05.2015.CLE.at.MIA.7z",
+      "2016.NBA.Raw.SportVU.Game.Logs12.05.2015.DEN.at.PHI.7z",
+      "2016.NBA.Raw.SportVU.Game.Logs12.05.2015.GSW.at.TOR.7z",
+      "2016.NBA.Raw.SportVU.Game.Logs12.05.2015.IND.at.UTA.7z",
+      "2016.NBA.Raw.SportVU.Game.Logs12.05.2015.NYK.at.MIL.7z",
+      "2016.NBA.Raw.SportVU.Game.Logs12.05.2015.ORL.at.LAC.7z",
+      "2016.NBA.Raw.SportVU.Game.Logs12.05.2015.POR.at.MIN.7z",
+      "2016.NBA.Raw.SportVU.Game.Logs12.05.2015.SAC.at.HOU.7z"
+    ],
+    "date_range": [
+      "2015-10-27",
+      "2016-01-23"
+    ]
+  },
+  "proof_archive": {
+    "name": "10.28.2015.NOP.at.POR.7z",
+    "url": "https://raw.githubusercontent.com/linouk23/NBA-Player-Movements/master/data/2016.NBA.Raw.SportVU.Game.Logs/10.28.2015.NOP.at.POR.7z",
+    "bytes": 6077973,
+    "sha256": "d833e2de2102116f3b71b9f4e0c45370c5ce573360472ed99dee250de20df059"
+  },
+  "game_measurements": {
+    "gameid": "0021500015",
+    "gamedate": "2015-10-28",
+    "events": 447,
+    "raw_moments": 210514,
+    "unique_moments": 80951,
+    "duplication_ratio": 2.6,
+    "rows_per_moment": {
+      "10": 203,
+      "11": 80748
+    },
+    "moments_missing_ball": 202,
+    "null_shot_clock": 4300,
+    "ball_z_min": 0.01,
+    "ball_z_max": 17.11,
+    "timestamp_diff_mode_ms": 40,
+    "tracked_minutes": 54.0
+  },
+  "expected_from_plan": {
+    "archive_count": 636,
+    "empty_shell_count": 4,
+    "misnamed_count": 10,
+    "date_range": [
+      "2015-10-27",
+      "2016-01-23"
+    ],
+    "corpus_bytes": 3793503906,
+    "proof_bytes": 6077973,
+    "json_bytes": 103483510,
+    "events": 447,
+    "raw_moments": 210514,
+    "unique_moments": 80951,
+    "ball_z_min": 0.01,
+    "ball_z_max": 17.11,
+    "hz_mode_ms": 40
+  }
+}

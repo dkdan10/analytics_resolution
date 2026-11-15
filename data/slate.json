@@ -1,0 +1,48 @@
+{
+  "generated_by": "pipeline/slate.py",
+  "generated_at": "2026-08-10T07:56:42+00:00",
+  "date": "2015-12-05",
+  "day": 39,
+  "day0": "2015-10-27",
+  "span": {
+    "seconds": 15,
+    "hz": 25,
+    "start_utc": "2015-12-06T02:27:48+00:00",
+    "games_fully_live": 5,
+    "games_present": 6,
+    "live_second_sum": 88,
+    "archives": 10
+  },
+  "paths": 66,
+  "ball_paths": 6,
+  "vertices": 2802,
+  "painted_frames": 24662,
+  "arc_tenths_total": 64225,
+  "off_plate_vertices": 690,
+  "selection": "the 15 s wall-clock span, slid at one-second steps over the ten archives' union, maximizing first the count of games live for every second of it and then the total live seconds across all games; a second is live when the game clock strictly decreases across adjacent moments no more than 1000 ms apart",
+  "fold": "each game's positions fold to one halfcourt through the corpus's own frame (window.py:to_shot_frame), toward the hoop nearer the ball's median position over the span - fixed per game, so a body crossing midcourt stays one continuous path off the plate's edge rather than reflecting at the line",
+  "treatment": "cut at every step over paint.py:MAX_STEP_FT and every feed gap over the game's own modal spacing times window.py:FRAME_GAP_FACTOR; runs under paint.py:MIN_RUN_FRAMES dropped; Douglas-Peucker at paint.py:SIMPLIFY_FT with zone crossings forced, exactly as the paint",
+  "identity": "none: nothing names a body, a game, an event or a clock. A path carries a start offset inside the one anonymous span, because simultaneity is the subject; the pinned index layout is the gate that keeps everything else out",
+  "files": {
+    "slate_strokes": {
+      "path": "slate_strokes.bin",
+      "record": "<hhHH",
+      "bytes_per_record": 8,
+      "records": 2802,
+      "bytes": 22416,
+      "fields": "x, y (int16 tenths, hoop at origin); dt (uint16 frames); arc (uint16 tenths)"
+    },
+    "slate_index": {
+      "path": "slate_index.bin",
+      "record": "<IHHB",
+      "bytes_per_record": 9,
+      "records": 66,
+      "bytes": 594,
+      "fields": "first vertex (uint32); count (uint16); start (uint16 frames from the span's open); kind (uint8, 1 = ball)"
+    }
+  },
+  "provenance": {
+    "source": "SportVU public 2015-16 release (linouk23 + mirrors)",
+    "misnamed_prefix": "2016.NBA.Raw.SportVU.Game.Logs"
+  }
+}
