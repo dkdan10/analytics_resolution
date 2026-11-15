@@ -310,6 +310,10 @@ function setSlugFace(ctx: CanvasRenderingContext2D, px: number): void {
   ctx.letterSpacing = `${px * 0.14}px`;
 }
 
+/** The step from one line of a slug to the next, in ems: its leading. Named
+ *  so that `slugSlots` stands the lines where `drawSlug` sets them. */
+const SLUG_LEADING = 1.9;
+
 /**
  * The box one line of a slug takes at this view, in pixels, for a caller that
  * has to know whether a line fits a place before standing it there. Measured
@@ -327,6 +331,35 @@ export function slugBox(
   const width = ctx.measureText(line).width;
   ctx.restore();
   return { width, height: px };
+}
+
+/**
+ * The slot each line of a slug stands in, as `drawSlug` sets the lines at `at`
+ * (no offset, turn or upward setting), in pixels: one leading tall, centred on
+ * the line, and as wide as the line's measured advance with the same clearance
+ * at its two ends as the leading leaves above and below its em. For a caller
+ * that keeps a mark off the type. Measured on the destination in the slug's
+ * own face every time it is asked, so a slot cannot drift from its line.
+ */
+export function slugSlots(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  lines: string[],
+  at: { x: number; y: number },
+  rank: SlugRank = "statement",
+): { x: number; y: number; width: number; height: number }[] {
+  const px = slugPx(ctx, view, rank);
+  const step = px * SLUG_LEADING;
+  const clearance = (step - px) / 2;
+  ctx.save();
+  setSlugFace(ctx, px);
+  const slots = lines.map((line, i) => {
+    const across = ctx.measureText(line).width + clearance * 2;
+    return { x: view.sx(at.x) - across / 2, y: view.sy(at.y) + i * step - step / 2,
+             width: across, height: step };
+  });
+  ctx.restore();
+  return slots;
 }
 
 export function drawSlug(
@@ -365,9 +398,9 @@ export function drawSlug(
     x = 0;
     y = 0;
   }
-  if (upward) offsetPx -= (lines.length - 1) * px * 1.9;
+  if (upward) offsetPx -= (lines.length - 1) * px * SLUG_LEADING;
   lines.forEach((line, i) => {
-    ctx.fillText(line, x, y + offsetPx + i * px * 1.9);
+    ctx.fillText(line, x, y + offsetPx + i * px * SLUG_LEADING);
   });
   ctx.letterSpacing = "0px";
   ctx.restore();
