@@ -98,10 +98,19 @@ function drawCutBeat(
   // (THE MEASURE's own sentence there has stood down before the beat begins),
   // and the migration path, round the hoop inside the strike line, can never
   // reach it.
-  drawSlug(ctx, view, [
-    `${before.season}   ${pct(before)}% OF RIM SHOTS UNPLACED   ${regimeText(before.resolution.regime)}`,
-    `${after.season}   ${pct(after)}%   ${regimeText(after.resolution.regime)}`,
-  ], { x: 0, y: 295 }, smoothstep(k));
+  //
+  // The two lines are one table: season, share, regime, each in its own column.
+  // The face is monospaced, so padding every field to the wider of its two
+  // entries (the share to the right, so the points line up) makes the two
+  // strings the same length with each field starting at the same character,
+  // and two lines centred on one point then stand in columns.
+  const seasons = [before, after];
+  const seasonW = Math.max(...seasons.map((s) => s.season.length));
+  const pctW = Math.max(...seasons.map((s) => pct(s).length));
+  const regimeW = Math.max(...seasons.map((s) => regimeText(s.resolution.regime).length));
+  drawSlug(ctx, view, seasons.map((s) => `${s.season.padEnd(seasonW)}   `
+    + `${pct(s).padStart(pctW)}% OF RIM SHOTS UNPLACED   `
+    + `${regimeText(s.resolution.regime).padEnd(regimeW)}`), { x: 0, y: 295 }, smoothstep(k));
 }
 
 /**
