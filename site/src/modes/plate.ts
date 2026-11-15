@@ -27,7 +27,7 @@ import {
 import { drawInscriptions, drawSlug } from "../inscription";
 import { prefixSurface } from "../prefix";
 import { GAME_DRIED, PLATE_WINDOW_FIELD_DIM } from "../scalars";
-import { secondsFor } from "../timeline";
+import { secondsFor, WINDOW_YEAR } from "../timeline";
 import {
   PLATE_GAME_FROM_PHASE,
   PLATE_GAME_TO_PHASE,
@@ -43,6 +43,23 @@ import { drawActCue } from "./shared";
 import { drawQuarrel } from "./stack";
 import type { Frame } from "./types";
 
+/**
+ * How much of the field THE PLATE keeps while the window stands over it, at
+ * one instant of the window. The depth comes on with the window, releases
+ * across the early close, and holds once the shell is whole: the receipt
+ * needs a stable field behind it rather than a background still changing
+ * during its terminal hold. One definition for the window's own frames and
+ * for the season after it, which recedes the field at the depth the close
+ * left it at.
+ */
+function windowFieldKept(phase: number): number {
+  const pClose = WINDOW_BEATS[3];
+  const release = Math.max(0, Math.min(1,
+    (Math.min(phase, PLATE_SHELL_FULL_PHASE) - pClose.from)
+    / (pClose.to - pClose.from)));
+  return 1 - PLATE_WINDOW_FIELD_DIM * Math.min(1, phase * 4) * (1 - release);
+}
+
 export function drawPlateHand(f: Frame): void {
   const { ctx, view, dpr, st, data, inscriptions, remains } = f;
   const year = st.year!;
@@ -54,28 +71,19 @@ export function drawPlateHand(f: Frame): void {
   ctx.restore();
 
   // Act III dims the field slightly: the rest of the league is still only dots,
-  // and the gestures have to be the brightest thing the window holds. The
-  // depth RELEASES across the early close, then holds once
-  // the shell is whole: the receipt needs a stable field behind it rather than
-  // a background still changing during its terminal hold.
+  // and the gestures have to be the brightest thing the window holds
+  // (`windowFieldKept`).
   const inWindow = st.act === 3 && data.traces !== null;
-  const pClose = WINDOW_BEATS[3];
+  // The season after the window, while the window's season recedes under it.
+  const leaving = st.prev === WINDOW_YEAR && data.traces !== null;
   const withdrawU = st.act === 3
     ? progressInWindowSpan(st.phase, PLATE_WITHDRAW_SPAN)
     : 0;
-  // Preserve the existing brightness release only until the terminal shell is
-  // fully present, then freeze it. The final scored hold keeps one stable,
-  // slightly subordinate field behind the receipt instead of continuing to
-  // brighten under text that is supposed to hold.
-  const fieldReleaseU = st.act === 3
-    ? Math.max(0, Math.min(1,
-      (Math.min(st.phase, PLATE_SHELL_FULL_PHASE) - pClose.from)
-      / (pClose.to - pClose.from)))
-    : 0;
-  const fieldDim =
-    (inWindow
-      ? 1 - PLATE_WINDOW_FIELD_DIM * Math.min(1, st.phase * 4) * (1 - fieldReleaseU)
-      : 1) * remains;
+  const fieldDim = (inWindow ? windowFieldKept(st.phase) : 1) * remains;
+  // The window's season leaves at the depth its close held it at, so the
+  // season after it arrives over the plate the close left and the field does
+  // not come up in one frame as the window ends.
+  const recedingDim = leaving ? windowFieldKept(1) * remains : fieldDim;
 
   // THE GAME'S SHARE's clock. The three reaches the strokes below draw to are
   // defined here and nowhere else: the live head on the game's clock, and the
@@ -120,7 +128,7 @@ export function drawPlateHand(f: Frame): void {
   // the one possession waits out its lead, so the first stroke is laid over
   // a field that has already sunk.
   drawSeasonField(f, {
-    dim: fieldDim, residence: true, reveal: true, prewarm: true,
+    dim: fieldDim, previousDim: recedingDim, residence: true, reveal: true, prewarm: true,
   });
 
   // THE GAME'S SHARE (THE PLATE's brief, above all others: ALL the
@@ -232,11 +240,20 @@ export function drawPlateHand(f: Frame): void {
   // corpus probe's last game day in the public files, and the line under it
   // says only that the public data ends there; when the feed itself was
   // switched off is a later date, which this receipt does not claim.
-  if (st.act === 3 && data.corpus) {
+  //
+  // After the window it leaves as it came: over as many seconds as it took to
+  // arrive, counted from the window's end, while the field it stood over
+  // begins to sink under the next season.
+  const shellSeconds = (PLATE_SHELL_SPAN.to - PLATE_SHELL_SPAN.from) * secondsFor(WINDOW_YEAR);
+  const receipt = st.act === 3
+    ? progressInWindowSpan(st.phase, PLATE_SHELL_SPAN)
+    : st.prev === WINDOW_YEAR
+      ? 1 - Math.min(1, st.phase * secondsFor(year) / shellSeconds)
+      : 0;
+  if (data.corpus && receipt > 0) {
     // The receipt arrives while the last gesture is still fading — the plate
     // hands itself from the corpus's last trace to its last public day with no
     // dead interval between them. Both anchors live in window-score.
-    const closing = progressInWindowSpan(st.phase, PLATE_SHELL_SPAN);
     drawSlug(
       ctx,
       view,
@@ -245,7 +262,7 @@ export function drawPlateHand(f: Frame): void {
       // crown and the settled numeral annulus: whatever size the display
       // profile gives the type, the receipt crosses neither during the hold.
       { x: 0, y: 250 },
-      closing,
+      receipt,
       "statement",
       0,
       0,

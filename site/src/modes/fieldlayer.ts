@@ -31,6 +31,9 @@ export interface FieldOpts {
   coloured?: boolean;
   /** Overall dim, before development. */
   dim: number;
+  /** The outgoing season's dim, where it leaves at a different depth from the
+   *  one the arriving season comes in at. The arriving season's, unless said. */
+  previousDim?: number;
   /** THE CENSUS draws no outgoing season: a field still holding the previous
    *  season's shots would contradict a tally counting only this one. */
   withPrevious?: boolean;
@@ -310,6 +313,7 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
     coloured = false, dim, withPrevious = true, residence = false, reveal = false,
     prewarm = false,
   } = opts;
+  const previousDim = opts.previousDim ?? dim;
   const year = st.year!;
 
   // The residence goes down FIRST: it is the ground the endings sit over, and
@@ -344,14 +348,14 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
       const prevGrain = grainProfileFor(prevSeason.resolution.regime);
       // The pin is not part of the ladder: it occludes rather than adds, so it
       // keeps the linear fade the receding field used to share with it.
-      const fading = (1 - previousArrival) * dim;
+      const fading = (1 - previousArrival) * previousDim;
       const bakePrev = (strength: number) =>
         bakeLayer(
           st.prev!, prevPts, coloured, view, dpr, pinCoordOf(prevSeason), strength, prevGrain,
         );
       drawDeveloping(
         ctx, view, DEVELOP_STATES - developed(previousArrival) * DEVELOP_STATES,
-        dim, bakePrev,
+        previousDim, bakePrev,
       );
       drawPin(ctx, view, pinFractionOf(prevSeason), pinCoordOf(prevSeason), {
         dpr, opacity: fading,
