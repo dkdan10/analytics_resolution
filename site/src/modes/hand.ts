@@ -329,10 +329,12 @@ function windowAt(
   const seasonU = Math.max(0, Math.min(1,
     (p - beatSeason.from) / (beatSeason.to - beatSeason.from)));
   // The inventory counts the strokes, so it leaves with them: from the
-  // instant it is fully present it keeps the share of itself that the paint
+  // instant it is fully present its level is read from the share the paint
   // keeps of what stood on the plate at that instant, and the close's wash
-  // takes the two off together. The wash ends with the close, so the
-  // inventory is gone exactly there and the sentence after the window finds
+  // takes the two off together. The share is eased by the easing the wash
+  // itself uses, so the line starts down without a corner and does not
+  // linger as type too faint to read while the last of the paint goes. It
+  // has gone before the close ends, and the sentence after the window finds
   // its line empty.
   const closeLocal = (p - beatClose.from) / (beatClose.to - beatClose.from);
   const wash = smooth(closeLocal);
@@ -355,7 +357,7 @@ function windowAt(
     kept: smooth((p - WINDOW_CREST_PHASE) / (beatClose.from - WINDOW_CREST_PHASE)),
     wash,
     inventory: smooth(closeLocal / HAND_INVENTORY_FULL_CLOSE_LOCAL)
-      * Math.min(1, (1 - wash) / paintWhenFull),
+      * smooth(Math.min(1, (1 - wash) / paintWhenFull)),
   };
 }
 
