@@ -124,9 +124,10 @@ export function drawPlateHand(f: Frame): void {
   // the plate is never empty and the drift stays continuous.
   // In the window, THE RESIDENCE goes down beneath it all: where the ball
   // lived, under where the shots ended. The preceding season recedes on the
-  // window's entry span exactly as it does in every other reveal hand, and
-  // the one possession waits out its lead, so the first stroke is laid over
-  // a field that has already sunk.
+  // window's shared entry span (THE FIELD and THE LEDGER, which draw nothing
+  // of their own in the first beat, give it the whole beat instead), and the
+  // one possession waits out its lead, so the first stroke is laid over a
+  // field that has already sunk.
   drawSeasonField(f, {
     dim: fieldDim, previousDim: recedingDim, residence: true, reveal: true, prewarm: true,
   });

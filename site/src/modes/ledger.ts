@@ -56,7 +56,7 @@ import {
   LEDGER_WINDOW_WRITING_SPAN,
   progressInWindowSpan,
   WINDOW_BEATS,
-  windowEntryProgress,
+  WINDOW_ONE_WITHDRAW_SPAN,
   windowSecondAtPhase,
 } from "../window-score";
 import { drawSeasonField } from "./fieldlayer";
@@ -939,7 +939,10 @@ export function drawLedgerHand(f: Frame): void {
 
   // The marks recede: here the description is the subject, and the dot is what
   // the description is about.
-  drawSeasonField(f, { dim: remains * 0.42, reveal: true, prewarm: true });
+  drawSeasonField(f, {
+    dim: remains * 0.42, reveal: true, prewarm: true, entry: WINDOW_ONE_WITHDRAW_SPAN,
+    entryEven: true,
+  });
 
   // The labels still address the fixed-seed sample, and must. At full density a
   // label would live a fraction of a frame - the arrival window advances far
@@ -965,7 +968,9 @@ export function drawLedgerHand(f: Frame): void {
   // way to the arriving season's as well.
   const here = ledgerUtterances(f, year);
   const caption = sample && here ? pinCaptionAsSet(f, season) : null;
-  const previousArrival = st.act === 3 ? windowEntryProgress(st.phase) : st.arrived;
+  const previousArrival = st.act === 3
+    ? progressInWindowSpan(st.phase, WINDOW_ONE_WITHDRAW_SPAN)
+    : st.arrived;
   if (st.prev !== null && previousArrival < 1) {
     const out = ledgerUtterances(f, st.prev);
     const before = data.byYear.get(st.prev);

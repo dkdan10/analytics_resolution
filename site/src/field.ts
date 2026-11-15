@@ -158,6 +158,30 @@ export function exposureStrength(state: number): number {
   return state >= DEVELOP_STATES ? 1 : Math.pow(DEVELOP_STEP, state - DEVELOP_STATES);
 }
 
+/**
+ * The ladder position that passes `share` of a faint mark's finished light.
+ *
+ * A position crossfades two adjacent states with linear weights, and a mark
+ * far below the tone curve's shoulder is lit in proportion to its state's
+ * strength, so the light such a mark shows at a position is the same
+ * interpolation of the two strengths. This is that interpolation read
+ * backwards. The ladder's states are a fixed ratio apart, so a position that
+ * moves evenly takes most of the off-rim light in its first step; a share that
+ * moves evenly, placed through this, takes it evenly. Exact at both ends: no
+ * light is position zero and all of it is the ladder's top, where the
+ * finished state draws alone.
+ */
+export function developPositionFor(share: number): number {
+  const e = Math.min(1, Math.max(0, share));
+  let lower = 0;
+  for (let state = 1; state <= DEVELOP_STATES; state++) {
+    const upper = exposureStrength(state);
+    if (e <= upper) return state - 1 + (e - lower) / (upper - lower);
+    lower = upper;
+  }
+  return DEVELOP_STATES;
+}
+
 export interface Layer {
   canvas: HTMLCanvasElement;
   key: string;

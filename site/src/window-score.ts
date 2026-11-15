@@ -89,7 +89,9 @@ export const WINDOW_SHARED_STOPS = WINDOW_BEATS.map((beat) => ({
 
 /** The preceding season leaves during the Window's dedicated entry span. This
  * is intentionally separate from ordinary-season ARRIVAL_TAIL: Act III may
- * dilate its evidence without leaving the prior season beneath it. */
+ * dilate its evidence without leaving the prior season beneath it. Every
+ * rendering withdraws on it except the two that name a span of their own
+ * (`WINDOW_ONE_WITHDRAW_SPAN`), and none of the shared beats moves with it. */
 export const WINDOW_ENTRY_SECONDS = 10;
 export const WINDOW_ENTRY_SPAN = {
   id: "entry",
@@ -98,9 +100,17 @@ export const WINDOW_ENTRY_SPAN = {
   to: phaseAtWindowSecond(WINDOW_ENTRY_SECONDS),
 } as const satisfies PhaseSpan;
 
-export function windowEntryProgress(phase: number): number {
-  return progressInWindowSpan(phase, WINDOW_ENTRY_SPAN);
-}
+/** THE FIELD and THE LEDGER draw nothing of the one possession, so in them
+ * the preceding season's withdrawal is all the first beat holds. There it
+ * takes the whole beat and ends as the night begins, where the shared entry
+ * span would leave the court standing bare until then. An interior anchor of
+ * those two renderings: the beat's own bounds, and no boundary moves. */
+export const WINDOW_ONE_WITHDRAW_SPAN = {
+  id: "one-withdraw",
+  title: "the preceding season withdraws across the beat",
+  from: WINDOW_BEATS[0].from,
+  to: WINDOW_BEATS[0].to,
+} as const satisfies PhaseSpan;
 
 /** The preceding season's lead over the one possession. The season begins
  * its withdrawal alone, and the possession starts this many Window seconds
@@ -297,14 +307,17 @@ export const FIELD_ATTRIBUTION_ENTER_SECONDS = 1;
 /** How long the attribution takes to leave. */
 export const FIELD_ATTRIBUTION_EXIT_RAMP_SECONDS = 2;
 /** The attribution names the colours of the season it stands over, so it
- * leaves with those colours rather than with the season's scored withdrawal.
- * The season sinks its exposure ladder, and its colours go under well before
- * its pin does: they are still plainly there at the end of the lead the
- * season is given before the one possession, and nearly all gone one exit
- * ramp later. So the line holds until the lead ends and fades over the
- * seconds in which the last colour goes. The court after it, the fading pin
- * and then the bare floor before the night, is left without words. */
-export const FIELD_ATTRIBUTION_EXIT_SECONDS = WINDOW_ONE_LEAD_SECONDS;
+ * leaves with those colours rather than with the beat. In this rendering the
+ * season's light withdraws evenly across the whole first beat, and its
+ * colours go under near the beat's end: measured, they are still plainly
+ * there one possession lead before the night begins and nearly all gone one
+ * exit ramp later, so the line holds until then and fades over the seconds
+ * in which the last colour goes. The lead is borrowed as a length that lands
+ * where the colours measure, not as a meaning: no possession is drawn here.
+ * What stands for the rest of the beat, the sinking rim and its pin, is left
+ * without words. */
+export const FIELD_ATTRIBUTION_EXIT_SECONDS =
+  windowSecondAtPhase(WINDOW_ONE_WITHDRAW_SPAN.to) - WINDOW_ONE_LEAD_SECONDS;
 export const FIELD_ATTRIBUTION_END_SECONDS =
   FIELD_ATTRIBUTION_EXIT_SECONDS + FIELD_ATTRIBUTION_EXIT_RAMP_SECONDS;
 

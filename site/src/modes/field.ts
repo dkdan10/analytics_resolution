@@ -18,6 +18,7 @@ import { SEASON_SECONDS, secondsFor } from "../timeline";
 import {
   FIELD_WINDOW_ATTRIBUTION_SPAN,
   FIELD_WINDOW_ATTRIBUTION_STOPS,
+  WINDOW_ONE_WITHDRAW_SPAN,
   progressInWindowSpan,
 } from "../window-score";
 import type { Frame } from "./types";
@@ -59,6 +60,7 @@ export function drawFieldHand(f: Frame): void {
   // ball belongs to no zone either.
   drawSeasonField(f, {
     coloured: true, dim: remains, residence: true, reveal: true, prewarm: true,
+    entry: WINDOW_ONE_WITHDRAW_SPAN, entryEven: true,
   });
 
   // Whose categories these are, named on the plate rather than only on a wall.

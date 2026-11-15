@@ -9,7 +9,8 @@
 
 import type { Loaded, Season } from "../data";
 import {
-  advancePrewarm, bakeLayer, bakeResidence, developed, drawDeveloping, drawLayer,
+  advancePrewarm, bakeLayer, bakeResidence, developed, developPositionFor, drawDeveloping,
+  drawLayer,
   drawReveal, drawWindowReveal, grainProfileFor, windowPinArrived,
   type GrainProfile, type Points, type PrewarmRequest, type WindowFoldClock,
 } from "../field";
@@ -20,8 +21,9 @@ import { ACT0_SECONDS, ARRIVAL_TAIL, CUT_YEAR, SEASON_SECONDS, type State } from
 import {
   PLATE_WITHDRAW_SPAN,
   WINDOW_BEATS,
+  WINDOW_ENTRY_SPAN,
   progressInWindowSpan,
-  windowEntryProgress,
+  type PhaseSpan,
 } from "../window-score";
 import { seasonClock } from "./shared";
 import type { Frame } from "./types";
@@ -76,6 +78,15 @@ export interface FieldOpts {
    *  palettes a frame under a talk-only instrument, and what it keeps live
    *  already fills the layer cache. */
   prewarm?: boolean;
+  /** The Window span over which the preceding season withdraws. The shared
+   *  entry span unless a hand names its own: a hand with nothing of its own
+   *  in the first beat lets the withdrawal fill it. */
+  entry?: PhaseSpan;
+  /** Whether that withdrawal takes the season's light evenly across its span
+   *  rather than stepping evenly down the exposure ladder, which spends most
+   *  of the off-rim light, and with it the colours, in the span's first
+   *  third. For a hand whose first beat holds nothing but the withdrawal. */
+  entryEven?: boolean;
 }
 
 /**
@@ -98,7 +109,8 @@ function residenceEnvelope(phase: number): number {
   // DELAYED to the game phase, for a measured reason: at the window entry's
   // one-frame test the residence was part of a ground outweighing the
   // tracked figure by orders of magnitude. "One" carries no dwelling: the
-  // season before recedes, then the possession alone. The dwelling rises
+  // season before recedes, and where the possession is drawn it then stands
+  // alone. The dwelling rises
   // with the game/night expansion — game start to night's end, derived from
   // the shared beat table, no new scalar — and is complete before the season
   // floods over it.
@@ -311,7 +323,7 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
   const { ctx, view, dpr, st, data } = f;
   const {
     coloured = false, dim, withPrevious = true, residence = false, reveal = false,
-    prewarm = false,
+    prewarm = false, entry = WINDOW_ENTRY_SPAN, entryEven = false,
   } = opts;
   const previousDim = opts.previousDim ?? dim;
   const year = st.year!;
@@ -339,7 +351,7 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
   // ARRIVAL_TAIL the position sits at the ladder's top, where the drawn frame
   // is byte-identical to the finished layer the old path blitted.
   const ladder = developed(st.arrived) * DEVELOP_STATES;
-  const previousArrival = st.act === 3 ? windowEntryProgress(st.phase) : st.arrived;
+  const previousArrival = st.act === 3 ? progressInWindowSpan(st.phase, entry) : st.arrived;
 
   if (withPrevious && st.prev !== null) {
     const prevSeason = data.byYear.get(st.prev);
@@ -353,8 +365,12 @@ export function drawSeasonField(f: Frame, opts: FieldOpts): void {
         bakeLayer(
           st.prev!, prevPts, coloured, view, dpr, pinCoordOf(prevSeason), strength, prevGrain,
         );
+      const sunk = developed(previousArrival);
       drawDeveloping(
-        ctx, view, DEVELOP_STATES - developed(previousArrival) * DEVELOP_STATES,
+        ctx, view,
+        st.act === 3 && entryEven
+          ? developPositionFor(1 - sunk)
+          : DEVELOP_STATES - sunk * DEVELOP_STATES,
         previousDim, bakePrev,
       );
       drawPin(ctx, view, pinFractionOf(prevSeason), pinCoordOf(prevSeason), {
