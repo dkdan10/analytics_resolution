@@ -736,13 +736,18 @@
       }
       .op.unavailable { opacity: 0.82; }
       body.display-room .op.unavailable { opacity: 1; }
-      /* An operation the season cannot take says so on a line of its own
-         under its sources, set as they are: on their line it fell past the
-         ellipsis and was never seen. Its square dims in both profiles, where
-         the row's own dimming is undone in the room. */
+      /* An operation the season cannot take says so in its sources' place,
+         set as they are and on their line, and its sources are not shown: on
+         their line the note fell past the ellipsis and was never seen, and
+         under them it made a third line that pushed the rail's last control
+         off a short window. Every row is two lines, the same height, whether
+         or not its season can take it. Its square dims in both profiles,
+         where the row's own dimming is undone in the room. */
+      .op.unavailable .op-reads { display: none; }
       .op.unavailable::after {
         content: "unavailable outside the Window";
         display: block;
+        margin-top: 1px;
         font-size: 12px;
         line-height: 1.25;
         letter-spacing: 0.02em;
