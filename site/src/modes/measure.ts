@@ -639,12 +639,15 @@ function beatSeason(f: Frame, w: WindowFile, k: number, m: Measures | null): voi
  *
  * This slug used to read `date_last` above "THE PUBLIC FEED CLOSES", which
  * converted a corpus terminus into a proven shutdown date. It is not one. The
- * last archive anyone holds is dated `window.json:corpus.date_last`; the
- * earliest artifact showing the endpoint already dead is a GitHub issue dated
+ * last game in the public tracking files is dated `window.json:corpus.date_last`;
+ * the earliest artifact showing the feed already dead is a GitHub issue dated
  * `facts.json:external.endpoint_known_dead_by`. The day it actually closed is
  * between the two and nobody outside recorded it.
  *
- * So the piece shows both dates and explains neither. The gap is the content.
+ * So the piece shows both dates, each saying only what it is a date of, and
+ * names no day of closing. The gap is the content. "The public tracking data"
+ * is the same noun THE PLATE's closing line uses, because both mean the public
+ * release and not the shot record, which runs on for seasons after it.
  */
 function beatClose(f: Frame, w: WindowFile, k: number, m: Measures | null): void {
   const { ctx, view, remains } = f;
@@ -682,8 +685,8 @@ function beatClose(f: Frame, w: WindowFile, k: number, m: Measures | null): void
   if (closing > 0 && w.corpus.date_last) {
     const deadBy = factExternal<string>(f.data.facts, "endpoint_known_dead_by");
     drawSlug(ctx, view, [
-      `${w.corpus.date_last} · THE LAST GAME THE RECORD HOLDS`,
-      `${deadBy} · THE ENDPOINT WAS ALREADY DEAD`,
+      `${w.corpus.date_last} · THE LAST GAME IN THE PUBLIC TRACKING DATA`,
+      `${deadBy} · THE PUBLIC FEED WAS ALREADY DEAD`,
     ], { x: 0, y: 330 }, a * closing * 0.55);
   }
 }
