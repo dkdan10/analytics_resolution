@@ -297,9 +297,12 @@ export const FIELD_ATTRIBUTION_ENTER_SECONDS = 1;
 /** How long the attribution takes to leave. */
 export const FIELD_ATTRIBUTION_EXIT_RAMP_SECONDS = 2;
 /** The attribution names the colours of the season it stands over, so it
- * leaves with that season: it is gone when the preceding season's withdrawal
- * ends, and never stands over a court with no colour on it. The bare court
- * between that and the night is left bare. */
+ * leaves with that season: its exit ends when the preceding season's
+ * withdrawal ends. That is the withdrawal's scored end, not the instant the
+ * colours stop being seen: the season sinks its exposure ladder, its colours
+ * go under well before its pin does, and through the last of its hold the
+ * line stands over a court that shows little but the pin. The bare court
+ * between the withdrawal's end and the night is left bare. */
 export const FIELD_ATTRIBUTION_END_SECONDS = WINDOW_ENTRY_SECONDS;
 export const FIELD_ATTRIBUTION_EXIT_SECONDS =
   FIELD_ATTRIBUTION_END_SECONDS - FIELD_ATTRIBUTION_EXIT_RAMP_SECONDS;
