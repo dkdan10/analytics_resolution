@@ -157,7 +157,6 @@ import {
 import type { Frame } from "./types";
 import {
   HAND_INVENTORY_FULL_CLOSE_LOCAL,
-  HAND_INVENTORY_LEAVE_CLOSE_LOCAL,
   HAND_NIGHT_SECONDS,
   HAND_NIGHT_GROUND_ALPHA,
   HAND_WINDOW_PHASES,
@@ -315,8 +314,8 @@ interface Window5 {
   kept: number;
   /** 0..1 as the paint is taken back off the plate over the close. */
   wash: number;
-  /** 0..1 through the inventory's entrance, held, then back to 0 as it
-   *  leaves before the close ends. */
+  /** Comes up through the inventory's entrance, then goes back to nothing
+   *  with the paint it counts, as the close's wash takes both off. */
   inventory: number;
 }
 
@@ -329,14 +328,15 @@ function windowAt(
   const [beatOne, beatGame, beatNight, beatSeason, beatClose] = phases;
   const seasonU = Math.max(0, Math.min(1,
     (p - beatSeason.from) / (beatSeason.to - beatSeason.from)));
-  // The inventory counts the strokes, so it leaves after they have washed
-  // off, and inside the close: the sentence after the window takes its line.
-  const closeLength = beatClose.to - beatClose.from;
-  const leave = HAND_INVENTORY_LEAVE_CLOSE_LOCAL;
-  const inventoryLeft = smooth(
-    (p - (beatClose.from + leave.from * closeLength))
-    / ((leave.to - leave.from) * closeLength),
-  );
+  // The inventory counts the strokes, so it leaves with them: from the
+  // instant it is fully present it keeps the share of itself that the paint
+  // keeps of what stood on the plate at that instant, and the close's wash
+  // takes the two off together. The wash ends with the close, so the
+  // inventory is gone exactly there and the sentence after the window finds
+  // its line empty.
+  const closeLocal = (p - beatClose.from) / (beatClose.to - beatClose.from);
+  const wash = smooth(closeLocal);
+  const paintWhenFull = 1 - smooth(HAND_INVENTORY_FULL_CLOSE_LOCAL);
   return {
     // The scope line rides this, and it names the recovered set of 2015-16:
     // it comes up with the possession, never over the receding sheet of the
@@ -353,11 +353,9 @@ function windowAt(
     // complete, and the four dead days stay dead at speed.
     dayFrac: seasonClock(seasonU) * (span + 1),
     kept: smooth((p - WINDOW_CREST_PHASE) / (beatClose.from - WINDOW_CREST_PHASE)),
-    wash: smooth((p - beatClose.from) / (beatClose.to - beatClose.from)),
-    inventory: smooth(
-      (p - beatClose.from)
-      / ((beatClose.to - beatClose.from) * HAND_INVENTORY_FULL_CLOSE_LOCAL),
-    ) * (1 - inventoryLeft),
+    wash,
+    inventory: smooth(closeLocal / HAND_INVENTORY_FULL_CLOSE_LOCAL)
+      * Math.min(1, (1 - wash) / paintWhenFull),
   };
 }
 

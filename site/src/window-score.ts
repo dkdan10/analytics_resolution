@@ -158,13 +158,10 @@ export const HAND_ONE_END_PHASE = phaseAtWindowSecond(HAND_ONE_SECONDS);
 /** The night is true-rate and must end at the shared season boundary. */
 export const HAND_NIGHT_FROM_PHASE =
   BEAT_SEASON.from - phaseAtWindowSecond(HAND_NIGHT_SECONDS);
-/** CLOSE-local point by which the Hand's closing inventory is fully present. */
+/** CLOSE-local point by which the Hand's closing inventory is fully present.
+ *  It has no exit anchor of its own: it counts the strokes, and from here it
+ *  leaves on the wash that takes them off, which ends with the close. */
 export const HAND_INVENTORY_FULL_CLOSE_LOCAL = 0.65;
-/** CLOSE-local stretch over which the inventory leaves again: it counts the
- *  strokes, so it goes once the paint it counts has washed off, and it is
- *  gone before the close ends because the sentence after the window takes
- *  its line. Set by eye. */
-export const HAND_INVENTORY_LEAVE_CLOSE_LOCAL = { from: 0.86, to: 0.98 } as const;
 /** Completed NIGHT ground retained beneath the arriving season paint.
  *  Declared in the register; named here because it is the score that says
  *  when it applies. */
@@ -549,7 +546,6 @@ export const WINDOW_SCORE = {
     spansForNight: handWindowPhases,
     stops: HAND_WINDOW_STOPS,
     inventoryFullCloseLocal: HAND_INVENTORY_FULL_CLOSE_LOCAL,
-    inventoryLeaveCloseLocal: HAND_INVENTORY_LEAVE_CLOSE_LOCAL,
     nightGroundAlpha: HAND_NIGHT_GROUND_ALPHA,
   },
   plate: {
