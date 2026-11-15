@@ -47,7 +47,7 @@
  */
 
 import { factNum, type Place, type Season } from "../data";
-import { drawSlug, strike, STRIKE_LETTER_SPACING, struckFigure } from "../inscription";
+import { drawSlug, slugBox, strike, STRIKE_LETTER_SPACING, struckFigure } from "../inscription";
 import { BONE_RGB, INSCRIPTION_FAMILY, SLUG_FAMILY, ZONE_RGB } from "../palette";
 import { COURT, type View } from "../plate";
 import {
@@ -181,6 +181,7 @@ const NOMINAL_PX = 100;
 const measured = new Map<string, Glyphs>();
 const lettered = new Map<string, Glyphs[]>();
 const slugWidths = new Map<string, number>();
+let slugAdvance: number | undefined;
 let ruler: CanvasRenderingContext2D | null = null;
 let slugRuler: CanvasRenderingContext2D | null = null;
 
@@ -285,6 +286,28 @@ function slugWidthOf(line: string): number {
   return w;
 }
 
+/**
+ * How far `drawSlug` sets one line under the last, as a multiple of its type
+ * size.
+ *
+ * Taken through `drawSlug` like the width above, and for the same reason: the
+ * advance is that function's own, and a copy of it kept here would go stale
+ * without a word.
+ */
+function slugAdvanceOf(): number {
+  if (slugAdvance === undefined) {
+    slugRuler ??= document.createElement("canvas").getContext("2d")!;
+    const pen = slugRuler;
+    const set: number[] = [];
+    pen.fillText = (_text: string, _x: number, y: number): void => {
+      set.push(y);
+    };
+    drawSlug(pen, RULER_VIEW, ["", ""], FOOTER_AT, 1);
+    slugAdvance = (set[1]! - set[0]!) / slugBox(pen, RULER_VIEW, "").height;
+  }
+  return slugAdvance;
+}
+
 /** Drop the rulers' maps. Registered in probe/shared.ts:cold() — an
  *  unregistered cache does not produce a false IMPURE, it produces a false
  *  PURE, because every history then shares the same stale map. */
@@ -292,6 +315,7 @@ export function clearCensusCaches(): void {
   measured.clear();
   lettered.clear();
   slugWidths.clear();
+  slugAdvance = undefined;
 }
 
 /**
@@ -750,8 +774,25 @@ function strikeFooter(
   const homeless = words.filter((w) => w.named && w.homeless).length;
   // STRUCK, not NAMED: a category can be named and still lose its place to a
   // collision, and this line has to add up to what is actually on the floor.
-  drawSlug(ctx, view, footerLines(total, struck, total - struck, beyond, homeless),
-           FOOTER_AT, remains * CENSUS_SUB_ALPHA * opacity);
+  const lines = footerLines(total, struck, total - struck, beyond, homeless);
+  const alpha = remains * CENSUS_SUB_ALPHA * opacity;
+  // The lines hang from a fixed first line by the type's own advance, and the
+  // footer's ground ends at the plate's foot. Where a pixel floor sets the type
+  // larger than its court size the advance grows with it, and the last line
+  // would hang through the court's baseline. There the lines close up, never
+  // nearer than set solid, so the last one still stands on the plate. The
+  // first line does not move: it is the one the layout keeps words clear of.
+  const px = slugBox(ctx, view, lines[0]!).height;
+  const onPlate = view.s(FOOTER_AT.y - COURT.y0) - px / 2;
+  const below = lines.length - 1;
+  if (below * px * slugAdvanceOf() <= onPlate) {
+    drawSlug(ctx, view, lines, FOOTER_AT, alpha);
+    return;
+  }
+  const step = Math.max(px, onPlate / below);
+  lines.forEach((line, i) => {
+    drawSlug(ctx, view, [line], FOOTER_AT, alpha, "statement", i * step);
+  });
 }
 
 /**
