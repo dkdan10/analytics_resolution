@@ -35,7 +35,7 @@ import {
   type Measures,
   type WindowFile,
 } from "../data";
-import { contextDisplay, ROOM_TEXT_MIN_PX } from "../display";
+import { contextDisplay, ROOM_TEXT_MIN_PX, setContextDisplay } from "../display";
 import { drawSlug, slugBox } from "../inscription";
 import { CUT_BEAT_SECONDS } from "../render";
 import { BONE_RGB, INSCRIPTION_FAMILY } from "../palette";
@@ -403,12 +403,18 @@ function drawOrphaned(f: Frame, w: WindowFile | null): void {
   // Not where the close states it, when there is a better place. There the
   // window's field is nearly gone; here the late seasons' three-point band is
   // lit, and the close's line sits on it. The court leaves one stretch of the
-  // centreline clear, midway between the top of the free-throw circle and the
-  // crown of the arc, which the drained mid-range keeps dark - but only a line
-  // short enough to stand wholly under the arc belongs there. One that is not
-  // (the room profile's, at a laptop's size) would have the arc's own line run
-  // through its first and last words, so it stays on the close's line, above
-  // the crown, where nothing engraved crosses it.
+  // centreline clear, between the top of the free-throw circle and the crown
+  // of the arc, which the drained mid-range keeps dark.
+  //
+  // In the near profile the line stands there whole, midway between the two,
+  // when it is short enough to stand wholly under the arc. The room profile's
+  // type is set larger than its court size, and on a laptop's window the
+  // whole line is wider than the arc there: the arc's own line would run
+  // through its first and last words. So in that profile it is broken at its
+  // separator, the selection over its share, and the two lines stand in that
+  // stretch together (`scopeUnderArc`). A line that fits nowhere under the
+  // arc, in either profile, stays on the close's line, above the crown, where
+  // nothing engraved crosses it.
   //
   // On the season after the window the line changes place without travelling:
   // the crown of the arc lies between the two places, and a line carried from
@@ -423,14 +429,20 @@ function drawOrphaned(f: Frame, w: WindowFile | null): void {
     const perTenth = view.s(1);
     const underArc = Math.hypot(box.width / 2 / perTenth, clearY + box.height / 2 / perTenth)
       < THREE_R;
-    const stand = (y: number, share: number): void =>
-      drawSlug(ctx, view, [scope], { x: 0, y }, remains * 0.4 * share);
-    if (underArc) {
-      const arrived = closedIn !== null && st.year === closedIn ? Math.min(1, st.phase * 2) : 1;
-      stand(SCOPE_CLOSE_Y, Math.max(0, 1 - arrived * 2));
-      stand(clearY, Math.max(0, arrived * 2 - 1));
+    const stand = (lines: string[], y: number, share: number): void =>
+      drawSlug(ctx, view, lines, { x: 0, y }, remains * 0.4 * share);
+    const arrived = closedIn !== null && st.year === closedIn ? Math.min(1, st.phase * 2) : 1;
+    const leaving = Math.max(0, 1 - arrived * 2);
+    const coming = Math.max(0, arrived * 2 - 1);
+    const broken = contextDisplay(ctx) === "room" ? scopeUnderArc(ctx, view, scope) : null;
+    if (broken) {
+      stand([scope], SCOPE_CLOSE_Y, leaving);
+      stand(broken.lines, broken.y, coming);
+    } else if (underArc) {
+      stand([scope], SCOPE_CLOSE_Y, leaving);
+      stand([scope], clearY, coming);
     } else {
-      stand(SCOPE_CLOSE_Y, 1);
+      stand([scope], SCOPE_CLOSE_Y, 1);
     }
   }
   if (closedIn !== null && st.year === closedIn) {
@@ -439,6 +451,68 @@ function drawOrphaned(f: Frame, w: WindowFile | null): void {
       "THESE ARE THE LAST FIGURES ANYONE OUTSIDE COULD COMPUTE",
     ], { x: 0, y: 320 }, remains * Math.min(1, st.phase * 2) * 0.5);
   }
+}
+
+/** The pen `scopeUnderArc` sets the broken line on. It is never shown and it
+ *  keeps nothing a frame reads: every measurement is taken fresh. */
+let scopeRuler: CanvasRenderingContext2D | null = null;
+
+/**
+ * The recovered-set line broken at its separator, and the anchor at which the
+ * two lines stand under the arc and over the free-throw circle, or null when
+ * the line has no separator to break at or the two do not fit there.
+ *
+ * The lines are measured by setting them through `drawSlug` on a pen of their
+ * own, at this view and in this profile, so their size, face and leading are
+ * that function's own: a copy of any of them kept here would go stale without
+ * a word. Each line's box is its ink as it is set. A line stands under the arc
+ * when its two top corners are inside the arc's circle, and over the
+ * free-throw circle when its foot is above that circle's top, which every
+ * line centred on the court's axis spans. Those bounds leave the anchor a
+ * range, and the block stands at its middle, so it is as far from the arc as
+ * from the circle.
+ */
+function scopeUnderArc(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  scope: string,
+): { lines: string[]; y: number } | null {
+  const lines = scope.split(" · ");
+  if (lines.length !== 2) return null;
+  scopeRuler ??= document.createElement("canvas").getContext("2d")!;
+  const pen = scopeRuler;
+  setContextDisplay(pen, contextDisplay(ctx));
+  const set: { y: number; up: number; down: number; reach: number }[] = [];
+  pen.fillText = (text: string, _x: number, y: number): void => {
+    const m = pen.measureText(text);
+    set.push({
+      y,
+      up: m.actualBoundingBoxAscent,
+      down: m.actualBoundingBoxDescent,
+      reach: Math.max(m.actualBoundingBoxLeft, m.actualBoundingBoxRight),
+    });
+  };
+  // Set with its anchor on the hoop's line, so each line's place below is its
+  // offset from wherever the block is stood.
+  drawSlug(pen, view, lines, { x: 0, y: 0 }, 1);
+  if (set.length !== lines.length) return null;
+
+  const hoop = view.sy(0);
+  const arc = view.s(THREE_R);
+  const circleTop = view.sy(FREE_THROW_Y + FREE_THROW_R);
+  // In court tenths above the hoop's line: the highest the anchor may stand
+  // with every line under the arc, and the lowest with every line over the
+  // free-throw circle.
+  let highest = Infinity;
+  let lowest = -Infinity;
+  for (const l of set) {
+    if (l.reach >= arc) return null;
+    highest = Math.min(highest, (l.y - l.up - hoop + Math.sqrt(arc * arc - l.reach * l.reach))
+      / view.scale);
+    lowest = Math.max(lowest, (l.y + l.down - circleTop) / view.scale);
+  }
+  if (!(lowest < highest)) return null;
+  return { lines, y: (lowest + highest) / 2 };
 }
 
 // --- Act III, four beats -----------------------------------------------------
