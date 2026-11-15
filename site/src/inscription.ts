@@ -74,8 +74,10 @@ const HOLD = 0.8;
 const STRIKE_DELAY = ARRIVAL_TAIL * SEASON_SECONDS;
 
 const FACE_SIZE = 34;
-/** Small enough that a numeral per season fits the annulus without touching. */
-const RESIDENT_SCALE = 0.3;
+/** Small enough that a numeral per season fits the annulus without touching,
+ *  and large enough that the settled ring reads on a laptop at normal viewing
+ *  distance, where the piece is judged. */
+const RESIDENT_SCALE = 0.34;
 
 export interface Inscription {
   year: number;
