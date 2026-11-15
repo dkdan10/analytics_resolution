@@ -387,6 +387,13 @@ function overlaps(a: Box, b: Box, pad: number): boolean {
  * without it is a different layout, and under the year alone whichever one was
  * made first would have stood for the life of the page. `layoutKey` names the
  * two apart, so what is spoken follows what is resident now.
+ *
+ * The seconds the terms are spaced over decide which earlier terms a later one
+ * must clear, so they are part of the layout and come from the year too: the
+ * season's own writing span, whichever frame asks. The window season is asked
+ * for by two kinds of frame that keep different clocks (see
+ * `ledgerUtterances`), and a layout spaced by the asking frame's clock would be
+ * whichever of them asked first.
  */
 const utterances = new Map<string, Term[]>();
 
@@ -399,6 +406,8 @@ function utterancesFor(
   season: Season,
   sample: Sample,
   seasons: Season[],
+  /** The season's own writing span, in seconds: a function of the year, not
+   *  of the frame that asks. */
   writingSeconds: number,
   /** Boxes occupied for the whole season - the league's names in Acts III and
    *  V, the window's figures while that file is resident, and the pin's
@@ -830,12 +839,23 @@ function pinCaptionAsSet(f: Frame, season: Season): CaptionSet | null {
  * THIS EXISTS BECAUSE OF A CACHE HAZARD, not for tidiness. `utterancesFor`
  * memoises by the year and the window file's residency, never the viewport, and
  * that key is the invariant that keeps the plate speaking the same words on
- * every screen — but it is only sound while every caller passes the same
- * `writingSeconds` and the same `fixed` boxes for a given key. THE STACK's NAME THE ACTION is the second caller this file has ever had.
- * Had it computed its own obstacle set, the memo would have handed whichever
- * hand asked FIRST its own layout and the other hand a layout built for someone
- * else, silently, for the life of the page — and the purity probe could
- * not have caught it, because both hands would be consistent with themselves.
+ * every screen — but it is only sound while everything the layout is built from
+ * is a function of what the key names. So both of its inputs are derived here,
+ * from the year and never from the asking frame or hand: the `fixed` boxes, and
+ * the seconds the terms are spaced over. THE STACK's NAME THE ACTION is the
+ * second caller this file has ever had. Had it computed its own obstacle set,
+ * the memo would have handed whichever hand asked FIRST its own layout and the
+ * other hand a layout built for someone else, silently, for the life of the
+ * page — and the purity probe could not have caught it, because it empties the
+ * memo before every capture.
+ *
+ * The same holds between two frames of one hand. The window season is asked
+ * for from inside the window, where its register is written over the window's
+ * own writing span, and again as the receding season under the one after,
+ * where the clock is an ordinary season's tail. Those are two lengths under one
+ * key, so the layout is spaced over the window's span whichever frame asks,
+ * and only the clock returned beside it (`interval`, `elapsed`) follows the
+ * frame.
  *
  * So there is one derivation and both hands call it. That the two hands then
  * speak the same words in the same places is not a side effect to apologise for:
@@ -852,12 +872,17 @@ export function ledgerUtterances(
   const seg = schedule.byYear.get(year);
   if (!season || !sample || !seg) return null;
   // A season spends `ARRIVAL_TAIL` of itself being written; the utterances are
-  // spread over exactly that, so a term lands with the marks it describes.
+  // spread over exactly that, so a term lands with the marks it describes. The
+  // window season is written over the window's own span instead.
+  const tailSecs = seg.duration * ARRIVAL_TAIL;
+  const windowSecs = windowSecondAtPhase(LEDGER_WINDOW_WRITING_SPAN.to)
+    - windowSecondAtPhase(LEDGER_WINDOW_WRITING_SPAN.from);
+  // What the layout is spaced over: the year's writing span, whoever asks.
+  const layoutSecs = actOf(year) === 3 ? windowSecs : tailSecs;
+  // What this frame's clock counts: the same, except for the window season
+  // receding under the season after it, which is read on an ordinary tail.
   const isWindow = f.st.act === 3 && f.st.year === year;
-  const secs = isWindow
-    ? windowSecondAtPhase(LEDGER_WINDOW_WRITING_SPAN.to)
-      - windowSecondAtPhase(LEDGER_WINDOW_WRITING_SPAN.from)
-    : seg.duration * ARRIVAL_TAIL;
+  const secs = isWindow ? windowSecs : tailSecs;
   // The fixed obstacles: the league's boxes (a function of the act, so of the
   // year, and in the window of the window file) and the pin's caption (a
   // function of the season). None is a property of the hand or the viewport, so
@@ -867,7 +892,7 @@ export function ledgerUtterances(
   const fixed = pinBox
     ? [...leagueObstacles(data, year), pinBox]
     : leagueObstacles(data, year);
-  const terms = utterancesFor(layoutKey(data, year), season, sample, data.seasons, secs, fixed);
+  const terms = utterancesFor(layoutKey(data, year), season, sample, data.seasons, layoutSecs, fixed);
   const interval = secs / Math.max(1, terms.length);
   const remnant = isWindow ? ledgerWindowRemnant(f.st.phase) : null;
   const elapsed = isWindow
