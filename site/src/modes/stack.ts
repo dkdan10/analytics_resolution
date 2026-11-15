@@ -201,10 +201,10 @@ export function drawStackHand(f: Frame): void {
   // 8b. JOIN THE INSTRUMENTS — the archive's two words about where, shot by
   //     shot. Table order is layer order, so the eighth operation draws after
   //     the seventh and before the disclosures, like every bit before it.
-  //     Its hairlines stop short of its own disclosure line, which rule 9
-  //     draws later over the same ground.
+  //     Its hairlines stop short of the disclosure lines, which rule 9 draws
+  //     later over the same ground.
   const join = progress("join");
-  if (join > 0 && inWindow(f)) drawQuarrel(f, join, joinScopeSlots(f, ops));
+  if (join > 0 && inWindow(f)) drawQuarrel(f, join, disclosureSlots(f, ops));
 
   // 9. Last, over everything.
   drawDisclosures(f, ops);
@@ -493,8 +493,8 @@ function drawCount(f: Frame, progress: number): void {
  * would need registering in probe/shared.ts:cold().
  *
  * THE HAIRLINES STOP SHORT OF THE TYPE THAT SCOPES THEM: the count line below,
- * and any slot the caller passes in `clearOf` (THE STACK passes its disclosure
- * line). A record that crosses one is interrupted there and drawn on either
+ * and any slot the caller passes in `clearOf` (THE STACK passes the box its
+ * disclosure lines stand in). A record that crosses one is interrupted there and drawn on either
  * side, and one lying wholly under the type is left whole, so every record in
  * the budget still draws and the count stays true. The slots are measured each
  * frame from the slug the line is set in (`slugSlots`), so nothing is
@@ -643,12 +643,24 @@ function drawDisclosures(f: Frame, ops: StackOps): void {
 /** Where the disclosures stand: their first line, in court tenths. */
 const DISCLOSURE_AT = { x: 0, y: COURT.y1 - STACK_DISCLOSURE_INSET };
 
-/** The slot of the join's own line among the disclosures, where it stands this
- *  frame, for the join's hairlines to stop short of. None when it is not up. */
-function joinScopeSlots(f: Frame, ops: StackOps): Slot[] {
+/** Where the disclosures stand this frame, as one slot for the join's hairlines
+ *  to stop short of: the box round every line's slot, so it is the join's own
+ *  line's slot when that is the only one up. Every line, not only the join's:
+ *  the lines other renderings owe are set above it on the same ground, and a
+ *  hairline broken at one line and run through the others reads as a break for
+ *  that line alone. One box, not a slot per line: the lines are centred and of
+ *  different lengths, and a hairline cut line by line keeps a short piece of
+ *  itself in the notch beside a shorter line, a mark standing next to the type.
+ *  None when no disclosure is up. */
+function disclosureSlots(f: Frame, ops: StackOps): Slot[] {
   const lines = disclosureLines(f, ops);
-  const i = lines.indexOf(f.data.window?.quarrel_bin.scope ?? "");
-  return i < 0 ? [] : [slugSlots(f.ctx, f.view, lines, DISCLOSURE_AT, "aside")[i]!];
+  if (!lines.length) return [];
+  const slots = slugSlots(f.ctx, f.view, lines, DISCLOSURE_AT, "aside");
+  const x0 = Math.min(...slots.map((s) => s.x));
+  const x1 = Math.max(...slots.map((s) => s.x + s.width));
+  const y0 = slots[0]!.y;
+  const y1 = slots[slots.length - 1]!.y + slots[slots.length - 1]!.height;
+  return [{ x: x0, y: y0, width: x1 - x0, height: y1 - y0 }];
 }
 
 /** The disclosures this frame owes, in the order they are set. */
