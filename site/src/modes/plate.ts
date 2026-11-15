@@ -237,9 +237,9 @@ export function drawPlateHand(f: Frame): void {
   // decision; this exists so that decision can be made from captured frames.
   if (f.candidate === "quarrel" && inWindow) drawQuarrel(f);
 
-  // The terminal beat: the day the public tracking data ends. The date is the
+  // The terminal beat: the last day of public tracking data. The date is the
   // corpus probe's last game day in the public files, and the line under it
-  // says only that the public data ends there; when the feed itself was
+  // says only that: no later day was ever public. When the feed itself was
   // switched off is a later date, which this receipt does not claim.
   //
   // After the window it leaves as it came: over as many seconds as it took to
@@ -258,7 +258,7 @@ export function drawPlateHand(f: Frame): void {
     drawSlug(
       ctx,
       view,
-      [data.corpus.date_range[1], "THE PUBLIC TRACKING DATA ENDS"],
+      [data.corpus.date_range[1], "THE LAST DAY OF PUBLIC TRACKING DATA"],
       // Set up from its last line, which stands above the three-point arc's
       // crown and the settled numeral annulus: whatever size the display
       // profile gives the type, the receipt crosses neither during the hold.
