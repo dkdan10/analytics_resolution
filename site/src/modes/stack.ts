@@ -523,16 +523,14 @@ export function drawQuarrel(f: Frame, progress = f.st.phase, clearOf: Slot[] = [
   const a = remains * QUARREL_ALPHA;
   if (a <= 0.01) return;
   // The true scale, confessed beside the flood — THE MEASURE's idiom: the
-  // drawn-against-entered fraction so the sample never implies it is
-  // everything, and the population's own count beside it. Once every record
-  // has entered, the entered count IS the population, and the line says it
-  // once. Every numeral is a count from the artifact or from this frame's
+  // sample on the plate against the whole population it is drawn from, so it
+  // never implies it is everything. The line confesses that at every instant,
+  // in one wording from the flood's first frame to its last, so it does not
+  // change its words or its width in the frame the last record enters.
+  // Every numeral is a count from the artifact or from this frame's
   // arithmetic; none is typed.
   const drawn = entered - from;
-  const count = entered === q.n
-    ? `${drawn.toLocaleString()} OF ${q.n.toLocaleString()} DRAWN`
-    : `${drawn.toLocaleString()} DRAWN OF ${entered.toLocaleString()} ENTERED`
-      + ` · ${q.n.toLocaleString()} DETECTED`;
+  const count = `${drawn.toLocaleString()} OF ${q.n.toLocaleString()} DRAWN`;
   const slots = [...slugSlots(ctx, view, [count], QUARREL_COUNT_AT, "aside"), ...clearOf];
   const court: Slot = { x: view.sx(COURT.x0), y: view.sy(COURT.y1),
     width: view.s(COURT.x1 - COURT.x0), height: view.s(COURT.y1 - COURT.y0) };
