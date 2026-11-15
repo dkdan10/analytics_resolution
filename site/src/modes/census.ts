@@ -808,7 +808,9 @@ function drawReceipt(
   const total = Object.keys(season.classification[taxonomy] ?? {}).length;
   let y = pad + step;
   ctx.fillStyle = `rgba(${BONE_RGB}, ${CENSUS_SUB_ALPHA * remains * k})`;
-  ctx.fillText(taxonomy, pad, y);
+  // The league's own column, as the header over the plate prints it: one
+  // filing has one name on the screen.
+  ctx.fillText(f.data.taxonomyColumns[taxonomy] ?? taxonomy, pad, y);
   y += step + 3;
   ctx.fillStyle = `rgba(${BONE_RGB}, ${CENSUS_ROW_ALPHA * remains * k})`;
   for (const w of words) {

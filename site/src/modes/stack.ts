@@ -410,9 +410,9 @@ function drawCount(f: Frame, progress: number): void {
   ctx.font = `${base}px ${SLUG_FAMILY}`;
   const fit = (lines: string[]): number => base * Math.min(1, gutterWidth
     / lines.reduce((m, r) => Math.max(m, ctx.measureText(r).width), 1));
-  // Which of the record's own columns this filing IS. The record supplies the
-  // name of its own field; this hand does not name it.
-  const heading = room ? taxonomy : data.taxonomyColumns[taxonomy] ?? taxonomy;
+  // Which of the record's own columns this filing IS, in both profiles. The
+  // record supplies the name of its own field; this hand does not name it.
+  const heading = data.taxonomyColumns[taxonomy] ?? taxonomy;
   // The tail is a count, never a cloud — THE CENSUS's rule, kept.
   const rest = Object.keys(season.classification[taxonomy] ?? {}).length - named.length;
   // The tail in the two halves its separator divides it into, which are also
